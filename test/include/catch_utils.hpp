@@ -14,8 +14,8 @@ static std::random_device
     rd;  // Will be used to obtain a seed for the random number engine
 static std::mt19937 gen(rd());
 
-uint32_t runif(uint32_t from, uint32_t to) {
-  std::uniform_int_distribution<uint32_t> distribution(from, to);
+uint32_t runif(int from, int to) {
+  std::uniform_int_distribution<int> distribution(from, to);
   return distribution(gen);
 }
 
@@ -43,8 +43,8 @@ void randomCString(char* str, uint32_t length) {
 
 painlessmesh::protocol::Single createSingle(int length = -1) {
   auto pkg = painlessmesh::protocol::Single();
-  pkg.dest = runif(0, std::numeric_limits<uint32_t>::max());
-  pkg.from = runif(0, std::numeric_limits<uint32_t>::max());
+  pkg.dest = runif(0, std::numeric_limits<int>::max());
+  pkg.from = runif(0, std::numeric_limits<int>::max());
 
   if (length < 0) length = runif(0, 4096);
   pkg.msg = randomString(length);
@@ -53,8 +53,8 @@ painlessmesh::protocol::Single createSingle(int length = -1) {
 
 painlessmesh::protocol::Broadcast createBroadcast(int length = -1) {
   auto pkg = painlessmesh::protocol::Broadcast();
-  pkg.dest = runif(0, std::numeric_limits<uint32_t>::max());
-  pkg.from = runif(0, std::numeric_limits<uint32_t>::max());
+  pkg.dest = runif(0, std::numeric_limits<int>::max());
+  pkg.from = runif(0, std::numeric_limits<int>::max());
   if (length < 0) length = runif(0, 4096);
   pkg.msg = randomString(length);
   return pkg;
@@ -83,7 +83,7 @@ painlessmesh::protocol::Broadcast createBroadcast(int length = -1) {
 */
 painlessmesh::protocol::NodeTree createNodeTree(int nodes, int contains_root) {
   auto pkg = painlessmesh::protocol::NodeTree();
-  pkg.nodeId = runif(0, std::numeric_limits<uint32_t>::max());
+  pkg.nodeId = runif(0, std::numeric_limits<int>::max());
   if (contains_root == 0) {
     pkg.root = true;
   }
@@ -109,8 +109,8 @@ painlessmesh::protocol::NodeTree createNodeTree(int nodes, int contains_root) {
 painlessmesh::protocol::NodeSyncReply createNodeSyncReply(
     int nodes = -1, bool contains_root = true) {
   auto pkg = painlessmesh::protocol::NodeSyncReply();
-  pkg.dest = runif(0, std::numeric_limits<uint32_t>::max());
-  pkg.from = runif(0, std::numeric_limits<uint32_t>::max());
+  pkg.dest = runif(0, std::numeric_limits<int>::max());
+  pkg.from = runif(0, std::numeric_limits<int>::max());
   if (nodes < 0) nodes = runif(1, 254);
   auto rt = -1;
   if (contains_root) rt = runif(0, nodes - 1);
@@ -124,8 +124,8 @@ painlessmesh::protocol::NodeSyncReply createNodeSyncReply(
 painlessmesh::protocol::NodeSyncRequest createNodeSyncRequest(
     int nodes = -1, bool contains_root = true) {
   auto pkg = painlessmesh::protocol::NodeSyncRequest();
-  pkg.dest = runif(0, std::numeric_limits<uint32_t>::max());
-  pkg.from = runif(0, std::numeric_limits<uint32_t>::max());
+  pkg.dest = runif(0, std::numeric_limits<int>::max());
+  pkg.from = runif(0, std::numeric_limits<int>::max());
   if (nodes < 0) nodes = runif(1, 254);
   auto rt = -1;
   if (contains_root) rt = runif(0, nodes - 1);
@@ -172,12 +172,12 @@ painlessmesh::protocol::NodeSyncRequest createNodeSyncRequest(
 */
 painlessmesh::protocol::TimeSync createTimeSync(int type = -1) {
   auto pkg = painlessmesh::protocol::TimeSync();
-  pkg.dest = runif(0, std::numeric_limits<uint32_t>::max());
-  pkg.from = runif(0, std::numeric_limits<uint32_t>::max());
+  pkg.dest = runif(0, std::numeric_limits<int>::max());
+  pkg.from = runif(0, std::numeric_limits<int>::max());
 
   if (type < 0) type = runif(0, 2);
   pkg.msg.type = type;
-  auto t = runif(0, std::numeric_limits<uint32_t>::max());
+  auto t = runif(0, std::numeric_limits<int>::max());
   if (type >= 1) pkg.msg.t0 = t;
   if (type >= 2) {
     t += runif(0, 10000);
@@ -190,12 +190,12 @@ painlessmesh::protocol::TimeSync createTimeSync(int type = -1) {
 
 painlessmesh::protocol::TimeDelay createTimeDelay(int type = -1) {
   auto pkg = painlessmesh::protocol::TimeDelay();
-  pkg.dest = runif(0, std::numeric_limits<uint32_t>::max());
-  pkg.from = runif(0, std::numeric_limits<uint32_t>::max());
+  pkg.dest = runif(0, std::numeric_limits<int>::max());
+  pkg.from = runif(0, std::numeric_limits<int>::max());
 
   if (type < 0) type = runif(0, 2);
   pkg.msg.type = type;
-  auto t = runif(0, std::numeric_limits<uint32_t>::max());
+  auto t = runif(0, std::numeric_limits<int>::max());
   if (type == 1) pkg.msg.t0 = t;
   if (type == 2) {
     t += runif(0, 10000);
