@@ -30,7 +30,7 @@ typedef boost::asio::ip::address IPAddress;
 
 class AsyncClient {
  public:
-  AsyncClient(boost::asio::io_service& io_service)
+  AsyncClient(boost::asio::io_context& io_service)
       : _io_service(io_service), mSocket(_io_service) {}
 
   bool connect(IPAddress ipaddress, uint16_t port) {
@@ -144,7 +144,7 @@ class AsyncClient {
   tcp::socket& socket() { return mSocket; }
 
  protected:
-  boost::asio::io_service& _io_service;
+  boost::asio::io_context& _io_service;
   tcp::socket mSocket;
 
   char mInputBuffer[TCP_MSS];
@@ -216,7 +216,7 @@ class AsyncClient {
 
 class AsyncServer {
  public:
-  AsyncServer(boost::asio::io_service& io_service, uint16_t port)
+  AsyncServer(boost::asio::io_context& io_service, uint16_t port)
       : _io_service(io_service),
         // mSocket(io_service),
         _port(port),
@@ -236,10 +236,10 @@ class AsyncServer {
     setsockopt(mAcceptor.native_handle(), SOL_SOCKET,
                SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
     boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), _port);
-    mAcceptor.set_option( boost::asio::socket_base::reuse_address(true) );
-    mAcceptor.set_option( boost::asio::ip::tcp::no_delay(true) );
-    mAcceptor.set_option( boost::asio::socket_base::send_buffer_size( 65536 ) );
-    mAcceptor.set_option( boost::asio::socket_base::receive_buffer_size( 65536 ) );
+    mAcceptor.set_option(boost::asio::socket_base::reuse_address(true));
+    mAcceptor.set_option(boost::asio::ip::tcp::no_delay(true));
+    mAcceptor.set_option(boost::asio::socket_base::send_buffer_size(65536));
+    mAcceptor.set_option(boost::asio::socket_base::receive_buffer_size(65536));
     mAcceptor.bind(endpoint);
     mAcceptor.listen();
     initAccept();
@@ -252,7 +252,7 @@ class AsyncServer {
   void setNoDelay(bool value = true) {}
 
  protected:
-  boost::asio::io_service& _io_service;
+  boost::asio::io_context& _io_service;
   uint16_t _port;
   tcp::acceptor mAcceptor;
   AcConnectHandler _connect_cb = 0;

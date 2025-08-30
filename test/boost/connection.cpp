@@ -24,9 +24,9 @@ SCENARIO("We can send messages") {
   using namespace painlessmesh::logger;
   Log.setLogLevel(ERROR | COMMUNICATION);
 
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_context;
 
-  auto pServer = std::make_shared<AsyncServer>(io_service, 6081);
+  auto pServer = std::make_shared<AsyncServer>(io_context, 6081);
 
   std::shared_ptr<tcp::BufferedConnection> conn1;
   pServer->onClient([&conn1](void *, AsyncClient *client) {
@@ -34,17 +34,17 @@ SCENARIO("We can send messages") {
   });
   pServer->begin();
 
-  auto client = new AsyncClient(io_service);
+  auto client = new AsyncClient(io_context);
   bool connected = false;
   std::shared_ptr<tcp::BufferedConnection> conn2;
   client->onConnect([&conn2, &connected](void *, AsyncClient *client) {
     conn2 = std::make_shared<tcp::BufferedConnection>(client);
     connected = true;
   });
-  client->connect(boost::asio::ip::address::from_string("127.0.0.1"), 6081);
+  client->connect(boost::asio::ip::make_address("127.0.0.1"), 6081);
 
   while (!connected) {
-    io_service.poll();
+    io_context.poll();
   }
 
   Scheduler scheduler;
@@ -67,7 +67,7 @@ SCENARIO("We can send messages") {
   conn2->write("Blaat3");
   for (auto i = 0; i < 1000; ++i) {
     scheduler.execute();
-    io_service.poll();
+    io_context.poll();
   }
 
   REQUIRE(last2 == "Blaat");
@@ -79,7 +79,7 @@ SCENARIO("We can send messages") {
 
   for (auto i = 0; i < 1000; ++i) {
     scheduler.execute();
-    io_service.poll();
+    io_context.poll();
   }
 
   REQUIRE(discon1);
