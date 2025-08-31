@@ -42,11 +42,11 @@ namespace plugin {
  * [painlessMeshBoost](http://gitlab.com/painlessMesh/painlessMeshBoost) for a
  * possible implementation of a distribution node.
  *
- * Once a node receives a announce message it will check it against its own role
- * and hardware to discover if it is suitable this node. If that checks out and
- * the MD5 is different than its own MD5 it will send a data request back to the
- * firmware distribution node. This request also includes a partNo, to determine
- * which part of the data it needs (starting from zero).
+ * Once a node receives an announce message it will check it against its own
+ * role and hardware to discover if it is suitable this node. If that checks out
+ * and the MD5 is different than its own MD5 it will send a data request back to
+ * the firmware distribution node. This request also includes a partNo, to
+ * determine which part of the data it needs (starting from zero).
  *
  * When the distribution node receives a data request, it sends the data back to
  * the node (with a data message). The node will then write this data and
