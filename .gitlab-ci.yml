@@ -6,7 +6,6 @@ platformio:
     - apt-get update -qq && apt-get install -y -qq pipx
     - pipx install platformio
     - export PATH="$PATH:~/.local/bin"
-    - platformio lib --global install ArduinoJson TaskScheduler PubSubClient ESPAsyncTCP AsyncTCP
   script:
     - bash test/ci/test_platformio.sh
 
