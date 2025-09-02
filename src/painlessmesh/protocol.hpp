@@ -17,7 +17,7 @@ namespace router {
  * there. The TIME_SYNC and NODE_SYNC packages are NEIGHBOUR. SINGLE messages
  * are meant for a specific node. When another node receives this message, it
  * will look in its routing information and send it on to the correct node,
- * withouth processing the message in any other way. Only the targetted node
+ * without processing the message in any other way. Only the targetted node
  * will actually parse/handle this message (without sending it on). Finally,
  * BROADCAST message are send to every node and processed/handled by every node.
  * */

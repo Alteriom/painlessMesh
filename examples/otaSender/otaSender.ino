@@ -21,6 +21,12 @@
 // THE INCLUDED .bin DOES NOT HAVE OTA SUPPORT SO THIS MUST BE
 // REFLASHED
 //************************************************************
+
+#ifdef ESP32
+#else
+#define CS_PIN  D8
+#endif
+
 #include "painlessMesh.h"
 
 #include <FS.h>
@@ -53,9 +59,11 @@ void setup() {
   mesh.setContainsRoot(true);
 
   delay(1000);
-
-
+  #ifdef ESP32
   if (!SD.begin()) {
+  #else
+  if (!SD.begin(CS_PIN)) {
+  #endif
     rebootEspWithReason("Could not mount SD card, restarting");
   }
 
@@ -126,7 +134,7 @@ void setup() {
             //This program will not reach loop() so we dont have to worry about
             //file scope.
             mesh.update();
-            usleep(1000);
+            delay(1000);
           }
         }
       }
