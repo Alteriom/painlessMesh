@@ -1,3 +1,4 @@
+#include <boost/asio/ip/address.hpp>
 #define CATCH_CONFIG_MAIN
 
 #include "catch2/catch.hpp"
@@ -20,7 +21,7 @@ painlessmesh::logger::LogClass Log;
 
 class MeshTest : public PMesh {
  public:
-  MeshTest(Scheduler *scheduler, size_t id, boost::asio::io_service &io)
+  MeshTest(Scheduler *scheduler, size_t id, boost::asio::io_context &io)
       : io_service(io) {
     this->nodeId = id;
     this->init(scheduler, this->nodeId);
@@ -33,17 +34,17 @@ class MeshTest : public PMesh {
   void connect(MeshTest &mesh) {
     auto pClient = new AsyncClient(io_service);
     painlessmesh::tcp::connect<Connection, PMesh>(
-        (*pClient), boost::asio::ip::address::from_string("127.0.0.1"),
-        mesh.nodeId, (*this));
+        (*pClient), boost::asio::ip::make_address("127.0.0.1"), mesh.nodeId,
+        (*this));
   }
 
   std::shared_ptr<AsyncServer> pServer;
-  boost::asio::io_service &io_service;
+  boost::asio::io_context &io_service;
 };
 
 class Nodes {
  public:
-  Nodes(Scheduler *scheduler, size_t n, boost::asio::io_service &io)
+  Nodes(Scheduler *scheduler, size_t n, boost::asio::io_context &io)
       : io_service(io) {
     for (size_t i = 0; i < n; ++i) {
       auto m = std::make_shared<MeshTest>(scheduler, i + baseID, io_service);
@@ -70,14 +71,14 @@ class Nodes {
 
   size_t baseID = 6481;
   std::vector<std::shared_ptr<MeshTest>> nodes;
-  boost::asio::io_service &io_service;
+  boost::asio::io_context &io_service;
 };
 
 SCENARIO("We can setup and connect two meshes over localport") {
   using namespace logger;
   Scheduler scheduler;
   Log.setLogLevel(ERROR);
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_service;
 
   PMesh mesh1;
   mesh1.init(&scheduler, 6841);
@@ -89,8 +90,7 @@ SCENARIO("We can setup and connect two meshes over localport") {
   mesh2.init(&scheduler, 6842);
   auto pClient = new AsyncClient(io_service);
   painlessmesh::tcp::connect<Connection, PMesh>(
-      (*pClient), boost::asio::ip::address::from_string("127.0.0.1"), 6841,
-      mesh2);
+      (*pClient), boost::asio::ip::make_address("127.0.0.1"), 6841, mesh2);
 
   for (auto i = 0; i < 100; ++i) {
     mesh1.update();
@@ -106,7 +106,7 @@ SCENARIO("The MeshTest class works correctly") {
   using namespace logger;
   Scheduler scheduler;
   Log.setLogLevel(ERROR);
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_service;
 
   MeshTest mesh1(&scheduler, 6841, io_service);
   MeshTest mesh2(&scheduler, 6842, io_service);
@@ -128,7 +128,7 @@ SCENARIO("We can send a message using our Nodes class") {
   Log.setLogLevel(ERROR);
 
   Scheduler scheduler;
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_service;
   Nodes n(&scheduler, 12, io_service);
 
   for (auto i = 0; i < 1000; ++i) {
@@ -176,7 +176,7 @@ SCENARIO("Time sync works") {
   Log.setLogLevel(ERROR);
 
   Scheduler scheduler;
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_service;
   auto dim = runif(8, 15);
   Nodes n(&scheduler, dim, io_service);
 
@@ -205,7 +205,7 @@ SCENARIO("Rooting works") {
   Log.setLogLevel(ERROR);
 
   Scheduler scheduler;
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_service;
   auto dim = runif(8, 15);
   Nodes n(&scheduler, dim, io_service);
 
@@ -235,7 +235,7 @@ SCENARIO("Network loops are detected") {
   Log.setLogLevel(ERROR);
 
   Scheduler scheduler;
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_service;
   MeshTest mesh1(&scheduler, 6841, io_service);
   MeshTest mesh2(&scheduler, 6842, io_service);
   MeshTest mesh3(&scheduler, 6843, io_service);
@@ -281,7 +281,7 @@ SCENARIO("Disconnects are detected and forwarded") {
   Log.setLogLevel(ERROR);
 
   Scheduler scheduler;
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_service;
   auto dim = runif(10, 15);
   Nodes n(&scheduler, dim, io_service);
 
@@ -338,7 +338,7 @@ SCENARIO("Disconnects don't lead to crashes") {
   Log.setLogLevel(ERROR);
 
   Scheduler scheduler;
-  boost::asio::io_service io_service;
+  boost::asio::io_context io_service;
   auto dim = runif(10, 15);
   Nodes n(&scheduler, dim, io_service);
 

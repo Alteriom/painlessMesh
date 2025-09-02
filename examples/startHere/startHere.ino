@@ -11,11 +11,13 @@
 #include <painlessMesh.h>
 
 // some gpio pin that is connected to an LED...
-// on my rig, this is 5, change to the right number of your LED.
-#ifdef LED_BUILTIN
-#define LED LED_BUILTIN
-#else
-#define LED 2
+// on my rig, this is 2, change to the right number of your LED.
+#ifndef LED
+  #ifdef LED_BUILTIN
+    #define LED LED_BUILTIN
+  #else
+    #define LED 2
+  #endif
 #endif
 
 #define   BLINK_PERIOD    3000 // milliseconds until cycle repeat
