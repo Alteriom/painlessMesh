@@ -1,0 +1,50 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: normal
+
+platformio:
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq pipx
+    - pipx install platformio
+    - export PATH="$PATH:~/.local/bin"
+  script:
+    # Only chosing one, to save some ci minutes
+    - bash test/ci/test_platformio.sh --random
+
+catch_testing:
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq cmake
+    - apt-get install libboost-system-dev -y -qq
+    - cmake . -DCMAKE_CXX_FLAGS="-Wall -Werror"
+    - make
+  script:
+    - run-parts --regex catch_ bin/
+
+arduino:
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq python3-serial
+    # - pipx ensurepath
+    # - pipx install pyserial 
+  script:
+    - bash test/ci/test_arduino.sh
+
+pages:
+  script:
+  - apt-get update && apt-get install -y doxygen
+  - doxygen doxygen/Doxyfile
+  - mv doxygen/documentation/html/ public/
+  artifacts:
+    paths:
+    - public
+  only:
+  - master
+
+pages_develop:
+  script:
+  - apt-get update && apt-get install -y doxygen
+  - doxygen doxygen/Doxyfile
+  - mv doxygen/documentation/html/ html/
+  artifacts:
+    paths:
+    - html
+  only:
+  - develop 

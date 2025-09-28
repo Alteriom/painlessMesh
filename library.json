@@ -1,0 +1,30 @@
+{
+    "name": "painlessMesh",
+    "keywords": "ethernet, m2m, iot",
+    "description": "painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. It handles routing and network management automatically, so you can focus on your application. The library uses JSON-based messaging and syncs time across all nodes, making it ideal for coordinated behaviour like synchronized light displays or sensor networks reporting to a central node.",
+    "repository": {
+        "type": "git",
+        "url": "https://gitlab.com/painlessMesh/painlessMesh"
+    },
+    "version": "1.5.6",
+    "frameworks": "arduino",
+    "platforms": "espressif8266, espressif32",
+    "dependencies": [
+        { "owner": "esp32async", "name": "AsyncTCP", "version": "^3.4.7",  "platforms" : ["espressif32"] },
+        { "owner": "esp32async", "name": "ESPAsyncTCP", "version": "^2.0.0",  "platforms" : ["espressif8266"] },
+        { "owner": "bblanchon", "name": "ArduinoJson", "version": "^7.4.2" },
+        { "owner": "arkhipenko", "name": "TaskScheduler", "version": "^3.8.5" }
+    ],
+    "authors": [
+        { "name": "Scotty Franzyshen" }, 
+        { 
+            "name": "Coopdis",
+            "url": "https://github.com/Coopdis"
+        }, 
+        { "name": "Edwin van Leeuwen" },
+        { "name": "Germán Martín" },
+        { "name": "Maximilian Schwarz" },
+        { "name": "Doanh Doanh" }
+    ],
+    "headers": "painlessMesh.h"
+}
