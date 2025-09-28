@@ -84,6 +84,36 @@ run-parts --regex catch_ bin/  # Run tests
 - **Dependencies**: ArduinoJson 6.x, TaskScheduler 3.x  
 - **Development**: CMake, Ninja, Boost (for desktop testing)
 
+### CI/CD Pipeline
+
+painlessMesh features a state-of-the-art automated CI/CD pipeline:
+
+**🔄 Continuous Integration:**
+- Automated builds on gcc/clang with strict warnings
+- Cross-platform testing (Arduino CLI, PlatformIO)
+- Code quality and formatting validation
+- Comprehensive test suite execution
+
+**🚀 Automated Releases:**
+- Semantic versioning with automated tagging
+- GitHub Releases with changelog generation
+- Library package distribution
+- Documentation deployment to GitHub Pages
+- Arduino Library Manager & PlatformIO Registry integration
+
+**📋 Release Management:**
+```bash
+# Bump version and prepare release
+./scripts/bump-version.sh patch  # or minor, major
+./scripts/validate-release.sh    # Validate release readiness
+
+# Edit CHANGELOG.md, then commit with release prefix
+git commit -am "release: v1.5.7"
+git push origin main  # Triggers automated release
+```
+
+See [RELEASE_GUIDE.md](RELEASE_GUIDE.md) for complete release documentation.
+
 ## Contributing
 
 We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `master` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `master` branch. For more details see the [CONTRIBUTING](https://gitlab.com/painlessMesh/painlessMesh/blob/master/CONTRIBUTING.md) file.
