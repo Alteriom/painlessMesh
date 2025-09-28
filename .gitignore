@@ -29,3 +29,12 @@ test/ci/*.json
 test/ci/*.yaml
 test/ci/*.sig
 
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# MCP server logs and cache
+.mcp/
+mcp-logs/

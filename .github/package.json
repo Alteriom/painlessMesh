@@ -1,0 +1,26 @@
+{
+  "name": "painlessmesh-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for painlessMesh development",
+  "main": "mcp-painlessmesh.js",
+  "scripts": {
+    "start": "node mcp-painlessmesh.js",
+    "dev": "node --inspect mcp-painlessmesh.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "painlessmesh",
+    "alteriom",
+    "esp32",
+    "esp8266",
+    "mesh-networking"
+  ],
+  "author": "Alteriom",
+  "license": "MIT"
+}

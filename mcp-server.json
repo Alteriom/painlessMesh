@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/runner/work/painlessMesh/painlessMesh"],
+      "env": {}
+    },
+    "bash": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-bash"],
+      "env": {}
+    },
+    "git": {
+      "command": "npx", 
+      "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "/home/runner/work/painlessMesh/painlessMesh"],
+      "env": {}
+    }
+  }
+}
