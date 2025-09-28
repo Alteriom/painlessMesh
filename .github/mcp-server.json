@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/runner/work/painlessMesh/painlessMesh"],
+      "env": {
+        "FILESYSTEM_ACCESS": "read_write"
+      }
+    },
+    "bash": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-bash"],
+      "env": {
+        "BASH_TIMEOUT": "300"
+      }
+    },
+    "git": {
+      "command": "npx", 
+      "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "/home/runner/work/painlessMesh/painlessMesh"],
+      "env": {
+        "GIT_SAFE_DIRECTORY": "/home/runner/work/painlessMesh/painlessMesh"
+      }
+    },
+    "stdio": {
+      "command": "node",
+      "args": ["/home/runner/work/painlessMesh/painlessMesh/.github/mcp-painlessmesh.js"],
+      "env": {
+        "PROJECT_ROOT": "/home/runner/work/painlessMesh/painlessMesh"
+      }
+    }
+  }
+}
