@@ -42,42 +42,47 @@ painlessMesh makes use of the following libraries, which can be installed throug
 
 If platformio is used to install the library, then the dependencies will be installed automatically.
 
-## Getting help
+## Key Features
 
-There is help available from a variety of sources:
+- **🔄 Automatic Mesh Formation** - Nodes discover and connect automatically
+- **📡 Self-Healing Network** - Adapts when nodes join/leave
+- **⏰ Time Synchronization** - Coordinated actions across all nodes  
+- **🔀 Smart Routing** - Broadcast, point-to-point, and neighbor messaging
+- **🔌 Plugin System** - Type-safe custom message packages
+- **📱 ESP32 & ESP8266** - Full support for both platforms
+- **🛡️ Memory Efficient** - Optimized for resource-constrained devices
 
-- The [included examples](https://gitlab.com/painlessMesh/painlessMesh/tree/master/examples)
-- A more in-depth example for a mesh with different nodes is available on [codeberg](https://codeberg.org/edwinvanl/nodemesh)
-- The [API documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)
-- The [wiki](https://gitlab.com/painlessMesh/painlessMesh/wikis/home)
-- On our [forum/mailinglist](https://groups.google.com/forum/#!forum/painlessmesh-user)
+## Examples & Use Cases
 
+- **IoT Sensor Networks** - Environmental monitoring, smart agriculture
+- **Home Automation** - Distributed lighting, HVAC control
+- **Industrial Monitoring** - Equipment status, predictive maintenance  
+- **Event Coordination** - Synchronized displays, distributed processing
+- **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT
 
-### Examples
+## Getting Help
 
-StartHere is a basic how to use example. It blinks built-in LED (in ESP-12) as many times as nodes are connected to the mesh. Further examples are under the examples directory and shown on the platformio [page](http://platformio.org/lib/show/1269/painlessMesh).
+- **[FAQ](docs/troubleshooting/faq.md)** - Common questions and solutions
+- **[GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)** - Bug reports and feature requests  
+- **[Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)** - Community support
+- **[API Documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)** - Generated API docs
 
-### Development on your own machine
+## Development
 
-After cloning the repository, you will need to initialize and update the submodules.
-
-```
-git submodule init 
-git submodule update
-```
-
-After that you can compile the library using the following commands
-
-```
-cmake -G Ninja
+### Building from Source
+```bash
+git clone https://github.com/Alteriom/painlessMesh.git
+cd painlessMesh
+git submodule update --init
+cmake -G Ninja .
 ninja
+run-parts --regex catch_ bin/  # Run tests
 ```
 
-This will compile a number of test files under `./bin/catch_` that can be run. For example using:
-
-```
-run-parts --regex catch_ bin/
-```
+### Requirements
+- **ESP32/ESP8266**: Arduino Core 2.0.0+
+- **Dependencies**: ArduinoJson 6.x, TaskScheduler 3.x  
+- **Development**: CMake, Ninja, Boost (for desktop testing)
 
 ## Contributing
 
@@ -90,18 +95,49 @@ You can tip me using ko-fi:
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U21LWO6I)
 
-## painlessMesh API
+## 📚 Complete Documentation
 
-Using painlessMesh is painless!
+**🎯 New to painlessMesh?** Start here:
+- **[Quick Start Guide](docs/getting-started/quickstart.md)** - Get running in minutes
+- **[Installation Guide](docs/getting-started/installation.md)** - All platforms and IDEs
+- **[Your First Mesh](docs/getting-started/first-mesh.md)** - Build a real multi-node network
 
-First include the library and create an painlessMesh object like this.
+**🔧 API Reference:**
+- **[Core API](docs/api/core-api.md)** - Complete painlessMesh class reference
+- **[Plugin API](docs/api/plugin-api.md)** - Custom packages and type-safe messaging
+- **[Configuration](docs/api/configuration.md)** - All configuration options
 
+**🏗️ Architecture & Design:**
+- **[Mesh Architecture](docs/architecture/mesh-architecture.md)** - How painlessMesh works internally
+- **[Plugin System](docs/architecture/plugin-system.md)** - Advanced plugin development
+- **[Message Routing](docs/architecture/routing.md)** - Routing algorithms and strategies
+
+**📖 Tutorials & Examples:**
+- **[Basic Examples](docs/tutorials/basic-examples.md)** - Essential patterns and techniques
+- **[Custom Packages](docs/tutorials/custom-packages.md)** - Type-safe message handling
+- **[Sensor Networks](docs/tutorials/sensor-networks.md)** - IoT sensor network patterns
+
+**🚀 Alteriom Extensions:**
+- **[Alteriom Overview](docs/alteriom/overview.md)** - Production-ready IoT packages
+- **[Sensor Packages](docs/alteriom/sensor-packages.md)** - Environmental monitoring
+- **[Command System](docs/alteriom/command-system.md)** - Device control and automation
+
+**🔧 Troubleshooting:**
+- **[Common Issues](docs/troubleshooting/common-issues.md)** - Solutions to frequent problems
+- **[FAQ](docs/troubleshooting/faq.md)** - Frequently asked questions
+- **[Debugging Guide](docs/troubleshooting/debugging.md)** - Tools and techniques
+
+**📋 Complete Documentation Index:** [docs/README.md](docs/README.md)
+
+## painlessMesh API Summary
+
+Here's a quick API overview. **For complete documentation, see [Core API Reference](docs/api/core-api.md)**
+
+```cpp
+#include "painlessMesh.h"
+
+painlessMesh mesh;
 ```
-#include <painlessMesh.h>
-painlessMesh  mesh;
-```
-
-The main member functions are included below. **Full documentation can be found [here](https://painlessmesh.gitlab.io/painlessMesh/index.html)**
 
 ### Member Functions
 
