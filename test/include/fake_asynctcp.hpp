@@ -61,12 +61,13 @@ class AsyncClient {
   bool send() { return true; }
   size_t write(const char* data, size_t size,
                uint8_t apiflags = ASYNC_WRITE_FLAG_COPY) {
-    char* cpy[size];
-    memcpy(&cpy, data, size);
+    char* cpy = new char[size];  // Use dynamic allocation instead of VLA
+    memcpy(cpy, data, size);
     void * arg  = NULL;
     if (mOther && mOther->_recv_cb) {
       mOther->_recv_cb(arg, mOther, cpy, size);
     }
+    delete[] cpy;  // Clean up dynamic allocation
     return size;
   }
 

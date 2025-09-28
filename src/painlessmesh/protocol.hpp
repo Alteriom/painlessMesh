@@ -126,6 +126,7 @@ class NodeTree : public PackageInterface {
   std::list<NodeTree> subs;
 
   NodeTree() {}
+  virtual ~NodeTree() = default;  // Add virtual destructor
 
   NodeTree(uint32_t nodeID, bool iAmRoot) {
     nodeId = nodeID;
