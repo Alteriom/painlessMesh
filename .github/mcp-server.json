@@ -4,28 +4,34 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/runner/work/painlessMesh/painlessMesh"],
       "env": {
-        "FILESYSTEM_ACCESS": "read_write"
+        "FILESYSTEM_ACCESS": "read_write",
+        "ALLOWED_EXTENSIONS": ".cpp,.hpp,.h,.ino,.md,.json,.txt,.cmake"
       }
     },
     "bash": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-bash"],
       "env": {
-        "BASH_TIMEOUT": "300"
+        "BASH_TIMEOUT": "300",
+        "ALLOWED_COMMANDS": "cmake,ninja,git,ls,cd,cat,grep,find,./bin/*"
       }
     },
     "git": {
       "command": "npx", 
       "args": ["-y", "@modelcontextprotocol/server-git", "--repository", "/home/runner/work/painlessMesh/painlessMesh"],
       "env": {
-        "GIT_SAFE_DIRECTORY": "/home/runner/work/painlessMesh/painlessMesh"
+        "GIT_SAFE_DIRECTORY": "/home/runner/work/painlessMesh/painlessMesh",
+        "GIT_BRANCH": "copilot/fix-d179cd49-7607-4426-a2fa-89e6bf82e224"
       }
     },
-    "stdio": {
+    "painlessmesh-dev": {
       "command": "node",
       "args": ["/home/runner/work/painlessMesh/painlessMesh/.github/mcp-painlessmesh.js"],
       "env": {
-        "PROJECT_ROOT": "/home/runner/work/painlessMesh/painlessMesh"
+        "PROJECT_ROOT": "/home/runner/work/painlessMesh/painlessMesh",
+        "BUILD_SYSTEM": "cmake-ninja",
+        "TEST_PATTERN": "catch_*",
+        "ALTERIOM_PACKAGE_TYPES": "200,201,202"
       }
     }
   }
