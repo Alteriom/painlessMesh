@@ -57,7 +57,7 @@ check_changelog() {
     version=$(grep '^version=' "$ROOT_DIR/library.properties" | cut -d'=' -f2)
     
     # Check if version exists in changelog
-    if grep -q "^\[?${version}\]?\\|^## v${version}" "$ROOT_DIR/CHANGELOG.md"; then
+    if grep -qE "^## \[${version}\]|^## v${version}" "$ROOT_DIR/CHANGELOG.md"; then
         echo -e "${GREEN}✓ Changelog entry found for version $version${NC}"
         return 0
     else

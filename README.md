@@ -1,4 +1,4 @@
-# PainlessMesh
+# PainlessMesh - Alteriom Fork
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -8,7 +8,21 @@
 
 ## Intro to painlessMesh
 
-painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. It handles routing and network management automatically, so you can focus on your application. The library uses JSON-based messaging and syncs time across all nodes, making it ideal for coordinated behaviour like synchronized light displays or sensor networks reporting to a central node. The original version was forked from [easymesh](https://github.com/Coopdis/easyMesh)
+painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. This **Alteriom fork** extends the original library with specialized packages for IoT sensor networks, device control, and status monitoring.
+
+### 🎯 Alteriom Extensions
+
+This fork includes three specialized packages for structured IoT communication:
+
+- **`SensorPackage`** (Type 200) - Environmental data collection (temperature, humidity, pressure, battery levels)
+- **`CommandPackage`** (Type 201) - Device control and automation commands  
+- **`StatusPackage`** (Type 202) - Health monitoring and system status reporting
+
+All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging.
+
+### 🌐 Core Features
+
+The library handles routing and network management automatically, so you can focus on your application. It uses JSON-based messaging and syncs time across all nodes, making it ideal for coordinated behaviour like synchronized light displays or sensor networks reporting to a central node. The original version was forked from [easymesh](https://github.com/Coopdis/easyMesh).
 
 ### True ad-hoc networking
 
@@ -47,6 +61,63 @@ painlessMesh makes use of the following libraries, which can be installed throug
 - [AsyncTCP](https://github.com/me-no-dev/AsyncTCP) (ESP32)
 
 If platformio is used to install the library, then the dependencies will be installed automatically.
+
+## Quick Start with Alteriom Packages
+
+### Basic Sensor Node
+
+```cpp
+#include "painlessMesh.h"
+#include "examples/alteriom/alteriom_sensor_package.hpp"
+
+using namespace alteriom;
+
+#define MESH_PREFIX     "AlteriomMesh"
+#define MESH_PASSWORD   "your_password"
+#define MESH_PORT       5555
+
+Scheduler userScheduler;
+painlessMesh mesh;
+
+void setup() {
+    Serial.begin(115200);
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    mesh.onReceive(&receivedCallback);
+}
+
+void loop() {
+    mesh.update();
+    
+    // Create and send sensor data
+    SensorPackage sensor;
+    sensor.temperature = 25.5;
+    sensor.humidity = 60.0;
+    sensor.sensorId = mesh.getNodeId();
+    sensor.timestamp = mesh.getNodeTime();
+    
+    mesh.sendBroadcast(sensor.toJsonString());
+    delay(30000); // Send every 30 seconds
+}
+
+void receivedCallback(uint32_t from, String& msg) {
+    DynamicJsonDocument doc(1024);
+    deserializeJson(doc, msg);
+    
+    if (doc["type"] == 200) { // SensorPackage
+        SensorPackage sensor(doc.as<JsonObject>());
+        Serial.printf("Sensor %u: %.1f°C, %.1f%% RH\n", 
+                     sensor.sensorId, sensor.temperature, sensor.humidity);
+    }
+}
+```
+
+### Package Types
+
+| Type | Class | Purpose | Fields |
+|------|-------|---------|--------|
+| 200 | `SensorPackage` | Environmental data | `temperature`, `humidity`, `pressure`, `sensorId`, `timestamp`, `batteryLevel` |
+| 201 | `CommandPackage` | Device control | `command`, `targetDevice`, `parameters`, `commandId` |
+| 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
 
 ## Key Features
 
