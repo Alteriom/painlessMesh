@@ -12,7 +12,6 @@ using namespace painlessmesh::validation;
 SCENARIO("Message validation works correctly") {
     GIVEN("A message validator with default configuration") {
         MessageValidator validator;
-        ValidationConfig config;
         
         WHEN("Validating a valid message") {
             JsonDocument doc;
