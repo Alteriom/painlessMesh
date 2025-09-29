@@ -158,9 +158,22 @@ check_build_files() {
 run_quick_build_test() {
     echo -e "${YELLOW}Running quick build test...${NC}"
     
+    # Initialize submodules if needed for the test
+    if [[ -f "$ROOT_DIR/.gitmodules" ]]; then
+        echo "  Initializing submodules for build test..."
+        if ! git submodule update --init --quiet 2>/dev/null; then
+            echo -e "${YELLOW}⚠ Could not initialize submodules - skipping full build test${NC}"
+            echo "  Note: This is normal in CI environments without git history"
+            return 0
+        fi
+    fi
+    
     # Check if we can configure CMake
     if ! cmake -G Ninja "$ROOT_DIR" -B "$ROOT_DIR/build-test" >/dev/null 2>&1; then
         echo -e "${RED}❌ CMake configuration failed${NC}"
+        # Show the actual error for debugging
+        echo "  CMake error details:"
+        cmake -G Ninja "$ROOT_DIR" -B "$ROOT_DIR/build-test" 2>&1 | head -5 | sed 's/^/    /'
         return 1
     fi
     

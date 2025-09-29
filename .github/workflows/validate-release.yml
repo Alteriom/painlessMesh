@@ -27,11 +27,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Install validation dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq jq cmake ninja-build
+          sudo apt-get install -y -qq jq cmake ninja-build libboost-all-dev
 
       - name: Run release validation
         run: |
