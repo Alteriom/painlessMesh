@@ -210,6 +210,16 @@ jobs:
     - name: Publish to NPM
       run: |
         echo "📦 Publishing to NPM..."
+        echo "Registry: $(npm config get registry)"
+        echo "Package name: $(jq -r '.name' package.json)"
+        echo "Package version: $(jq -r '.version' package.json)"
+        
+        # Verify we're publishing to the correct registry
+        if [ "$(npm config get registry)" != "https://registry.npmjs.org/" ]; then
+          echo "⚠️  Warning: NPM registry is not set to public NPM!"
+          npm config set registry https://registry.npmjs.org/
+        fi
+        
         npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -255,6 +265,12 @@ jobs:
     
     - name: Install dependencies
       run: npm install --ignore-scripts
+    
+    - name: Configure package.json for GitHub Packages
+      run: |
+        # Temporarily add publishConfig for GitHub Packages
+        jq '.publishConfig = {"@alteriom:registry": "https://npm.pkg.github.com"}' package.json > package.json.tmp
+        mv package.json.tmp package.json
     
     - name: Validate GitHub Package configuration
       run: |
