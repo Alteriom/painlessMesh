@@ -144,17 +144,15 @@ class SentBuffer {
   }
 
   /**
-   * Read the given length into the passed buffer
+   * Read the given length into the passed buffer (copy mode)
    *
    * Note the user should first make sure the requested length is available
    * using `SentBuffer.requestLength()`, otherwise this function might fail.
    * Note that if multiple messages are read then they are separated using '\0'.
+   * 
+   * Performance note: Consider using readPtr() for zero-copy access when possible.
    */
   void read(size_t length, temp_buffer_t &buf) {
-    // TODO: I don't think we actually need to copy here, and/or
-    // we should add a non-copy mode, that returns a pointer directly
-    // to the data (using c_str()).
-    //
     // Note that toCharrArray always null terminates
     // independent of whether the whole string was read so we use one extra
     // space
