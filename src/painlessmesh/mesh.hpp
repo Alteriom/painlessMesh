@@ -56,7 +56,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       Log(MESH_STATUS, "Dropped connection %u, station %d\n", nodeId, station);
       this->eraseClosedConnections();
     });
-    this->newConnectionCallbacks.push_back([this](uint32_t nodeId) {
+    this->newConnectionCallbacks.push_back([](uint32_t nodeId) {
       Log(MESH_STATUS, "New connection %u\n", nodeId);
     });
   }

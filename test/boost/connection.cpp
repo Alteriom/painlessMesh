@@ -28,17 +28,17 @@ SCENARIO("We can send messages") {
 
   auto pServer = std::make_shared<AsyncServer>(io_context, 6081);
 
-  std::shared_ptr<tcp::BufferedConnection> conn1;
+  std::shared_ptr<painlessmesh::tcp::BufferedConnection> conn1;
   pServer->onClient([&conn1](void *, AsyncClient *client) {
-    conn1 = std::make_shared<tcp::BufferedConnection>(client);
+    conn1 = std::make_shared<painlessmesh::tcp::BufferedConnection>(client);
   });
   pServer->begin();
 
   auto client = new AsyncClient(io_context);
   bool connected = false;
-  std::shared_ptr<tcp::BufferedConnection> conn2;
+  std::shared_ptr<painlessmesh::tcp::BufferedConnection> conn2;
   client->onConnect([&conn2, &connected](void *, AsyncClient *client) {
-    conn2 = std::make_shared<tcp::BufferedConnection>(client);
+    conn2 = std::make_shared<painlessmesh::tcp::BufferedConnection>(client);
     connected = true;
   });
   client->connect(boost::asio::ip::make_address("127.0.0.1"), 6081);
