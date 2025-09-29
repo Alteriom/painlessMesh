@@ -425,25 +425,59 @@ class TimeDelay : public TimeSync {
  * different packages from and to Json (using ArduinoJson).
  */
 class Variant {
-  // TODO: Consider disabling copy constructor/assignment, since it seems to
-  // result in problems with arduinojson (see issue #521)
+  // Copy operations implemented safely to address issue #521
+  // Move semantics preferred for performance
  public:
-  // TODO: Consider disabling copy and assignment constructor. It seems to
-  // sometimes lead to crashes. See issue 521
-
-  // Copy constructor
-  Variant(const Variant& other)
-      : error(other.error), jsonBuffer(other.jsonBuffer) {
-    if (error == DeserializationError::Ok)
+  // Copy constructor - implemented safely
+  Variant(const Variant& other) : error(other.error) {
+    // Deep copy the JSON buffer to avoid shared references
+    if (error == DeserializationError::Ok) {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+      jsonBuffer = JsonDocument();
+#else
+      jsonBuffer = DynamicJsonDocument(other.jsonBuffer.capacity());
+#endif
+      jsonBuffer.set(other.jsonBuffer);
       jsonObj = jsonBuffer.as<JsonObject>();
+    }
   }
 
+  // Copy assignment operator - implemented safely
   Variant& operator=(const Variant& other) {
     if (this != &other) {
       error = other.error;
-      jsonBuffer = other.jsonBuffer;
-      if (error == DeserializationError::Ok)
+      if (error == DeserializationError::Ok) {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+        jsonBuffer = JsonDocument();
+#else
+        jsonBuffer = DynamicJsonDocument(other.jsonBuffer.capacity());
+#endif
+        jsonBuffer.set(other.jsonBuffer);
         jsonObj = jsonBuffer.as<JsonObject>();
+      }
+    }
+    return *this;
+  }
+
+  // Move constructor - preferred for performance
+  Variant(Variant&& other) noexcept 
+      : error(std::move(other.error)), 
+        jsonBuffer(std::move(other.jsonBuffer)) {
+    if (error == DeserializationError::Ok) {
+      jsonObj = jsonBuffer.as<JsonObject>();
+    }
+    other.error = DeserializationError::EmptyInput;
+  }
+
+  // Move assignment operator - preferred for performance  
+  Variant& operator=(Variant&& other) noexcept {
+    if (this != &other) {
+      error = std::move(other.error);
+      jsonBuffer = std::move(other.jsonBuffer);
+      if (error == DeserializationError::Ok) {
+        jsonObj = jsonBuffer.as<JsonObject>();
+      }
+      other.error = DeserializationError::EmptyInput;
     }
     return *this;
   }

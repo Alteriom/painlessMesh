@@ -2,6 +2,8 @@
 
 #include "catch2/catch.hpp"
 
+#include "Arduino.h"
+
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/base64.hpp"

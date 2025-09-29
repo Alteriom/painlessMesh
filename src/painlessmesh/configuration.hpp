@@ -1,6 +1,13 @@
-#include "Arduino.h"
 #ifndef _PAINLESS_MESH_CONFIGURATION_HPP_
 #define _PAINLESS_MESH_CONFIGURATION_HPP_
+
+// Include Arduino.h in test environment to ensure TSTRING is defined
+#if defined(PAINLESSMESH_BOOST) || defined(ARDUINO_ARCH_ESP8266) || \
+    defined(ARDUINO_ARCH_ESP32)
+#ifndef ARDUINO
+#include "Arduino.h"
+#endif
+#endif
 
 #include <list>
 
@@ -38,7 +45,13 @@
 #include <ESPAsyncTCP.h>
 #endif  // ESP32
 
+// Define TSTRING - use std::string in test environment, Arduino String
+// otherwise
+#if defined(PAINLESSMESH_BOOST)
+// Test environment - TSTRING already defined in test Arduino.h as std::string
+#else
 typedef String TSTRING;
+#endif
 
 // backward compatibility
 template <typename T>
