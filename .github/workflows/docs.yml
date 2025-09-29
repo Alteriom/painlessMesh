@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
+      - 'website/**'
       - 'src/**'
       - 'docs/**'  
       - 'README.md'
@@ -31,6 +32,13 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
+
       - name: Install Doxygen
         run: |
           sudo apt-get update -qq
@@ -41,70 +49,23 @@ jobs:
           # Use existing Doxygen configuration
           doxygen doxygen/Doxyfile
 
-      - name: Prepare documentation site
+      - name: Install Docusaurus Dependencies
+        working-directory: ./website
+        run: npm ci
+
+      - name: Integrate Doxygen with Docusaurus
         run: |
-          mkdir -p public
+          # Create API docs directory in Docusaurus
+          mkdir -p website/static/api
           
-          # Copy Doxygen output
+          # Copy Doxygen output to static folder
           if [ -d "doxygen/documentation/html" ]; then
-            cp -r doxygen/documentation/html/* public/
+            cp -r doxygen/documentation/html/* website/static/api/
           fi
-          
-          # Copy markdown docs
-          if [ -d "docs" ]; then
-            mkdir -p public/docs
-            cp -r docs/* public/docs/
-          fi
-          
-          # Create index page if it doesn't exist
-          if [ ! -f "public/index.html" ]; then
-            cat > public/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>painlessMesh Documentation</title>
-              <meta charset="utf-8">
-              <style>
-                  body { font-family: Arial, sans-serif; margin: 40px; }
-                  .container { max-width: 800px; margin: 0 auto; }
-                  h1 { color: #333; }
-                  .nav { margin: 20px 0; }
-                  .nav a { 
-                      display: inline-block; 
-                      margin-right: 20px; 
-                      padding: 10px 15px; 
-                      background: #007bff; 
-                      color: white; 
-                      text-decoration: none; 
-                      border-radius: 5px; 
-                  }
-                  .nav a:hover { background: #0056b3; }
-              </style>
-          </head>
-          <body>
-              <div class="container">
-                  <h1>painlessMesh Documentation</h1>
-                  <p>A painless way to setup a mesh with ESP8266 and ESP32 devices</p>
-                  
-                  <div class="nav">
-                      <a href="annotated.html">API Reference</a>
-                      <a href="docs/">User Guide</a>
-                      <a href="examples.html">Examples</a>
-                      <a href="https://github.com/Alteriom/painlessMesh">GitHub</a>
-                  </div>
-                  
-                  <h2>Quick Links</h2>
-                  <ul>
-                      <li><a href="docs/getting-started/installation.html">Installation Guide</a></li>
-                      <li><a href="docs/tutorials/basic-examples.html">Basic Examples</a></li>
-                      <li><a href="docs/alteriom/overview.html">Alteriom Extensions</a></li>
-                      <li><a href="docs/troubleshooting/faq.html">FAQ</a></li>
-                  </ul>
-              </div>
-          </body>
-          </html>
-          EOF
-          fi
+
+      - name: Build Docusaurus Site
+        working-directory: ./website
+        run: npm run build
 
       - name: Setup Pages
         id: pages-setup
@@ -115,7 +76,7 @@ jobs:
         if: steps.pages-setup.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './public'
+          path: './website/build'
 
       - name: Deploy to GitHub Pages (if Pages configured)
         if: steps.pages-setup.outcome == 'success'
