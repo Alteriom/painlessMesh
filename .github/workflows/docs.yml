@@ -21,8 +21,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-docs:
-    name: Build Documentation
+  build-and-deploy:
+    name: Build and Deploy Documentation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -107,21 +107,27 @@ jobs:
           fi
 
       - name: Setup Pages
+        id: pages-setup
         uses: actions/configure-pages@v5
+        continue-on-error: true
 
-      - name: Upload artifact
+      - name: Upload artifact (if Pages configured)
+        if: steps.pages-setup.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: './public'
 
-  deploy:
-    name: Deploy to GitHub Pages
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build-docs
-    steps:
-      - name: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages (if Pages configured)
+        if: steps.pages-setup.outcome == 'success'
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Skip Pages deployment (Pages not configured)
+        if: steps.pages-setup.outcome == 'failure'
+        run: |
+          echo "::notice::GitHub Pages is not configured for this repository."
+          echo "::notice::Documentation was built successfully but not deployed."
+          echo "::notice::To enable Pages deployment:"
+          echo "::notice::1. Go to repository Settings"
+          echo "::notice::2. Navigate to Pages section"
+          echo "::notice::3. Select 'GitHub Actions' as the source"
