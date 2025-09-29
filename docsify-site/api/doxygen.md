@@ -8,7 +8,15 @@ This section contains the complete API reference automatically generated from th
 
 ## Quick Navigation
 
-### 📚 Main Documentation Sections
+### 📚 Embedded Documentation Pages
+
+| Section | Description | Embedded View |
+|---------|-------------|---------------|
+| [📋 **Classes**](doxygen/classes.md) | All painlessMesh classes and their methods | Interactive embedded view |
+| [⚙️ **Functions**](doxygen/functions.md) | Global functions and utilities | Interactive embedded view |
+| [📁 **Files**](doxygen/files.md) | Source file documentation | Interactive embedded view |
+
+### 🔗 Direct Links (New Tab)
 
 | Section | Description |
 |---------|-------------|

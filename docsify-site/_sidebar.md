@@ -12,6 +12,10 @@
   * [📞 Callbacks](api/callbacks.md)
   * [⚙️ Configuration](api/configuration.md)
   * [📚 Doxygen API](api/doxygen.md)
+  * **📖 Generated Docs**
+    * [📋 Classes](api/doxygen/classes.md)
+    * [⚙️ Functions](api/doxygen/functions.md)
+    * [📁 Files](api/doxygen/files.md)
 
 * **🌟 Alteriom Extensions**
   * [📦 Packages](alteriom/packages.md)

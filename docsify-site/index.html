@@ -40,6 +40,56 @@
       margin: 2rem 0;
     }
     
+    /* Enhanced styling for embedded Doxygen documentation */
+    .doxygen-iframe-container {
+      margin: 2rem 0;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .doxygen-iframe-container iframe {
+      width: 100%;
+      height: 800px;
+      border: none;
+      display: block;
+    }
+    
+    .doxygen-loading {
+      padding: 2rem;
+      text-align: center;
+      color: var(--text-color-secondary);
+      background-color: #f8f9fa;
+    }
+    
+    /* Better table styling for API documentation */
+    .markdown-section table {
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      width: 100%;
+    }
+    
+    .markdown-section table th,
+    .markdown-section table td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    
+    .markdown-section table th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+      color: var(--text-color-base);
+    }
+    
+    /* Responsive iframe for mobile */
+    @media (max-width: 768px) {
+      .doxygen-iframe-container iframe {
+        height: 600px;
+      }
+    }
+    
     .markdown-section code {
       background-color: #f8f9fa;
       padding: 2px 6px;
@@ -124,8 +174,12 @@
       // 404 page
       notFoundPage: true,
       
-      // Execute script
+      // Execute script - enable for iframe handling
       executeScript: true,
+      
+      // External link handling for iframes
+      externalLinkTarget: '_blank',
+      externalLinkRel: 'noopener',
       
       // Progress indicator
       progress: {
