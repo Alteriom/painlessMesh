@@ -1,4 +1,3 @@
-#include "Arduino.h"
 #ifndef _PAINLESS_MESH_CONFIGURATION_HPP_
 #define _PAINLESS_MESH_CONFIGURATION_HPP_
 

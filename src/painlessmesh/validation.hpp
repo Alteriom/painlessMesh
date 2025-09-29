@@ -117,8 +117,6 @@ class MessageValidator {
       return ValidationResult::MISSING_REQUIRED_FIELD;
     }
 
-    int msg_type = obj["type"].as<int>();
-
     // Validate node IDs if present
     if (obj["from"].is<uint32_t>()) {
       uint32_t from_id = obj["from"].as<uint32_t>();
