@@ -9,8 +9,10 @@
  */
 
 #include <algorithm>
-#include <chrono>
 #include <string>
+#ifndef ARDUINO
+#include <chrono>
+#endif
 #include "painlessmesh/configuration.hpp"
 
 namespace painlessmesh {
@@ -105,7 +107,7 @@ struct MessageStats {
   }
 
   double throughput_bps() const {
-    uint32_t uptime_s = millis() / 1000;
+    uint32_t uptime_s = get_current_time() / 1000;
     return uptime_s > 0 ? (bytes_sent + bytes_received) * 8.0 / uptime_s : 0.0;
   }
 
@@ -189,7 +191,7 @@ struct TopologyStats {
  */
 class MetricsCollector {
  public:
-  MetricsCollector() : start_time_(millis()) {}
+  MetricsCollector() : start_time_(get_current_time()) {}
 
   MessageStats& message_stats() { return message_stats_; }
   MemoryStats& memory_stats() { return memory_stats_; }
@@ -204,13 +206,15 @@ class MetricsCollector {
    */
   void update() {
     memory_stats_.update();
-    last_update_ = millis();
+    last_update_ = get_current_time();
   }
 
   /**
    * Get uptime in seconds
    */
-  uint32_t uptime_seconds() const { return (millis() - start_time_) / 1000; }
+  uint32_t uptime_seconds() const {
+    return (get_current_time() - start_time_) / 1000;
+  }
 
   /**
    * Generate JSON status report
@@ -272,7 +276,7 @@ class MetricsCollector {
   void reset() {
     message_stats_.reset();
     topology_stats_ = TopologyStats{};
-    start_time_ = millis();
+    start_time_ = get_current_time();
   }
 
   /**
@@ -285,6 +289,17 @@ class MetricsCollector {
   }
 
  private:
+  uint32_t get_current_time() const {
+#ifdef ARDUINO
+    return millis();
+#else
+    auto now = std::chrono::steady_clock::now();
+    auto duration = now.time_since_epoch();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+        .count();
+#endif
+  }
+
   MessageStats message_stats_;
   MemoryStats memory_stats_;
   TopologyStats topology_stats_;

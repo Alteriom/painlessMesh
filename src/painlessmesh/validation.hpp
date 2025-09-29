@@ -8,9 +8,11 @@
  * security and robustness of the mesh network.
  */
 
-#include <chrono>
 #include <list>
 #include <map>
+#ifndef ARDUINO
+#include <chrono>
+#endif
 #include "ArduinoJson.h"
 #include "painlessmesh/configuration.hpp"
 
@@ -52,7 +54,7 @@ class RateLimiter {
       : max_messages_(max_messages_per_second), window_size_(window_size_ms) {}
 
   bool allow_message(uint32_t node_id) {
-    uint32_t current_time = millis();
+    uint32_t current_time = get_current_time();
     auto& history = node_history_[node_id];
 
     // Remove old entries outside the window
@@ -76,6 +78,17 @@ class RateLimiter {
   void clear_all_history() { node_history_.clear(); }
 
  private:
+  uint32_t get_current_time() const {
+#ifdef ARDUINO
+    return millis();
+#else
+    auto now = std::chrono::steady_clock::now();
+    auto duration = now.time_since_epoch();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(duration)
+        .count();
+#endif
+  }
+
   size_t max_messages_;
   size_t window_size_;
   std::map<uint32_t, std::list<uint32_t>> node_history_;
@@ -202,7 +215,7 @@ class SecureRandom {
       uint32_t seed =
           std::chrono::duration_cast<std::chrono::microseconds>(duration)
               .count();
-      srand(seed ^ millis());
+      srand(seed);
 #endif
       seeded = true;
     }
