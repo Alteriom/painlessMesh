@@ -1,3 +1,4 @@
+#include "Arduino.h"
 #ifndef _PAINLESS_MESH_CONFIGURATION_HPP_
 #define _PAINLESS_MESH_CONFIGURATION_HPP_
 
@@ -18,29 +19,10 @@
 // Enable OTA support
 #define PAINLESSMESH_ENABLE_OTA
 
-// Enable new performance and security improvements (default: enabled)
-#ifndef PAINLESSMESH_ENABLE_VALIDATION
-#define PAINLESSMESH_ENABLE_VALIDATION
-#endif
-
-#ifndef PAINLESSMESH_ENABLE_METRICS
-#define PAINLESSMESH_ENABLE_METRICS
-#endif
-
-#ifndef PAINLESSMESH_ENABLE_MEMORY_OPTIMIZATION
-#define PAINLESSMESH_ENABLE_MEMORY_OPTIMIZATION
-#endif
-
 // Minimum free memory, besides here all packets in queue are discarded.
 #define MIN_FREE_MEMORY 4000
 // MAX number of unsent messages in queue. Newer messages are discarded
 #define MAX_MESSAGE_QUEUE 50
-
-// Security and validation settings
-#define MAX_MESSAGE_SIZE 8192         // Maximum allowed message size
-#define MAX_STRING_FIELD_LENGTH 1024  // Maximum string field length
-#define MAX_MESSAGES_PER_SECOND 10    // Default rate limit per node
-#define VALIDATION_WINDOW_MS 1000     // Rate limiting time window
 
 #define NODE_TIMEOUT 10 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms

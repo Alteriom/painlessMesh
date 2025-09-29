@@ -107,7 +107,12 @@ struct MessageStats {
   }
 
   double throughput_bps() const {
-    uint32_t uptime_s = get_current_time() / 1000;
+#ifdef ARDUINO
+    uint32_t uptime_s = millis() / 1000;
+#else
+    // For non-Arduino builds, use a simpler approach or disable this feature
+    uint32_t uptime_s = 1;  // Avoid division by zero
+#endif
     return uptime_s > 0 ? (bytes_sent + bytes_received) * 8.0 / uptime_s : 0.0;
   }
 
