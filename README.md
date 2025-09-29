@@ -1,5 +1,7 @@
 # PainlessMesh - Alteriom Fork
 
+> **📚 Documentation**: https://alteriom.github.io/painlessMesh/ | **📖 Wiki**: https://github.com/Alteriom/painlessMesh/wiki
+
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
 [![Release](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml)
