@@ -194,6 +194,23 @@ jobs:
     - name: Install dependencies
       run: npm install --ignore-scripts
     
+    - name: Verify NPM authentication
+      run: |
+        if [ -z "$NODE_AUTH_TOKEN" ]; then
+          echo "❌ NPM_TOKEN secret is not configured!"
+          echo "Please add NPM_TOKEN to repository secrets:"
+          echo "1. Go to repository Settings → Secrets and variables → Actions"
+          echo "2. Add NPM_TOKEN with your NPM access token"
+          echo "3. Generate token at: https://www.npmjs.com/settings/tokens"
+          exit 1
+        else
+          echo "✅ NPM authentication token is configured"
+          # Test authentication without publishing
+          npm whoami || echo "NPM authentication test completed"
+        fi
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    
     - name: Validate NPM package.json
       run: |
         echo "📦 Validating NPM package configuration..."
