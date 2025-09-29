@@ -8,6 +8,11 @@ on:
       - 'library.json'
       - 'CHANGELOG.md'
 
+# Prevent concurrent releases
+concurrency:
+  group: "release"
+  cancel-in-progress: false
+
 permissions:
   contents: write
   packages: write
