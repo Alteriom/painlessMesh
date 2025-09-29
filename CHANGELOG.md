@@ -8,18 +8,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- State-of-the-art CI/CD pipeline with GitHub Actions
-- Automated documentation generation and deployment
-- Comprehensive build testing across multiple platforms (gcc, clang, Arduino, PlatformIO)
-- Automated release management with semantic versioning
-- Code quality checks and formatting validation
+- **NPM Package Publishing**: Complete NPM publication setup with dual registry support
+  - Public NPM registry: `@alteriom/painlessmesh`
+  - GitHub Packages registry: `@alteriom/painlessmesh` (scoped)
+  - Automated version consistency across library.properties, library.json, and package.json
+- **GitHub Wiki Automation**: Automatic wiki synchronization on releases
+  - Home page generated from README.md
+  - API Reference with auto-generated documentation
+  - Examples page with links to repository examples
+  - Installation guide for multiple platforms
+- **Enhanced Release Workflow**: Comprehensive publication automation
+  - NPM publishing to both public and GitHub Packages registries
+  - GitHub Wiki updates with structured documentation
+  - Arduino Library Manager submission instructions
+  - Release validation with multi-file version consistency
+- **Arduino IDE Support**: Added keywords.txt for syntax highlighting
+- **Distribution Documentation**: Complete guides for all publication channels
+  - RELEASE_SUMMARY.md template for release notes
+  - TRIGGER_RELEASE.md for step-by-step release instructions
+  - Enhanced RELEASE_GUIDE.md with comprehensive publication workflow
+- **Version Management**: Enhanced bump-version script
+  - Updates all three version files simultaneously (library.properties, library.json, package.json)
+  - Comprehensive version consistency validation
+  - Clear instructions for NPM and GitHub Packages publication
 
-### Changed
-- Migrated from GitLab CI to GitHub Actions for better integration
-- Enhanced documentation structure and automated deployment
+### Changed  
+- **Release Process**: Streamlined to support multiple package managers
+  - Single commit with "release:" prefix triggers full publication pipeline
+  - Automated testing, building, and publishing across all channels
+  - Wiki documentation automatically synchronized
+- **CI/CD Pipeline**: Enhanced with NPM publication capabilities
+  - Dual NPM registry publishing (public + GitHub Packages)
+  - Automated wiki updates with generated content
+  - Comprehensive pre-release validation
+- **Documentation Structure**: Reorganized for multi-channel distribution
+  - Clear separation between automatic and manual processes
+  - Platform-specific installation instructions
+  - Troubleshooting guides for each distribution channel
 
 ### Fixed
-- Improved build consistency across different environments
+- **Package Configuration**: Consistent version management across all package files
+- **Release Documentation**: Complete coverage of all distribution channels
+- **Version Validation**: Prevents releases with inconsistent version numbers
 
 ## [1.6.0] - 2025-09-29
 

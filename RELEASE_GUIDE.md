@@ -1,97 +1,78 @@
 # painlessMesh Release Guide
 
-This guide describes the automated release process for painlessMesh using the state-of-the-art CI/CD pipeline.
+This document provides comprehensive instructions for releasing new versions of the Alteriom painlessMesh library across all distribution channels.
 
-## Overview
+## 🚀 Quick Release Process
 
-The release process is fully automated via GitHub Actions and includes:
-
-- ✅ Automated version validation
-- ✅ Comprehensive testing (Desktop, Arduino, PlatformIO)
-- ✅ Documentation generation and deployment
-- ✅ GitHub Releases with changelog
-- ✅ Library package distribution
-- ✅ Arduino Library Manager compatibility
-- ✅ PlatformIO Library Registry integration
-
-## Quick Release Process
-
-### 1. Prepare the Release
+### Standard Release (Recommended)
 
 ```bash
-# Update version (interactive)
+# 1. Update version using the bump script
 ./scripts/bump-version.sh patch  # or minor, major
 
-# Or set specific version
-./scripts/bump-version.sh patch 1.5.7
+# 2. Update CHANGELOG.md with your changes
+# Add your changes under the new version section
 
-# Validate release readiness
-./scripts/validate-release.sh
-```
-
-### 2. Update Changelog
-
-Edit `CHANGELOG.md` and add your changes under the new version:
-
-```markdown
-## [1.5.7] - 2024-09-28
-
-### Added
-- New feature descriptions
-
-### Changed
-- What changed from previous version
-
-### Fixed
-- Bug fixes in this release
-```
-
-### 3. Commit and Release
-
-```bash
-# Commit version bump and changelog
-git add library.properties library.json CHANGELOG.md
-git commit -m "release: v1.5.7"
-
-# Push to trigger automated release
+# 3. Commit and trigger release
+git add library.properties library.json package.json CHANGELOG.md
+git commit -m "release: v1.6.1"
 git push origin main
 ```
 
-That's it! GitHub Actions will automatically:
-1. Validate the release
-2. Run all tests
-3. Create a git tag
-4. Generate GitHub release with changelog
-5. Package the library
-6. Deploy documentation
+**That's it!** GitHub Actions will automatically handle:
+- ✅ Comprehensive testing across platforms
+- ✅ Git tag creation and GitHub release
+- ✅ NPM publishing (public + GitHub Packages)
+- ✅ GitHub Wiki synchronization
+- ✅ Arduino Library Manager package preparation
+- ✅ Release notes generation from changelog
 
-## Detailed Process
+## 📋 Distribution Channels
+
+### Automatic (Zero Manual Work Required)
+1. **GitHub Releases** - Created with changelog and downloadable packages
+2. **NPM Public Registry** - Published to https://www.npmjs.com/package/@alteriom/painlessmesh
+3. **GitHub Packages** - Published to GitHub's NPM registry (@alteriom/painlessmesh)
+4. **PlatformIO Registry** - Automatically indexed from GitHub releases
+5. **GitHub Wiki** - Documentation synchronized from repository
+
+### Semi-Automatic (One-Time Manual Submission)
+6. **Arduino Library Manager** - Submit once, then automatically indexed
+
+## 🎯 Detailed Process
 
 ### Version Management
 
-**File Consistency**: Both `library.properties` and `library.json` must have matching versions:
+**File Consistency**: All three files must have matching versions:
 
 ```properties
 # library.properties
-version=1.5.7
+version=1.6.1
 ```
 
 ```json
 // library.json  
 {
-  "version": "1.5.7"
+  "version": "1.6.1"
+}
+```
+
+```json
+// package.json
+{
+  "version": "1.6.1"
 }
 ```
 
 **Semantic Versioning**: Follow [semver.org](https://semver.org/):
-- **MAJOR**: Breaking changes (e.g., 1.5.6 → 2.0.0)
-- **MINOR**: New features, backward compatible (e.g., 1.5.6 → 1.6.0)  
-- **PATCH**: Bug fixes, backward compatible (e.g., 1.5.6 → 1.5.7)
+- **MAJOR**: Breaking changes (e.g., 1.6.0 → 2.0.0)
+- **MINOR**: New features, backward compatible (e.g., 1.6.0 → 1.7.0)  
+- **PATCH**: Bug fixes, backward compatible (e.g., 1.6.0 → 1.6.1)
 
 ### Automation Triggers
 
 The release workflow triggers on commits to `main` that:
-1. Modify `library.properties`, `library.json`, or `CHANGELOG.md`
+1. Modify `library.properties`, `library.json`, `package.json`, or `CHANGELOG.md`
 2. Have a commit message starting with `release:`
 
 ### What Gets Automated
@@ -103,132 +84,315 @@ The release workflow triggers on commits to `main` that:
 - **Code quality**: Formatting and lint checks
 
 #### Release Artifacts
-- **Git tag**: `v1.5.7` format
+- **Git tag**: `v1.6.1` format
 - **GitHub Release**: With changelog excerpt
-- **Library package**: `painlessMesh-v1.5.7.zip`
+- **Library package**: `painlessMesh-v1.6.1.zip`
 - **Documentation**: Auto-deployed to GitHub Pages
 
-#### Library Distribution  
-- **Arduino Library Manager**: Automatic via GitHub releases
-- **PlatformIO Registry**: Automatic via `library.json` + tags
+#### NPM Publishing
+- **Public NPM**: Available to anyone via `npm install @alteriom/painlessmesh`
+- **GitHub Packages**: Scoped package for authenticated users
+- **Version consistency**: Verified across all package files
 
-## Troubleshooting
+#### Wiki Updates
+- **Home Page**: Generated from README.md
+- **API Reference**: Auto-generated documentation
+- **Examples**: Links to repository examples
+- **Installation Guide**: Multi-platform instructions
 
-### Common Issues
+## 📦 NPM Publishing Details
 
-**Version Mismatch**
-```bash
-# Fix version inconsistencies
-./scripts/bump-version.sh patch 1.5.7  # Force set version
+### Dual Publishing Strategy
+
+Each release publishes to **two NPM registries**:
+
+1. **Public NPM** (npmjs.com)
+   - Package: `@alteriom/painlessmesh`
+   - Installation: `npm install @alteriom/painlessmesh`
+   - No authentication required
+
+2. **GitHub Packages** (npm.pkg.github.com)
+   - Package: `@alteriom/painlessmesh`
+   - Installation: Requires `.npmrc` configuration
+   - Authentication required for installation
+
+### NPM Package Contents
+
+The NPM package includes:
+- `src/` - Complete library source code
+- `examples/` - All Arduino examples
+- `docs/` - Documentation files
+- `library.properties` - Arduino metadata
+- `library.json` - PlatformIO metadata
+- Core documentation files (README, LICENSE, CHANGELOG)
+
+Excluded from NPM package:
+- Development files (`.github/`, `test/`, `scripts/`)
+- Build artifacts (`bin/`, `build/`)
+- IDE files and OS-specific files
+
+## 🛠️ Arduino Library Manager
+
+### One-Time Submission Process
+
+After your first release, submit to Arduino Library Manager:
+
+1. **Go to**: https://github.com/arduino/library-registry
+2. **Create issue** with this template:
+
+```
+Title: Add painlessMesh library
+
+Repository URL: https://github.com/Alteriom/painlessMesh
+Release tag: v1.6.1
+Library name: painlessMesh
+Version: 1.6.1
+
+This is the Alteriom fork of the painlessMesh library with enhanced 
+CI/CD, automated releases, and improved Arduino Library Manager compatibility.
+Includes SensorPackage, CommandPackage, and StatusPackage extensions.
 ```
 
-**Missing Changelog Entry**
+3. **Monitor** the issue for Arduino team approval
+4. **Future releases** are automatically indexed
+
+### Arduino Library Compliance
+
+The library meets all Arduino Library Manager requirements:
+- ✅ Correct directory structure
+- ✅ Valid `library.properties` file
+- ✅ Source files in `src/` directory
+- ✅ Examples compile successfully
+- ✅ Consistent version numbering
+- ✅ Open source license (LGPL-3.0)
+
+## 📚 GitHub Wiki Management
+
+### Automatic Synchronization
+
+Wiki pages are automatically updated on each release:
+
+- **Home** - From README.md
+- **Release-Guide** - From RELEASE_GUIDE.md  
+- **Changelog** - From CHANGELOG.md
+- **API-Reference** - Generated documentation
+- **Examples** - Auto-generated from examples directory
+- **Installation** - Multi-platform installation guide
+- **Contributing** - From CONTRIBUTING.md
+
+### Manual Wiki Updates
+
+If you need to update the wiki manually:
+
 ```bash
-# Add changelog entry for current version
-vim CHANGELOG.md
+# Clone wiki repository
+git clone https://github.com/Alteriom/painlessMesh.wiki.git
+
+# Edit markdown files directly
+# Commit and push changes
 ```
 
-**Build Failures**
-```bash
-# Test locally before release
-cmake -G Ninja .
-ninja
-run-parts --regex catch_ bin/
-```
+Note: Manual changes may be overwritten by automatic synchronization.
 
-**Tag Already Exists**
-```bash
-# Delete existing tag if needed (use carefully!)
-git tag -d v1.5.7
-git push origin :refs/tags/v1.5.7
-```
-
-### Manual Override
-
-If automation fails, you can manually:
-
-```bash
-# Create tag manually
-git tag -a v1.5.7 -m "painlessMesh v1.5.7"
-git push origin v1.5.7
-
-# Create GitHub release manually via web UI or gh CLI
-gh release create v1.5.7 --title "painlessMesh v1.5.7" --notes-file CHANGELOG.md
-```
-
-## Development Workflow
-
-### Feature Development
-```bash
-# Work on feature branches
-git checkout -b feature/my-new-feature
-# ... make changes ...
-git commit -m "feat: add new feature"
-git push origin feature/my-new-feature
-# Create PR to main
-```
-
-### Release Candidates
-```bash
-# For pre-releases
-./scripts/bump-version.sh minor 1.6.0-rc.1
-git commit -m "release: v1.6.0-rc.1"
-git push origin main
-# GitHub Actions will create pre-release
-```
-
-## Integration Points
-
-### Arduino Library Manager
-- Monitors GitHub releases
-- Uses `library.properties` for metadata
-- Automatic inclusion upon tagged release
-
-### PlatformIO Library Registry  
-- Monitors GitHub repositories
-- Uses `library.json` for metadata
-- Updates automatically on new tags
-- Registry: https://registry.platformio.org/libraries/alteriom/painlessMesh
-
-### Documentation Sites
-- **GitHub Pages**: https://alteriom.github.io/painlessMesh/
-- **Doxygen API**: Auto-generated from source comments
-- **User Guides**: Markdown docs in `/docs` directory
-
-## Scripts Reference
+## 🔧 Scripts Reference
 
 ### `./scripts/bump-version.sh`
-Updates version in both library files with consistency checks.
+Updates version in all library files with consistency checks.
 
 **Usage:**
 ```bash
 ./scripts/bump-version.sh patch        # Increment patch version
 ./scripts/bump-version.sh minor        # Increment minor version  
 ./scripts/bump-version.sh major        # Increment major version
-./scripts/bump-version.sh patch 1.5.7  # Set specific version
+./scripts/bump-version.sh patch 1.6.2  # Set specific version
 ```
 
 ### `./scripts/validate-release.sh`
 Comprehensive pre-release validation.
 
 **Checks:**
-- Version consistency between files
-- Changelog entries
+- Version consistency between all files
+- Changelog entries for current version
 - Git working tree status
-- Tag existence
+- Tag existence validation
 - Dependency declarations
 - Build file presence
-- Quick build test
+- Quick compilation test
 
-## Security & Permissions
+## 🚨 Troubleshooting
 
-### GitHub Secrets Required
-- `GITHUB_TOKEN`: Automatically provided
-- Additional secrets may be needed for external registries
+### Common Issues
+
+**Version Mismatch Error**
+```bash
+# Fix version inconsistencies
+./scripts/bump-version.sh patch 1.6.2  # Force set version
+```
+
+**Missing Changelog Entry**
+```bash
+# Add changelog entry for current version
+vim CHANGELOG.md
+# Add section: ## [1.6.2] - YYYY-MM-DD
+```
+
+**Build Failures**
+```bash
+# Test locally before release
+npm run build
+npm run test
+```
+
+**NPM Token Invalid**
+```bash
+# Verify NPM authentication
+npm whoami
+# If not logged in: npm login
+```
+
+**GitHub Packages Authentication**
+```bash
+# Check if GITHUB_TOKEN has packages:write permission
+# Repository Settings → Actions → General → Permissions
+```
+
+**Wiki Update Failure**
+```bash
+# Wiki may need manual initialization
+# Go to: https://github.com/Alteriom/painlessMesh/wiki
+# Create any page to initialize, then re-run release
+```
+
+### Manual Override
+
+If automation fails, you can manually perform any step:
+
+```bash
+# Manual NPM publish
+npm publish --access public
+
+# Manual GitHub release  
+gh release create v1.6.2 --title "painlessMesh v1.6.2" --notes-file CHANGELOG.md
+
+# Manual tag creation
+git tag v1.6.2
+git push origin v1.6.2
+```
+
+## 🔍 Validation Commands
+
+### Pre-Release Checks
+```bash
+# Comprehensive validation
+./scripts/validate-release.sh
+
+# Version consistency check
+./scripts/bump-version.sh --verify || echo "Use proper arguments"
+
+# NPM package validation
+npm run validate-library
+
+# Build test
+npm run build && npm run test
+```
+
+### Post-Release Verification
+```bash
+# Check NPM publication
+npm view @alteriom/painlessmesh
+
+# Check GitHub Packages
+npm view @alteriom/painlessmesh --registry=https://npm.pkg.github.com
+
+# Verify GitHub release
+gh release view
+
+# Check wiki update
+curl -s https://github.com/Alteriom/painlessMesh/wiki | grep -q "v1.6.2"
+```
+
+## 🎉 Success Indicators
+
+### Successful Release Shows:
+- ✅ GitHub release created with changelog
+- ✅ Git tag pushed to repository  
+- ✅ NPM package published (check npmjs.com)
+- ✅ GitHub Packages updated
+- ✅ Wiki pages synchronized
+- ✅ All GitHub Actions workflows completed successfully
+
+### Distribution Verification:
+```bash
+# Public NPM
+npm view @alteriom/painlessmesh
+
+# GitHub Packages
+npm view @alteriom/painlessmesh --registry=https://npm.pkg.github.com
+
+# PlatformIO (updated within 24 hours)
+# Check: https://registry.platformio.org/libraries/alteriom/painlessMesh
+
+# Arduino Library Manager (after manual submission)
+# Search in Arduino IDE Library Manager
+```
+
+## 🌟 Advanced Topics
+
+### Custom Release Notes
+
+To customize release notes beyond the changelog:
+
+1. Edit the generated `release_notes.txt` in the workflow
+2. Or create a custom release notes file in `.github/release-template.md`
+
+### Environment-Specific Releases
+
+For testing releases:
+
+```bash
+# Use pre-release tags
+git tag v1.6.2-beta
+git push origin v1.6.2-beta
+
+# This creates a pre-release without full publication
+```
+
+### Rollback Procedure
+
+If a release has issues:
+
+```bash
+# Delete remote tag
+git push origin :refs/tags/v1.6.2
+
+# Delete local tag  
+git tag -d v1.6.2
+
+# Delete GitHub release
+gh release delete v1.6.2
+
+# Unpublish NPM package (contact npm support)
+# GitHub Packages: Delete from package settings
+```
+
+## 📊 Release Metrics
+
+Monitor your releases:
+- **GitHub**: https://github.com/Alteriom/painlessMesh/releases
+- **NPM**: https://www.npmjs.com/package/@alteriom/painlessmesh
+- **PlatformIO**: https://registry.platformio.org/libraries/alteriom/painlessMesh
+- **Wiki**: https://github.com/Alteriom/painlessMesh/wiki
+
+## 🤝 Security & Permissions
+
+### Required GitHub Secrets
+- `GITHUB_TOKEN`: Automatically provided by GitHub Actions
+- `NPM_TOKEN`: Required for NPM publishing (add in repository secrets)
 
 ### Repository Settings
 - **Actions**: Enabled with write permissions
-- **Pages**: Enabled for documentation deployment  
+- **Packages**: Enabled for GitHub Packages publication
+- **Wiki**: Enabled for documentation deployment
 - **Releases**: Public releases enabled
 
 ---
@@ -239,7 +403,7 @@ Comprehensive pre-release validation.
 ```bash
 ./scripts/bump-version.sh patch
 # Edit CHANGELOG.md
-git add . && git commit -m "release: v1.5.7" && git push
+git add . && git commit -m "release: v1.6.2" && git push
 ```
 
 **Check release status:**
@@ -250,6 +414,6 @@ git add . && git commit -m "release: v1.5.7" && git push
 **Monitor release:**
 - GitHub Actions: https://github.com/Alteriom/painlessMesh/actions
 - Releases: https://github.com/Alteriom/painlessMesh/releases
-- Documentation: https://alteriom.github.io/painlessMesh/
+- Documentation: https://github.com/Alteriom/painlessMesh/wiki
 
 For questions or issues with the release process, create an issue with the `ci/cd` label.
