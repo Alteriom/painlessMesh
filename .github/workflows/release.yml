@@ -83,7 +83,7 @@ jobs:
           if [ -f "CHANGELOG.md" ]; then
             # Extract changes for current version
             VERSION="${{ steps.version.outputs.version }}"
-            awk "/^## \[?${VERSION}\]?|^## v${VERSION}/ {flag=1; next} /^## / {flag=0} flag" CHANGELOG.md > release_notes.txt
+            awk "/^## \\[${VERSION}\\]|^## v${VERSION}/ {flag=1; next} /^## / {flag=0} flag" CHANGELOG.md > release_notes.txt
             
             if [ -s release_notes.txt ]; then
               echo "Found changelog entry for version $VERSION"
@@ -111,15 +111,13 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
-        uses: actions/create-release@v1
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "painlessMesh v${{ steps.version.outputs.version }}" \
+            --notes-file release_notes.txt \
+            --repo ${{ github.repository }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          release_name: painlessMesh v${{ steps.version.outputs.version }}
-          body_path: release_notes.txt
-          draft: false
-          prerelease: false
 
       - name: Prepare library package
         if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
@@ -137,14 +135,12 @@ jobs:
 
       - name: Upload library package
         if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
-        uses: actions/upload-release-asset@v1
+        run: |
+          gh release upload "v${{ steps.version.outputs.version }}" \
+            "./painlessMesh-v${{ steps.version.outputs.version }}.zip" \
+            --repo ${{ github.repository }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./painlessMesh-v${{ steps.version.outputs.version }}.zip
-          asset_name: painlessMesh-v${{ steps.version.outputs.version }}.zip
-          asset_content_type: application/zip
 
       - name: PlatformIO Library Registry
         if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')

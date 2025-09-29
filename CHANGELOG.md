@@ -21,6 +21,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Improved build consistency across different environments
 
+## [1.5.7] - 2025-09-29
+
+### Added
+- Enhanced Alteriom-specific package documentation and examples
+- Updated repository URLs and metadata for Alteriom fork
+- Improved release process documentation
+
+### Changed  
+- Migrated from deprecated `actions/create-release@v1` to GitHub CLI for releases
+- Updated library.properties and library.json to reflect Alteriom ownership
+- Enhanced package descriptions to highlight Alteriom extensions
+
+### Fixed
+- Fixed deprecated GitHub Actions in release workflow  
+- Corrected undefined variable references in upload workflow steps
+- Updated repository URLs from GitLab to GitHub in library files
+
 ## [1.5.6] - Current Release
 
 ### Features
