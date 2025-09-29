@@ -56,23 +56,62 @@ jobs:
           if [ -d "doxygen/documentation/html" ]; then
             cp -r doxygen/documentation/html/* public/api-reference/
             
-            # Create API index page for Docsify
-            cat > public/api/doxygen.md << 'EOF'
-          # API Reference (Doxygen)
+            # Create enhanced Doxygen integration pages
+            mkdir -p public/api/doxygen
+            
+            # Main Doxygen index already exists, enhance it
+            echo "Doxygen documentation integrated successfully"
+            
+            # Create embedded class documentation pages
+            cat > public/api/doxygen/classes.md << 'EOF'
+          # Class Reference
           
-          This section contains the complete API reference generated from the source code.
+          Complete class documentation generated from source code.
           
-          [📖 Browse Full API Documentation](../api-reference/index.html ':target=_blank')
+          <iframe src="../../api-reference/annotated.html" 
+                  width="100%" 
+                  height="800px" 
+                  frameborder="0"
+                  style="border: 1px solid #ddd; border-radius: 4px;">
+          </iframe>
           
-          ## Quick Links
-          
-          - [Classes](../api-reference/annotated.html) - All painlessMesh classes
-          - [Functions](../api-reference/globals_func.html) - Global functions
-          - [Files](../api-reference/files.html) - Source file documentation
-          - [Examples](../api-reference/examples.html) - Code examples
-          
-          The API documentation is automatically generated from the source code using Doxygen.
+          [📖 Open in New Tab](../../api-reference/annotated.html ':target=_blank')
           EOF
+            
+            # Create embedded functions documentation
+            cat > public/api/doxygen/functions.md << 'EOF'
+          # Function Reference
+          
+          Complete function documentation generated from source code.
+          
+          <iframe src="../../api-reference/globals_func.html" 
+                  width="100%" 
+                  height="800px" 
+                  frameborder="0"
+                  style="border: 1px solid #ddd; border-radius: 4px;">
+          </iframe>
+          
+          [📖 Open in New Tab](../../api-reference/globals_func.html ':target=_blank')
+          EOF
+            
+            # Create embedded files documentation
+            cat > public/api/doxygen/files.md << 'EOF'
+          # File Reference
+          
+          Complete file documentation generated from source code.
+          
+          <iframe src="../../api-reference/files.html" 
+                  width="100%" 
+                  height="800px" 
+                  frameborder="0"
+                  style="border: 1px solid #ddd; border-radius: 4px;">
+          </iframe>
+          
+          [📖 Open in New Tab](../../api-reference/files.html ':target=_blank')
+          EOF
+            
+          else
+            echo "Warning: Doxygen documentation not found"
           fi
           
           # Ensure proper file structure for Docsify
