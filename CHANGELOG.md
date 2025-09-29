@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- TBD
+
+### Changed
+
+- TBD
+
+### Fixed
+
+- TBD
+
+## [1.6.1] - 2025-09-29
+
+### Added
+
+- **Arduino Library Manager Support**: Updated library name to "Alteriom PainlessMesh" for better discoverability
 - **NPM Package Publishing**: Complete NPM publication setup with dual registry support
   - Public NPM registry: `@alteriom/painlessmesh`
   - GitHub Packages registry: `@alteriom/painlessmesh` (scoped)
@@ -33,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clear instructions for NPM and GitHub Packages publication
 
 ### Changed  
+- **Library Name**: Updated from "Painless Mesh" to "Alteriom PainlessMesh" for Arduino Library Manager
 - **Release Process**: Streamlined to support multiple package managers
   - Single commit with "release:" prefix triggers full publication pipeline
   - Automated testing, building, and publishing across all channels
@@ -47,6 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Troubleshooting guides for each distribution channel
 
 ### Fixed
+- **NPM Publishing**: Fixed registry configuration issues that prevented NPM publication
+- **GitHub Pages**: Improved workflow to handle cases where Pages is not configured
+- **PlatformIO Build**: Fixed include paths in improved_sensor_node.ino example
 - **Package Configuration**: Consistent version management across all package files
 - **Release Documentation**: Complete coverage of all distribution channels
 - **Version Validation**: Prevents releases with inconsistent version numbers
