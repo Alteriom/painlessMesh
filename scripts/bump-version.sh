@@ -106,6 +106,24 @@ update_library_json() {
     fi
 }
 
+update_package_json() {
+    local new_version="$1"
+    local file="$ROOT_DIR/package.json"
+    
+    if [[ -f "$file" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            # Use jq if available for better JSON handling
+            jq --arg version "$new_version" '.version = $version' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+        else
+            # Fallback to sed
+            sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$new_version\"/" "$file"
+        fi
+        echo -e "${GREEN}✓ Updated package.json to version $new_version${NC}"
+    else
+        echo -e "${YELLOW}Warning: package.json not found, skipping NPM version update${NC}"
+    fi
+}
+
 verify_consistency() {
     local expected_version="$1"
     
@@ -119,10 +137,39 @@ verify_consistency() {
         json_version=$(grep '"version"' "$ROOT_DIR/library.json" | sed 's/.*"version": "\([^"]*\)".*/\1/')
     fi
     
-    if [[ "$prop_version" != "$expected_version" ]] || [[ "$json_version" != "$expected_version" ]]; then
-        echo -e "${RED}Error: Version inconsistency detected${NC}" >&2
+    local pkg_version=""
+    if [[ -f "$ROOT_DIR/package.json" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            pkg_version=$(jq -r '.version' "$ROOT_DIR/package.json")
+        else
+            pkg_version=$(grep '"version"' "$ROOT_DIR/package.json" | sed 's/.*"version": "\([^"]*\)".*/\1/')
+        fi
+    fi
+    
+    local has_error=false
+    
+    if [[ "$prop_version" != "$expected_version" ]]; then
+        echo -e "${RED}Error: library.properties version mismatch: $prop_version != $expected_version${NC}" >&2
+        has_error=true
+    fi
+    
+    if [[ "$json_version" != "$expected_version" ]]; then
+        echo -e "${RED}Error: library.json version mismatch: $json_version != $expected_version${NC}" >&2
+        has_error=true
+    fi
+    
+    if [[ -n "$pkg_version" && "$pkg_version" != "$expected_version" ]]; then
+        echo -e "${RED}Error: package.json version mismatch: $pkg_version != $expected_version${NC}" >&2
+        has_error=true
+    fi
+    
+    if [[ "$has_error" == "true" ]]; then
+        echo -e "${RED}Version inconsistency detected${NC}" >&2
         echo "  library.properties: $prop_version"
         echo "  library.json: $json_version"
+        if [[ -n "$pkg_version" ]]; then
+            echo "  package.json: $pkg_version"
+        fi
         echo "  expected: $expected_version"
         exit 1
     fi
@@ -168,16 +215,20 @@ main() {
     # Update files
     update_library_properties "$new_version"
     update_library_json "$new_version"
+    update_package_json "$new_version"
     
     # Verify consistency
     verify_consistency "$new_version"
     
     echo -e "${GREEN}✅ Version successfully updated to $new_version${NC}"
     echo ""
-    echo "Next steps:"
-    echo "1. Update CHANGELOG.md with changes for version $new_version"
-    echo "2. Commit changes with: git commit -am 'bump: version $new_version'"  
-    echo "3. Create release with: git commit -am 'release: v$new_version' && git push"
+    echo -e "${YELLOW}Next steps:${NC}"
+    echo "1. Update CHANGELOG.md with your changes"
+    echo "2. Commit and push: git add library.properties library.json package.json CHANGELOG.md"
+    echo "3. Commit message: git commit -m \"release: v$new_version\""
+    echo "4. Push: git push origin main"
+    echo ""
+    echo "This will trigger automated release with NPM publishing, GitHub Packages, and wiki updates."
 }
 
 main "$@"

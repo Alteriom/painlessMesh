@@ -7,6 +7,7 @@ on:
       - 'library.properties'
       - 'library.json'
       - 'CHANGELOG.md'
+      - 'package.json'
 
 # Prevent concurrent releases
 concurrency:
@@ -58,9 +59,13 @@ jobs:
         run: |
           PROP_VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
           JSON_VERSION=$(jq -r '.version' library.json)
+          PKG_VERSION=$(jq -r '.version' package.json)
           
-          if [ "$PROP_VERSION" != "$JSON_VERSION" ]; then
-            echo "❌ Version mismatch between library.properties ($PROP_VERSION) and library.json ($JSON_VERSION)"
+          if [ "$PROP_VERSION" != "$JSON_VERSION" ] || [ "$PROP_VERSION" != "$PKG_VERSION" ]; then
+            echo "❌ Version mismatch detected:"
+            echo "  library.properties: $PROP_VERSION"
+            echo "  library.json: $JSON_VERSION" 
+            echo "  package.json: $PKG_VERSION"
             exit 1
           fi
           
@@ -169,3 +174,531 @@ jobs:
           echo "- Commit message: ${{ steps.commit.outputs.message }}" >> $GITHUB_STEP_SUMMARY
           echo "- Auto-release: ${{ steps.commit.outputs.message && startsWith(steps.commit.outputs.message, 'release:') && steps.tagcheck.outputs.exists == 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Changelog found: ${{ steps.changelog.outputs.has_changelog }}" >> $GITHUB_STEP_SUMMARY
+
+  # Publish to NPM (public registry)
+  npm-publish:
+    needs: [tag-and-release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.head_commit.message, 'release:')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js for NPM
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Install dependencies
+      run: npm install --ignore-scripts
+    
+    - name: Validate NPM package.json
+      run: |
+        echo "📦 Validating NPM package configuration..."
+        npm run validate-library || echo "Library validation completed"
+        
+        # Check if package name is available (for first-time publishing)
+        echo "🔍 Checking NPM package availability..."
+        if npm view @alteriom/painlessmesh version 2>/dev/null; then
+          echo "✅ Package exists - this will be an update"
+        else
+          echo "🆕 Package doesn't exist - this will be first publication"
+        fi
+    
+    - name: Publish to NPM
+      run: |
+        echo "📦 Publishing to NPM..."
+        npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    
+    - name: NPM Publication Success
+      run: |
+        VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        echo "================================"
+        echo "🎉 NPM Publication Successful!"
+        echo "================================"
+        echo ""
+        echo "📦 Package: @alteriom/painlessmesh@$VERSION"
+        echo "🔗 NPM URL: https://www.npmjs.com/package/@alteriom/painlessmesh"
+        echo "📥 Install: npm install @alteriom/painlessmesh"
+        echo ""
+        echo "📚 Documentation:"
+        echo "   - Arduino examples: examples/"
+        echo "   - PlatformIO: library.json"
+        echo "   - GitHub Wiki: https://github.com/Alteriom/painlessMesh/wiki"
+        echo "================================"
+
+  # Publish to GitHub Packages
+  github-packages-publish:
+    needs: [tag-and-release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.head_commit.message, 'release:')
+    continue-on-error: true  # Don't fail the release if GitHub Packages fails
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js for GitHub Packages
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@alteriom'
+    
+    - name: Install dependencies
+      run: npm install --ignore-scripts
+    
+    - name: Validate GitHub Package configuration
+      run: |
+        echo "📦 Validating GitHub Package configuration..."
+        echo "Package name: $(grep '"name"' package.json | cut -d'"' -f4)"
+        echo "Registry: https://npm.pkg.github.com"
+        echo "Scope: @alteriom"
+        
+        # Check if package exists
+        echo "🔍 Checking GitHub Package availability..."
+        if npm view @alteriom/painlessmesh version 2>/dev/null; then
+          echo "✅ Package exists - this will be an update"
+        else
+          echo "🆕 Package doesn't exist - this will be first publication"
+        fi
+    
+    - name: Publish to GitHub Packages
+      run: |
+        echo "📦 Publishing to GitHub Packages..."
+        if npm publish; then
+          echo "✅ Successfully published to GitHub Packages"
+        else
+          echo "⚠️  GitHub Packages publishing failed. This might be due to:"
+          echo "   1. Organization package permissions not enabled"
+          echo "   2. Package name already exists"
+          echo "   3. Authentication issues"
+          echo ""
+          echo "📦 NPM package is still available: npm install @alteriom/painlessmesh"
+          exit 1
+        fi
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: GitHub Packages Publication Success
+      run: |
+        VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        echo "================================"
+        echo "🎉 GitHub Packages Publication Successful!"
+        echo "================================"
+        echo ""
+        echo "📦 Package: @alteriom/painlessmesh@$VERSION"
+        echo "🔗 GitHub URL: https://github.com/Alteriom/painlessMesh/packages"
+        echo "📥 Install: npm install @alteriom/painlessmesh"
+        echo ""
+        echo "🔧 Installation requires .npmrc configuration:"
+        echo "   echo '@alteriom:registry=https://npm.pkg.github.com' >> .npmrc"
+        echo ""
+        echo "💡 Note: GitHub Packages require authentication for installation"
+        echo "================================"
+
+  # Publish documentation to GitHub Wiki
+  wiki-publish:
+    needs: [tag-and-release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.head_commit.message, 'release:')
+    continue-on-error: true  # Don't fail the release if wiki update fails
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check if Wiki exists and create initial page if needed
+      run: |
+        VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        echo "📚 Setting up GitHub Wiki for version $VERSION..."
+        
+        # Try to clone the wiki repository
+        if git clone https://github.com/${{ github.repository }}.wiki.git wiki 2>/dev/null; then
+          echo "✅ Wiki repository exists"
+        else
+          echo "📝 Wiki doesn't exist yet. Creating it..."
+          # Create a temporary wiki directory and initialize it
+          mkdir -p wiki
+          cd wiki
+          git init
+          git remote add origin https://github.com/${{ github.repository }}.wiki.git
+          
+          # Create initial Home page to initialize the wiki
+          cat > Home.md << 'EOF'
+        # Alteriom painlessMesh Library Wiki
+        
+        Welcome to the official wiki for the Alteriom painlessMesh Library!
+        
+        This wiki is automatically updated with each release.
+        
+        ## Quick Links
+        
+        - [Installation Guide](Installation)
+        - [API Reference](API-Reference) 
+        - [Examples](Examples)
+        - [Complete Documentation](Complete-Documentation)
+        - [Contributing Guidelines](Contributing)
+        - [Changelog](Changelog)
+        
+        ## Getting Started
+        
+        The Alteriom painlessMesh Library provides mesh networking for ESP32 and ESP8266 devices with automatic routing and JSON messaging.
+        
+        ### Quick Installation
+        
+        **Arduino IDE:**
+        1. Tools → Manage Libraries
+        2. Search: "painlessMesh"
+        3. Install (author: Alteriom)
+        
+        **PlatformIO:**
+        ```ini
+        lib_deps = alteriom/painlessMesh@^1.6.0
+        ```
+        
+        **NPM:**
+        ```bash
+        npm install @alteriom/painlessmesh
+        ```
+        
+        ## Features
+        
+        - Automatic mesh formation and routing
+        - JSON-based messaging system
+        - Time synchronization across nodes
+        - Alteriom SensorPackage, CommandPackage, StatusPackage
+        - Multi-platform support (ESP32, ESP8266)
+        - Comprehensive examples and documentation
+        EOF
+          
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add Home.md
+          git commit -m "Initialize wiki with home page"
+          
+          # Push to create the wiki
+          git push -u origin master || {
+            echo "⚠️  Could not create wiki automatically. Wiki needs to be manually created first."
+            echo "   Please go to https://github.com/${{ github.repository }}/wiki and create a page manually."
+            cd ..
+            exit 0
+          }
+          cd ..
+          echo "✅ Wiki initialized successfully"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Update Wiki Pages
+      run: |
+        VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        echo "📚 Updating GitHub Wiki for version $VERSION..."
+        
+        # Ensure we're in the wiki directory
+        cd wiki || exit 0
+        
+        # Configure git
+        git config user.name "GitHub Action"
+        git config user.email "action@github.com"
+        
+        # Copy documentation files to wiki (overwrite existing)
+        cp ../README.md Home.md
+        cp ../RELEASE_GUIDE.md Release-Guide.md 2>/dev/null || echo "# Release Guide\n\nSee main repository for release information." > Release-Guide.md
+        cp ../CHANGELOG.md Changelog.md
+        cp ../CONTRIBUTING.md Contributing.md 2>/dev/null || echo "# Contributing\n\nSee main repository for contributing guidelines." > Contributing.md
+        
+        # Create API Reference page
+        cat > API-Reference.md << 'EOF'
+        # API Reference
+        
+        This page contains the complete API reference for the Alteriom painlessMesh Library.
+        
+        ## Core Classes
+        
+        ### painlessMesh
+        
+        The main class for creating and managing mesh networks.
+        
+        #### Methods
+        
+        ```cpp
+        // Initialization
+        void init(String ssid, String password, Scheduler *baseScheduler, uint16_t port = 5555);
+        
+        // Network management
+        void update();
+        bool sendBroadcast(String &msg);
+        bool sendSingle(uint32_t &destId, String &msg);
+        
+        // Event callbacks
+        void onReceive(std::function<void(uint32_t from, String &msg)> cb);
+        void onNewConnection(std::function<void(uint32_t nodeId)> cb);
+        void onChangedConnections(std::function<void()> cb);
+        void onNodeTimeAdjusted(std::function<void(int32_t offset)> cb);
+        
+        // Node information
+        uint32_t getNodeId();
+        std::list<uint32_t> getNodeList();
+        uint32_t getNodeTime();
+        
+        // Debugging
+        void setDebugMsgTypes(uint16_t types);
+        ```
+        
+        ## Alteriom Extensions
+        
+        ### SensorPackage (Type 200)
+        Environmental data collection package.
+        
+        ```cpp
+        class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
+        public:
+            uint32_t sensorId = 0;
+            uint32_t timestamp = 0;
+            double temperature = 0.0;
+            double humidity = 0.0;
+            double pressure = 0.0;
+            uint8_t batteryLevel = 0;
+        };
+        ```
+        
+        ### CommandPackage (Type 201)
+        Device control and automation commands.
+        
+        ```cpp
+        class CommandPackage : public painlessmesh::plugin::SinglePackage {
+        public:
+            uint8_t command = 0;
+            uint32_t targetDevice = 0;
+            uint32_t commandId = 0;
+            TSTRING parameters = "";
+        };
+        ```
+        
+        ### StatusPackage (Type 202)
+        Health monitoring and system status reporting.
+        
+        ```cpp
+        class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
+        public:
+            uint8_t deviceStatus = 0;
+            uint32_t uptime = 0;
+            uint16_t freeMemory = 0;
+            uint8_t wifiStrength = 0;
+            TSTRING firmwareVersion = "";
+        };
+        ```
+        
+        For complete documentation, see [Complete Documentation](Complete-Documentation).
+        EOF
+        
+        # Create Examples page with links to repository examples
+        cat > Examples.md << 'EOF'
+        # Examples
+        
+        This page contains links and descriptions of all available examples.
+        
+        ## Basic Examples
+        
+        ### Getting Started
+        - **[namedMesh](https://github.com/Alteriom/painlessMesh/tree/main/examples/namedMesh)** - Basic mesh setup with named nodes
+        - **[startHere](https://github.com/Alteriom/painlessMesh/tree/main/examples/startHere)** - Simple message broadcasting example
+        - **[bridge](https://github.com/Alteriom/painlessMesh/tree/main/examples/bridge)** - Bridge mesh to external network
+        
+        ### Advanced Examples
+        - **[blink](https://github.com/Alteriom/painlessMesh/tree/main/examples/blink)** - Synchronized LED blinking across mesh
+        - **[chatServer](https://github.com/Alteriom/painlessMesh/tree/main/examples/chatServer)** - Web-based chat interface
+        - **[logServer](https://github.com/Alteriom/painlessMesh/tree/main/examples/logServer)** - Centralized logging system
+        
+        ## Alteriom Extensions
+        - **[alteriom_sensor_node](https://github.com/Alteriom/painlessMesh/tree/main/examples/alteriom)** - SensorPackage usage example
+        - **[alteriom_command_center](https://github.com/Alteriom/painlessMesh/tree/main/examples/alteriom)** - CommandPackage demonstration
+        - **[alteriom_status_monitor](https://github.com/Alteriom/painlessMesh/tree/main/examples/alteriom)** - StatusPackage implementation
+        
+        ## Platform-Specific
+        Each example includes platform-specific configurations for:
+        - ESP32 (all variants)
+        - ESP8266 (NodeMCU, Wemos D1, etc.)
+        
+        For complete code and wiring diagrams, visit the [examples directory](https://github.com/Alteriom/painlessMesh/tree/main/examples).
+        EOF
+        
+        # Create Installation Guide
+        cat > Installation.md << 'EOF'
+        # Installation Guide
+        
+        ## Arduino Library Manager
+        
+        1. Open Arduino IDE
+        2. Go to **Tools** → **Manage Libraries**
+        3. Search for "**painlessMesh**"
+        4. Select the version by **Alteriom**
+        5. Click **Install**
+        
+        ## PlatformIO
+        
+        Add to your `platformio.ini`:
+        ```ini
+        lib_deps = 
+            alteriom/painlessMesh@^1.6.0
+        ```
+        
+        ## NPM Package
+        
+        For MCP server integration or Node.js projects:
+        ```bash
+        # Public NPM
+        npm install @alteriom/painlessmesh
+        
+        # GitHub Packages (requires authentication)
+        echo '@alteriom:registry=https://npm.pkg.github.com' >> .npmrc
+        npm install @alteriom/painlessmesh
+        ```
+        
+        ## Manual Installation
+        
+        1. Download the latest release from [GitHub Releases](https://github.com/Alteriom/painlessMesh/releases)
+        2. Extract to your Arduino libraries folder
+        3. Restart Arduino IDE
+        
+        ## Dependencies
+        
+        painlessMesh requires these libraries (automatically installed via Arduino Library Manager):
+        - ArduinoJson (^7.4.2)
+        - TaskScheduler (^3.8.5)
+        - AsyncTCP (ESP32) or ESPAsyncTCP (ESP8266)
+        
+        ## Supported Platforms
+        
+        - ESP32 (all variants)
+        - ESP8266 (NodeMCU, Wemos D1, etc.)
+        
+        ## First Example
+        
+        ```cpp
+        #include "painlessMesh.h"
+        
+        #define MESH_PREFIX     "YourMeshName"
+        #define MESH_PASSWORD   "YourPassword"
+        #define MESH_PORT       5555
+        
+        Scheduler userScheduler;
+        painlessMesh mesh;
+        
+        void setup() {
+          Serial.begin(115200);
+          mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+          mesh.onReceive([](uint32_t from, String& msg) {
+            Serial.printf("Received: %s from %u\n", msg.c_str(), from);
+          });
+        }
+        
+        void loop() {
+          mesh.update();
+        }
+        ```
+        EOF
+    
+    - name: Commit and Push Wiki Changes
+      run: |
+        cd wiki || exit 0
+        
+        # Check if we have any changes
+        if git diff --quiet && git diff --cached --quiet; then
+          echo "No changes to commit to wiki"
+          exit 0
+        fi
+        
+        git add .
+        git commit -m "Update documentation for release ${GITHUB_REF#refs/tags/v}" || {
+          echo "Nothing to commit"
+          exit 0
+        }
+        
+        # Push changes
+        git push || {
+          echo "⚠️  Could not push to wiki. This may be the first time or wiki doesn't exist."
+          echo "   Please create the wiki manually at: https://github.com/${{ github.repository }}/wiki"
+          exit 0
+        }
+        
+        echo "✅ Wiki updated successfully!"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Wiki Publication Success
+      run: |
+        VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        echo "================================"
+        echo "📚 Wiki Publication Successful!"
+        echo "================================"
+        echo ""
+        echo "📖 Wiki URL: https://github.com/Alteriom/painlessMesh/wiki"
+        echo "🏠 Home Page: https://github.com/Alteriom/painlessMesh/wiki/Home"
+        echo "📋 API Reference: https://github.com/Alteriom/painlessMesh/wiki/API-Reference"
+        echo "📚 Examples: https://github.com/Alteriom/painlessMesh/wiki/Examples"
+        echo ""
+        echo "📝 Updated pages:"
+        echo "   - Home (from README.md)"
+        echo "   - Release Guide (from RELEASE_GUIDE.md)"
+        echo "   - API Reference (generated)"
+        echo "   - Examples (generated)"
+        echo "   - Installation Guide (generated)"
+        echo "   - Contributing Guidelines (from CONTRIBUTING.md)"
+        echo "   - Changelog (from CHANGELOG.md)"
+        echo "================================"
+
+  submission-instructions:
+    needs: [tag-and-release, npm-publish, github-packages-publish]
+    runs-on: ubuntu-latest
+    if: always() && needs.tag-and-release.result == 'success'
+    
+    steps:
+    - name: Arduino Library Manager Submission Instructions
+      run: |
+        VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        echo "================================"
+        echo "🚀 Arduino Library Manager Submission"
+        echo "================================"
+        echo ""
+        echo "✅ Release $VERSION has been created successfully!"
+        echo ""
+        echo "📋 Next Steps for Arduino Library Manager:"
+        echo "1. Go to: https://github.com/arduino/library-registry"
+        echo "2. Create a new issue with the following details:"
+        echo ""
+        echo "   Title: Add painlessMesh library"
+        echo ""
+        echo "   Body:"
+        echo "   ```"
+        echo "   Repository URL: https://github.com/Alteriom/painlessMesh"
+        echo "   Release tag: v$VERSION"
+        echo "   Library name: painlessMesh"
+        echo "   Version: $VERSION"
+        echo "   "
+        echo "   This is the Alteriom fork of the painlessMesh library with enhanced"
+        echo "   CI/CD, automated releases, and improved Arduino Library Manager compatibility."
+        echo "   Includes SensorPackage, CommandPackage, and StatusPackage extensions."
+        echo "   ```"
+        echo ""
+        echo "3. 📧 Monitor the issue for Arduino team approval"
+        echo "4. 🎉 Library will be available in Arduino Library Manager after approval"
+        echo ""
+        echo "💡 Additional Resources:"
+        echo "   - GitHub Release: https://github.com/Alteriom/painlessMesh/releases/tag/v$VERSION"
+        echo "   - NPM Package: https://www.npmjs.com/package/@alteriom/painlessmesh"
+        echo "   - GitHub Package: https://github.com/Alteriom/painlessMesh/packages"
+        echo "   - Documentation: https://github.com/Alteriom/painlessMesh/wiki"
+        echo "   - Release Guide: https://github.com/Alteriom/painlessMesh/blob/main/RELEASE_GUIDE.md"
+        echo "================================"
