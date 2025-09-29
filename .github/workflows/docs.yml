@@ -4,9 +4,8 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'website/**'
+      - 'docsify-site/**'
       - 'src/**'
-      - 'docs/**'  
       - 'README.md'
       - 'doxygen/**'
       - 'examples/**'
@@ -32,13 +31,6 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: website/package-lock.json
-
       - name: Install Doxygen
         run: |
           sudo apt-get update -qq
@@ -49,23 +41,44 @@ jobs:
           # Use existing Doxygen configuration
           doxygen doxygen/Doxyfile
 
-      - name: Install Docusaurus Dependencies
-        working-directory: ./website
-        run: npm ci
-
-      - name: Integrate Doxygen with Docusaurus
+      - name: Prepare Docsify Documentation Site
         run: |
-          # Create API docs directory in Docusaurus
-          mkdir -p website/static/api
+          # Create public directory
+          mkdir -p public
           
-          # Copy Doxygen output to static folder
+          # Copy Docsify site
+          cp -r docsify-site/* public/
+          
+          # Create API documentation directory
+          mkdir -p public/api-reference
+          
+          # Copy Doxygen output to API reference
           if [ -d "doxygen/documentation/html" ]; then
-            cp -r doxygen/documentation/html/* website/static/api/
+            cp -r doxygen/documentation/html/* public/api-reference/
+            
+            # Create API index page for Docsify
+            cat > public/api/doxygen.md << 'EOF'
+          # API Reference (Doxygen)
+          
+          This section contains the complete API reference generated from the source code.
+          
+          [📖 Browse Full API Documentation](../api-reference/index.html ':target=_blank')
+          
+          ## Quick Links
+          
+          - [Classes](../api-reference/annotated.html) - All painlessMesh classes
+          - [Functions](../api-reference/globals_func.html) - Global functions
+          - [Files](../api-reference/files.html) - Source file documentation
+          - [Examples](../api-reference/examples.html) - Code examples
+          
+          The API documentation is automatically generated from the source code using Doxygen.
+          EOF
           fi
-
-      - name: Build Docusaurus Site
-        working-directory: ./website
-        run: npm run build
+          
+          # Ensure proper file structure for Docsify
+          if [ ! -f "public/.nojekyll" ]; then
+            touch public/.nojekyll
+          fi
 
       - name: Setup Pages
         id: pages-setup
@@ -76,7 +89,7 @@ jobs:
         if: steps.pages-setup.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './website/build'
+          path: './public'
 
       - name: Deploy to GitHub Pages (if Pages configured)
         if: steps.pages-setup.outcome == 'success'
@@ -87,7 +100,7 @@ jobs:
         if: steps.pages-setup.outcome == 'failure'
         run: |
           echo "::notice::GitHub Pages is not configured for this repository."
-          echo "::notice::Documentation was built successfully but not deployed."
+          echo "::notice::Docsify documentation was built successfully but not deployed."
           echo "::notice::To enable Pages deployment:"
           echo "::notice::1. Go to repository Settings"
           echo "::notice::2. Navigate to Pages section"
