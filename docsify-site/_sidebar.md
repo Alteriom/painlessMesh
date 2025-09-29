@@ -11,6 +11,7 @@
   * [🎯 Core API](api/core-api.md)
   * [📞 Callbacks](api/callbacks.md)
   * [⚙️ Configuration](api/configuration.md)
+  * [📚 Doxygen API](api/doxygen.md)
 
 * **🌟 Alteriom Extensions**
   * [📦 Packages](alteriom/packages.md)

@@ -1,134 +1,71 @@
 # painlessMesh Documentation
 
-> A painless way to setup a mesh with ESP8266 and ESP32 devices
+Welcome to the comprehensive documentation for painlessMesh - a user-friendly ESP8266/ESP32 mesh networking library that automatically handles routing and network management.
 
-[![Version](https://img.shields.io/github/v/release/Alteriom/painlessMesh)](https://github.com/Alteriom/painlessMesh/releases)
-[![License](https://img.shields.io/github/license/Alteriom/painlessMesh)](https://github.com/Alteriom/painlessMesh/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/Alteriom/painlessMesh/total)](https://github.com/Alteriom/painlessMesh/releases)
+## Documentation Structure
 
-## What is painlessMesh?
+### Getting Started
+- [Quick Start Guide](getting-started/quickstart.md) - Get up and running in minutes
+- [Installation](getting-started/installation.md) - Detailed installation instructions
+- [First Mesh Network](getting-started/first-mesh.md) - Your first working mesh
 
-painlessMesh is a library that handles all the complexities of mesh networking for you:
+### Architecture & Design  
+- [Mesh Architecture](architecture/mesh-architecture.md) - How painlessMesh works internally
+- [Plugin System](architecture/plugin-system.md) - Understanding the plugin architecture
+- [Message Routing](architecture/routing.md) - Message routing algorithms and strategies
+- [Time Synchronization](architecture/time-sync.md) - Mesh-wide time synchronization
 
-- 🔗 **Automatic routing** - Messages find the best path automatically
-- 🕒 **Time synchronization** - All nodes share synchronized time
-- 📡 **Self-healing** - Network adapts when nodes join or leave  
-- 💬 **JSON messaging** - Simple, structured communication
-- 🛠️ **Easy setup** - Just a few lines of code to get started
+### API Reference
+- [Core API](api/core-api.md) - Main painlessMesh class methods
+- [Plugin API](api/plugin-api.md) - Creating custom packages and plugins
+- [Configuration](api/configuration.md) - Configuration options and constants
+- [Callbacks](api/callbacks.md) - Event handling and callbacks
 
-## Quick Start
+### Tutorials & Examples
+- [Basic Examples](tutorials/basic-examples.md) - Simple mesh networking examples
+- [Custom Packages](tutorials/custom-packages.md) - Creating your own message types
+- [Sensor Networks](tutorials/sensor-networks.md) - Building IoT sensor networks
+- [Bridge Applications](tutorials/bridge-apps.md) - Connecting mesh to external networks
 
-Get your first mesh network running in minutes:
+### Alteriom Extensions
+- [Alteriom Overview](alteriom/overview.md) - Alteriom-specific functionality
+- [Sensor Packages](alteriom/sensor-packages.md) - Environmental sensor data handling
+- [Command System](alteriom/command-system.md) - Device command and control
+- [Status Monitoring](alteriom/status-monitoring.md) - Device health and diagnostics
 
-```cpp
-#include "painlessMesh.h"
+### Advanced Topics
+- [Performance Optimization](advanced/performance.md) - Optimizing mesh performance
+- [Memory Management](advanced/memory.md) - Managing ESP8266/ESP32 memory constraints
+- [Security Considerations](advanced/security.md) - Securing your mesh network
+- [OTA Updates](advanced/ota.md) - Over-the-air firmware updates in mesh
 
-#define MESH_PREFIX     "MyMesh"
-#define MESH_PASSWORD   "password123"  
-#define MESH_PORT       5555
+### Troubleshooting
+- [Common Issues](troubleshooting/common-issues.md) - Solutions to frequent problems
+- [Debugging Guide](troubleshooting/debugging.md) - Tools and techniques for debugging
+- [FAQ](troubleshooting/faq.md) - Frequently asked questions
+- [Network Issues](troubleshooting/network-issues.md) - Connectivity and mesh topology problems
 
-Scheduler userScheduler;
-painlessMesh mesh;
+### Development
+- [Contributing](development/contributing.md) - How to contribute to painlessMesh
+- [Building & Testing](development/building.md) - Development environment setup
+- [Documentation](development/documentation.md) - Contributing to documentation
+- [Release Process](development/releases.md) - Understanding releases and versioning
 
-void setup() {
-  Serial.begin(115200);
-  
-  mesh.setDebugMsgTypes(ERROR | STARTUP);
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
-  mesh.onReceive(&receivedCallback);
-  
-  Serial.println("Mesh network started!");
-}
+## Quick Links
 
-void loop() {
-  mesh.update();
-}
+- **[GitHub Repository](https://github.com/Alteriom/painlessMesh)**
+- **[API Documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)**
+- **[Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)**
+- **[Issue Tracker](https://github.com/Alteriom/painlessMesh/issues)**
 
-void receivedCallback(uint32_t from, String& msg) {
-  Serial.printf("Received: %s from %u\n", msg.c_str(), from);
-}
-```
+## Need Help?
 
-## Alteriom Extensions
-
-This fork includes **Alteriom-specific packages** for common IoT scenarios:
-
-- 🌡️ **SensorPackage** - Environmental data collection and transmission
-- 🎮 **CommandPackage** - Device control and coordination
-- 📊 **StatusPackage** - Health monitoring and diagnostics
-
-## Key Features
-
-### Zero Configuration Networking
-No need to assign IPs or configure routes - the mesh handles everything automatically.
-
-### JSON-Based Messaging  
-Send structured data between nodes using familiar JSON syntax.
-
-### Time Synchronization
-All nodes maintain synchronized time for coordinated behaviors like light shows.
-
-### Self-Healing Network
-Automatically adapts when devices join, leave, or lose connection.
-
-## Supported Hardware
-
-| Platform | Status | Notes |
-|----------|--------|-------|
-| ESP32 | ✅ Full Support | Recommended for new projects |
-| ESP8266 | ✅ Full Support | Memory limitations on large meshes |
-| ESP32-S2/S3 | ✅ Experimental | Limited testing |
-| ESP32-C3 | ✅ Experimental | Limited testing |
-
-## Installation
-
-<!-- tabs:start -->
-
-#### **Arduino IDE**
-
-1. Open **Tools** → **Manage Libraries**
-2. Search for "painlessMesh"
-3. Install the latest version
-4. Install dependencies: ArduinoJson, TaskScheduler
-
-#### **PlatformIO**
-
-Add to your `platformio.ini`:
-
-```ini
-[env:esp32dev]
-platform = espressif32
-board = esp32dev
-framework = arduino
-lib_deps = 
-    Alteriom/painlessMesh@^1.6.0
-    bblanchon/ArduinoJson@^6.21.3
-    arkhipenko/TaskScheduler@^3.7.0
-```
-
-<!-- tabs:end -->
-
-## Documentation Navigation
-
-- 📚 **[Getting Started](getting-started/)** - Installation and first steps
-- 🔧 **[API Reference](api/)** - Complete API documentation  
-- 🌟 **[Alteriom Extensions](alteriom/)** - IoT-specific packages
-- 📖 **[Tutorials](tutorials/)** - Step-by-step guides
-- 🏗️ **[Architecture](architecture/)** - How painlessMesh works
-- 🚀 **[Advanced Topics](advanced/)** - Performance and optimization
-- ❓ **[Troubleshooting](troubleshooting/)** - Common issues and solutions
-
-## Community & Support
-
-- 📁 **GitHub Repository**: [Alteriom/painlessMesh](https://github.com/Alteriom/painlessMesh)
-- 🐛 **Issues**: [Report bugs and request features](https://github.com/Alteriom/painlessMesh/issues)
-- 💬 **Discussions**: [Community discussions](https://github.com/Alteriom/painlessMesh/discussions)
-- 📖 **Original Library**: [gmag11/painlessMesh](https://github.com/gmag11/painlessMesh)
-
-## License
-
-This project is licensed under the [MIT License](https://github.com/Alteriom/painlessMesh/blob/main/LICENSE).
+- Start with the [Quick Start Guide](getting-started/quickstart.md)
+- Check the [FAQ](troubleshooting/faq.md) for common questions
+- Browse [Examples](tutorials/basic-examples.md) for practical use cases
+- Join our [Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)
+- Report bugs on the [Issue Tracker](https://github.com/Alteriom/painlessMesh/issues)
 
 ---
 
-*Ready to build your mesh network? Start with the [Installation Guide](getting-started/installation.md)!*
+This documentation is maintained by the painlessMesh community. Contributions are welcome! See our [Documentation Contributing Guide](development/documentation.md) to get started.
