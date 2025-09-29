@@ -1,0 +1,208 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-desktop:
+    name: Desktop Build & Test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        include:
+          - compiler: gcc
+            cc: gcc-13
+            cxx: g++-13
+          - compiler: clang
+            cc: clang-18
+            cxx: clang++-18
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake ninja-build libboost-system-dev ${{ matrix.cc }} ${{ matrix.cxx }}
+
+      - name: Configure build
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          # Use different warning flags for clang vs gcc to handle stricter clang warnings
+          if [[ "${{ matrix.compiler }}" == "clang" ]]; then
+            cmake -G Ninja . -DCMAKE_CXX_FLAGS="-Wall -Werror -Wno-vla-cxx-extension"
+          else
+            cmake -G Ninja . -DCMAKE_CXX_FLAGS="-Wall -Werror"
+          fi
+
+      - name: Build
+        run: ninja
+
+      - name: Run tests
+        run: run-parts --regex catch_ bin/
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failure-${{ matrix.compiler }}
+          path: |
+            bin/
+            *.log
+
+  build-arduino:
+    name: Arduino Build Test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [esp32, esp8266]
+        include:
+          - board: esp32
+            fqbn: esp32:esp32:esp32
+          - board: esp8266
+            fqbn: esp8266:esp8266:generic
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install Arduino cores
+        run: |
+          arduino-cli config init --config-dir test/ci/
+          
+          # Add ESP8266 board manager URL first
+          arduino-cli config add board_manager.additional_urls http://arduino.esp8266.com/stable/package_esp8266com_index.json --config-dir test/ci/
+          arduino-cli core update-index --config-dir test/ci/
+          
+          # Install both ESP32 and ESP8266 platforms
+          arduino-cli core install esp32:esp32 --config-dir test/ci/
+          arduino-cli core install esp8266:esp8266 --config-dir test/ci/
+
+      - name: Install library dependencies
+        run: |
+          arduino-cli lib install ArduinoJson TaskScheduler AsyncTCP ESPAsyncTCP
+
+      - name: Install library from source
+        run: |
+          mkdir -p ~/Arduino/libraries/painlessMesh
+          cp -r src examples library.properties ~/Arduino/libraries/painlessMesh/
+
+      - name: Compile examples
+        run: |
+          for example in examples/*/; do
+            if [ -f "${example}*.ino" ]; then
+              echo "Building example: $example"
+              arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example"
+            fi
+          done
+
+  build-platformio:
+    name: PlatformIO Build Test  
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [espressif32, espressif8266]
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Run PlatformIO tests
+        run: bash test/ci/test_platformio.sh --random
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check formatting
+        run: |
+          # Install clang-format if not available
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang-format
+          
+          # Check formatting only for files in examples/alteriom (our new files)
+          # Existing core library files may have different formatting conventions
+          if find examples/alteriom -name "*.cpp" -o -name "*.hpp" -o -name "*.h" 2>/dev/null | grep -q .; then
+            find examples/alteriom -name "*.cpp" -o -name "*.hpp" -o -name "*.h" | \
+              xargs clang-format --dry-run --Werror
+            echo "✅ Alteriom files are properly formatted"
+          else
+            echo "ℹ️ No Alteriom-specific files to check formatting"
+          fi
+
+      - name: Check for TODO/FIXME comments
+        run: |
+          # Only check for TODO/FIXME in newly added Alteriom files
+          # The existing core library files have legitimate TODOs for future improvements
+          if find examples/alteriom -name "*.cpp" -o -name "*.hpp" -o -name "*.h" 2>/dev/null | grep -q .; then
+            if grep -r "TODO\|FIXME" examples/alteriom/ --include="*.cpp" --include="*.hpp" --include="*.h"; then
+              echo "Found TODO/FIXME comments in Alteriom files. Please address or document them."
+              exit 1
+            else
+              echo "✅ No TODO/FIXME comments found in Alteriom files"
+            fi
+          else
+            echo "ℹ️ No Alteriom files to check for TODO/FIXME comments"
+          fi
+
+  summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-test-desktop, build-arduino, build-platformio, code-quality]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.build-test-desktop.result }}" == "success" && \
+                "${{ needs.build-arduino.result }}" == "success" && \
+                "${{ needs.build-platformio.result }}" == "success" && \
+                "${{ needs.code-quality.result }}" == "success" ]]; then
+            echo "✅ All builds and tests passed!"
+            echo "BUILD_STATUS=success" >> $GITHUB_ENV
+          else
+            echo "❌ Some builds or tests failed!"
+            echo "BUILD_STATUS=failure" >> $GITHUB_ENV
+            exit 1
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Desktop Build & Test: ${{ needs.build-test-desktop.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Arduino Build Test: ${{ needs.build-arduino.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- PlatformIO Build Test: ${{ needs.build-platformio.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY

@@ -1,5 +1,11 @@
 # PainlessMesh
 
+[![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
+[![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
+[![Release](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/release/Alteriom/painlessMesh.svg)](https://github.com/Alteriom/painlessMesh/releases)
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/alteriom/library/painlessMesh.svg)](https://registry.platformio.org/libraries/alteriom/painlessMesh)
+
 ## Intro to painlessMesh
 
 painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. It handles routing and network management automatically, so you can focus on your application. The library uses JSON-based messaging and syncs time across all nodes, making it ideal for coordinated behaviour like synchronized light displays or sensor networks reporting to a central node. The original version was forked from [easymesh](https://github.com/Coopdis/easyMesh)
@@ -83,6 +89,36 @@ run-parts --regex catch_ bin/  # Run tests
 - **ESP32/ESP8266**: Arduino Core 2.0.0+
 - **Dependencies**: ArduinoJson 6.x, TaskScheduler 3.x  
 - **Development**: CMake, Ninja, Boost (for desktop testing)
+
+### CI/CD Pipeline
+
+painlessMesh features a state-of-the-art automated CI/CD pipeline:
+
+**🔄 Continuous Integration:**
+- Automated builds on gcc/clang with strict warnings
+- Cross-platform testing (Arduino CLI, PlatformIO)
+- Code quality and formatting validation
+- Comprehensive test suite execution
+
+**🚀 Automated Releases:**
+- Semantic versioning with automated tagging
+- GitHub Releases with changelog generation
+- Library package distribution
+- Documentation deployment to GitHub Pages
+- Arduino Library Manager & PlatformIO Registry integration
+
+**📋 Release Management:**
+```bash
+# Bump version and prepare release
+./scripts/bump-version.sh patch  # or minor, major
+./scripts/validate-release.sh    # Validate release readiness
+
+# Edit CHANGELOG.md, then commit with release prefix
+git commit -am "release: v1.5.7"
+git push origin main  # Triggers automated release
+```
+
+See [RELEASE_GUIDE.md](RELEASE_GUIDE.md) for complete release documentation.
 
 ## Contributing
 

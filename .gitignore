@@ -38,3 +38,14 @@ yarn-error.log*
 # MCP server logs and cache
 .mcp/
 mcp-logs/
+
+# CI/CD artifacts
+package/
+release_notes.txt
+*-release.zip
+test_results/
+coverage/
+
+# Build test directories
+build-test/
+build-*/

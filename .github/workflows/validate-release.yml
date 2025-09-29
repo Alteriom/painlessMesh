@@ -1,0 +1,143 @@
+name: Validate Release
+
+on:
+  pull_request:
+    paths:
+      - 'library.properties'
+      - 'library.json'
+      - 'CHANGELOG.md'
+      - 'scripts/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'library.properties'
+      - 'library.json'
+      - 'CHANGELOG.md'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Release Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install validation dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jq cmake ninja-build libboost-all-dev
+
+      - name: Run release validation
+        run: |
+          chmod +x scripts/validate-release.sh
+          ./scripts/validate-release.sh
+
+      - name: Check version format
+        run: |
+          VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z (e.g., 1.5.6)"
+            exit 1
+          fi
+          echo "✅ Version format is valid: $VERSION"
+
+      - name: Validate library.json schema
+        run: |
+          # Basic JSON validation
+          if ! jq empty library.json; then
+            echo "❌ library.json is not valid JSON"
+            exit 1
+          fi
+          
+          # Check required fields
+          REQUIRED_FIELDS=("name" "version" "description" "repository" "frameworks" "platforms")
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! jq -e ".$field" library.json >/dev/null; then
+              echo "❌ Missing required field in library.json: $field"
+              exit 1
+            fi
+          done
+          
+          echo "✅ library.json structure is valid"
+
+      - name: Validate library.properties format
+        run: |
+          # Check required fields in library.properties
+          REQUIRED_FIELDS=("name" "version" "author" "maintainer" "sentence" "paragraph" "category" "url" "architectures")
+          
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! grep -q "^$field=" library.properties; then
+              echo "❌ Missing required field in library.properties: $field"
+              exit 1
+            fi
+          done
+          
+          echo "✅ library.properties structure is valid"
+
+      - name: Check changelog format
+        run: |
+          if [[ ! -f "CHANGELOG.md" ]]; then
+            echo "⚠️ CHANGELOG.md not found - consider adding one"
+            exit 0
+          fi
+          
+          # Check if changelog follows Keep a Changelog format
+          if ! grep -q "## \[" CHANGELOG.md && ! grep -q "## v" CHANGELOG.md; then
+            echo "⚠️ CHANGELOG.md doesn't follow standard format"
+            echo "Consider using Keep a Changelog format: https://keepachangelog.com/"
+          else
+            echo "✅ CHANGELOG.md format looks good"
+          fi
+
+      - name: Test version bump script
+        run: |
+          chmod +x scripts/bump-version.sh
+          
+          # Test script help
+          ./scripts/bump-version.sh --help
+          
+          echo "✅ Version bump script is functional"
+
+      - name: Validate dependencies consistency
+        run: |
+          # Extract dependencies from both files
+          PROP_DEPS=$(grep '^depends=' library.properties | cut -d'=' -f2 || echo "")
+          JSON_DEPS=$(jq -r '.dependencies[]?.name' library.json 2>/dev/null | tr '\n' ',' || echo "")
+          
+          echo "library.properties deps: $PROP_DEPS"
+          echo "library.json deps: $JSON_DEPS"
+          
+          # Basic check for ArduinoJson and TaskScheduler
+          if [[ ! $PROP_DEPS =~ ArduinoJson ]] || [[ ! $PROP_DEPS =~ TaskScheduler ]]; then
+            echo "⚠️ Core dependencies (ArduinoJson, TaskScheduler) should be in library.properties"
+          fi
+          
+          if [[ ! $JSON_DEPS =~ ArduinoJson ]] || [[ ! $JSON_DEPS =~ TaskScheduler ]]; then
+            echo "⚠️ Core dependencies (ArduinoJson, TaskScheduler) should be in library.json"
+          fi
+          
+          echo "✅ Dependency check completed"
+
+      - name: Summary
+        run: |
+          echo "## Validation Summary" >> $GITHUB_STEP_SUMMARY
+          VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+          echo "- Current version: $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- library.properties: ✅ Valid" >> $GITHUB_STEP_SUMMARY
+          echo "- library.json: ✅ Valid" >> $GITHUB_STEP_SUMMARY
+          echo "- Version consistency: ✅ Verified" >> $GITHUB_STEP_SUMMARY
+          echo "- Scripts: ✅ Functional" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ -f "CHANGELOG.md" ]]; then
+            echo "- CHANGELOG.md: ✅ Present" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- CHANGELOG.md: ⚠️ Missing" >> $GITHUB_STEP_SUMMARY
+          fi

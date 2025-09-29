@@ -1,0 +1,170 @@
+name: Automated Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'library.properties'
+      - 'library.json'
+      - 'CHANGELOG.md'
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  actions: read
+
+jobs:
+  tag-and-release:
+    name: Tag & Release if version changed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Capture commit message
+        id: commit
+        run: |
+          MSG="$(git log -1 --pretty=%B | head -n1)"
+          echo "message=${MSG}" >> $GITHUB_OUTPUT
+
+      - name: Read current version from library.properties
+        id: version
+        run: |
+          VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $VERSION"
+
+      - name: Check existing tag
+        id: tagcheck
+        run: |
+          if git rev-parse -q --verify "refs/tags/v${{ steps.version.outputs.version }}" >/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag v${{ steps.version.outputs.version }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag v${{ steps.version.outputs.version }} does not exist"
+          fi
+
+      - name: Validate version consistency
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          PROP_VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+          JSON_VERSION=$(jq -r '.version' library.json)
+          
+          if [ "$PROP_VERSION" != "$JSON_VERSION" ]; then
+            echo "❌ Version mismatch between library.properties ($PROP_VERSION) and library.json ($JSON_VERSION)"
+            exit 1
+          fi
+          
+          echo "✅ Version consistency check passed: $PROP_VERSION"
+
+      - name: Run full test suite
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          # Install dependencies
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake ninja-build libboost-system-dev
+          
+          # Initialize submodules
+          git submodule update --init
+          
+          # Build and test
+          cmake -G Ninja . -DCMAKE_CXX_FLAGS="-Wall -Werror"
+          ninja
+          run-parts --regex catch_ bin/
+
+      - name: Generate changelog excerpt
+        if: steps.tagcheck.outputs.exists == 'false'
+        id: changelog
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            # Extract changes for current version
+            VERSION="${{ steps.version.outputs.version }}"
+            awk "/^## \[?${VERSION}\]?|^## v${VERSION}/ {flag=1; next} /^## / {flag=0} flag" CHANGELOG.md > release_notes.txt
+            
+            if [ -s release_notes.txt ]; then
+              echo "Found changelog entry for version $VERSION"
+              echo "has_changelog=true" >> $GITHUB_OUTPUT
+            else
+              echo "No changelog entry found for version $VERSION, creating generic notes"
+              echo "has_changelog=false" >> $GITHUB_OUTPUT
+              echo "Release v$VERSION" > release_notes.txt
+              echo "" >> release_notes.txt
+              echo "This release includes the latest changes and improvements." >> release_notes.txt
+            fi
+          else
+            echo "No CHANGELOG.md found, creating generic release notes"
+            echo "has_changelog=false" >> $GITHUB_OUTPUT
+            echo "Release v${{ steps.version.outputs.version }}" > release_notes.txt
+          fi
+
+      - name: Create and push tag
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.version.outputs.version }}" -m "painlessMesh v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: painlessMesh v${{ steps.version.outputs.version }}
+          body_path: release_notes.txt
+          draft: false
+          prerelease: false
+
+      - name: Prepare library package
+        if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
+        run: |
+          # Create a clean package for Arduino Library Manager
+          mkdir -p package/painlessMesh
+          
+          # Copy essential files
+          cp -r src examples library.properties README.md LICENSE package/painlessMesh/
+          
+          # Create archive
+          cd package
+          zip -r ../painlessMesh-v${{ steps.version.outputs.version }}.zip painlessMesh/
+          cd ..
+
+      - name: Upload library package
+        if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./painlessMesh-v${{ steps.version.outputs.version }}.zip
+          asset_name: painlessMesh-v${{ steps.version.outputs.version }}.zip
+          asset_content_type: application/zip
+
+      - name: PlatformIO Library Registry
+        if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
+        run: |
+          echo "📦 PlatformIO Library Registry submission"
+          echo "The library will be automatically picked up by PlatformIO Library Registry"
+          echo "based on the library.json file and GitHub release tag."
+          echo "Monitor: https://registry.platformio.org/libraries/alteriom/painlessMesh"
+
+      - name: Skip notice (no release conditions)
+        if: steps.tagcheck.outputs.exists == 'false' && !startsWith(steps.commit.outputs.message, 'release:')
+        run: |
+          echo "📋 Version changed but commit message not prefixed with 'release:' -> skipping auto-release."
+          echo "To trigger a release, commit with message starting with 'release:'"
+
+      - name: Summary
+        run: |
+          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Tag existed: ${{ steps.tagcheck.outputs.exists }}" >> $GITHUB_STEP_SUMMARY  
+          echo "- Commit message: ${{ steps.commit.outputs.message }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Auto-release: ${{ steps.commit.outputs.message && startsWith(steps.commit.outputs.message, 'release:') && steps.tagcheck.outputs.exists == 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Changelog found: ${{ steps.changelog.outputs.has_changelog }}" >> $GITHUB_STEP_SUMMARY

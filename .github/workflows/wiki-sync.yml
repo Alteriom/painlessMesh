@@ -1,0 +1,122 @@
+name: Wiki Sync
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'README.md'
+      - 'RELEASE_GUIDE.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - 'examples/**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    name: Sync Documentation to Wiki
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate wiki pages
+        run: |
+          mkdir -p wiki_build
+          
+          # Copy main documentation files
+          cp README.md wiki_build/Home.md
+          cp RELEASE_GUIDE.md wiki_build/Release-Guide.md
+          cp CHANGELOG.md wiki_build/Changelog.md
+          
+          # Create wiki-friendly versions of docs
+          if [ -d "docs" ]; then
+            # Copy and adapt documentation
+            find docs -name "*.md" | while read file; do
+              wiki_name=$(basename "$file" .md | sed 's/-/_/g' | sed 's/\b\w/\U&/g')
+              cp "$file" "wiki_build/${wiki_name}.md"
+            done
+          fi
+          
+          # Create API reference from examples
+          if [ -d "examples" ]; then
+            echo "# Examples and API Usage" > wiki_build/Examples.md
+            echo "" >> wiki_build/Examples.md
+            echo "This page provides practical examples of using painlessMesh." >> wiki_build/Examples.md
+            echo "" >> wiki_build/Examples.md
+            
+            for example_dir in examples/*/; do
+              if [ -d "$example_dir" ]; then
+                example_name=$(basename "$example_dir")
+                echo "## $example_name" >> wiki_build/Examples.md
+                echo "" >> wiki_build/Examples.md
+                
+                # Find and include the main .ino file
+                ino_file=$(find "$example_dir" -name "*.ino" | head -1)
+                if [ -f "$ino_file" ]; then
+                  echo '```cpp' >> wiki_build/Examples.md
+                  head -50 "$ino_file" >> wiki_build/Examples.md
+                  echo '```' >> wiki_build/Examples.md
+                  echo "" >> wiki_build/Examples.md
+                fi
+              fi
+            done
+          fi
+          
+          # Create CI/CD guide
+          echo "# CI/CD Pipeline" > wiki_build/CI_CD_Pipeline.md
+          echo "" >> wiki_build/CI_CD_Pipeline.md
+          echo "painlessMesh features a state-of-the-art automated CI/CD pipeline." >> wiki_build/CI_CD_Pipeline.md
+          echo "" >> wiki_build/CI_CD_Pipeline.md
+          echo "## Workflows" >> wiki_build/CI_CD_Pipeline.md
+          echo "" >> wiki_build/CI_CD_Pipeline.md
+          echo "- **CI Pipeline**: Automated builds and tests across multiple platforms" >> wiki_build/CI_CD_Pipeline.md
+          echo "- **Documentation**: Automated API documentation and user guide deployment" >> wiki_build/CI_CD_Pipeline.md
+          echo "- **Releases**: Semantic versioning with automated GitHub releases" >> wiki_build/CI_CD_Pipeline.md
+          echo "- **Validation**: Pre-release checks and format validation" >> wiki_build/CI_CD_Pipeline.md
+          echo "" >> wiki_build/CI_CD_Pipeline.md
+          echo "For complete details, see the [Release Guide](Release-Guide)." >> wiki_build/CI_CD_Pipeline.md
+
+      - name: Push to wiki
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="${GITHUB_REPOSITORY}.wiki.git"
+          echo "Attempting to clone wiki repo: $REPO"
+          
+          if ! git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}" wiki_repo 2> clone_err.log; then
+            echo "Wiki repository not found. This usually means the Wiki feature is disabled." >&2
+            echo "To enable: GitHub UI -> Settings -> General -> Features -> check 'Wikis'. Then re-run this workflow." >&2
+            echo "(Raw clone error:)" >&2
+            cat clone_err.log >&2
+            exit 1
+          fi
+          
+          # Copy generated wiki files
+          cp -v wiki_build/*.md wiki_repo/
+          
+          cd wiki_repo
+          
+          # Check if there are any changes
+          if git diff --quiet; then
+            echo "No wiki changes detected"
+            exit 0
+          fi
+          
+          # Configure git and commit changes
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "docs: automated wiki sync from main branch"
+          git push
+
+      - name: Summary
+        run: |
+          echo "## Wiki Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Documentation files synchronized to GitHub Wiki" >> $GITHUB_STEP_SUMMARY
+          echo "- Generated pages from docs/, examples/, and root documentation" >> $GITHUB_STEP_SUMMARY
+          echo "- Wiki available at: https://github.com/${{ github.repository }}/wiki" >> $GITHUB_STEP_SUMMARY
