@@ -29,6 +29,19 @@
 #include "painlessmesh/ota.hpp"
 #endif
 
+// Include improvement modules when enabled
+#ifdef PAINLESSMESH_ENABLE_VALIDATION
+#include "painlessmesh/validation.hpp"
+#endif
+
+#ifdef PAINLESSMESH_ENABLE_METRICS
+#include "painlessmesh/metrics.hpp"
+#endif
+
+#ifdef PAINLESSMESH_ENABLE_MEMORY_OPTIMIZATION
+#include "painlessmesh/memory.hpp"
+#endif
+
 #include "painlessmesh/buffer.hpp"
 #include "painlessmesh/layout.hpp"
 #include "painlessmesh/logger.hpp"

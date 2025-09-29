@@ -9,10 +9,8 @@
 #include "examples/alteriom/alteriom_sensor_package.hpp"
 #include "painlessMesh.h"
 
-// Include new improvement modules
-#include "painlessmesh/memory.hpp"
-#include "painlessmesh/metrics.hpp"
-#include "painlessmesh/validation.hpp"
+// Note: The improvement modules (validation, metrics, memory) are automatically
+// included through painlessMesh.h when the corresponding features are enabled
 
 #define MESH_PREFIX "AlteriomMesh"
 #define MESH_PASSWORD "securePassword123"
