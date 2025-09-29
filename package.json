@@ -35,9 +35,6 @@
     "type": "git",
     "url": "https://github.com/Alteriom/painlessMesh.git"
   },
-  "publishConfig": {
-    "@alteriom:registry": "https://npm.pkg.github.com"
-  },
   "bugs": {
     "url": "https://github.com/Alteriom/painlessMesh/issues"
   },
