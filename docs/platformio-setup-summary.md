@@ -36,11 +36,19 @@
 ## 🔧 Setup Required
 
 ### One-Time Setup: PlatformIO Account
+
 1. **Create Account**: <https://platformio.org/account/register>
 2. **Generate Token**: <https://platformio.org/account/token>
 3. **Add to Secrets**: Repository Settings → Secrets → Actions
    - Name: `PLATFORMIO_AUTH_TOKEN`
    - Value: [your token from step 2]
+
+**Local Testing (Optional):**
+```powershell
+# Set environment variable for local testing
+$env:PLATFORMIO_AUTH_TOKEN="YOUR_TOKEN_HERE"
+pio account show  # Verify authentication
+```
 
 ### Current Status for v1.6.1
 Since v1.6.1 is already released and published to other platforms:

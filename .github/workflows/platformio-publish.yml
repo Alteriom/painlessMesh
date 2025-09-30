@@ -236,8 +236,8 @@ jobs:
             exit 1
           fi
           
-          # Set the auth token
-          pio account token --set "${{ secrets.PLATFORMIO_AUTH_TOKEN }}"
+          # Set the auth token via environment variable
+          echo "PLATFORMIO_AUTH_TOKEN=${{ secrets.PLATFORMIO_AUTH_TOKEN }}" >> $GITHUB_ENV
           
           # Verify authentication
           if pio account show; then
@@ -246,6 +246,8 @@ jobs:
             echo "❌ PlatformIO authentication failed"
             exit 1
           fi
+        env:
+          PLATFORMIO_AUTH_TOKEN: ${{ secrets.PLATFORMIO_AUTH_TOKEN }}
 
       - name: Prepare library for publication
         run: |

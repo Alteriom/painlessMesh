@@ -5,14 +5,30 @@ This guide explains how to publish the AlteriomPainlessMesh library to the Platf
 ## Prerequisites
 
 ### 1. PlatformIO Account Setup
+
 1. Visit [https://platformio.org/](https://platformio.org/) and create an account
 2. Verify your email address
 3. Log in to your PlatformIO account
 
 ### 2. Authentication Token
+
 1. Go to [https://platformio.org/account/token](https://platformio.org/account/token)
 2. Generate a new Personal Access Token
 3. Copy the token and store it securely
+4. Set up the token in your local environment:
+
+   ```powershell
+   # Set environment variable (Windows PowerShell)
+   $env:PLATFORMIO_AUTH_TOKEN="YOUR_TOKEN_HERE"
+   
+   # Or for Command Prompt
+   set PLATFORMIO_AUTH_TOKEN=YOUR_TOKEN_HERE
+   
+   # Or use login command
+   pio account login
+   ```
+
+## Library Configuration
 4. Set up the token in your local environment:
    ```powershell
    pio account token --set YOUR_TOKEN_HERE
