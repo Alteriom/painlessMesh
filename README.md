@@ -51,6 +51,19 @@ painlessMesh does not create a TCP/IP network of nodes. Rather each of the nodes
 
 ## Installation
 
+### Arduino Library Manager
+
+This library is **Arduino Library Manager compliant** and can be installed directly from the Arduino IDE:
+
+1. Open Arduino IDE
+2. Go to **Tools** → **Manage Libraries...**
+3. Search for **"AlteriomPainlessMesh"**
+4. Click **Install**
+
+The library includes the header file `AlteriomPainlessMesh.h` which provides access to both the core painlessMesh functionality and Alteriom-specific extensions.
+
+### PlatformIO
+
 `painlessMesh` is included in both the Arduino Library Manager and the platformio library registry and can easily be installed via either of those methods.
 
 ### Dependencies
