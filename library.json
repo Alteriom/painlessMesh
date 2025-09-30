@@ -34,7 +34,22 @@
     "license": "LGPL-3.0",
     "homepage": "https://github.com/Alteriom/painlessMesh",
     "headers": "painlessMesh.h",
-    "examples": ["examples/basic/basic.ino", "examples/alteriom/alteriom_sensor_node.ino"],
+    "examples": [
+        "examples/alteriom/alteriom.ino",
+        "examples/alteriom/alteriom_sensor_node.ino", 
+        "examples/alteriom/improved_sensor_node.ino",
+        "examples/basic/basic.ino",
+        "examples/bridge/bridge.ino",
+        "examples/echoNode/echoNode.ino",
+        "examples/logClient/logClient.ino",
+        "examples/logServer/logServer.ino",
+        "examples/mqttBridge/mqttBridge.ino",
+        "examples/namedMesh/namedMesh.ino",
+        "examples/otaReceiver/otaReceiver.ino",
+        "examples/otaSender/otaSender.ino",
+        "examples/startHere/startHere.ino",
+        "examples/webServer/webServer.ino"
+    ],
     "export": {
         "include": "src"
     }
