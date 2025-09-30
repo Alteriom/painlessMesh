@@ -296,8 +296,8 @@ jobs:
           echo "Tag: ${{ github.event.release.tag_name || github.ref }}"
           echo ""
           
-          # Attempt to publish the library
-          if pio pkg publish .; then
+          # Attempt to publish the library with non-interactive mode
+          if pio pkg publish . --no-interactive; then
             echo "✅ Successfully published to PlatformIO Library Registry!"
             
             # Wait a moment for registry to update
@@ -324,11 +324,13 @@ jobs:
             echo "2. Authentication token expired or invalid"
             echo "3. Library validation failed on PlatformIO side"
             echo "4. Network or service issues"
+            echo "5. Interactive confirmation was not handled properly"
             echo ""
             echo "📋 Manual alternatives:"
             echo "1. Check library at: https://registry.platformio.org/libraries"
             echo "2. Submit manually at: https://registry.platformio.org/libraries/new"
             echo "3. Use: pio pkg publish --help for more options"
+            echo "4. Try: pio pkg publish . --no-interactive"
             
             exit 1
           fi

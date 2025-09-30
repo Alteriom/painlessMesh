@@ -45,9 +45,24 @@
 
 **Local Testing (Optional):**
 ```powershell
-# Set environment variable for local testing
+# Method 1: Environment variable
 $env:PLATFORMIO_AUTH_TOKEN="YOUR_TOKEN_HERE"
 pio account show  # Verify authentication
+
+# Method 2: Interactive login (if token doesn't work)
+pio account login
+
+# Test publishing
+pio pkg publish . --no-interactive
+```
+
+**Troubleshooting Authentication:**
+```powershell
+# If authentication fails:
+1. Go to https://platformio.org/account/token
+2. Copy your existing token OR generate a new one
+3. Set it as environment variable: $env:PLATFORMIO_AUTH_TOKEN="token"
+4. Test: pio account show
 ```
 
 ### Current Status for v1.6.1
