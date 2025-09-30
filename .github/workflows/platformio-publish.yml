@@ -1,0 +1,418 @@
+name: PlatformIO Library Publishing
+
+on:
+  # Trigger on new releases (tags)
+  release:
+    types: [published]
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.6.1)'
+        required: true
+        type: string
+      force_publish:
+        description: 'Force publish even if version exists'
+        required: false
+        type: boolean
+        default: false
+
+# Prevent concurrent publications
+concurrency:
+  group: "platformio-publish"
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate-library:
+    name: Validate PlatformIO Library Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is-valid: ${{ steps.validation.outputs.is-valid }}
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python and PlatformIO
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install PlatformIO Core
+        run: |
+          pip install --upgrade platformio
+          pio --version
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            echo "Manual trigger - using version: $VERSION"
+          else
+            # Extract from tag or library.properties
+            if [ -n "${{ github.event.release.tag_name }}" ]; then
+              VERSION="${{ github.event.release.tag_name }}"
+              VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+            else
+              VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+            fi
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Validate library.json format
+        id: validation
+        run: |
+          echo "🔍 Validating library.json format..."
+          
+          # Check if library.json exists
+          if [ ! -f "library.json" ]; then
+            echo "❌ library.json not found!"
+            exit 1
+          fi
+          
+          # Validate JSON syntax
+          if ! jq . library.json > /dev/null; then
+            echo "❌ library.json is not valid JSON!"
+            exit 1
+          fi
+          
+          # Check required fields
+          REQUIRED_FIELDS="name description version frameworks platforms authors"
+          for field in $REQUIRED_FIELDS; do
+            if ! jq -e ".$field" library.json > /dev/null; then
+              echo "❌ Missing required field: $field"
+              exit 1
+            fi
+          done
+          
+          # Validate version consistency
+          JSON_VERSION=$(jq -r '.version' library.json)
+          PROP_VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+          
+          if [ "$JSON_VERSION" != "$PROP_VERSION" ]; then
+            echo "❌ Version mismatch:"
+            echo "  library.json: $JSON_VERSION"
+            echo "  library.properties: $PROP_VERSION"
+            exit 1
+          fi
+          
+          # Validate dependencies exist in PlatformIO Registry
+          echo "🔍 Validating dependencies..."
+          jq -r '.dependencies[]? | "\(.owner)/\(.name)@\(.version)"' library.json | while read dep; do
+            if [ -n "$dep" ]; then
+              OWNER=$(echo "$dep" | cut -d'/' -f1)
+              PKG_NAME=$(echo "$dep" | cut -d'/' -f2 | cut -d'@' -f1)
+              echo "  Checking: $OWNER/$PKG_NAME"
+              
+              if ! pio pkg search "$PKG_NAME" | grep -q "$OWNER/$PKG_NAME"; then
+                echo "⚠️  Warning: Dependency $OWNER/$PKG_NAME not found in PlatformIO Registry"
+              else
+                echo "  ✅ Found: $OWNER/$PKG_NAME"
+              fi
+            fi
+          done
+          
+          # Check if examples exist and are valid
+          if jq -e '.examples' library.json > /dev/null; then
+            echo "🔍 Validating examples..."
+            jq -r '.examples[]?' library.json | while read example; do
+              if [ -n "$example" ] && [ ! -f "$example" ]; then
+                echo "⚠️  Warning: Example file not found: $example"
+              else
+                echo "  ✅ Found example: $example"
+              fi
+            done
+          fi
+          
+          echo "✅ library.json validation passed!"
+          echo "is-valid=true" >> $GITHUB_OUTPUT
+
+      - name: Check existing library in registry
+        run: |
+          echo "🔍 Checking if library exists in PlatformIO Registry..."
+          
+          LIBRARY_NAME=$(jq -r '.name' library.json)
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Search for the library
+          if pio pkg search "$LIBRARY_NAME" | grep -q "$LIBRARY_NAME"; then
+            echo "📦 Library '$LIBRARY_NAME' found in PlatformIO Registry"
+            
+            # Try to get version info (this might fail for new libraries)
+            if pio pkg show "$LIBRARY_NAME" 2>/dev/null | grep -q "Version: $VERSION"; then
+              echo "⚠️  Version $VERSION already exists in registry"
+              if [ "${{ github.event.inputs.force_publish }}" != "true" ]; then
+                echo "❌ Version $VERSION already published. Use force_publish to override."
+                exit 1
+              else
+                echo "🔄 Force publish enabled - will attempt to update"
+              fi
+            else
+              echo "✅ Version $VERSION not found - ready for publishing"
+            fi
+          else
+            echo "🆕 Library '$LIBRARY_NAME' not found in registry - this will be a new publication"
+          fi
+
+      - name: Test library installation
+        run: |
+          echo "🧪 Testing library installation in a clean environment..."
+          
+          # Create temporary test project
+          mkdir -p test_install
+          cd test_install
+          
+          # Initialize a test project
+          pio project init --board esp32dev --project-option "framework = arduino"
+          
+          # Test dependency installation
+          echo "📦 Testing dependency installation..."
+          jq -r '.dependencies[]? | "\(.owner)/\(.name)@\(.version // "*")"' ../library.json | while read dep; do
+            if [ -n "$dep" ]; then
+              echo "  Installing: $dep"
+              if pio pkg install --library "$dep"; then
+                echo "  ✅ Successfully installed: $dep"
+              else
+                echo "  ❌ Failed to install: $dep"
+                exit 1
+              fi
+            fi
+          done
+          
+          echo "✅ All dependencies installed successfully!"
+          
+          cd ..
+          rm -rf test_install
+
+  publish-to-platformio:
+    name: Publish to PlatformIO Library Registry
+    needs: validate-library
+    runs-on: ubuntu-latest
+    if: needs.validate-library.outputs.is-valid == 'true'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python and PlatformIO
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install PlatformIO Core
+        run: |
+          pip install --upgrade platformio
+          pio --version
+
+      - name: Configure PlatformIO Authentication
+        run: |
+          echo "🔑 Configuring PlatformIO authentication..."
+          
+          if [ -z "${{ secrets.PLATFORMIO_AUTH_TOKEN }}" ]; then
+            echo "❌ PLATFORMIO_AUTH_TOKEN secret is not configured!"
+            echo ""
+            echo "📋 To set up PlatformIO authentication:"
+            echo "1. Go to https://platformio.org/account/token"
+            echo "2. Generate a Personal Access Token"
+            echo "3. Add it as PLATFORMIO_AUTH_TOKEN in repository secrets:"
+            echo "   Settings → Secrets and variables → Actions → New repository secret"
+            echo "4. Name: PLATFORMIO_AUTH_TOKEN"
+            echo "5. Value: [your token]"
+            echo ""
+            echo "⚠️  Skipping PlatformIO publication due to missing authentication"
+            exit 1
+          fi
+          
+          # Set the auth token
+          pio account token --set "${{ secrets.PLATFORMIO_AUTH_TOKEN }}"
+          
+          # Verify authentication
+          if pio account show; then
+            echo "✅ PlatformIO authentication successful"
+          else
+            echo "❌ PlatformIO authentication failed"
+            exit 1
+          fi
+
+      - name: Prepare library for publication
+        run: |
+          echo "📦 Preparing library for PlatformIO publication..."
+          
+          VERSION="${{ needs.validate-library.outputs.version }}"
+          LIBRARY_NAME=$(jq -r '.name' library.json)
+          
+          echo "Library: $LIBRARY_NAME"
+          echo "Version: $VERSION"
+          
+          # Validate the library structure
+          echo "🔍 Validating library structure..."
+          
+          # Check for required files
+          REQUIRED_FILES="library.json src/"
+          for file in $REQUIRED_FILES; do
+            if [ ! -e "$file" ]; then
+              echo "❌ Required file/directory missing: $file"
+              exit 1
+            fi
+          done
+          
+          # Ensure version matches
+          if [ "$(jq -r '.version' library.json)" != "$VERSION" ]; then
+            echo "🔄 Updating library.json version to $VERSION"
+            jq ".version = \"$VERSION\"" library.json > library.json.tmp
+            mv library.json.tmp library.json
+          fi
+          
+          echo "✅ Library structure validation passed"
+
+      - name: Publish to PlatformIO Registry
+        run: |
+          echo "🚀 Publishing to PlatformIO Library Registry..."
+          
+          VERSION="${{ needs.validate-library.outputs.version }}"
+          LIBRARY_NAME=$(jq -r '.name' library.json)
+          
+          echo "================================"
+          echo "📦 Publishing Library"
+          echo "================================"
+          echo "Name: $LIBRARY_NAME"
+          echo "Version: $VERSION"
+          echo "Repository: ${{ github.repository }}"
+          echo "Tag: ${{ github.event.release.tag_name || github.ref }}"
+          echo ""
+          
+          # Attempt to publish the library
+          if pio pkg publish .; then
+            echo "✅ Successfully published to PlatformIO Library Registry!"
+            
+            # Wait a moment for registry to update
+            sleep 10
+            
+            # Verify publication
+            echo "🔍 Verifying publication..."
+            if pio pkg search "$LIBRARY_NAME" | grep -q "$LIBRARY_NAME"; then
+              echo "✅ Library verified in registry"
+              
+              # Try to get detailed info
+              if pio pkg show "$LIBRARY_NAME" 2>/dev/null; then
+                echo "📋 Library details retrieved successfully"
+              fi
+            else
+              echo "⚠️  Library not immediately visible in search (may take a few minutes)"
+            fi
+            
+          else
+            echo "❌ Failed to publish to PlatformIO Library Registry"
+            echo ""
+            echo "🔍 Possible reasons:"
+            echo "1. Library name already exists with this version"
+            echo "2. Authentication token expired or invalid"
+            echo "3. Library validation failed on PlatformIO side"
+            echo "4. Network or service issues"
+            echo ""
+            echo "📋 Manual alternatives:"
+            echo "1. Check library at: https://registry.platformio.org/libraries"
+            echo "2. Submit manually at: https://registry.platformio.org/libraries/new"
+            echo "3. Use: pio pkg publish --help for more options"
+            
+            exit 1
+          fi
+
+      - name: Publication Success Summary
+        run: |
+          VERSION="${{ needs.validate-library.outputs.version }}"
+          LIBRARY_NAME=$(jq -r '.name' library.json)
+          
+          echo "================================"
+          echo "🎉 PlatformIO Publication Successful!"
+          echo "================================"
+          echo ""
+          echo "📦 Library: $LIBRARY_NAME"
+          echo "🏷️  Version: $VERSION"
+          echo "🔗 Registry: https://registry.platformio.org/libraries"
+          echo "📋 Search: https://registry.platformio.org/search?q=$LIBRARY_NAME"
+          echo ""
+          echo "📥 Installation Instructions:"
+          echo ""
+          echo "PlatformIO (platformio.ini):"
+          echo "lib_deps = $LIBRARY_NAME@^$VERSION"
+          echo ""
+          echo "PlatformIO CLI:"
+          echo "pio pkg install --library \"$LIBRARY_NAME@^$VERSION\""
+          echo ""
+          echo "📚 Additional Resources:"
+          echo "• Documentation: https://github.com/${{ github.repository }}/wiki"
+          echo "• Examples: https://github.com/${{ github.repository }}/tree/main/examples"
+          echo "• Issues: https://github.com/${{ github.repository }}/issues"
+          echo ""
+          echo "🔄 It may take 5-15 minutes for the library to appear in searches"
+          echo "================================"
+
+  notify-completion:
+    name: Notify Publication Completion
+    needs: [validate-library, publish-to-platformio]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Publication Status Summary
+        run: |
+          echo "================================"
+          echo "📊 PlatformIO Publication Report"
+          echo "================================"
+          echo ""
+          echo "🔍 Validation: ${{ needs.validate-library.result }}"
+          echo "🚀 Publication: ${{ needs.publish-to-platformio.result }}"
+          echo "📦 Version: ${{ needs.validate-library.outputs.version }}"
+          echo ""
+          
+          if [ "${{ needs.publish-to-platformio.result }}" = "success" ]; then
+            echo "✅ SUCCESS: Library published to PlatformIO Registry"
+            echo ""
+            echo "🔗 Next Steps:"
+            echo "1. Verify at: https://registry.platformio.org/libraries"
+            echo "2. Test installation in a new project"
+            echo "3. Update documentation with installation instructions"
+            echo "4. Announce on relevant channels"
+            
+          elif [ "${{ needs.validate-library.result }}" = "failure" ]; then
+            echo "❌ FAILED: Library validation failed"
+            echo ""
+            echo "🔧 Check the validation logs and fix any issues with:"
+            echo "• library.json format and required fields"
+            echo "• Version consistency across files"
+            echo "• Dependency availability"
+            echo "• Example file paths"
+            
+          elif [ "${{ needs.publish-to-platformio.result }}" = "failure" ]; then
+            echo "❌ FAILED: Publication failed after successful validation"
+            echo ""
+            echo "🔧 Possible solutions:"
+            echo "• Check PLATFORMIO_AUTH_TOKEN secret is valid"
+            echo "• Verify library name doesn't conflict"
+            echo "• Try manual publication using PlatformIO CLI"
+            echo "• Check PlatformIO Registry status"
+            
+          else
+            echo "⚠️  UNKNOWN: Unexpected workflow state"
+          fi
+          
+          echo ""
+          echo "🔗 Resources:"
+          echo "• PlatformIO Documentation: https://docs.platformio.org/en/latest/librarymanager/"
+          echo "• Library Registry: https://registry.platformio.org/"
+          echo "• Publishing Guide: https://docs.platformio.org/en/latest/librarymanager/creating.html"
+          echo "================================"

@@ -23,6 +23,7 @@ git push origin main
 - ✅ Comprehensive testing across platforms
 - ✅ Git tag creation and GitHub release
 - ✅ NPM publishing (public + GitHub Packages)
+- ✅ **PlatformIO Library Registry publishing**
 - ✅ GitHub Wiki synchronization
 - ✅ Arduino Library Manager package preparation
 - ✅ Release notes generation from changelog
@@ -30,14 +31,16 @@ git push origin main
 ## 📋 Distribution Channels
 
 ### Automatic (Zero Manual Work Required)
+
 1. **GitHub Releases** - Created with changelog and downloadable packages
-2. **NPM Public Registry** - Published to https://www.npmjs.com/package/@alteriom/painlessmesh
+2. **NPM Public Registry** - Published to <https://www.npmjs.com/package/@alteriom/painlessmesh>
 3. **GitHub Packages** - Published to GitHub's NPM registry (@alteriom/painlessmesh)
-4. **PlatformIO Registry** - Automatically indexed from GitHub releases
+4. **PlatformIO Registry** - Automatically published via GitHub Actions workflow
 5. **GitHub Wiki** - Documentation synchronized from repository
 
 ### Semi-Automatic (One-Time Manual Submission)
-6. **Arduino Library Manager** - Submit once, then automatically indexed
+
+1. **Arduino Library Manager** - Submit once, then automatically indexed
 
 ## 🎯 Detailed Process
 
@@ -127,9 +130,87 @@ The NPM package includes:
 - Core documentation files (README, LICENSE, CHANGELOG)
 
 Excluded from NPM package:
+
 - Development files (`.github/`, `test/`, `scripts/`)
 - Build artifacts (`bin/`, `build/`)
 - IDE files and OS-specific files
+
+## 🔧 PlatformIO Library Registry
+
+### Automatic Publishing
+
+Each release triggers the **PlatformIO Library Publishing** workflow:
+
+1. **Validation**: Comprehensive library.json validation
+2. **Dependencies**: Verification that all dependencies exist in PlatformIO Registry
+3. **Authentication**: Uses `PLATFORMIO_AUTH_TOKEN` secret
+4. **Publication**: Direct publishing via PlatformIO CLI
+5. **Verification**: Post-publication registry verification
+
+### Setup Requirements
+
+#### One-Time Setup: PlatformIO Account & Token
+
+1. **Create Account**: <https://platformio.org/account/register>
+2. **Generate Token**: <https://platformio.org/account/token>
+3. **Add Secret**: Repository Settings → Secrets → `PLATFORMIO_AUTH_TOKEN`
+
+#### Automatic Workflow Trigger
+
+The PlatformIO workflow automatically triggers on:
+
+- New GitHub releases (tags)
+- Manual workflow dispatch for testing
+
+### PlatformIO Package Contents
+
+Published package includes:
+
+- Complete source code (`src/`)
+- All examples (`examples/`)
+- PlatformIO metadata (`library.json`)
+- Arduino compatibility (`library.properties`)
+- Documentation files
+
+### Installation
+
+Users can install via PlatformIO:
+
+```ini
+# platformio.ini
+[env:esp32dev]
+platform = espressif32
+board = esp32dev
+framework = arduino
+lib_deps = alteriom/AlteriomPainlessMesh@^1.6.1
+```
+
+Or via CLI:
+
+```bash
+pio pkg install --library "alteriom/AlteriomPainlessMesh@^1.6.1"
+```
+
+### Manual Publication (Fallback)
+
+If automatic publishing fails:
+
+```bash
+# Install PlatformIO CLI
+pip install platformio
+
+# Authenticate
+pio account token --set YOUR_TOKEN
+
+# Publish from repository root
+pio pkg publish .
+```
+
+### Monitoring
+
+- **Registry**: <https://registry.platformio.org/libraries>
+- **Search**: <https://registry.platformio.org/search?q=AlteriomPainlessMesh>
+- **Workflow**: GitHub Actions → PlatformIO Library Publishing
 
 ## 🛠️ Arduino Library Manager
 
@@ -304,6 +385,9 @@ npm view @alteriom/painlessmesh
 # Check GitHub Packages
 npm view @alteriom/painlessmesh --registry=https://npm.pkg.github.com
 
+# Check PlatformIO Registry
+pio pkg search "AlteriomPainlessMesh"
+
 # Verify GitHub release
 gh release view
 
@@ -329,8 +413,8 @@ npm view @alteriom/painlessmesh
 # GitHub Packages
 npm view @alteriom/painlessmesh --registry=https://npm.pkg.github.com
 
-# PlatformIO (updated within 24 hours)
-# Check: https://registry.platformio.org/libraries/alteriom/painlessMesh
+# PlatformIO (updated within minutes via GitHub Actions)
+# Check: https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh
 
 # Arduino Library Manager (after manual submission)
 # Search in Arduino IDE Library Manager
@@ -386,8 +470,10 @@ Monitor your releases:
 ## 🤝 Security & Permissions
 
 ### Required GitHub Secrets
+
 - `GITHUB_TOKEN`: Automatically provided by GitHub Actions
 - `NPM_TOKEN`: Required for NPM publishing (add in repository secrets)
+- `PLATFORMIO_AUTH_TOKEN`: Required for PlatformIO Library Registry publishing
 
 ### Repository Settings
 - **Actions**: Enabled with write permissions

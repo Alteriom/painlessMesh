@@ -33,7 +33,7 @@
   "homepage": "https://github.com/Alteriom/painlessMesh",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Alteriom/painlessMesh.git"
+    "url": "git+https://github.com/Alteriom/painlessMesh.git"
   },
   "bugs": {
     "url": "https://github.com/Alteriom/painlessMesh/issues"
@@ -56,7 +56,11 @@
   "config": {
     "arduino": {
       "library": true,
-      "platforms": ["arduino", "esp32", "esp8266"]
+      "platforms": [
+        "arduino",
+        "esp32",
+        "esp8266"
+      ]
     }
   },
   "directories": {

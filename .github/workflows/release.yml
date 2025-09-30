@@ -155,10 +155,11 @@ jobs:
       - name: PlatformIO Library Registry
         if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
         run: |
-          echo "📦 PlatformIO Library Registry submission"
-          echo "The library will be automatically picked up by PlatformIO Library Registry"
-          echo "based on the library.json file and GitHub release tag."
-          echo "Monitor: https://registry.platformio.org/libraries/alteriom/painlessMesh"
+          echo "📦 PlatformIO Library Registry publication"
+          echo "✅ PlatformIO publication workflow will be triggered automatically"
+          echo "🔄 Check: https://github.com/${{ github.repository }}/actions/workflows/platformio-publish.yml"
+          echo "📋 Manual trigger: GitHub Actions → PlatformIO Library Publishing → Run workflow"
+          echo "📊 Monitor: https://registry.platformio.org/libraries"
 
       - name: Skip notice (no release conditions)
         if: steps.tagcheck.outputs.exists == 'false' && !startsWith(steps.commit.outputs.message, 'release:')
