@@ -1,16 +1,21 @@
-# PainlessMesh - Alteriom Fork
+# AlteriomPainlessMesh
 
-> **📚 Documentation**: https://alteriom.github.io/painlessMesh/ | **📖 Wiki**: https://github.com/Alteriom/painlessMesh/wiki
+> **📚 [Complete Documentation](https://alteriom.github.io/painlessMesh/)** | **📖 [API Reference](https://alteriom.github.io/painlessMesh/#/api/doxygen)** | **🎯 [Examples](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples)**
+
+<div align="center">
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
 [![Release](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/release/Alteriom/painlessMesh.svg)](https://github.com/Alteriom/painlessMesh/releases)
 [![PlatformIO Registry](https://badges.registry.platformio.org/packages/alteriom/library/painlessMesh.svg)](https://registry.platformio.org/libraries/alteriom/painlessMesh)
+[![Arduino Library Manager](https://img.shields.io/badge/Arduino-Library%20Manager-blue.svg)](https://www.arduino.cc/reference/en/libraries/alteriompainlessmesh/)
 
-## Intro to painlessMesh
+</div>
 
-painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. This **Alteriom fork** extends the original library with specialized packages for IoT sensor networks, device control, and status monitoring.
+## 🌐 Intro to AlteriomPainlessMesh
+
+**AlteriomPainlessMesh** is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. This **Alteriom fork** extends the original painlessMesh library with specialized packages for IoT sensor networks, device control, and status monitoring.
 
 ### 🎯 Alteriom Extensions
 
@@ -219,20 +224,58 @@ You can tip me using ko-fi:
 
 ## 📚 Complete Documentation
 
-**🎯 New to painlessMesh?** Start here:
-- **[Quick Start Guide](docs/getting-started/quickstart.md)** - Get running in minutes
-- **[Installation Guide](docs/getting-started/installation.md)** - All platforms and IDEs
-- **[Your First Mesh](docs/getting-started/first-mesh.md)** - Build a real multi-node network
+> **� [Visit the Full Documentation Website](https://alteriom.github.io/painlessMesh/)**
 
-**🔧 API Reference:**
-- **[Core API](docs/api/core-api.md)** - Complete painlessMesh class reference
-- **[Plugin API](docs/api/plugin-api.md)** - Custom packages and type-safe messaging
-- **[Configuration](docs/api/configuration.md)** - All configuration options
+### 🚀 Getting Started
 
-**🏗️ Architecture & Design:**
-- **[Mesh Architecture](docs/architecture/mesh-architecture.md)** - How painlessMesh works internally
-- **[Plugin System](docs/architecture/plugin-system.md)** - Advanced plugin development
-- **[Message Routing](docs/architecture/routing.md)** - Routing algorithms and strategies
+**New to AlteriomPainlessMesh?** Start with these essential guides:
+
+| Guide | Description | Link |
+|-------|-------------|------|
+| **🎯 Quick Start** | Get your first mesh running in 5 minutes | [📖 Start Here](https://alteriom.github.io/painlessMesh/#/getting-started/quickstart) |
+| **💾 Installation** | Arduino IDE, PlatformIO, and more | [📖 Install Guide](https://alteriom.github.io/painlessMesh/#/getting-started/installation) |
+| **🌐 First Mesh** | Build a real multi-node network | [📖 Build Now](https://alteriom.github.io/painlessMesh/#/getting-started/first-mesh) |
+
+### 📖 API Documentation
+
+**Complete reference for all classes, functions, and features:**
+
+| Section | Description | Link |
+|---------|-------------|------|
+| **🔧 Core API** | painlessMesh class reference and methods | [📖 Core API](https://alteriom.github.io/painlessMesh/#/api/core-api) |
+| **📦 Doxygen API** | Auto-generated complete API documentation | [📖 Browse API](https://alteriom.github.io/painlessMesh/#/api/doxygen) |
+| **⚙️ Configuration** | All mesh configuration options | [📖 Configure](https://alteriom.github.io/painlessMesh/#/api/configuration) |
+| **🔄 Callbacks** | Event handling and callback patterns | [📖 Events](https://alteriom.github.io/painlessMesh/#/api/callbacks) |
+
+### 🎯 Alteriom Extensions
+
+**IoT-ready packages for production applications:**
+
+| Package | Purpose | Documentation |
+|---------|---------|---------------|
+| **📊 SensorPackage** | Environmental data collection | [📖 Sensor Docs](https://alteriom.github.io/painlessMesh/#/alteriom/overview) |
+| **⚡ CommandPackage** | Device control and automation | [📖 Command Docs](https://alteriom.github.io/painlessMesh/#/alteriom/overview) |
+| **📈 StatusPackage** | Health monitoring and diagnostics | [📖 Status Docs](https://alteriom.github.io/painlessMesh/#/alteriom/overview) |
+
+### 🏗️ Advanced Topics
+
+**Deep dive into architecture and advanced usage:**
+
+| Topic | Description | Link |
+|-------|-------------|------|
+| **🌳 Architecture** | How painlessMesh works internally | [📖 Architecture](https://alteriom.github.io/painlessMesh/#/architecture/mesh-architecture) |
+| **🔌 Plugin System** | Create custom message packages | [📖 Plugins](https://alteriom.github.io/painlessMesh/#/architecture/plugin-system) |
+| **🎓 Tutorials** | Step-by-step examples and patterns | [📖 Tutorials](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples) |
+| **🛠️ Troubleshooting** | Common issues and solutions | [📖 Help](https://alteriom.github.io/painlessMesh/#/troubleshooting/common-issues) |
+
+### 📝 Quick Reference
+
+**Bookmark these for daily development:**
+
+- **[📋 Class Index](https://alteriom.github.io/painlessMesh/#/api/doxygen/classes)** - All classes with methods
+- **[⚙️ Function Index](https://alteriom.github.io/painlessMesh/#/api/doxygen/functions)** - All functions and globals  
+- **[📁 File Structure](https://alteriom.github.io/painlessMesh/#/api/doxygen/files)** - Source code organization
+- **[❓ FAQ](https://alteriom.github.io/painlessMesh/#/troubleshooting/faq)** - Frequently asked questions
 
 **📖 Tutorials & Examples:**
 - **[Basic Examples](docs/tutorials/basic-examples.md)** - Essential patterns and techniques

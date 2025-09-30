@@ -1,50 +1,115 @@
-# Class Reference
+# 📚 Class Reference
 
-Complete class documentation generated from painlessMesh source code.
+> Complete class documentation automatically generated from painlessMesh source code using Doxygen.
 
-## 📖 Interactive Documentation
+## �️ Interactive Documentation Viewer
 
-<iframe src="../../api-reference/annotated.html" 
-        width="100%" 
-        height="800px" 
-        frameborder="0"
-        style="border: 1px solid #ddd; border-radius: 4px;">
-</iframe>
+<div class="docsify-tabs">
+<div data-tab="📖 Embedded View">
 
-[📖 Open in New Tab](../../api-reference/annotated.html ':target=_blank')
+<div style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 16px; margin: 16px 0;">
+  <div style="margin-bottom: 12px;">
+    <strong>📋 API Reference - Classes</strong>
+    <span style="float: right;">
+      <a href="../../api-reference/annotated.html" target="_blank" style="color: #0969da; text-decoration: none;">
+        🔗 Open in New Tab
+      </a>
+    </span>
+  </div>
+  
+  <iframe 
+    src="../../api-reference/annotated.html" 
+    width="100%" 
+    height="700px" 
+    frameborder="0"
+    style="border: 1px solid #d0d7de; border-radius: 6px; background: white;"
+    loading="lazy"
+    title="Doxygen Class Documentation">
+    <p style="padding: 20px; text-align: center; color: #656d76;">
+      📄 Your browser doesn't support iframes. 
+      <a href="../../api-reference/annotated.html" target="_blank">Open documentation in new tab</a>
+    </p>
+  </iframe>
+</div>
 
-## 🎯 Key Classes
+</div>
+<div data-tab="🔗 Direct Links">
 
-When the documentation is built, this iframe will show the complete class hierarchy including:
+### 🎯 Quick Access Links
 
-### Core Classes
-- **painlessMesh** - Main mesh network management class
-- **Scheduler** - Task scheduling and timing management  
-- **Task** - Individual task representation and control
+| Class Category | Description | Direct Link |
+|---------------|-------------|-------------|
+| **Core Classes** | Main mesh networking functionality | [📖 View Classes](../../api-reference/annotated.html) |
+| **Class Index** | Alphabetical class listing | [📋 Browse Index](../../api-reference/classes.html) |
+| **Class Hierarchy** | Inheritance relationships | [🌳 View Hierarchy](../../api-reference/hierarchy.html) |
+| **Class Members** | All class methods and variables | [⚙️ Browse Members](../../api-reference/functions.html) |
 
-### Plugin System Classes
-- **SinglePackage** - Point-to-point message packages
-- **BroadcastPackage** - Network-wide broadcast packages
-- **Variant** - Type-safe message container
+### 🔌 Key Classes by Category
 
-### Network Classes
-- **Connection** - Individual node connections
-- **Protocol** - Mesh communication protocols
-- **Router** - Message routing and forwarding
+**🌐 Networking Core**
+- [`painlessMesh`](../../api-reference/classpainlessMesh.html) - Main mesh network management
+- [`Connection`](../../api-reference/classConnection.html) - Individual node connections  
+- [`Router`](../../api-reference/classRouter.html) - Message routing and forwarding
 
-### Utility Classes
-- **Logger** - Debug and logging functionality
-- **Buffer** - Memory management utilities
-- **Layout** - Network topology management
+**⏰ Task Management**
+- [`Scheduler`](../../api-reference/classScheduler.html) - Task scheduling and timing
+- [`Task`](../../api-reference/classTask.html) - Individual task representation
 
-## 📚 Usage
+**📦 Package System**
+- [`SinglePackage`](../../api-reference/classsinglemessage_1_1SinglePackage.html) - Point-to-point messages
+- [`BroadcastPackage`](../../api-reference/classbroadcastmessage_1_1BroadcastPackage.html) - Network broadcasts
+- [`Variant`](../../api-reference/classprotocol_1_1Variant.html) - Type-safe message container
 
-The embedded documentation above is automatically generated from the source code comments and provides:
+**🔧 Utilities**
+- [`Logger`](../../api-reference/classLogger.html) - Debug and logging functionality
+- [`Buffer`](../../api-reference/classBuffer.html) - Memory management utilities
 
-- **Complete class hierarchies** with inheritance relationships
-- **Method documentation** with parameters and return values
-- **Member variable details** with types and descriptions
-- **Cross-references** between related classes and functions
-- **Source code links** for implementation details
+</div>
+</div>
 
-?> **Note:** If the iframe appears empty, the documentation is still being generated. Check the [main Doxygen page](../doxygen.md) for alternative access methods.
+## 💡 Usage Tips
+
+### 🔍 Finding What You Need
+
+- **Search by name**: Use Ctrl+F to find specific classes
+- **Browse by category**: Use the hierarchy view for organized browsing  
+- **Check inheritance**: See which classes extend others
+- **View all members**: Find all methods and properties for a class
+
+### 📖 Reading Class Documentation
+
+Each class page includes:
+- **Brief description** - What the class does
+- **Detailed description** - How it works and when to use it
+- **Constructor documentation** - How to create instances
+- **Method documentation** - All available functions
+- **Member variables** - Class properties and fields
+- **Usage examples** - Practical code samples
+
+### 🎯 Quick Examples
+
+```cpp
+// Core mesh operations
+painlessMesh mesh;
+mesh.init("MyMesh", "password", &scheduler, 5555);
+
+// Task scheduling  
+Task myTask(1000, TASK_FOREVER, &myCallback);
+scheduler.addTask(myTask);
+
+// Package messaging
+SensorPackage sensor;
+sensor.temperature = 25.5;
+mesh.sendPackage(&sensor);
+```
+
+## 🚀 Next Steps
+
+After reviewing the class documentation:
+
+1. **Try examples** - See practical usage in [Basic Examples](../../tutorials/basic-examples.md)
+2. **Read guides** - Learn patterns in [Core API Guide](../core-api.md)  
+3. **Check functions** - Browse [Function Reference](functions.md)
+4. **View files** - Explore [File Reference](files.md)
+
+?> **💡 Tip**: If the embedded documentation doesn't load, check the [troubleshooting guide](../../troubleshooting/common-issues.md) or use the direct links above.

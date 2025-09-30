@@ -1,244 +1,184 @@
-# API Reference (Doxygen)
+# 📖 API Reference (Doxygen)
 
-This section contains the complete API reference automatically generated from the painlessMesh source code using Doxygen.
+> **Comprehensive API documentation automatically generated from the AlteriomPainlessMesh source code using Doxygen.**
 
-## 📖 Browse Full API Documentation
+<div class="doxygen-intro" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; border-radius: 8px; margin: 20px 0;">
+  <h2 style="color: white; margin-top: 0;">🚀 Complete API Documentation</h2>
+  <p style="margin-bottom: 0; opacity: 0.9;">Explore every class, function, and file in the AlteriomPainlessMesh library. Documentation is automatically generated from source code comments to ensure accuracy and completeness.</p>
+</div>
 
-[🔗 **Open Complete API Documentation**](../api-reference/index.html ':target=_blank')
+## 🎯 Quick Access
 
-## Quick Navigation
+<div class="quick-access-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 24px 0;">
+  
+  <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px;">
+    <h3 style="margin-top: 0; color: #495057;">📚 Classes</h3>
+    <p style="color: #6c757d; margin-bottom: 16px;">Browse all classes, their methods, and inheritance relationships</p>
+    <a href="doxygen/classes.md" style="background: #007bff; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; display: inline-block;">Browse Classes</a>
+  </div>
+  
+  <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px;">
+    <h3 style="margin-top: 0; color: #495057;">⚙️ Functions</h3>
+    <p style="color: #6c757d; margin-bottom: 16px;">Explore all functions, globals, and their detailed documentation</p>
+    <a href="doxygen/functions.md" style="background: #28a745; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; display: inline-block;">Browse Functions</a>
+  </div>
+  
+  <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px;">
+    <h3 style="margin-top: 0; color: #495057;">📁 Files</h3>
+    <p style="color: #6c757d; margin-bottom: 16px;">Navigate the complete source code structure and file organization</p>
+    <a href="doxygen/files.md" style="background: #6f42c1; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; display: inline-block;">Browse Files</a>
+  </div>
+  
+</div>
 
-### 📚 Embedded Documentation Pages
+## 🔗 Direct API Access
 
-| Section | Description | Embedded View |
-|---------|-------------|---------------|
-| [📋 **Classes**](doxygen/classes.md) | All painlessMesh classes and their methods | Interactive embedded view |
-| [⚙️ **Functions**](doxygen/functions.md) | Global functions and utilities | Interactive embedded view |
-| [📁 **Files**](doxygen/files.md) | Source file documentation | Interactive embedded view |
+For power users who prefer direct access to the Doxygen documentation:
 
-### 🔗 Direct Links (New Tab)
+| Section | Description | Link |
+|---------|-------------|------|
+| 🏠 **Main Index** | Complete API documentation homepage | [📖 Open Documentation](../api-reference/index.html) |
+| 📋 **Class List** | All classes with brief descriptions | [🔍 Browse Classes](../api-reference/annotated.html) |
+| ⚙️ **Function Index** | Global functions and utilities | [🔧 Browse Functions](../api-reference/globals_func.html) |
+| 📁 **File Structure** | Source files and their contents | [📂 Browse Files](../api-reference/files.html) |
+| 🌳 **Class Hierarchy** | Inheritance and relationships | [🌲 View Hierarchy](../api-reference/hierarchy.html) |
 
-| Section | Description |
-|---------|-------------|
-| [📋 **Classes**](../api-reference/annotated.html) | All painlessMesh classes and their methods |
-| [⚙️ **Functions**](../api-reference/globals_func.html) | Global functions and utilities |
-| [📁 **Files**](../api-reference/files.html) | Source file documentation |
-| [💡 **Examples**](../api-reference/examples.html) | Code examples and usage patterns |
+## 🎯 Core AlteriomPainlessMesh Classes
 
-### 🎯 Core Classes
+Quick links to the most important classes in the library:
+
+### 🌐 Networking Core
 
 | Class | Purpose | Documentation |
 |-------|---------|---------------|
-| `painlessMesh` | Main mesh network class | [📖 Documentation](../api-reference/classpainlessMesh.html) |
-| `Scheduler` | Task scheduling system | [📖 Documentation](../api-reference/classScheduler.html) |
+| `painlessMesh` | Main mesh network management | [📖 Documentation](../api-reference/classpainlessMesh.html) |
+| `Scheduler` | Task scheduling and timing | [📖 Documentation](../api-reference/classScheduler.html) |
 | `Task` | Individual task management | [📖 Documentation](../api-reference/classTask.html) |
 
-### 🔌 Plugin System
+### 📦 Alteriom Package System
+
+| Package Type | Purpose | Documentation |
+|--------------|---------|---------------|
+| `SensorPackage` | Environmental data collection | [📖 Documentation](../api-reference/classalteriom_1_1SensorPackage.html) |
+| `CommandPackage` | Device control commands | [📖 Documentation](../api-reference/classalteriom_1_1CommandPackage.html) |
+| `StatusPackage` | System status monitoring | [📖 Documentation](../api-reference/classalteriom_1_1StatusPackage.html) |
+
+### 🔌 Plugin Framework
 
 | Component | Purpose | Documentation |
 |-----------|---------|---------------|
-| `SinglePackage` | Point-to-point message packages | [📖 Documentation](../api-reference/classsinglemessage_1_1SinglePackage.html) |
-| `BroadcastPackage` | Broadcast message packages | [📖 Documentation](../api-reference/classbroadcastmessage_1_1BroadcastPackage.html) |
+| `SinglePackage` | Point-to-point messaging | [📖 Documentation](../api-reference/classsinglemessage_1_1SinglePackage.html) |
+| `BroadcastPackage` | Network-wide broadcasts | [📖 Documentation](../api-reference/classbroadcastmessage_1_1BroadcastPackage.html) |
 | `Variant` | Type-safe message container | [📖 Documentation](../api-reference/classprotocol_1_1Variant.html) |
 
-## 🚀 Getting Started with API
+## 🚀 API Usage Examples
 
-### Basic Mesh Operations
+### Basic Mesh Setup
 
 ```cpp
-#include "painlessMesh.h"
+#include "AlteriomPainlessMesh.h"
 
 painlessMesh mesh;
 Scheduler userScheduler;
 
 void setup() {
-    // Initialize mesh - see painlessMesh::init() documentation
+    // Initialize mesh - see painlessMesh class documentation
     mesh.init("MyMesh", "password", &userScheduler, 5555);
     
-    // Set callbacks - see painlessMesh::onReceive() documentation  
+    // Set up callbacks - see callback documentation
     mesh.onReceive(&receivedCallback);
     mesh.onNewConnection(&newConnectionCallback);
+    mesh.onChangedConnections(&changedConnectionCallback);
 }
 
 void loop() {
-    // Update mesh - see painlessMesh::update() documentation
-    mesh.update();
+    mesh.update(); // Keep the mesh running
 }
 ```
 
-### Message Sending
+### Alteriom Package Usage
 
 ```cpp
-// Send to all nodes - see painlessMesh::sendBroadcast() documentation
-bool success = mesh.sendBroadcast("Hello everyone!");
+#include "AlteriomPainlessMesh.h"
 
-// Send to specific node - see painlessMesh::sendSingle() documentation  
-uint32_t targetNode = 123456789;
-bool sent = mesh.sendSingle(targetNode, "Private message");
-
-// Check if message was queued successfully
-if (!sent) {
-    Serial.println("Message failed to send");
-}
-```
-
-### Network Information
-
-```cpp
-// Get this node's ID - see painlessMesh::getNodeId() documentation
-uint32_t myId = mesh.getNodeId();
-
-// Get connected nodes - see painlessMesh::getNodeList() documentation
-auto nodes = mesh.getNodeList();
-Serial.printf("Connected to %d nodes\n", nodes.size());
-
-// Get network topology JSON - see painlessMesh::subConnectionJson() documentation
-String topology = mesh.subConnectionJson();
-Serial.println("Network topology: " + topology);
-```
-
-## 🔍 Advanced Features
-
-### Time Synchronization
-
-```cpp
-// Get synchronized mesh time - see painlessMesh::getNodeTime() documentation
-uint32_t meshTime = mesh.getNodeTime();
-
-// Check if time is synchronized - see painlessMesh::isTimeAdjusted() documentation
-if (mesh.isTimeAdjusted()) {
-    Serial.println("Time is synchronized with mesh");
-}
-```
-
-### Configuration Options
-
-```cpp
-// Set debug message types - see painlessMesh::setDebugMsgTypes() documentation
-mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
-
-// Configure as root node - see painlessMesh::setRoot() documentation
-mesh.setRoot(true);
-
-// Set node timeout - see painlessMesh::setNodeTimeout() documentation
-mesh.setNodeTimeout(30 * 1000000); // 30 seconds in microseconds
-```
-
-### Package System
-
-```cpp
-// Register custom package handler - see painlessMesh::onPackage() documentation
-mesh.onPackage(200, [](protocol::Variant& variant) {
-    // Handle custom package type 200
-    return true; // Package handled
-});
-
-// Send custom package - see painlessMesh::sendPackage() documentation
-MyCustomPackage package;
-package.data = "custom data";
-mesh.sendPackage(&package);
-```
-
-## 📊 Performance Monitoring
-
-### Memory Usage
-
-```cpp
-// Monitor memory in your application
-void checkMemory() {
-    uint32_t freeHeap = ESP.getFreeHeap();
-    if (freeHeap < 10000) {
-        Serial.printf("Low memory warning: %u bytes\n", freeHeap);
-    }
-}
-```
-
-### Network Health
-
-```cpp
-// Monitor connection count
-void monitorNetwork() {
-    auto nodes = mesh.getNodeList();
-    Serial.printf("Network health: %d connections\n", nodes.size());
+void sendSensorData() {
+    // Create sensor package - see SensorPackage documentation
+    alteriom::SensorPackage sensor;
+    sensor.temperature = 25.5;
+    sensor.humidity = 60.0;
+    sensor.sensorId = mesh.getNodeId();
+    sensor.timestamp = mesh.getNodeTime();
     
-    // Log individual node IDs
-    for (auto nodeId : nodes) {
-        Serial.printf("Connected to: %u\n", nodeId);
-    }
+    // Send to all nodes - see mesh.sendPackage() documentation
+    mesh.sendPackage(&sensor);
+}
+
+void sendCommand(uint32_t targetNode) {
+    // Create command package - see CommandPackage documentation  
+    alteriom::CommandPackage cmd;
+    cmd.command = 1; // Turn on LED
+    cmd.targetDevice = targetNode;
+    cmd.commandId = random(1000000);
+    
+    // Send to specific node - see mesh.sendSingle() documentation
+    mesh.sendSingle(targetNode, cmd.toString());
 }
 ```
 
-## 🛠️ Troubleshooting with API
+## 📚 Documentation Features
 
-### Debug Information
+### What's Included
 
-```cpp
-// Enable verbose debugging
-mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION | SYNC | COMMUNICATION);
-
-// Check mesh status
-bool isConnected = mesh.getNodeList().size() > 0;
-Serial.printf("Mesh status: %s\n", isConnected ? "Connected" : "Isolated");
-```
-
-### Error Handling
-
-```cpp
-// Validate message sending
-bool sendMessage(String message) {
-    bool success = mesh.sendBroadcast(message);
-    if (!success) {
-        Serial.println("Failed to send message - check network status");
-        
-        // Check network health
-        if (mesh.getNodeList().size() == 0) {
-            Serial.println("No connections - node is isolated");
-        }
-        
-        // Check memory
-        if (ESP.getFreeHeap() < 5000) {
-            Serial.println("Low memory may be causing send failures");
-        }
-    }
-    return success;
-}
-```
-
-## 📝 Documentation Notes
-
-### Automatic Generation
-
-The API documentation is automatically generated from the source code using Doxygen. This ensures:
-
-- **Always up-to-date** - Reflects the latest code
-- **Complete coverage** - All public APIs documented
-- **Detailed examples** - Usage patterns and code samples
-- **Cross-references** - Easy navigation between related functions
+- **🔍 Complete API Coverage** - Every public class, method, and function
+- **📝 Detailed Descriptions** - Purpose, parameters, return values, and examples
+- **🌳 Inheritance Diagrams** - Visual class relationships and hierarchies
+- **🔗 Cross-References** - Easy navigation between related components
+- **💡 Usage Examples** - Practical code snippets for common tasks
+- **⚠️ Notes & Warnings** - Important usage information and gotchas
 
 ### Documentation Standards
 
-All painlessMesh APIs follow these documentation standards:
+All API documentation follows consistent standards:
 
-- **Brief description** - What the function/class does
-- **Detailed description** - How it works and when to use it
+- **Brief Description** - One-line summary of purpose
+- **Detailed Description** - How it works and when to use it
 - **Parameters** - All parameters with types and descriptions
-- **Return values** - What the function returns
-- **Examples** - Practical usage examples
-- **See also** - Related functions and classes
+- **Return Values** - What the function returns and possible errors
+- **Examples** - Practical usage patterns
+- **See Also** - Related functions and classes
+
+## 🛠️ For Developers
 
 ### Contributing to Documentation
 
-If you find missing or incorrect API documentation:
+The API documentation is automatically generated from source code comments. To improve it:
 
-1. **Check the source code** - Documentation is in the `.h` files
-2. **Submit an issue** - Report documentation problems
-3. **Contribute improvements** - Submit pull requests with documentation fixes
+1. **Edit source files** - Documentation is in `.h` and `.hpp` files
+2. **Use Doxygen syntax** - Follow the existing comment patterns
+3. **Test locally** - Run `doxygen doxygen/Doxyfile` to preview changes
+4. **Submit PR** - Documentation updates deploy automatically
+
+### Generating Documentation Locally
+
+```bash
+# Install Doxygen
+sudo apt-get install doxygen graphviz  # Linux
+brew install doxygen graphviz          # macOS
+
+# Generate documentation
+doxygen doxygen/Doxyfile
+
+# Open documentation
+open docs/api-reference/html/index.html
+```
 
 ## 🔗 Related Resources
 
-- [Core API Guide](core-api.md) - High-level API overview with examples
-- [Configuration Guide](configuration.md) - Detailed configuration options
-- [Callbacks Guide](callbacks.md) - Event handling and callbacks
-- [Troubleshooting](../troubleshooting/common-issues.md) - Common API usage issues
+- [📖 Core API Guide](core-api.md) - High-level API overview
+- [🎯 Configuration Guide](configuration.md) - Detailed setup options
+- [🔄 Callbacks Guide](callbacks.md) - Event handling patterns
+- [🛠️ Troubleshooting](../troubleshooting/common-issues.md) - Common API issues
 
-The Doxygen API reference provides the most comprehensive and detailed documentation for all painlessMesh functionality. Use it alongside the guides above for complete understanding of the library.
+---
+
+?> **💡 Pro Tip**: The Doxygen documentation is searchable! Use Ctrl+F in the embedded viewers or the search functionality in the full documentation to quickly find what you need.

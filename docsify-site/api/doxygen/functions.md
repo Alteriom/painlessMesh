@@ -1,55 +1,140 @@
-# Function Reference
+# ⚙️ Function Reference
 
-Complete function documentation generated from painlessMesh source code.
+> Complete function documentation automatically generated from painlessMesh source code using Doxygen.
 
-## 📖 Interactive Documentation
+## �️ Interactive Documentation Viewer
 
-<iframe src="../../api-reference/globals_func.html" 
-        width="100%" 
-        height="800px" 
-        frameborder="0"
-        style="border: 1px solid #ddd; border-radius: 4px;">
-</iframe>
+<div class="api-viewer" style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 16px; margin: 16px 0;">
+  <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+    <strong>⚙️ API Reference - Functions</strong>
+    <a href="../../api-reference/globals_func.html" target="_blank" style="color: #0969da; text-decoration: none; font-size: 14px;">
+      🔗 Open in New Tab
+    </a>
+  </div>
+  
+  <iframe 
+    src="../../api-reference/globals_func.html" 
+    width="100%" 
+    height="700px" 
+    frameborder="0"
+    style="border: 1px solid #d0d7de; border-radius: 6px; background: white;"
+    loading="lazy"
+    title="Doxygen Function Documentation">
+    <p style="padding: 20px; text-align: center; color: #656d76;">
+      📄 Your browser doesn't support iframes. 
+      <a href="../../api-reference/globals_func.html" target="_blank">Open function documentation in new tab</a>
+    </p>
+  </iframe>
+</div>
 
-[📖 Open in New Tab](../../api-reference/globals_func.html ':target=_blank')
+## 🔗 Quick Navigation
 
-## 🎯 Key Function Categories
+| Function Category | Description | Direct Link |
+|------------------|-------------|-------------|
+| **All Functions** | Complete function listing | [📖 Browse All](../../api-reference/globals_func.html) |
+| **Global Variables** | Module-level variables | [🌐 View Globals](../../api-reference/globals_vars.html) |
+| **Defines & Macros** | Preprocessor definitions | [🔧 Browse Defines](../../api-reference/globals_defs.html) |
+| **Enumerations** | Enum values and types | [📋 View Enums](../../api-reference/globals_enum.html) |
 
-When the documentation is built, this iframe will show the complete function reference including:
+## 🎯 Key Functions by Category
 
-### Mesh Management Functions
+### 🌐 Mesh Operations
+- **Initialization**: `mesh.init()`, `mesh.stop()`
+- **Messaging**: `mesh.sendBroadcast()`, `mesh.sendSingle()`
+- **Network Info**: `mesh.getNodeList()`, `mesh.getNodeId()`
 
-- **Initialization functions** - Setting up mesh networks
-- **Connection management** - Handling node connections
-- **Configuration functions** - Customizing mesh behavior
+### ⏰ Time & Scheduling  
+- **Time Sync**: `mesh.getNodeTime()`, `mesh.isTimeAdjusted()`
+- **Task Management**: `scheduler.addTask()`, `task.enable()`
 
-### Message Handling Functions
+### 🔧 Configuration
+- **Debug Settings**: `mesh.setDebugMsgTypes()`
+- **Network Config**: `mesh.setRoot()`, `mesh.setNodeTimeout()`
 
-- **Sending functions** - Broadcasting and targeted messaging
-- **Receiving functions** - Message processing and callbacks
-- **Routing functions** - Message forwarding and path finding
+### 📦 Package Handling
+- **Package Registration**: `mesh.onPackage()`
+- **Message Processing**: `variant.to<T>()`, `package.addTo()`
 
-### Utility Functions
+## 💡 Function Usage Guide
 
-- **Time synchronization** - Network-wide time coordination
-- **Debugging functions** - Logging and diagnostic utilities
-- **Memory management** - Buffer and resource handling
+### 🔍 Understanding Function Documentation
 
-### Plugin System Functions
+Each function entry includes:
+- **Function signature** with parameter types
+- **Brief description** of what it does
+- **Detailed description** of behavior and usage
+- **Parameter documentation** with types and descriptions
+- **Return value details** including error conditions
+- **Usage examples** showing practical implementation
 
-- **Package registration** - Type-safe message handling
-- **Serialization functions** - JSON conversion utilities
-- **Variant handling** - Type conversion and validation
+### 📖 Common Patterns
 
-## 📚 Usage
+**Mesh Initialization**
+```cpp
+// Basic mesh setup
+mesh.init("NetworkName", "password", &scheduler, 5555);
+mesh.onReceive(&messageCallback);
+mesh.onNewConnection(&connectionCallback);
+```
 
-The embedded documentation above provides:
+**Message Handling**
+```cpp
+// Send to all nodes
+bool success = mesh.sendBroadcast("Hello everyone!");
 
-- **Complete function signatures** with parameters and return types
-- **Detailed descriptions** of function behavior and usage
-- **Parameter documentation** with types and valid ranges
-- **Return value descriptions** with possible error conditions
-- **Usage examples** and code snippets
-- **Cross-references** to related functions and classes
+// Send to specific node
+uint32_t targetId = 123456789;
+bool sent = mesh.sendSingle(targetId, "Private message");
+```
 
-?> **Note:** If the iframe appears empty, the documentation is still being generated. Check the [main Doxygen page](../doxygen.md) for alternative access methods.
+**Task Scheduling**
+```cpp
+// Create and schedule task
+Task myTask(1000, TASK_FOREVER, &taskCallback);
+scheduler.addTask(myTask);
+myTask.enable();
+```
+
+### ⚡ Performance Tips
+
+- **Check return values** - Many functions return success/failure status
+- **Use callbacks efficiently** - Avoid blocking operations in mesh callbacks
+- **Monitor memory** - Large message queues can cause memory issues
+- **Handle errors gracefully** - Network operations can fail
+
+## 🔧 Advanced Function Reference
+
+### 🎚️ Configuration Functions
+
+| Function | Purpose | Parameters |
+|----------|---------|------------|
+| `setDebugMsgTypes()` | Control debug output | Message type flags |
+| `setRoot()` | Configure as root node | Boolean root status |
+| `setNodeTimeout()` | Set connection timeout | Timeout in microseconds |
+
+### 📊 Information Functions
+
+| Function | Purpose | Return Type |
+|----------|---------|-------------|
+| `getNodeId()` | Get this node's ID | `uint32_t` |
+| `getNodeList()` | Get connected nodes | `std::list<uint32_t>` |
+| `getNodeTime()` | Get synchronized time | `uint32_t` |
+
+### 🔄 Callback Functions
+
+| Callback | Triggered When | Signature |
+|----------|----------------|-----------|
+| `onReceive` | Message received | `void(uint32_t from, String& msg)` |
+| `onNewConnection` | Node connects | `void(uint32_t nodeId)` |
+| `onChangedConnections` | Topology changes | `void()` |
+
+## 🚀 Next Steps
+
+After exploring the function documentation:
+
+1. **Try examples** - See functions in action in [Basic Examples](../../tutorials/basic-examples.md)
+2. **Read class docs** - Understand context in [Class Reference](classes.md)
+3. **Check file structure** - Browse [File Reference](files.md)
+4. **Review guides** - Learn patterns in [Core API Guide](../core-api.md)
+
+?> **💡 Tip**: Use the search functionality in the embedded documentation to quickly find specific functions. If the iframe doesn't load, use the direct links provided above.

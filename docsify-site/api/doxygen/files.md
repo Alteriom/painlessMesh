@@ -1,64 +1,189 @@
-# File Reference
+# 📁 File Reference
 
-Complete file documentation generated from painlessMesh source code.
+> Complete file documentation automatically generated from painlessMesh source code using Doxygen.
 
-## 📖 Interactive Documentation
+## 🖥️ Interactive Documentation Viewer
 
-<iframe src="../../api-reference/files.html" 
-        width="100%" 
-        height="800px" 
-        frameborder="0"
-        style="border: 1px solid #ddd; border-radius: 4px;">
-</iframe>
+<div class="api-viewer" style="background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 16px; margin: 16px 0;">
+  <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+    <strong>📁 API Reference - Files</strong>
+    <a href="../../api-reference/files.html" target="_blank" style="color: #0969da; text-decoration: none; font-size: 14px;">
+      🔗 Open in New Tab
+    </a>
+  </div>
+  
+  <iframe 
+    src="../../api-reference/files.html" 
+    width="100%" 
+    height="700px" 
+    frameborder="0"
+    style="border: 1px solid #d0d7de; border-radius: 6px; background: white;"
+    loading="lazy"
+    title="Doxygen File Documentation">
+    <p style="padding: 20px; text-align: center; color: #656d76;">
+      📄 Your browser doesn't support iframes. 
+      <a href="../../api-reference/files.html" target="_blank">Open file documentation in new tab</a>
+    </p>
+  </iframe>
+</div>
 
-[📖 Open in New Tab](../../api-reference/files.html ':target=_blank')
+## 🔗 Quick Navigation
 
-## 🎯 Source Code Organization
+| File Category | Description | Direct Link |
+|---------------|-------------|-------------|
+| **All Files** | Complete file listing | [📖 Browse All](../../api-reference/files.html) |
+| **Header Files** | Public API headers | [📋 View Headers](../../api-reference/files.html) |
+| **Source Files** | Implementation files | [🔧 Browse Source](../../api-reference/files.html) |
+| **File Index** | Alphabetical file listing | [📁 File Index](../../api-reference/files.html) |
 
-When the documentation is built, this iframe will show the complete file structure including:
+## 🎯 Key Files by Category
 
-### Core Headers
+### 🌐 Core Library Files
 
-- **painlessMesh.h** - Main library header with public API
-- **mesh.hpp** - Core mesh networking implementation
-- **protocol.hpp** - Network protocol definitions
-- **plugin.hpp** - Plugin system architecture
+**Main Headers**
+- `painlessMesh.h` - Primary library interface
+- `AlteriomPainlessMesh.h` - Alteriom extensions wrapper
+- `painlessMeshSTA.h` - Station mode functionality
 
-### Platform-Specific Files
+**Core Implementation**
+- `mesh.hpp` - Core mesh networking implementation  
+- `protocol.hpp` - Mesh communication protocols
+- `router.hpp` - Message routing and forwarding
 
-- **arduino/wifi.hpp** - Arduino WiFi implementation
-- **boost/asynctcp.hpp** - Boost.Asio networking for desktop
-- **scheduler.cpp** - Task scheduling implementation
+### 📦 Plugin System Files
 
-### Utility Headers
+**Package Framework**
+- `plugin.hpp` - Plugin system architecture
+- `SinglePackage` classes - Point-to-point messaging
+- `BroadcastPackage` classes - Network-wide broadcasts
 
-- **logger.hpp** - Debugging and logging utilities
-- **buffer.hpp** - Memory management utilities
-- **callback.hpp** - Event callback system
-- **configuration.hpp** - Mesh configuration options
+### 🔧 Utility Files
 
-### Plugin System
+**Supporting Infrastructure**
+- `logger.hpp` - Debug and logging utilities
+- `buffer.hpp` - Memory management
+- `configuration.hpp` - Settings and options
 
-- **performance.hpp** - Performance monitoring
-- **remote.hpp** - Remote debugging capabilities
-- **base64.hpp** - Encoding utilities
+### 🎯 Alteriom Extensions
 
-## 📚 File Documentation
+**IoT Packages**
+- `alteriom_sensor_package.hpp` - Sensor data packages
+- Example files - Practical usage demonstrations
 
-The embedded documentation above provides:
+## 💡 File Documentation Guide
 
-- **File descriptions** and purposes
-- **Include dependencies** and relationships
-- **Function listings** with links to detailed documentation
-- **Class definitions** contained in each file
-- **Usage examples** and integration patterns
-- **Platform-specific notes** and compatibility information
+### 🔍 Understanding File Documentation
 
-## 🔍 Navigation Tips
+Each file entry includes:
+- **File overview** with purpose and role
+- **Include dependencies** and requirements
+- **Public API** exposed by the file
+- **Class and function listings** defined in the file
+- **Usage examples** for key functionality
+- **Source code links** for implementation details
 
-- **Click any file name** to see detailed documentation
-- **Use the search** to find specific implementations
-- **Follow include chains** to understand dependencies
-- **Check examples** for usage patterns
+### 📖 File Organization
 
-?> **Note:** If the iframe appears empty, the documentation is still being generated. Check the [main Doxygen page](../doxygen.md) for alternative access methods.
+**Header Files (.h/.hpp)**
+- **Public interfaces** - Classes and functions for library users
+- **API declarations** - Function signatures and class definitions  
+- **Documentation** - Detailed usage information and examples
+
+**Source Files (.cpp)**
+- **Implementation details** - How the library actually works
+- **Private functions** - Internal helper functions
+- **Platform-specific code** - ESP32/ESP8266 optimizations
+
+### 🔧 Include Hierarchy
+
+```cpp
+// Main include for users
+#include "AlteriomPainlessMesh.h"
+
+// Core mesh functionality  
+#include "painlessMesh.h"
+
+// Alteriom extensions
+#include "examples/alteriom/alteriom_sensor_package.hpp"
+
+// Internal headers (advanced users)
+#include "painlessmesh/mesh.hpp"
+#include "painlessmesh/protocol.hpp"
+```
+
+## 🚀 File Usage Patterns
+
+### 📋 Basic Integration
+
+**Simple Mesh Project**
+```cpp
+#include "AlteriomPainlessMesh.h"
+
+painlessMesh mesh;
+Scheduler userScheduler;
+
+void setup() {
+    mesh.init("MyMesh", "password", &userScheduler, 5555);
+}
+```
+
+**Custom Extensions**
+```cpp
+#include "painlessmesh/plugin.hpp"
+
+class CustomPackage : public painlessmesh::plugin::SinglePackage {
+    // Custom message implementation
+};
+```
+
+### 🔍 Advanced Usage
+
+**Direct Core Access**
+```cpp
+#include "painlessmesh/mesh.hpp"
+#include "painlessmesh/protocol.hpp"
+
+// Access lower-level mesh functionality
+```
+
+**Platform Optimization**
+```cpp
+#ifdef ESP32
+    #include "arduino/wifi.hpp"
+#endif
+```
+
+## 📊 File Metrics
+
+### 📈 Library Structure
+
+| Category | File Count | Purpose |
+|----------|------------|---------|
+| **Public Headers** | ~5 files | User-facing API |
+| **Core Implementation** | ~15 files | Mesh networking |
+| **Plugin System** | ~8 files | Extensible messaging |
+| **Utilities** | ~10 files | Support functions |
+| **Examples** | ~12 files | Usage demonstrations |
+
+### 🔧 Include Guidelines
+
+**For Basic Usage**
+- Include `AlteriomPainlessMesh.h` only
+- Use high-level API functions
+- Follow example patterns
+
+**For Advanced Development**
+- Include specific core headers as needed
+- Understand file dependencies
+- Review implementation details
+
+## 🚀 Next Steps
+
+After exploring the file documentation:
+
+1. **Study examples** - See file usage in [Basic Examples](../../tutorials/basic-examples.md)
+2. **Review classes** - Understand context in [Class Reference](classes.md)
+3. **Check functions** - Browse [Function Reference](functions.md)
+4. **Read guides** - Learn patterns in [Core API Guide](../core-api.md)
+
+?> **💡 Tip**: Use the file documentation to understand the library structure and find the right headers for your project. Each file page shows exactly what functionality it provides.

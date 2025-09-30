@@ -38,8 +38,23 @@ jobs:
 
       - name: Generate API Documentation
         run: |
-          # Use existing Doxygen configuration
+          # Ensure Doxygen output directory exists
+          mkdir -p docs/api-reference
+          
+          # Generate Doxygen documentation
+          echo "Generating Doxygen documentation..."
           doxygen doxygen/Doxyfile
+          
+          # Verify documentation was generated
+          if [ -d "docs/api-reference/html" ]; then
+            echo "✅ Doxygen documentation generated successfully"
+            ls -la docs/api-reference/
+          else
+            echo "❌ Failed to generate Doxygen documentation"
+            echo "Available directories:"
+            ls -la docs/ || true
+            exit 1
+          fi
 
       - name: Prepare Docsify Documentation Site
         run: |
@@ -49,75 +64,77 @@ jobs:
           # Copy Docsify site
           cp -r docsify-site/* public/
           
-          # Create API documentation directory
-          mkdir -p public/api-reference
-          
-          # Copy Doxygen output to API reference
-          if [ -d "doxygen/documentation/html" ]; then
-            cp -r doxygen/documentation/html/* public/api-reference/
+          # Copy Doxygen documentation if it exists
+          if [ -d "docs/api-reference/html" ]; then
+            echo "✅ Copying Doxygen documentation to public/api-reference/"
+            mkdir -p public/api-reference
+            cp -r docs/api-reference/html/* public/api-reference/
             
-            # Create enhanced Doxygen integration pages
+            # Verify files were copied
+            echo "API reference files:"
+            ls -la public/api-reference/ | head -10
+            
+            # Create a simple verification page
+            echo "<h1>API Documentation Available</h1>" > public/api-reference/status.html
+            echo "<p>Doxygen documentation generated successfully</p>" >> public/api-reference/status.html
+            echo "<p>Generated on: $(date)</p>" >> public/api-reference/status.html
+            
+          else
+            echo "❌ Doxygen documentation not found at docs/api-reference/html"
+            
+            # Create fallback pages
+            mkdir -p public/api-reference
+            echo "<h1>API Documentation Unavailable</h1>" > public/api-reference/index.html
+            echo "<p>Doxygen documentation generation failed</p>" >> public/api-reference/index.html
+            echo "<p>Please check the build logs for errors</p>" >> public/api-reference/index.html
+            
+            # Create fallback for embedded pages
             mkdir -p public/api/doxygen
             
-            # Main Doxygen index already exists, enhance it
-            echo "Doxygen documentation integrated successfully"
-            
-            # Create embedded class documentation pages
             cat > public/api/doxygen/classes.md << 'EOF'
           # Class Reference
           
-          Complete class documentation generated from source code.
+          ⚠️ **API documentation is currently unavailable**
           
-          <iframe src="../../api-reference/annotated.html" 
-                  width="100%" 
-                  height="800px" 
-                  frameborder="0"
-                  style="border: 1px solid #ddd; border-radius: 4px;">
-          </iframe>
+          The Doxygen documentation generation failed during the build process. 
           
-          [📖 Open in New Tab](../../api-reference/annotated.html ':target=_blank')
+          ## Alternative Documentation
+          
+          While we work to fix the API reference, you can:
+          
+          - Check the [Core API Guide](../core-api.md) for high-level documentation
+          - View source code directly in the [GitHub repository](https://github.com/Alteriom/painlessMesh/tree/main/src)
+          - Review the [examples](https://github.com/Alteriom/painlessMesh/tree/main/examples) for usage patterns
+          
+          ## Troubleshooting
+          
+          If you're a developer, you can generate the documentation locally:
+          
+          ```bash
+          # Install Doxygen
+          sudo apt-get install doxygen graphviz
+          
+          # Generate documentation
+          doxygen doxygen/Doxyfile
+          
+          # Open docs/api-reference/html/index.html
+          ```
           EOF
             
-            # Create embedded functions documentation
-            cat > public/api/doxygen/functions.md << 'EOF'
-          # Function Reference
-          
-          Complete function documentation generated from source code.
-          
-          <iframe src="../../api-reference/globals_func.html" 
-                  width="100%" 
-                  height="800px" 
-                  frameborder="0"
-                  style="border: 1px solid #ddd; border-radius: 4px;">
-          </iframe>
-          
-          [📖 Open in New Tab](../../api-reference/globals_func.html ':target=_blank')
-          EOF
+            # Create similar fallbacks for functions and files
+            cp public/api/doxygen/classes.md public/api/doxygen/functions.md
+            cp public/api/doxygen/classes.md public/api/doxygen/files.md
             
-            # Create embedded files documentation
-            cat > public/api/doxygen/files.md << 'EOF'
-          # File Reference
-          
-          Complete file documentation generated from source code.
-          
-          <iframe src="../../api-reference/files.html" 
-                  width="100%" 
-                  height="800px" 
-                  frameborder="0"
-                  style="border: 1px solid #ddd; border-radius: 4px;">
-          </iframe>
-          
-          [📖 Open in New Tab](../../api-reference/files.html ':target=_blank')
-          EOF
-            
-          else
-            echo "Warning: Doxygen documentation not found"
+            # Update titles
+            sed -i 's/Class Reference/Function Reference/g' public/api/doxygen/functions.md
+            sed -i 's/Class Reference/File Reference/g' public/api/doxygen/files.md
           fi
           
           # Ensure proper file structure for Docsify
-          if [ ! -f "public/.nojekyll" ]; then
-            touch public/.nojekyll
-          fi
+          touch public/.nojekyll
+          
+          # Add GitHub Pages configuration
+          echo "Theme: Cayman" > public/_config.yml
 
       - name: Setup Pages
         id: pages-setup
