@@ -51,6 +51,13 @@ Welcome to the comprehensive documentation for painlessMesh - a user-friendly ES
 - [Documentation](development/documentation.md) - Contributing to documentation
 - [Release Process](development/releases.md) - Understanding releases and versioning
 
+### Improvements & Proposals
+- [Library Improvements](improvements/README.md) - Overview of performance and security enhancements
+- **[Feature Proposals: OTA & Status](improvements/FEATURE_PROPOSALS.md)** 🆕 - Comprehensive proposals for OTA distribution and mesh status monitoring
+  - [Full Analysis](improvements/ota-and-status-enhancements.md) - Detailed exploration of 10+ enhancement options
+  - [Quick Reference](improvements/ota-status-quick-reference.md) - TL;DR with decision guides
+  - [Architecture Diagrams](improvements/ota-status-architecture-diagrams.md) - Visual diagrams of each option
+
 ## Quick Links
 
 - **[GitHub Repository](https://github.com/Alteriom/painlessMesh)**
