@@ -66,4 +66,22 @@ See `examples/alteriom/improved_sensor_node.ino` for a complete demonstration of
 
 ---
 
+## Future Enhancements
+
+### OTA Distribution and Mesh Status Monitoring
+
+Comprehensive proposals for enhancing painlessMesh's OTA and status monitoring capabilities:
+
+- **[OTA and Status Enhancements - Full Proposal](ota-and-status-enhancements.md)** - Detailed analysis of five OTA distribution options and five mesh status monitoring options, with pros/cons, implementation details, and phased rollout recommendations.
+
+- **[Quick Reference Guide](ota-status-quick-reference.md)** - TL;DR summary with decision matrices, implementation examples, and performance expectations.
+
+**Highlights:**
+- Multiple OTA options: Broadcast distribution, progressive rollout, peer-to-peer, MQTT integration, and compression
+- Multiple status options: Enhanced packages, status service, telemetry streams, dashboards, and MQTT bridges
+- Phased implementation strategy starting with quick wins
+- Production-ready recommendations for enterprise deployments
+
+---
+
 For detailed API documentation and usage examples, see the individual header files.
