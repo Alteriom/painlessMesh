@@ -104,6 +104,14 @@ class Announce : public BroadcastPackage {
    */
   bool broadcasted = false;
 
+  /** Enable firmware compression to reduce transfer time and bandwidth.
+   * 
+   * When compressed is true, the firmware data will be transmitted in compressed
+   * form, reducing network bandwidth usage by 40-60% typically. Nodes will
+   * decompress the data during flash write.
+   */
+  bool compressed = false;
+
   size_t noPart;
 
   Announce() : BroadcastPackage(10) {}
@@ -116,9 +124,12 @@ class Announce : public BroadcastPackage {
     if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
     if (jsonObj.containsKey("broadcasted"))
       broadcasted = jsonObj["broadcasted"];
+    if (jsonObj.containsKey("compressed"))
+      compressed = jsonObj["compressed"];
 #else
     if (jsonObj["forced"].is<bool>()) forced = jsonObj["forced"];
     if (jsonObj["broadcasted"].is<bool>()) broadcasted = jsonObj["broadcasted"];
+    if (jsonObj["compressed"].is<bool>()) compressed = jsonObj["compressed"];
 #endif
     noPart = jsonObj["noPart"];
   }
@@ -131,6 +142,7 @@ class Announce : public BroadcastPackage {
     if (forced) jsonObj["forced"] = forced;
     jsonObj["noPart"] = noPart;
     jsonObj["broadcasted"] = broadcasted;
+    if (compressed) jsonObj["compressed"] = compressed;
     return jsonObj;
   }
 
@@ -187,6 +199,7 @@ class DataRequest : public Announce {
     req.partNo = partNo;
     req.from = from;
     req.broadcasted = ann.broadcasted;
+    req.compressed = ann.compressed;
     return req;
   }
 
@@ -235,6 +248,7 @@ class Data : public DataRequest {
     d.partNo = partNo;
     d.data = data;
     d.broadcasted = req.broadcasted;
+    d.compressed = req.compressed;
     return d;
   }
 
@@ -258,6 +272,7 @@ inline DataRequest DataRequest::replyTo(const Data& d, size_t partNo) {
   req.noPart = d.noPart;
   req.partNo = partNo;
   req.broadcasted = d.broadcasted;
+  req.compressed = d.compressed;
   return req;
 }
 
@@ -280,6 +295,7 @@ class State : public protocol::PackageInterface {
   size_t noPart = 0;
   size_t partNo = 0;
   bool broadcasted = false;
+  bool compressed = false;
   TSTRING ota_fn = "/ota_fw.json";
 
   State() {}
@@ -289,6 +305,7 @@ class State : public protocol::PackageInterface {
     hardware = jsonObj["hardware"].as<TSTRING>();
     role = jsonObj["role"].as<TSTRING>();
     broadcasted = jsonObj["broadcasted"].as<bool>();
+    compressed = jsonObj["compressed"].as<bool>();
   }
 
   State(const Announce& ann) {
@@ -297,6 +314,7 @@ class State : public protocol::PackageInterface {
     role = ann.role;
     noPart = ann.noPart;
     broadcasted = ann.broadcasted;
+    compressed = ann.compressed;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -304,6 +322,7 @@ class State : public protocol::PackageInterface {
     jsonObj["md5"] = md5;
     jsonObj["hardware"] = hardware;
     jsonObj["broadcasted"] = broadcasted;
+    jsonObj["compressed"] = compressed;
     return jsonObj;
   }
 
@@ -401,6 +420,7 @@ void addReceivePackageCallback(
       } else {
         updateFW->md5 = pkg.md5;
         updateFW->broadcasted = pkg.broadcasted;
+        updateFW->compressed = pkg.compressed;
         // If we are not in broadcasted mode, or we are the root node, begin
         // requesting data
         if (!pkg.broadcasted || mesh.isRoot()) {

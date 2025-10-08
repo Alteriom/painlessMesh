@@ -164,6 +164,106 @@ SCENARIO("Alteriom packages can be used with PackageHandler") {
     }
 }
 
+SCENARIO("Alteriom EnhancedStatusPackage serialization works correctly") {
+    GIVEN("An EnhancedStatusPackage with comprehensive test data") {
+        auto pkg = EnhancedStatusPackage();
+        pkg.from = 12345;
+        
+        // Device Health
+        pkg.deviceStatus = 0x07;
+        pkg.uptime = 86400; // 1 day
+        pkg.freeMemory = 128; // 128KB
+        pkg.wifiStrength = 75;
+        pkg.firmwareVersion = "1.2.3-alteriom";
+        pkg.firmwareMD5 = "abc123def456";
+        
+        // Mesh Statistics
+        pkg.nodeCount = 15;
+        pkg.connectionCount = 4;
+        pkg.messagesReceived = 1234;
+        pkg.messagesSent = 5678;
+        pkg.messagesDropped = 12;
+        
+        // Performance Metrics
+        pkg.avgLatency = 45; // 45ms
+        pkg.packetLossRate = 2; // 2%
+        pkg.throughput = 1024; // 1KB/s
+        
+        // Alerts
+        pkg.alertFlags = 0x03; // Some alerts active
+        pkg.lastError = "Connection timeout";
+        
+        REQUIRE(pkg.routing == router::BROADCAST);
+        REQUIRE(pkg.type == 203);
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<EnhancedStatusPackage>();
+            
+            THEN("Should result in the same values") {
+                REQUIRE(pkg2.from == pkg.from);
+                
+                // Device Health
+                REQUIRE(pkg2.deviceStatus == pkg.deviceStatus);
+                REQUIRE(pkg2.uptime == pkg.uptime);
+                REQUIRE(pkg2.freeMemory == pkg.freeMemory);
+                REQUIRE(pkg2.wifiStrength == pkg.wifiStrength);
+                REQUIRE(pkg2.firmwareVersion == pkg.firmwareVersion);
+                REQUIRE(pkg2.firmwareMD5 == pkg.firmwareMD5);
+                
+                // Mesh Statistics
+                REQUIRE(pkg2.nodeCount == pkg.nodeCount);
+                REQUIRE(pkg2.connectionCount == pkg.connectionCount);
+                REQUIRE(pkg2.messagesReceived == pkg.messagesReceived);
+                REQUIRE(pkg2.messagesSent == pkg.messagesSent);
+                REQUIRE(pkg2.messagesDropped == pkg.messagesDropped);
+                
+                // Performance Metrics
+                REQUIRE(pkg2.avgLatency == pkg.avgLatency);
+                REQUIRE(pkg2.packetLossRate == pkg.packetLossRate);
+                REQUIRE(pkg2.throughput == pkg.throughput);
+                
+                // Alerts
+                REQUIRE(pkg2.alertFlags == pkg.alertFlags);
+                REQUIRE(pkg2.lastError == pkg.lastError);
+                
+                REQUIRE(pkg2.routing == pkg.routing);
+                REQUIRE(pkg2.type == pkg.type);
+            }
+        }
+    }
+}
+
+SCENARIO("Alteriom EnhancedStatusPackage with minimal data") {
+    GIVEN("An EnhancedStatusPackage with only required fields") {
+        auto pkg = EnhancedStatusPackage();
+        pkg.from = 99999;
+        pkg.uptime = 3600;
+        pkg.freeMemory = 64;
+        // Leave optional fields with default values
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<EnhancedStatusPackage>();
+            
+            THEN("Default values should be preserved") {
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.uptime == pkg.uptime);
+                REQUIRE(pkg2.freeMemory == pkg.freeMemory);
+                REQUIRE(pkg2.messagesReceived == 0);
+                REQUIRE(pkg2.messagesSent == 0);
+                REQUIRE(pkg2.messagesDropped == 0);
+                REQUIRE(pkg2.avgLatency == 0);
+                REQUIRE(pkg2.packetLossRate == 0);
+                REQUIRE(pkg2.throughput == 0);
+                REQUIRE(pkg2.alertFlags == 0);
+                REQUIRE(pkg2.lastError == "");
+                REQUIRE(pkg2.firmwareMD5 == "");
+            }
+        }
+    }
+}
+
 SCENARIO("Alteriom packages handle edge cases correctly") {
     GIVEN("Packages with extreme values") {
         WHEN("SensorPackage has extreme temperature values") {
@@ -207,6 +307,28 @@ SCENARIO("Alteriom packages handle edge cases correctly") {
                 REQUIRE(pkg2.uptime == 0xFFFFFFFF);
                 REQUIRE(pkg2.freeMemory == 0xFFFF);
                 REQUIRE(pkg2.deviceStatus == 0xFF);
+            }
+        }
+        
+        WHEN("EnhancedStatusPackage has maximum metric values") {
+            auto pkg = EnhancedStatusPackage();
+            pkg.nodeCount = 0xFFFF;
+            pkg.messagesReceived = 0xFFFFFFFF;
+            pkg.messagesSent = 0xFFFFFFFF;
+            pkg.messagesDropped = 0xFFFFFFFF;
+            pkg.avgLatency = 0xFFFF;
+            pkg.packetLossRate = 100; // 100%
+            
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<EnhancedStatusPackage>();
+            
+            THEN("Maximum values should be preserved") {
+                REQUIRE(pkg2.nodeCount == 0xFFFF);
+                REQUIRE(pkg2.messagesReceived == 0xFFFFFFFF);
+                REQUIRE(pkg2.messagesSent == 0xFFFFFFFF);
+                REQUIRE(pkg2.messagesDropped == 0xFFFFFFFF);
+                REQUIRE(pkg2.avgLatency == 0xFFFF);
+                REQUIRE(pkg2.packetLossRate == 100);
             }
         }
     }
