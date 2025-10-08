@@ -75,7 +75,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
   std::shared_ptr<Task> offerOTA(TSTRING role, TSTRING hardware, TSTRING md5,
-                                 size_t noPart, bool forced = false) {
+                                 size_t noPart, bool forced = false,
+                                 bool broadcasted = false, bool compressed = false) {
     painlessmesh::plugin::ota::Announce announce;
     announce.md5 = md5;
     announce.role = role;
@@ -83,6 +84,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     announce.from = this->nodeId;
     announce.noPart = noPart;
     announce.forced = forced;
+    announce.broadcasted = broadcasted;
+    announce.compressed = compressed;
     return offerOTA(announce);
   }
 
