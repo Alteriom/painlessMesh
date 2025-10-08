@@ -249,6 +249,10 @@ class Data : public DataRequest {
     d.data = data;
     d.broadcasted = req.broadcasted;
     d.compressed = req.compressed;
+    // Phase 2: Set routing to BROADCAST for true broadcast mode
+    if (req.broadcasted) {
+      d.routing = router::BROADCAST;
+    }
     return d;
   }
 
@@ -368,7 +372,12 @@ void addSendPackageCallback(Scheduler& scheduler,
             painlessmesh::base64::encode((unsigned char*)buffer, size);
         auto reply =
             painlessmesh::plugin::ota::Data::replyTo(pkg, b64Data, pkg.partNo);
+        
+        // Phase 2: Routing is now handled in replyTo() based on broadcasted flag
         mesh.sendPackage(&reply);
+        if (pkg.broadcasted) {
+          Log(DEBUG, "OTA: Broadcasting chunk %d/%d\n", pkg.partNo, pkg.noPart);
+        }
         return true;
       });
 
