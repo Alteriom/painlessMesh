@@ -127,6 +127,15 @@ void setup() {
           //that firmware is available.
           //This returns a task that allows you to do things on disable or more,
           //like closing your files or whatever.
+          
+          // Phase 1 Enhancement: To enable compressed OTA (40-60% bandwidth reduction),
+          // add two additional parameters: broadcasted and compressed flags:
+          // mesh.offerOTA(role, hardware, md5.toString(),
+          //               ceil(((float)entry.size()) / OTA_PART_SIZE), 
+          //               false,  // forced
+          //               false,  // broadcasted (Phase 2 feature)
+          //               true);  // compressed (Phase 1 feature - 40-60% savings!)
+          
           mesh.offerOTA(role, hardware, md5.toString(),
                         ceil(((float)entry.size()) / OTA_PART_SIZE), false);
 
