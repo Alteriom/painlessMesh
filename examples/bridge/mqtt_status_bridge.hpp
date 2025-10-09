@@ -180,10 +180,12 @@ private:
     
     // Build JSON: {"nodes": [123, 456, 789], "count": 3, "timestamp": 12345}
     String payload = "{\"nodes\":[";
+    String nodesList;
     for (size_t i = 0; i < nodes.size(); i++) {
-      if (i > 0) payload += ",";
-      payload += String(nodes[i]);
+      if (i > 0) nodesList += ",";
+      nodesList += String(nodes[i]);
     }
+    payload += nodesList;
     payload += "],\"count\":";
     payload += String(nodes.size());
     payload += ",\"timestamp\":";
