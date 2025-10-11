@@ -11,16 +11,21 @@
  * Features:
  * - Node list with states
  * - Mesh topology JSON
- * - Performance metrics
+ * - Performance metrics (Alteriom MQTT Schema v1 compliant)
  * - Active alerts
  * - Per-node health monitoring
  * 
  * MQTT Topics:
  * - mesh/status/nodes         - Node list with basic info
  * - mesh/status/topology      - Complete mesh structure
- * - mesh/status/metrics       - Performance statistics
+ * - mesh/status/metrics       - Gateway metrics (schema v1 compliant)
  * - mesh/status/alerts        - Active alert conditions
  * - mesh/status/node/{id}     - Per-node detailed status
+ * 
+ * Compliance:
+ * - Uses @alteriom/mqtt-schema v1 for gateway_metrics messages
+ * - Includes required envelope fields (schema_version, device_id, etc.)
+ * - ISO 8601 timestamps
  */
 
 #include <Arduino.h>
@@ -41,6 +46,10 @@ private:
   
   // Topic prefix
   String topicPrefix = "mesh/status/";
+  
+  // Device identification (for Alteriom schema compliance)
+  String deviceId = "";
+  String firmwareVersion = "1.0.0";
   
   // Last publish time
   unsigned long lastPublishTime = 0;
@@ -72,6 +81,22 @@ public:
    */
   void setTopicPrefix(const String& prefix) {
     topicPrefix = prefix;
+  }
+  
+  /**
+   * Set device ID for Alteriom schema compliance
+   * @param id Device identifier (defaults to mesh node ID if not set)
+   */
+  void setDeviceId(const String& id) {
+    deviceId = id;
+  }
+  
+  /**
+   * Set firmware version for Alteriom schema compliance
+   * @param version Firmware version string (default: "1.0.0")
+   */
+  void setFirmwareVersion(const String& version) {
+    firmwareVersion = version;
   }
   
   /**
@@ -210,31 +235,56 @@ private:
   /**
    * Publish performance metrics
    * Topic: mesh/status/metrics
+   * 
+   * Compliant with @alteriom/mqtt-schema v1 gateway_metrics format
    */
   void publishMetrics() {
     auto nodes = mesh.getNodeList(true);
     
-    // Build JSON with mesh-wide metrics
+    // Get device ID (use mesh node ID if not explicitly set)
+    String devId = deviceId.length() > 0 ? deviceId : String(mesh.getNodeId());
+    
+    // Build ISO 8601 timestamp (simplified - use actual RTC if available)
+    String timestamp = "2024-01-01T";
+    unsigned long totalSeconds = millis() / 1000;
+    unsigned long hours = (totalSeconds / 3600) % 24;
+    unsigned long minutes = (totalSeconds / 60) % 60;
+    unsigned long seconds = totalSeconds % 60;
+    char timeStr[16];
+    sprintf(timeStr, "%02lu:%02lu:%02luZ", hours, minutes, seconds);
+    timestamp += timeStr;
+    
+    // Build Alteriom schema v1 compliant gateway_metrics message
     String payload = "{";
-    payload += "\"nodeCount\":";
-    payload += String(nodes.size());
-    payload += ",\"rootNodeId\":";
-    payload += String(mesh.getNodeId());
-    payload += ",\"uptime\":";
-    payload += String(millis() / 1000);
+    // Envelope fields (required by schema)
+    payload += "\"schema_version\":1";
+    payload += ",\"device_id\":\"" + devId + "\"";
+    payload += ",\"device_type\":\"gateway\"";
+    payload += ",\"timestamp\":\"" + timestamp + "\"";
+    payload += ",\"firmware_version\":\"" + firmwareVersion + "\"";
+    
+    // Metrics object (required by gateway_metrics schema)
+    payload += ",\"metrics\":{";
+    payload += "\"uptime_s\":" + String(millis() / 1000);
+    payload += ",\"mesh_nodes\":" + String(nodes.size());
     
 #if defined(ESP32) || defined(ESP8266)
-    payload += ",\"freeHeap\":";
-    payload += String(ESP.getFreeHeap());
-#ifdef ESP32
-    payload += ",\"freeHeapKB\":";
-    payload += String(ESP.getFreeHeap() / 1024);
+    uint32_t totalHeap = ESP.getFreeHeap();
+    // Rough estimate of memory usage percentage (assuming typical ESP heap size)
+    uint32_t estimatedTotalHeap = 320000; // Adjust based on actual hardware
+#ifdef ESP8266
+    estimatedTotalHeap = 80000;
 #endif
+    float memoryUsagePct = 100.0 - ((float)totalHeap / estimatedTotalHeap * 100.0);
+    if (memoryUsagePct < 0) memoryUsagePct = 0;
+    if (memoryUsagePct > 100) memoryUsagePct = 100;
+    
+    payload += ",\"memory_usage_pct\":" + String(memoryUsagePct, 1);
 #endif
     
-    payload += ",\"timestamp\":";
-    payload += String(millis());
-    payload += "}";
+    payload += ",\"connected_devices\":" + String(nodes.size());
+    payload += "}"; // End metrics object
+    payload += "}"; // End message
     
     String topic = topicPrefix + "metrics";
     mqttClient.publish(topic.c_str(), payload.c_str());
