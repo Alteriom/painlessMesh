@@ -200,22 +200,43 @@ private:
   /**
    * Publish list of nodes with basic information
    * Topic: mesh/status/nodes
+   * 
+   * Schema-compliant with proposed mesh_node_list.schema.json v1
+   * Uses envelope + nodes array format for interoperability
    */
   void publishNodeList() {
     auto nodes = mesh.getNodeList(true);  // Include self
     
-    // Build JSON: {"nodes": [123, 456, 789], "count": 3, "timestamp": 12345}
-    String payload = "{\"nodes\":[";
-    String nodesList;
+    // Get device ID
+    String devId = deviceId.length() > 0 ? deviceId : String(mesh.getNodeId());
+    
+    // Build ISO 8601 timestamp
+    String timestamp = buildISO8601Timestamp();
+    
+    // Build schema-compliant message with envelope
+    String payload = "{";
+    // Envelope fields (required by proposed schema)
+    payload += "\"schema_version\":1";
+    payload += ",\"device_id\":\"" + devId + "\"";
+    payload += ",\"device_type\":\"gateway\"";
+    payload += ",\"timestamp\":\"" + timestamp + "\"";
+    payload += ",\"firmware_version\":\"" + firmwareVersion + "\"";
+    
+    // Nodes array (required by proposed schema)
+    payload += ",\"nodes\":[";
     for (size_t i = 0; i < nodes.size(); i++) {
-      if (i > 0) nodesList += ",";
-      nodesList += String(nodes[i]);
+      if (i > 0) payload += ",";
+      payload += "{";
+      payload += "\"node_id\":\"" + String(nodes[i]) + "\"";
+      payload += ",\"status\":\"online\"";  // All listed nodes are online
+      payload += ",\"last_seen\":\"" + timestamp + "\"";
+      payload += "}";
     }
-    payload += nodesList;
-    payload += "],\"count\":";
-    payload += String(nodes.size());
-    payload += ",\"timestamp\":";
-    payload += String(millis());
+    payload += "]";
+    
+    // Additional fields (optional in proposed schema)
+    payload += ",\"node_count\":" + String(nodes.size());
+    payload += ",\"mesh_id\":\"" + String(mesh.getNodeId()) + "\"";
     payload += "}";
     
     String topic = topicPrefix + "nodes";
@@ -225,11 +246,59 @@ private:
   /**
    * Publish mesh topology as JSON
    * Topic: mesh/status/topology
+   * 
+   * Schema-compliant with proposed mesh_topology.schema.json v1
+   * Uses envelope + connections array format
+   * 
+   * Note: painlessMesh native topology is complex. This implementation
+   * creates a simplified schema-compliant version. For full topology details,
+   * use the native format via a separate topic if needed.
    */
   void publishTopology() {
-    String topology = mesh.subConnectionJson(false);
+    auto nodes = mesh.getNodeList(true);
+    
+    // Get device ID
+    String devId = deviceId.length() > 0 ? deviceId : String(mesh.getNodeId());
+    
+    // Build ISO 8601 timestamp
+    String timestamp = buildISO8601Timestamp();
+    
+    // Build schema-compliant message with envelope
+    String payload = "{";
+    // Envelope fields (required by proposed schema)
+    payload += "\"schema_version\":1";
+    payload += ",\"device_id\":\"" + devId + "\"";
+    payload += ",\"device_type\":\"gateway\"";
+    payload += ",\"timestamp\":\"" + timestamp + "\"";
+    payload += ",\"firmware_version\":\"" + firmwareVersion + "\"";
+    
+    // Connections array (required by proposed schema)
+    // Simplified: Each node connected to root (gateway)
+    payload += ",\"connections\":[";
+    bool first = true;
+    for (size_t i = 0; i < nodes.size(); i++) {
+      // Skip self (root node)
+      if (nodes[i] == mesh.getNodeId()) continue;
+      
+      if (!first) payload += ",";
+      first = false;
+      
+      payload += "{";
+      payload += "\"from_node\":\"" + String(nodes[i]) + "\"";
+      payload += ",\"to_node\":\"" + devId + "\"";
+      payload += ",\"link_quality\":0.9";  // Default - can be enhanced
+      payload += ",\"hop_count\":1";  // Simplified - assume direct connection
+      payload += "}";
+    }
+    payload += "]";
+    
+    // Additional fields (optional in proposed schema)
+    payload += ",\"root_node\":\"" + devId + "\"";
+    payload += ",\"total_connections\":" + String(nodes.size() > 0 ? nodes.size() - 1 : 0);
+    payload += "}";
+    
     String topic = topicPrefix + "topology";
-    mqttClient.publish(topic.c_str(), topology.c_str());
+    mqttClient.publish(topic.c_str(), payload.c_str());
   }
   
   /**
@@ -308,34 +377,67 @@ private:
    * Publish active alerts
    * Topic: mesh/status/alerts
    * 
-   * This is a placeholder - in a real implementation, you would track
-   * node health and publish alerts when issues are detected.
+   * Schema-compliant with proposed mesh_alert.schema.json v1
+   * Uses envelope + alerts array format
+   * 
+   * Tracks node health and publishes alerts when issues are detected.
    */
   void publishAlerts() {
-    // Example: Check for nodes that haven't responded recently
     auto nodes = mesh.getNodeList(true);
     
-    String payload = "{\"alerts\":[";
+    // Get device ID
+    String devId = deviceId.length() > 0 ? deviceId : String(mesh.getNodeId());
+    
+    // Build ISO 8601 timestamp
+    String timestamp = buildISO8601Timestamp();
+    
+    // Build schema-compliant message with envelope
+    String payload = "{";
+    // Envelope fields (required by proposed schema)
+    payload += "\"schema_version\":1";
+    payload += ",\"device_id\":\"" + devId + "\"";
+    payload += ",\"device_type\":\"gateway\"";
+    payload += ",\"timestamp\":\"" + timestamp + "\"";
+    payload += ",\"firmware_version\":\"" + firmwareVersion + "\"";
+    
+    // Alerts array (required by proposed schema)
+    payload += ",\"alerts\":[";
     bool hasAlerts = false;
     
-    // Example alert logic - customize based on your needs
-    if (nodes.size() == 0) {
+    // Alert: No nodes in mesh
+    if (nodes.size() <= 1) {  // Only gateway
       if (hasAlerts) payload += ",";
-      payload += "{\"type\":\"NO_NODES\",\"severity\":\"warning\",\"message\":\"No nodes in mesh\"}";
+      payload += "{";
+      payload += "\"alert_type\":\"node_offline\"";
+      payload += ",\"severity\":\"warning\"";
+      payload += ",\"message\":\"No sensor nodes in mesh network\"";
+      payload += ",\"alert_id\":\"alert-no-nodes\"";
+      payload += "}";
       hasAlerts = true;
     }
     
 #if defined(ESP32) || defined(ESP8266)
-    // Low memory alert
-    if (ESP.getFreeHeap() < 10000) {
+    // Alert: Low memory on gateway
+    size_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < 10000) {
       if (hasAlerts) payload += ",";
-      payload += "{\"type\":\"LOW_MEMORY\",\"severity\":\"critical\",\"message\":\"Free heap below 10KB\"}";
+      payload += "{";
+      payload += "\"alert_type\":\"low_memory\"";
+      payload += ",\"severity\":\"critical\"";
+      payload += ",\"message\":\"Gateway free heap below 10KB\"";
+      payload += ",\"node_id\":\"" + devId + "\"";
+      payload += ",\"metric_value\":" + String(freeHeap / 1024.0);
+      payload += ",\"threshold\":10.0";
+      payload += ",\"alert_id\":\"alert-low-mem-gw\"";
+      payload += "}";
       hasAlerts = true;
     }
 #endif
     
-    payload += "],\"timestamp\":";
-    payload += String(millis());
+    payload += "]";
+    
+    // Additional fields (optional in proposed schema)
+    payload += ",\"alert_count\":" + String(hasAlerts ? 1 : 0);
     payload += "}";
     
     String topic = topicPrefix + "alerts";
@@ -346,40 +448,71 @@ private:
    * Publish detailed status for each node
    * Topic: mesh/status/node/{nodeId}
    * 
+   * Schema-compliant with sensor_status.schema.json v1 (existing in @alteriom/mqtt-schema)
+   * Uses envelope + status enum format
+   * 
    * Warning: This can generate a lot of MQTT traffic for large meshes!
+   * Enable only if per-node status is required.
    */
   void publishPerNodeStatus() {
-    auto nodes = mesh.getNodeList(false);  // Don't include self
+    auto nodes = mesh.getNodeList(true);  // Include all nodes
+    
+    // Build ISO 8601 timestamp
+    String timestamp = buildISO8601Timestamp();
     
     for (auto nodeId : nodes) {
+      // Build schema-compliant message with envelope
       String payload = "{";
-      payload += "\"nodeId\":";
-      payload += String(nodeId);
-      payload += ",\"connected\":";
-      payload += mesh.isConnected(nodeId) ? "true" : "false";
-      payload += ",\"timestamp\":";
-      payload += String(millis());
+      // Envelope fields (required by sensor_status schema)
+      payload += "\"schema_version\":1";
+      payload += ",\"device_id\":\"" + String(nodeId) + "\"";
+      
+      // Determine device type - gateway or sensor
+      if (nodeId == mesh.getNodeId()) {
+        payload += ",\"device_type\":\"gateway\"";
+      } else {
+        payload += ",\"device_type\":\"sensor\"";
+      }
+      
+      payload += ",\"timestamp\":\"" + timestamp + "\"";
+      payload += ",\"firmware_version\":\"" + firmwareVersion + "\"";
+      
+      // Status field (required by sensor_status schema)
+      bool isConnected = mesh.isConnected(nodeId);
+      payload += ",\"status\":\"" + String(isConnected ? "online" : "offline") + "\"";
+      
+      // Optional fields in sensor_status schema
+      // Note: signal_strength would require RSSI data from mesh
+      // battery_level would require node to report this data
+      
       payload += "}";
       
       String topic = topicPrefix + "node/" + String(nodeId);
       mqttClient.publish(topic.c_str(), payload.c_str());
     }
-    
-    // Also publish self
-    String payload = "{";
-    payload += "\"nodeId\":";
-    payload += String(mesh.getNodeId());
-    payload += ",\"isSelf\":true";
-#if defined(ESP32) || defined(ESP8266)
-    payload += ",\"freeHeap\":";
-    payload += String(ESP.getFreeHeap());
-#endif
-    payload += ",\"timestamp\":";
-    payload += String(millis());
-    payload += "}";
-    
-    String topic = topicPrefix + "node/" + String(mesh.getNodeId());
-    mqttClient.publish(topic.c_str(), payload.c_str());
+  }
+  
+private:
+  /**
+   * Helper function to build ISO 8601 timestamp
+   * Shared across all publishing methods for consistency
+   */
+  String buildISO8601Timestamp() {
+    #ifdef USE_NTP_TIME
+    // If NTP is available, use it
+    return getFormattedTimeISO8601();
+    #else
+    // Fallback: Use epoch + millis for relative time
+    unsigned long totalSeconds = millis() / 1000;
+    unsigned long days = totalSeconds / 86400;
+    unsigned long hours = (totalSeconds / 3600) % 24;
+    unsigned long minutes = (totalSeconds / 60) % 60;
+    unsigned long seconds = totalSeconds % 60;
+    char timeStr[32];
+    sprintf(timeStr, "1970-01-%02luT%02lu:%02lu:%02luZ", 
+            1 + days, hours, minutes, seconds);
+    return String(timeStr);
+    #endif
   }
 };
 

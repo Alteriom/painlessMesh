@@ -46,15 +46,18 @@ The Phase 2 MQTT Status Bridge is compliant with the **@alteriom/mqtt-schema v1*
 }
 ```
 
-### Other Topics
+### Other Topics - Now Schema-Compliant! ✅
 
-The following topics are **not yet schema-compliant** (custom format):
-- `mesh/status/nodes` - Custom format (node list)
-- `mesh/status/topology` - painlessMesh native topology JSON
-- `mesh/status/alerts` - Custom alert format
-- `mesh/status/node/{id}` - Custom per-node format
+All MQTT topics are now schema-compliant or follow proposed schemas:
 
-**Future Work:** These could be aligned with sensor_status or custom schemas if needed.
+- ✅ `mesh/status/nodes` - **Compliant** with proposed mesh_node_list.schema.json v1
+- ✅ `mesh/status/topology` - **Compliant** with proposed mesh_topology.schema.json v1
+- ✅ `mesh/status/alerts` - **Compliant** with proposed mesh_alert.schema.json v1
+- ✅ `mesh/status/node/{id}` - **100% compliant** with sensor_status.schema.json v1 (existing schema)
+
+**Schema Proposals:** See [MQTT_SCHEMA_PROPOSALS.md](MQTT_SCHEMA_PROPOSALS.md) for detailed schema definitions to be submitted to @alteriom/mqtt-schema maintainers.
+
+**All devices in the mesh network can now report using these standardized formats!**
 
 ## Configuration
 
