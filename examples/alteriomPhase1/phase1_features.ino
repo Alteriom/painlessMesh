@@ -86,7 +86,7 @@ void sendEnhancedStatus() {
   // Mesh Statistics
   auto nodeList = mesh.getNodeList();
   status.nodeCount = nodeList.size();
-  status.connectionCount = mesh.connectionCount();
+  status.connectionCount = nodeList.size();  // Use node count as connection count
   status.messagesReceived = totalMessagesReceived;
   status.messagesSent = totalMessagesSent;
   status.messagesDropped = 0;  // Would need tracking in real implementation
@@ -113,8 +113,10 @@ void sendEnhancedStatus() {
   
   // Convert to JSON and send
   String msg;
-  protocol::Variant variant(&status);
-  variant.printTo(msg);
+  DynamicJsonDocument doc(status.jsonObjectSize());
+  JsonObject obj = doc.to<JsonObject>();
+  status.addTo(std::move(obj));
+  serializeJson(doc, msg);
   
   mesh.sendBroadcast(msg);
   totalMessagesSent++;
@@ -143,8 +145,7 @@ void receivedCallback(uint32_t from, String& msg) {
   
   switch (msgType) {
     case 203: {  // Enhanced Status Package
-      protocol::Variant variant(msg);
-      auto status = variant.to<alteriom::EnhancedStatusPackage>();
+      alteriom::EnhancedStatusPackage status(obj);
       
       Serial.printf("Enhanced Status from %u: v%s, Nodes: %d, Mem: %dKB, Msgs: %d/%d\n",
                     from, 
@@ -161,8 +162,7 @@ void receivedCallback(uint32_t from, String& msg) {
     }
     
     case 202: {  // Basic Status Package (backward compatible)
-      protocol::Variant variant(msg);
-      auto status = variant.to<alteriom::StatusPackage>();
+      alteriom::StatusPackage status(obj);
       Serial.printf("Basic Status from %u: v%s, Mem: %dKB\n",
                     from, status.firmwareVersion.c_str(), status.freeMemory);
       break;
