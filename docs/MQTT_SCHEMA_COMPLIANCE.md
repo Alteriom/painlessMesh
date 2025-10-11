@@ -6,9 +6,10 @@ The Phase 2 MQTT Status Bridge is compliant with the **@alteriom/mqtt-schema v1*
 
 ## Schema Package
 
-- **Package:** `@alteriom/mqtt-schema` v0.3.2+
+- **Package:** `@alteriom/mqtt-schema` v0.4.0 (latest)
 - **Registry:** npm (https://www.npmjs.com/package/@alteriom/mqtt-schema)
 - **Documentation:** https://github.com/Alteriom/alteriom-mqtt-schema
+- **Release:** All proposed schemas now officially included in v0.4.0!
 
 ## Compliance Status
 
@@ -46,18 +47,19 @@ The Phase 2 MQTT Status Bridge is compliant with the **@alteriom/mqtt-schema v1*
 }
 ```
 
-### Other Topics - Now Schema-Compliant! ✅
+### All Topics - 100% Compliant with Official v0.4.0! ✅
 
-All MQTT topics are now schema-compliant or follow proposed schemas:
+All MQTT topics are now **100% compliant** with official @alteriom/mqtt-schema@0.4.0:
 
-- ✅ `mesh/status/nodes` - **Compliant** with proposed mesh_node_list.schema.json v1
-- ✅ `mesh/status/topology` - **Compliant** with proposed mesh_topology.schema.json v1
-- ✅ `mesh/status/alerts` - **Compliant** with proposed mesh_alert.schema.json v1
-- ✅ `mesh/status/node/{id}` - **100% compliant** with sensor_status.schema.json v1 (existing schema)
+- ✅ `mesh/status/metrics` - **100% compliant** with gateway_metrics.schema.json v1
+- ✅ `mesh/status/nodes` - **100% compliant** with mesh_node_list.schema.json v1 (officially included in v0.4.0!)
+- ✅ `mesh/status/topology` - **100% compliant** with mesh_topology.schema.json v1 (officially included in v0.4.0!)
+- ✅ `mesh/status/alerts` - **100% compliant** with mesh_alert.schema.json v1 (officially included in v0.4.0!)
+- ✅ `mesh/status/node/{id}` - **100% compliant** with sensor_status.schema.json v1
 
-**Schema Proposals:** See [MQTT_SCHEMA_PROPOSALS.md](MQTT_SCHEMA_PROPOSALS.md) for detailed schema definitions to be submitted to @alteriom/mqtt-schema maintainers.
+**All proposed schemas have been officially included in @alteriom/mqtt-schema@0.4.0!**
 
-**All devices in the mesh network can now report using these standardized formats!**
+**All devices in the mesh network now report using official standardized schemas!**
 
 ## Configuration
 
@@ -136,7 +138,7 @@ Add to `package.json`:
 ```json
 {
   "devDependencies": {
-    "@alteriom/mqtt-schema": "^0.3.2",
+    "@alteriom/mqtt-schema": "^0.4.0",
     "ajv": "^8.17.0",
     "ajv-formats": "^2.1.1"
   }
@@ -201,4 +203,4 @@ Potential schema alignment for other message types:
 
 **Last Updated:** October 2024  
 **Schema Version:** v1  
-**Package Version:** @alteriom/mqtt-schema@0.3.2
+**Package Version:** @alteriom/mqtt-schema@0.4.0

@@ -2,20 +2,26 @@
 
 ## Overview
 
-This document proposes schema extensions to @alteriom/mqtt-schema to support painlessMesh mesh network monitoring topics that are currently using custom formats.
+This document originally proposed schema extensions to @alteriom/mqtt-schema to support painlessMesh mesh network monitoring topics.
 
-## Current Status
+## Status: ✅ ALL PROPOSALS OFFICIALLY INCLUDED IN v0.4.0!
 
-**Schema v1 Compliant:**
-- ✅ `mesh/status/metrics` - Uses `gateway_metrics.schema.json`
+All three proposed schemas have been officially included in **@alteriom/mqtt-schema@0.4.0**!
 
-**Needs Schema Compliance:**
-- ⚠️ `mesh/status/nodes` - Node list (needs new schema)
-- ⚠️ `mesh/status/topology` - Mesh structure (needs new schema)
-- ⚠️ `mesh/status/alerts` - Alert messages (needs new schema)
-- ⚠️ `mesh/status/node/{id}` - Per-node status (can use `sensor_status.schema.json`)
+**Official Schemas (as of v0.4.0):**
+- ✅ `mesh/status/metrics` - Uses `gateway_metrics.schema.json` v1
+- ✅ `mesh/status/nodes` - Uses `mesh_node_list.schema.json` v1 (officially included!)
+- ✅ `mesh/status/topology` - Uses `mesh_topology.schema.json` v1 (officially included!)
+- ✅ `mesh/status/alerts` - Uses `mesh_alert.schema.json` v1 (officially included!)
+- ✅ `mesh/status/node/{id}` - Uses `sensor_status.schema.json` v1
+
+**All painlessMesh MQTT topics are now 100% compliant with official @alteriom/mqtt-schema@0.4.0!**
 
 ---
+
+## Historical Proposals (Now Official)
+
+The following sections document the original proposals that were successfully included in v0.4.0.
 
 ## Proposed Schema 1: mesh_node_list.schema.json
 

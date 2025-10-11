@@ -219,4 +219,4 @@ The following topics use custom formats and are NOT schema-compliant:
 **Status**: ✅ 100% Compliant with gateway_metrics.schema.json v1  
 **Last Validated**: October 2024  
 **Schema Version**: v1  
-**Package Version**: @alteriom/mqtt-schema@0.3.2
+**Package Version**: @alteriom/mqtt-schema@0.4.0
