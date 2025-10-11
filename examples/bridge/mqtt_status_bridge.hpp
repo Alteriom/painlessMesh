@@ -244,15 +244,29 @@ private:
     // Get device ID (use mesh node ID if not explicitly set)
     String devId = deviceId.length() > 0 ? deviceId : String(mesh.getNodeId());
     
-    // Build ISO 8601 timestamp (simplified - use actual RTC if available)
-    String timestamp = "2024-01-01T";
+    // Build ISO 8601 timestamp (simplified - use actual RTC/NTP if available)
+    // Format: YYYY-MM-DDTHH:MM:SSZ
+    // Note: This uses millis() as fallback. For production, use:
+    // - NTP time sync via mesh.getNodeTime() or WiFi NTP client
+    // - RTC module for accurate timestamps
+    String timestamp;
+    #ifdef USE_NTP_TIME
+    // If NTP is available, use it
+    timestamp = getFormattedTimeISO8601();
+    #else
+    // Fallback: Use epoch + millis for relative time
+    // This is a simplified timestamp - recommend NTP sync for production
     unsigned long totalSeconds = millis() / 1000;
+    unsigned long days = totalSeconds / 86400;
     unsigned long hours = (totalSeconds / 3600) % 24;
     unsigned long minutes = (totalSeconds / 60) % 60;
     unsigned long seconds = totalSeconds % 60;
-    char timeStr[16];
-    sprintf(timeStr, "%02lu:%02lu:%02luZ", hours, minutes, seconds);
-    timestamp += timeStr;
+    char timeStr[32];
+    // Use Unix epoch start (1970-01-01) + elapsed time
+    sprintf(timeStr, "1970-01-%02luT%02lu:%02lu:%02luZ", 
+            1 + days, hours, minutes, seconds);
+    timestamp = timeStr;
+    #endif
     
     // Build Alteriom schema v1 compliant gateway_metrics message
     String payload = "{";

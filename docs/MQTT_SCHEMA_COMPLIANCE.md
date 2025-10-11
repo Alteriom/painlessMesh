@@ -74,10 +74,34 @@ bridge.begin();
 
 ### Timestamp Generation
 
-The implementation generates timestamps in ISO 8601 format. For production:
-- Use a real-time clock (RTC) if available
-- Sync with NTP for accurate timestamps
-- Current implementation uses millis() as a fallback
+The implementation generates timestamps in ISO 8601 format compliant with the schema requirement.
+
+**Production Recommendations:**
+- **Preferred:** Use NTP time sync via WiFi or mesh time synchronization
+- **Alternative:** Use RTC (Real-Time Clock) module for accurate timestamps
+- **Fallback:** Current implementation uses Unix epoch (1970-01-01) + millis()
+
+**Format:** `YYYY-MM-DDTHH:MM:SSZ` (ISO 8601 with Zulu time)
+
+**Example Production Implementation:**
+```cpp
+// With NTP (recommended)
+#include <WiFi.h>
+#include <time.h>
+
+String getISO8601Timestamp() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return "1970-01-01T00:00:00Z";  // Fallback
+  }
+  char buffer[25];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
+  return String(buffer);
+}
+
+// Configure NTP in setup()
+configTime(0, 0, "pool.ntp.org");
+```
 
 ## Validation
 
