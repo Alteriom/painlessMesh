@@ -55,7 +55,7 @@ private:
   unsigned long lastPublishTime = 0;
   
   // Task scheduler
-  Task* publishTask = nullptr;
+  Task publishTask;
 
 public:
   /**
@@ -133,10 +133,11 @@ public:
    */
   void begin() {
     // Create periodic task to publish status
-    publishTask = &mesh.addTask(TASK_MILLISECOND * publishInterval, 
-                                TASK_FOREVER, 
-                                [this]() { this->publishStatus(); });
-    publishTask->enable();
+    publishTask.set(TASK_MILLISECOND * publishInterval, 
+                   TASK_FOREVER, 
+                   [this]() { this->publishStatus(); });
+    mesh.scheduler.addTask(publishTask);
+    publishTask.enable();
     
     Serial.println("MQTT Status Bridge started");
     Serial.printf("Publishing every %d ms to %s*\n", publishInterval, topicPrefix.c_str());
