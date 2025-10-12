@@ -49,3 +49,11 @@ coverage/
 # Build test directories
 build-test/
 build-*/
+
+# Docker
+ninja.exe
+ninja.zip
+cmake.zip
+cmake-*/
+*.tar
+*.tar.gz
