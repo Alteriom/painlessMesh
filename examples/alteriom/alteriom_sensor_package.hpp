@@ -95,6 +95,10 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   uint16_t freeMemory = 0;       // Free memory in KB
   uint8_t wifiStrength = 0;      // WiFi signal strength
   TSTRING firmwareVersion = "";  // Current firmware version
+  
+  // Command response fields (for MQTT bridge)
+  uint32_t responseToCommand = 0;  // CommandId this is responding to
+  TSTRING responseMessage = "";     // Success/error message
 
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
@@ -104,6 +108,8 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     freeMemory = jsonObj["mem"];
     wifiStrength = jsonObj["wifi"];
     firmwareVersion = jsonObj["fw"].as<TSTRING>();
+    responseToCommand = jsonObj["respTo"] | 0;
+    responseMessage = jsonObj["respMsg"].as<TSTRING>();
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -113,12 +119,16 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     jsonObj["mem"] = freeMemory;
     jsonObj["wifi"] = wifiStrength;
     jsonObj["fw"] = firmwareVersion;
+    if (responseToCommand > 0) {
+      jsonObj["respTo"] = responseToCommand;
+      jsonObj["respMsg"] = responseMessage;
+    }
     return jsonObj;
   }
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5) + firmwareVersion.length();
+    return JSON_OBJECT_SIZE(noJsonFields + 7) + firmwareVersion.length() + responseMessage.length();
   }
 #endif
 };

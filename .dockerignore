@@ -1,0 +1,23 @@
+# Ignore build artifacts and large files to keep Docker context small
+bin/
+build/
+.git/
+node_modules/
+*.zip
+*.exe
+cmake-3.27.7-windows-x86_64/
+ninja.exe
+cmake.zip
+ninja.zip
+CMakeCache.txt
+CMakeFiles/
+
+# Documentation sites (not needed for build)
+docs-website/node_modules/
+docsify-site/
+website/node_modules/
+
+# Keep these small directories
+!test/
+!src/
+!examples/

@@ -19,13 +19,33 @@
 
 ### 🎯 Alteriom Extensions
 
-This fork includes three specialized packages for structured IoT communication:
+This fork includes specialized packages for structured IoT communication:
+
+#### Custom Package Types
 
 - **`SensorPackage`** (Type 200) - Environmental data collection (temperature, humidity, pressure, battery levels)
 - **`CommandPackage`** (Type 201) - Device control and automation commands  
 - **`StatusPackage`** (Type 202) - Health monitoring and system status reporting
+- **`EnhancedStatusPackage`** (Type 203) - Detailed performance metrics and mesh statistics
 
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging.
+
+#### MQTT Bridge Commands
+
+The MQTT bridge enables bidirectional communication between MQTT brokers and mesh networks:
+
+- **Device Control** - Send commands from web applications to mesh nodes via MQTT
+- **Configuration Management** - Query and update node configurations remotely
+- **Status Monitoring** - Receive real-time status updates and sensor data via MQTT
+- **Event Notifications** - Track node connections, disconnections, and mesh topology changes
+
+**Documentation:**
+- 📖 [MQTT Bridge Commands Reference](docs/MQTT_BRIDGE_COMMANDS.md) - Complete command API documentation
+- 🔧 [OTA Commands Reference](docs/OTA_COMMANDS_REFERENCE.md) - Over-the-air firmware updates
+
+**Examples:**
+- 🌉 [MQTT Command Bridge](examples/mqttCommandBridge/mqttCommandBridge.ino) - Gateway bridge with bidirectional MQTT-mesh routing
+- 📡 [Mesh Command Node](examples/alteriom/mesh_command_node.ino) - Node that receives and handles MQTT commands
 
 ### 🌐 Core Features
 
