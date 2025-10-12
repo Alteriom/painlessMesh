@@ -2,7 +2,7 @@
 #include "catch2/catch.hpp"
 #include "Arduino.h"
 #include "catch_utils.hpp"
-#include "examples/alteriom/alteriom_sensor_package.hpp"
+#include "../../examples/alteriom/alteriom_sensor_package.hpp"
 
 using namespace alteriom;
 using namespace painlessmesh;

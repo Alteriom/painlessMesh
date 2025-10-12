@@ -90,15 +90,15 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
  */
 class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  uint8_t deviceStatus = 0;      // Device status flags
-  uint32_t uptime = 0;           // Device uptime in seconds
-  uint16_t freeMemory = 0;       // Free memory in KB
-  uint8_t wifiStrength = 0;      // WiFi signal strength
-  TSTRING firmwareVersion = "";  // Current firmware version
-  
+  uint8_t deviceStatus = 0;     // Device status flags
+  uint32_t uptime = 0;          // Device uptime in seconds
+  uint16_t freeMemory = 0;      // Free memory in KB
+  uint8_t wifiStrength = 0;     // WiFi signal strength
+  TSTRING firmwareVersion = ""; // Current firmware version
+
   // Command response fields (for MQTT bridge)
-  uint32_t responseToCommand = 0;  // CommandId this is responding to
-  TSTRING responseMessage = "";     // Success/error message
+  uint32_t responseToCommand = 0; // CommandId this is responding to
+  TSTRING responseMessage = "";   // Success/error message
 
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
@@ -128,7 +128,8 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 7) + firmwareVersion.length() + responseMessage.length();
+    return JSON_OBJECT_SIZE(noJsonFields + 7) + firmwareVersion.length() +
+           responseMessage.length();
   }
 #endif
 };
