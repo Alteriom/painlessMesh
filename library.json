@@ -51,8 +51,5 @@
         "examples/otaSender/otaSender.ino",
         "examples/startHere/startHere.ino",
         "examples/webServer/webServer.ino"
-    ],
-    "export": {
-        "include": "src"
-    }
+    ]
 }
