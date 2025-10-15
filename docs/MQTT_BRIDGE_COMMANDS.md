@@ -889,6 +889,6 @@ client.loop_forever()
 
 ---
 
-**Last Updated:** October 2024  
-**painlessMesh Version:** 1.6.1+ Alteriom Fork  
+**Last Updated:** October 2025  
+**painlessMesh Version:** 1.7.0+ Alteriom Fork  
 **Author:** Alteriom Development Team

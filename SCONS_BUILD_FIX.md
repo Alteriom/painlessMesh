@@ -295,7 +295,7 @@ After applying fixes, your build should succeed with output like:
 
 ```
 Dependency Graph
-|-- AlteriomPainlessMesh @ 1.6.1
+|-- AlteriomPainlessMesh @ 1.7.0
 |   |-- AsyncTCP @ 3.4.7
 |   |-- ArduinoJson @ 7.4.2
 |   |-- TaskScheduler @ 4.0.0
@@ -308,6 +308,6 @@ SUCCESS
 ---
 
 **Last Updated:** October 15, 2025  
-**Library Version:** 1.6.1  
+**Library Version:** 1.7.0  
 **Branch:** copilot/start-phase-2-implementation  
 **Status:** ✅ SCons build issues resolved
