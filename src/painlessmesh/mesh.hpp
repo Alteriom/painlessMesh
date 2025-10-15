@@ -363,6 +363,97 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return this->asNodeTree().toString(pretty);
   }
 
+  /**
+   * Structure to hold detailed connection information
+   */
+  struct ConnectionInfo {
+    uint32_t nodeId;           // Connected node ID
+    uint32_t lastSeen;         // Timestamp of last message (ms)
+    int rssi;                  // Signal strength (dBm)
+    int avgLatency;            // Average round-trip time (ms)
+    int hopCount;              // Hops from current node
+    int quality;               // Connection quality (0-100)
+    uint32_t messagesRx;       // Messages received
+    uint32_t messagesTx;       // Messages sent
+    uint32_t messagesDropped;  // Failed transmissions
+  };
+
+  /**
+   * Get detailed connection information for all direct neighbors
+   */
+  std::vector<ConnectionInfo> getConnectionDetails() {
+    std::vector<ConnectionInfo> connections;
+    
+    for (auto conn : this->subs) {
+      if (conn->connected()) {
+        ConnectionInfo info;
+        info.nodeId = conn->nodeId;
+        info.lastSeen = conn->timeLastReceived;
+        info.rssi = conn->getRSSI();
+        info.avgLatency = conn->getLatency();
+        info.hopCount = 1;  // Direct connection
+        info.quality = conn->getQuality();
+        info.messagesRx = conn->messagesRx;
+        info.messagesTx = conn->messagesTx;
+        info.messagesDropped = conn->messagesDropped;
+        
+        connections.push_back(info);
+      }
+    }
+    
+    return connections;
+  }
+
+  /**
+   * Get hop count to specific node
+   * Returns -1 if node is unreachable
+   */
+  int getHopCount(uint32_t nodeId) {
+    // Check if it's a direct connection (1 hop)
+    for (auto conn : this->subs) {
+      if (conn->nodeId == nodeId && conn->connected()) {
+        return 1;
+      }
+    }
+    
+    // For indirect connections, traverse the node tree
+    auto tree = this->asNodeTree();
+    // Simple BFS to find hop count
+    // For now, return 2 for any node in the mesh but not directly connected
+    auto nodeList = this->getNodeList(false);
+    for (auto node : nodeList) {
+      if (node == nodeId) {
+        return 2;  // TODO: Implement proper hop count calculation
+      }
+    }
+    
+    return -1;  // Node not found
+  }
+
+  /**
+   * Get routing table as map (destination -> next hop)
+   */
+  std::map<uint32_t, uint32_t> getRoutingTable() {
+    std::map<uint32_t, uint32_t> table;
+    auto nodeList = this->getNodeList(false);
+    
+    // For each destination, find the next hop
+    for (auto destNode : nodeList) {
+      // Check direct connections first
+      for (auto conn : this->subs) {
+        if (conn->nodeId == destNode && conn->connected()) {
+          table[destNode] = destNode;  // Direct connection
+          break;
+        }
+      }
+      
+      // TODO: Implement proper routing table lookup for multi-hop paths
+      // For now, just mark direct connections
+    }
+    
+    return table;
+  }
+
   inline std::shared_ptr<Task> addTask(unsigned long aInterval,
                                        long aIterations,
                                        std::function<void()> aCallback) {
@@ -491,6 +582,16 @@ class Connection : public painlessmesh::layout::Neighbour,
   Task nodeSyncTask;
   Task timeOutTask;
 
+  // Connection metrics tracking
+  uint32_t messagesRx = 0;
+  uint32_t messagesTx = 0;
+  uint32_t messagesDropped = 0;
+  uint32_t timeLastReceived = 0;
+  
+  // Latency tracking (rolling window)
+  std::vector<uint32_t> latencySamples;
+  static const size_t MAX_LATENCY_SAMPLES = 10;
+
   Connection(AsyncClient *client, Mesh<painlessmesh::Connection> *mesh,
              bool station)
       : painlessmesh::tcp::BufferedConnection(client),
@@ -554,6 +655,101 @@ class Connection : public painlessmesh::layout::Neighbour,
 
   bool addMessage(const TSTRING &msg, bool priority = false) {
     return this->write(msg, priority);
+  }
+
+  /**
+   * Record message received timestamp
+   */
+  void onMessageReceived() {
+    messagesRx++;
+    timeLastReceived = millis();
+  }
+
+  /**
+   * Record message sent
+   */
+  void onMessageSent(bool success) {
+    if (success) {
+      messagesTx++;
+    } else {
+      messagesDropped++;
+    }
+  }
+
+  /**
+   * Record round-trip time sample
+   */
+  void recordLatency(uint32_t latencyMs) {
+    latencySamples.push_back(latencyMs);
+    if (latencySamples.size() > MAX_LATENCY_SAMPLES) {
+      latencySamples.erase(latencySamples.begin());
+    }
+  }
+
+  /**
+   * Get average latency from recent samples
+   * Returns -1 if no samples available
+   */
+  int getLatency() {
+    if (latencySamples.empty()) return -1;
+
+    uint32_t sum = 0;
+    for (auto sample : latencySamples) {
+      sum += sample;
+    }
+    return sum / latencySamples.size();
+  }
+
+  /**
+   * Calculate connection quality (0-100)
+   * Based on: latency, packet loss, RSSI
+   */
+  int getQuality() {
+    // Start with perfect quality
+    int quality = 100;
+
+    // Penalize high latency (>100ms)
+    int latency = getLatency();
+    if (latency > 100) {
+      quality -= (latency - 100) / 5;
+    }
+
+    // Penalize packet loss
+    if (messagesTx > 0) {
+      int lossRate = (messagesDropped * 100) / messagesTx;
+      quality -= lossRate;
+    }
+
+    // Penalize weak RSSI (if available)
+    int rssi = getRSSI();
+    if (rssi < -80 && rssi != 0) {
+      quality -= (80 + rssi);  // e.g., -90 dBm = penalty of 10
+    }
+
+    return std::max(0, std::min(100, quality));
+  }
+
+  /**
+   * Get WiFi RSSI if available
+   * Returns RSSI in dBm (typically -30 to -90) or 0 if not available
+   */
+  int getRSSI() {
+#if defined(ESP32)
+    // On ESP32, get WiFi RSSI
+    if (WiFi.status() == WL_CONNECTED) {
+      return WiFi.RSSI();
+    }
+    return 0;
+#elif defined(ESP8266)
+    // On ESP8266, get WiFi RSSI
+    if (WiFi.status() == WL_CONNECTED) {
+      return WiFi.RSSI();
+    }
+    return 0;
+#else
+    // Not available on non-WiFi platforms
+    return 0;
+#endif
   }
 
  protected:

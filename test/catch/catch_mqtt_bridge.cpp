@@ -23,10 +23,10 @@ SCENARIO("MQTT Command Bridge routing works correctly") {
     
     WHEN("Converting to JSON and back") {
       auto var = protocol::Variant(&cmd);
-      String json;
+      TSTRING json;
       var.printTo(json);
       
-      DynamicJsonDocument doc(1024);
+      JsonDocument doc;
       deserializeJson(doc, json);
       JsonObject obj = doc.as<JsonObject>();
       
@@ -42,7 +42,7 @@ SCENARIO("MQTT Command Bridge routing works correctly") {
     }
     
     WHEN("Parsing parameters") {
-      DynamicJsonDocument params(256);
+      JsonDocument params;
       deserializeJson(params, cmd.parameters);
       
       bool state = params["state"];
@@ -70,10 +70,10 @@ SCENARIO("MQTT Command Bridge routing works correctly") {
     
     WHEN("Serializing to JSON") {
       auto var = protocol::Variant(&response);
-      String json;
+      TSTRING json;
       var.printTo(json);
       
-      DynamicJsonDocument doc(1024);
+      JsonDocument doc;
       deserializeJson(doc, json);
       
       THEN("Response fields should be present") {
@@ -86,10 +86,10 @@ SCENARIO("MQTT Command Bridge routing works correctly") {
     
     WHEN("Converting back from JSON") {
       auto var = protocol::Variant(&response);
-      String json;
+      TSTRING json;
       var.printTo(json);
       
-      DynamicJsonDocument doc(1024);
+      JsonDocument doc;
       deserializeJson(doc, json);
       JsonObject obj = doc.as<JsonObject>();
       
@@ -107,10 +107,10 @@ SCENARIO("MQTT Command Bridge routing works correctly") {
 
 SCENARIO("Command parameter parsing works correctly") {
   GIVEN("LED control parameters") {
-    String params = "{\"state\":true,\"brightness\":75}";
+    const char* params = "{\"state\":true,\"brightness\":75}";
     
     WHEN("Parsing parameters") {
-      DynamicJsonDocument doc(256);
+      JsonDocument doc;
       deserializeJson(doc, params);
       
       bool state = doc["state"];
@@ -124,10 +124,10 @@ SCENARIO("Command parameter parsing works correctly") {
   }
   
   GIVEN("Relay switch parameters") {
-    String params = "{\"channel\":2,\"state\":false}";
+    const char* params = "{\"channel\":2,\"state\":false}";
     
     WHEN("Parsing parameters") {
-      DynamicJsonDocument doc(256);
+      JsonDocument doc;
       deserializeJson(doc, params);
       
       uint8_t channel = doc["channel"];
@@ -141,10 +141,10 @@ SCENARIO("Command parameter parsing works correctly") {
   }
   
   GIVEN("PWM set parameters") {
-    String params = "{\"pin\":5,\"duty\":512}";
+    const char* params = "{\"pin\":5,\"duty\":512}";
     
     WHEN("Parsing parameters") {
-      DynamicJsonDocument doc(256);
+      JsonDocument doc;
       deserializeJson(doc, params);
       
       uint8_t pin = doc["pin"];
@@ -158,10 +158,10 @@ SCENARIO("Command parameter parsing works correctly") {
   }
   
   GIVEN("Sleep command parameters") {
-    String params = "{\"duration_ms\":5000}";
+    const char* params = "{\"duration_ms\":5000}";
     
     WHEN("Parsing parameters") {
-      DynamicJsonDocument doc(256);
+      JsonDocument doc;
       deserializeJson(doc, params);
       
       uint32_t duration = doc["duration_ms"];
@@ -175,18 +175,18 @@ SCENARIO("Command parameter parsing works correctly") {
 
 SCENARIO("Configuration management works correctly") {
   GIVEN("A configuration JSON object") {
-    String configStr = "{\"deviceName\":\"Sensor-01\",\"sampleRate\":30000,\"ledEnabled\":false}";
+    const char* configStr = "{\"deviceName\":\"Sensor-01\",\"sampleRate\":30000,\"ledEnabled\":false}";
     
     WHEN("Parsing configuration") {
-      DynamicJsonDocument doc(512);
+      JsonDocument doc;
       deserializeJson(doc, configStr);
       
-      String deviceName = doc["deviceName"];
+      const char* deviceName = doc["deviceName"];
       uint32_t sampleRate = doc["sampleRate"];
       bool ledEnabled = doc["ledEnabled"];
       
       THEN("All configuration values should be correct") {
-        REQUIRE(deviceName == "Sensor-01");
+        REQUIRE(std::string(deviceName) == "Sensor-01");
         REQUIRE(sampleRate == 30000);
         REQUIRE(ledEnabled == false);
       }
@@ -201,14 +201,14 @@ SCENARIO("Configuration management works correctly") {
     cmd.parameters = "{\"deviceName\":\"UpdatedSensor\",\"sampleRate\":15000}";
     
     WHEN("Processing the command") {
-      DynamicJsonDocument params(512);
+      JsonDocument params;
       deserializeJson(params, cmd.parameters);
       
       JsonObject config = params.as<JsonObject>();
       
-      THEN("Configuration should be parseable") {
-        REQUIRE(config.containsKey("deviceName"));
-        REQUIRE(config.containsKey("sampleRate"));
+      THEN("Configuration fields should be accessible") {
+        REQUIRE(config["deviceName"].is<const char*>());
+        REQUIRE(config["sampleRate"].is<uint32_t>());
         REQUIRE(config["deviceName"] == "UpdatedSensor");
         REQUIRE(config["sampleRate"] == 15000);
       }
@@ -268,10 +268,10 @@ SCENARIO("StatusPackage without response fields") {
     
     WHEN("Serializing to JSON") {
       auto var = protocol::Variant(&status);
-      String json;
+      TSTRING json;
       var.printTo(json);
       
-      DynamicJsonDocument doc(1024);
+      JsonDocument doc;
       deserializeJson(doc, json);
       
       THEN("Response fields should not be included") {
@@ -342,7 +342,7 @@ SCENARIO("Error handling in command processing") {
       THEN("Error response should be properly formed") {
         REQUIRE(errorResp.deviceStatus == 2);
         REQUIRE(errorResp.responseToCommand == 9999);
-        REQUIRE(errorResp.responseMessage.indexOf("Unknown") >= 0);
+        REQUIRE(errorResp.responseMessage.find("Unknown") != TSTRING::npos);
       }
     }
   }
@@ -353,7 +353,7 @@ SCENARIO("Error handling in command processing") {
     cmd.parameters = "{invalid json}";
     
     WHEN("Attempting to parse") {
-      DynamicJsonDocument doc(256);
+      JsonDocument doc;
       DeserializationError error = deserializeJson(doc, cmd.parameters);
       
       THEN("Should detect parse error") {

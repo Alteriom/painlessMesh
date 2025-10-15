@@ -2,14 +2,93 @@
 
 ## Overview
 
-The Phase 2 MQTT Status Bridge is compliant with the **@alteriom/mqtt-schema v1** specification for gateway metrics messages. This ensures interoperability with other Alteriom services and monitoring tools.
+The painlessMesh library is compliant with the **@alteriom/mqtt-schema** specifications for all mesh-related messages. This ensures interoperability with other Alteriom services and monitoring tools.
 
 ## Schema Package
 
-- **Package:** `@alteriom/mqtt-schema` v0.4.0 (latest)
+- **Package:** `@alteriom/mqtt-schema` v0.5.0 (latest)
 - **Registry:** npm (https://www.npmjs.com/package/@alteriom/mqtt-schema)
 - **Documentation:** https://github.com/Alteriom/alteriom-mqtt-schema
-- **Release:** All proposed schemas now officially included in v0.4.0!
+- **Release:** v0.5.0 includes mesh topology and event schemas!
+
+---
+
+## v0.5.0 Compliance (Mesh Topology & Events)
+
+### Mesh Topology (alteriom/mesh/{mesh_id}/topology)
+
+✅ **Fully Compliant** with `mesh_topology.schema.json` v0.5.0
+
+**Implementation:** `examples/bridge/mesh_topology_reporter.hpp`
+
+**Required Fields:**
+- ✅ Envelope: `schema_version`, `device_id`, `device_type`, `timestamp`, `firmware_version`
+- ✅ Event: `mesh_topology`
+- ✅ Mesh ID: `mesh_id`, `gateway_node_id`
+- ✅ Nodes: Array with `node_id`, `role`, `status`, `last_seen`, `firmware_version`, `uptime_seconds`, `free_memory_kb`, `connection_count`
+- ✅ Connections: Array with `from_node`, `to_node`, `quality`, `latency_ms`, `rssi`, `hop_count`
+- ✅ Metrics: `total_nodes`, `online_nodes`, `network_diameter`, `avg_connection_quality`, `messages_per_second`
+- ✅ Update Type: `full` or `incremental`
+
+**Device ID Format:** `ALT-XXXXXXXXXXXX` (12 hex digits)
+
+**MQTT Topics:**
+- `alteriom/mesh/MESH-001/topology` - Full/incremental updates
+- `alteriom/mesh/MESH-001/topology/response` - Command responses with `correlation_id`
+
+**Publishing Schedule:**
+- Full topology: Every 60 seconds
+- Incremental: Every 5 seconds (if changed)
+- On-demand: Via GET_TOPOLOGY command (300)
+
+### Mesh Events (alteriom/mesh/{mesh_id}/events)
+
+✅ **Fully Compliant** with `mesh_event.schema.json` v0.5.0
+
+**Implementation:** `examples/bridge/mesh_event_publisher.hpp`
+
+**Required Fields:**
+- ✅ Envelope: `schema_version`, `device_id`, `device_type`, `timestamp`, `firmware_version`
+- ✅ Event: `mesh_event`
+- ✅ Event Type: `node_join`, `node_leave`, `connection_lost`, `connection_restored`, `network_split`, `network_merged`
+- ✅ Mesh ID: `mesh_id`
+- ✅ Affected Nodes: Array of device IDs
+- ✅ Details: Object with event-specific information
+
+**MQTT Topic:** `alteriom/mesh/MESH-001/events`
+
+**Event Types Implemented:**
+- ✅ `node_join` - New node connected
+- ✅ `node_leave` - Node disconnected
+- ✅ `connection_lost` - Direct connection failed
+- ✅ `connection_restored` - Connection recovered
+- ✅ `network_split` - Mesh partitioned (detection TBD)
+- ✅ `network_merged` - Partitions rejoined (detection TBD)
+
+### Command Integration (GET_TOPOLOGY - Command 300)
+
+✅ **Fully Compliant** with `command.schema.json` and `command_response.schema.json`
+
+**Implementation:** `examples/bridge/mqtt_command_bridge.hpp`
+
+**Command Request:**
+```json
+{
+  "command": 300,
+  "targetDevice": 0,
+  "commandId": 12345,
+  "parameters": "{}"
+}
+```
+
+**Command Response:**
+- Full mesh topology with `correlation_id` field
+- Published to: `alteriom/mesh/MESH-001/topology/response`
+- Schema-compliant mesh_topology message
+
+---
+
+## v0.4.0 Compliance (Gateway Metrics & Commands)
 
 ## Compliance Status
 

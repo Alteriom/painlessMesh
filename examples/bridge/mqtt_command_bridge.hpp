@@ -4,6 +4,7 @@
 #include "painlessMesh.h"
 #include <PubSubClient.h>
 #include "examples/alteriom/alteriom_sensor_package.hpp"
+#include "examples/bridge/mesh_topology_reporter.hpp"
 
 using namespace alteriom;
 
@@ -18,6 +19,7 @@ private:
   painlessMesh& mesh;
   PubSubClient& mqtt;
   String gatewayId;
+  MeshTopologyReporter* topologyReporter;
   
   // Command definitions matching MQTT_BRIDGE_COMMANDS.md
   enum Commands {
@@ -44,13 +46,23 @@ private:
     GET_METRICS = 201,
     GET_DIAGNOSTICS = 202,
     START_MONITORING = 210,
-    STOP_MONITORING = 211
+    STOP_MONITORING = 211,
+    
+    // Topology (300-399)
+    GET_TOPOLOGY = 300
   };
   
 public:
-  MqttCommandBridge(painlessMesh& m, PubSubClient& mq) 
-    : mesh(m), mqtt(mq) {
+  MqttCommandBridge(painlessMesh& m, PubSubClient& mq, MeshTopologyReporter* reporter = nullptr) 
+    : mesh(m), mqtt(mq), topologyReporter(reporter) {
     gatewayId = String(mesh.getNodeId());
+  }
+  
+  /**
+   * @brief Set topology reporter instance
+   */
+  void setTopologyReporter(MeshTopologyReporter* reporter) {
+    topologyReporter = reporter;
   }
   
   /**
@@ -211,6 +223,10 @@ public:
         sendMetrics();
         break;
         
+      case GET_TOPOLOGY:
+        sendTopology(cmd.commandId);
+        break;
+        
       default:
         response.deviceStatus = 2; // Error
         response.responseMessage = "Unknown command: " + String(cmd.command);
@@ -324,6 +340,48 @@ public:
     
     String topic = "mesh/health/" + String(metrics.from);
     publishToMqtt(topic, message);
+  }
+  
+  /**
+   * @brief Send mesh topology via MQTT (Command 300)
+   * @param commandId The command ID for correlation
+   */
+  void sendTopology(uint32_t commandId) {
+    if (!topologyReporter) {
+      Serial.println("⚠️  Topology reporter not initialized");
+      
+      StatusPackage response;
+      response.from = mesh.getNodeId();
+      response.responseToCommand = commandId;
+      response.deviceStatus = 2; // Error
+      response.responseMessage = "Topology reporter not available";
+      sendResponse(response);
+      return;
+    }
+    
+    Serial.printf("📊 Generating topology for command %u\n", commandId);
+    String topology = topologyReporter->generateFullTopology();
+    
+    // Parse to add correlation_id
+    DynamicJsonDocument doc(8192);
+    DeserializationError error = deserializeJson(doc, topology);
+    
+    if (error) {
+      Serial.printf("❌ Failed to parse topology: %s\n", error.c_str());
+      return;
+    }
+    
+    // Add correlation_id at root level
+    doc["correlation_id"] = String(commandId);
+    
+    String payload;
+    serializeJson(doc, payload);
+    
+    // Publish to response topic
+    String topic = "alteriom/mesh/MESH-001/topology/response";
+    publishToMqtt(topic, payload);
+    
+    Serial.printf("✅ Topology sent (cmd=%u, size=%d bytes)\n", commandId, payload.length());
   }
   
   /**

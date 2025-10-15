@@ -2,6 +2,8 @@
 #include "painlessMesh.h"
 #include <PubSubClient.h>
 #include "examples/bridge/mqtt_command_bridge.hpp"
+#include "examples/bridge/mesh_topology_reporter.hpp"
+#include "examples/bridge/mesh_event_publisher.hpp"
 
 // Mesh configuration
 #define MESH_PREFIX     "AlteriomMesh"
@@ -22,6 +24,8 @@ painlessMesh mesh;
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 MqttCommandBridge* commandBridge;
+MeshTopologyReporter* topologyReporter;
+MeshEventPublisher* eventPublisher;
 
 // Task for MQTT reconnection
 Task taskMqttReconnect(TASK_SECOND * 5, TASK_FOREVER, []() {
@@ -54,24 +58,37 @@ Task taskGatewayStatus(TASK_MINUTE, TASK_FOREVER, []() {
   }
 });
 
-// Task for topology updates
-Task taskTopology(TASK_SECOND * 30, TASK_FOREVER, []() {
-  if (mqttClient.connected()) {
-    auto nodeList = mesh.getNodeList();
+// Task for topology updates (full topology every 60 seconds)
+Task taskTopology(TASK_SECOND * 60, TASK_FOREVER, []() {
+  if (mqttClient.connected() && topologyReporter != nullptr) {
+    Serial.println("[Topology] Publishing full mesh topology...");
     
-    DynamicJsonDocument topology(2048);
-    topology["gateway_id"] = mesh.getNodeId();
-    topology["node_count"] = nodeList.size();
+    String topology = topologyReporter->generateFullTopology();
+    bool success = mqttClient.publish("alteriom/mesh/MESH-001/topology", topology.c_str());
     
-    JsonArray nodes = topology.createNestedArray("nodes");
-    for (auto node : nodeList) {
-      nodes.add(node);
+    if (success) {
+      Serial.printf("[Topology] ✅ Published (%d bytes)\n", topology.length());
+    } else {
+      Serial.println("[Topology] ❌ Failed to publish (message too large or MQTT error)");
     }
-    
-    String payload;
-    serializeJson(topology, payload);
-    
-    mqttClient.publish("mesh/topology", payload.c_str());
+  }
+});
+
+// Task for incremental topology updates (check every 5 seconds)
+Task taskTopologyIncremental(TASK_SECOND * 5, TASK_FOREVER, []() {
+  if (mqttClient.connected() && topologyReporter != nullptr) {
+    if (topologyReporter->hasTopologyChanged()) {
+      Serial.println("[Topology] Topology changed, publishing incremental update...");
+      
+      String topology = topologyReporter->generateFullTopology();
+      bool success = mqttClient.publish("alteriom/mesh/MESH-001/topology", topology.c_str());
+      
+      if (success) {
+        Serial.printf("[Topology] ✅ Published incremental update (%d bytes)\n", topology.length());
+      } else {
+        Serial.println("[Topology] ❌ Failed to publish incremental update");
+      }
+    }
   }
 });
 
@@ -134,8 +151,15 @@ void setup() {
     Serial.println("WARNING: MQTT connection failed, bridge will retry");
   }
   
-  // Initialize bidirectional MQTT-mesh bridge
-  commandBridge = new MqttCommandBridge(mesh, mqttClient);
+  // Initialize topology reporter and event publisher first
+  topologyReporter = new MeshTopologyReporter(mesh, "MESH-001", "GW 2.3.4");
+  eventPublisher = new MeshEventPublisher(mesh, mqttClient, "MESH-001", "alteriom/mesh/MESH-001/events", "GW 2.3.4");
+  
+  Serial.println("\n✅ Topology Reporter initialized");
+  Serial.println("✅ Event Publisher initialized");
+  
+  // Initialize bidirectional MQTT-mesh bridge with topology reporter
+  commandBridge = new MqttCommandBridge(mesh, mqttClient, topologyReporter);
   commandBridge->setMqttCallback();
   commandBridge->setMeshCallback();
   commandBridge->begin();
@@ -144,41 +168,43 @@ void setup() {
   userScheduler.addTask(taskMqttReconnect);
   userScheduler.addTask(taskGatewayStatus);
   userScheduler.addTask(taskTopology);
+  userScheduler.addTask(taskTopologyIncremental);
   
   taskMqttReconnect.enable();
   taskGatewayStatus.enable();
   taskTopology.enable();
+  taskTopologyIncremental.enable();
   
-  // Mesh callbacks
+  // Mesh callbacks with schema-compliant event publishing
   mesh.onNewConnection([](uint32_t nodeId) {
-    Serial.printf("New node connected: %u\n", nodeId);
+    Serial.printf("[Mesh] 🔗 New node connected: %u\n", nodeId);
     
-    if (mqttClient.connected()) {
-      DynamicJsonDocument event(256);
-      event["event"] = "node_connected";
-      event["node_id"] = nodeId;
-      event["timestamp"] = millis();
-      
-      String payload;
-      serializeJson(event, payload);
-      
-      mqttClient.publish("mesh/events", payload.c_str());
+    // Publish schema-compliant node join event
+    if (eventPublisher != nullptr) {
+      eventPublisher->publishNodeJoin(nodeId);
+    }
+    
+    // Publish incremental topology update
+    if (mqttClient.connected() && topologyReporter != nullptr) {
+      String topology = topologyReporter->generateIncrementalUpdate(nodeId, true);
+      mqttClient.publish("alteriom/mesh/MESH-001/topology", topology.c_str());
+      Serial.println("[Topology] Published incremental update (node join)");
     }
   });
   
   mesh.onDroppedConnection([](uint32_t nodeId) {
-    Serial.printf("Node disconnected: %u\n", nodeId);
+    Serial.printf("[Mesh] ⚠️ Node disconnected: %u\n", nodeId);
     
-    if (mqttClient.connected()) {
-      DynamicJsonDocument event(256);
-      event["event"] = "node_disconnected";
-      event["node_id"] = nodeId;
-      event["timestamp"] = millis();
-      
-      String payload;
-      serializeJson(event, payload);
-      
-      mqttClient.publish("mesh/events", payload.c_str());
+    // Publish schema-compliant node leave event
+    if (eventPublisher != nullptr) {
+      eventPublisher->publishNodeLeave(nodeId);
+    }
+    
+    // Publish incremental topology update
+    if (mqttClient.connected() && topologyReporter != nullptr) {
+      String topology = topologyReporter->generateIncrementalUpdate(nodeId, false);
+      mqttClient.publish("alteriom/mesh/MESH-001/topology", topology.c_str());
+      Serial.println("[Topology] Published incremental update (node leave)");
     }
   });
   
@@ -197,8 +223,12 @@ void setup() {
   Serial.println("    - mesh/sensor/{nodeId}");
   Serial.println("    - mesh/health/{nodeId}");
   Serial.println("    - mesh/gateway/status");
-  Serial.println("    - mesh/topology");
-  Serial.println("    - mesh/events");
+  Serial.println("    - alteriom/mesh/MESH-001/topology (schema v0.5.0)");
+  Serial.println("    - alteriom/mesh/MESH-001/events (schema v0.5.0)");
+  Serial.println("\nSchema Compliance:");
+  Serial.println("  ✅ @alteriom/mqtt-schema v0.5.0");
+  Serial.println("  ✅ mesh_topology.schema.json");
+  Serial.println("  ✅ mesh_event.schema.json");
   Serial.println("\nBridge is now listening for commands...\n");
 }
 
