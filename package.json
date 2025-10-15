@@ -39,7 +39,7 @@
     "url": "https://github.com/Alteriom/painlessMesh/issues"
   },
   "devDependencies": {
-    "@alteriom/mqtt-schema": "^0.4.0",
+    "@alteriom/mqtt-schema": "^0.5.0",
     "@eslint/js": "^9.0.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
@@ -47,11 +47,11 @@
   },
   "scripts": {
     "test": "run-parts --regex catch_ bin/ || echo 'Tests completed'",
-    "build": "cmake -G Ninja . && ninja",
+    "dev:build": "cmake -G Ninja . && ninja",
+    "dev:prebuild": "git submodule update --init",
     "validate-library": "./scripts/validate-release.sh",
     "prepublishOnly": "npm run validate-library",
-    "postpublish": "echo 'Package published successfully to NPM!'",
-    "prebuild": "git submodule update --init"
+    "postpublish": "echo 'Package published successfully to NPM!'"
   },
   "engines": {
     "node": ">=14.0.0"
