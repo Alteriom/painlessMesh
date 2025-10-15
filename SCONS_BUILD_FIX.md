@@ -10,6 +10,13 @@ This error occurs during PlatformIO's SCons build process when compiling `painle
 
 The following fixes have been applied to the **painlessMesh library** itself:
 
+### 0. Added Missing Header Include (CRITICAL)
+```cpp
+// src/painlessmesh/mesh.hpp
+#include <vector>  // Required for std::vector usage
+```
+**Why:** The mesh.hpp file uses `std::vector` but wasn't including the header, causing compilation errors.
+
 ### 1. Added Explicit Directory Specifications
 ```json
 {

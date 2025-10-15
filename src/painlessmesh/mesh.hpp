@@ -1,6 +1,8 @@
 #ifndef _PAINLESS_MESH_MESH_HPP_
 #define _PAINLESS_MESH_MESH_HPP_
 
+#include <vector>
+
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/connection.hpp"
