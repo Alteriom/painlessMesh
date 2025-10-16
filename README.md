@@ -34,12 +34,14 @@ All packages provide type-safe serialization, automatic JSON conversion, and mes
 #### 🚀 Phase 2 Features (v1.7.0+)
 
 **Broadcast OTA Distribution**
+
 - 📡 **98% Network Traffic Reduction** for 50+ node meshes
 - ⚡ **Parallel Firmware Updates** - All nodes receive simultaneously
 - 🔄 **Backward Compatible** - Single parameter enables broadcast mode
 - 📊 **Scales to 100+ Nodes** efficiently
 
 **MQTT Status Bridge**
+
 - 🌉 **Professional Monitoring** - Grafana, InfluxDB, Prometheus integration
 - 📈 **Real-Time Topology** - Complete mesh visualization over MQTT
 - 🎯 **Production Ready** - Enterprise IoT and commercial deployments
@@ -57,10 +59,12 @@ The MQTT bridge enables bidirectional communication between MQTT brokers and mes
 - **Event Notifications** - Track node connections, disconnections, and mesh topology changes
 
 **Documentation:**
+
 - 📖 [MQTT Bridge Commands Reference](docs/MQTT_BRIDGE_COMMANDS.md) - Complete command API documentation
 - 🔧 [OTA Commands Reference](docs/OTA_COMMANDS_REFERENCE.md) - Over-the-air firmware updates
 
 **Examples:**
+
 - 🌉 [MQTT Command Bridge](examples/mqttCommandBridge/mqttCommandBridge.ino) - Gateway bridge with bidirectional MQTT-mesh routing
 - 📡 [Mesh Command Node](examples/alteriom/mesh_command_node.ino) - Node that receives and handles MQTT commands
 
@@ -179,6 +183,7 @@ void receivedCallback(uint32_t from, String& msg) {
 ## Key Features
 
 ### Core Features
+
 - **🔄 Automatic Mesh Formation** - Nodes discover and connect automatically
 - **📡 Self-Healing Network** - Adapts when nodes join/leave
 - **⏰ Time Synchronization** - Coordinated actions across all nodes  
@@ -188,6 +193,7 @@ void receivedCallback(uint32_t from, String& msg) {
 - **🛡️ Memory Efficient** - Optimized for resource-constrained devices
 
 ### Advanced Features (v1.7.0+)
+
 - **📡 Broadcast OTA** - Efficient firmware distribution for large meshes (50-100+ nodes)
 - **🌉 MQTT Bridge** - Professional monitoring with Grafana/InfluxDB/Prometheus
 - **📊 Topology Visualization** - D3.js, Cytoscape.js, Node-RED examples
@@ -211,6 +217,7 @@ void receivedCallback(uint32_t from, String& msg) {
 ## Development
 
 ### Building from Source
+
 ```bash
 git clone https://github.com/Alteriom/painlessMesh.git
 cd painlessMesh
@@ -221,6 +228,7 @@ run-parts --regex catch_ bin/  # Run tests
 ```
 
 ### Requirements
+
 - **ESP32/ESP8266**: Arduino Core 2.0.0+
 - **Dependencies**: ArduinoJson 6.x, TaskScheduler 3.x  
 - **Development**: CMake, Ninja, Boost (for desktop testing)
@@ -230,12 +238,14 @@ run-parts --regex catch_ bin/  # Run tests
 painlessMesh features a state-of-the-art automated CI/CD pipeline:
 
 **🔄 Continuous Integration:**
+
 - Automated builds on gcc/clang with strict warnings
 - Cross-platform testing (Arduino CLI, PlatformIO)
 - Code quality and formatting validation
 - Comprehensive test suite execution
 
 **🚀 Automated Releases:**
+
 - Semantic versioning with automated tagging
 - GitHub Releases with changelog generation
 - Library package distribution
@@ -243,6 +253,7 @@ painlessMesh features a state-of-the-art automated CI/CD pipeline:
 - Arduino Library Manager & PlatformIO Registry integration
 
 **📋 Release Management:**
+
 ```bash
 # Bump version and prepare release
 ./scripts/bump-version.sh patch  # or minor, major
@@ -322,16 +333,19 @@ You can tip me using ko-fi:
 - **[❓ FAQ](https://alteriom.github.io/painlessMesh/#/troubleshooting/faq)** - Frequently asked questions
 
 **📖 Tutorials & Examples:**
+
 - **[Basic Examples](docs/tutorials/basic-examples.md)** - Essential patterns and techniques
 - **[Custom Packages](docs/tutorials/custom-packages.md)** - Type-safe message handling
 - **[Sensor Networks](docs/tutorials/sensor-networks.md)** - IoT sensor network patterns
 
 **🚀 Alteriom Extensions:**
+
 - **[Alteriom Overview](docs/alteriom/overview.md)** - Production-ready IoT packages
 - **[Sensor Packages](docs/alteriom/sensor-packages.md)** - Environmental monitoring
 - **[Command System](docs/alteriom/command-system.md)** - Device control and automation
 
 **🔧 Troubleshooting:**
+
 - **[Common Issues](docs/troubleshooting/common-issues.md)** - Solutions to frequent problems
 - **[FAQ](docs/troubleshooting/faq.md)** - Frequently asked questions
 - **[Debugging Guide](docs/troubleshooting/debugging.md)** - Tools and techniques
@@ -468,8 +482,7 @@ Note: The mesh must be on the same WiFi channel as the AP.
 Change the internal log level. List of types defined in Logger.hpp:
 ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE
 
-
-# Funding 
+# Funding
 
 Most development of painlessMesh has been done as a hobby, but some specific features have been funded by the companies listed below:
 

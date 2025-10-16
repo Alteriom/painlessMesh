@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NPM Configuration**: Updated `.npmrc` to use public NPM registry instead of GitHub Packages
 - **Dependencies**: Moved `@alteriom/mqtt-schema` back to `devDependencies` now that it's publicly available
 - **Automated Releases**: Fixed npm install failures during automated release workflow
-- **Package Availability**: Package now accessible at https://www.npmjs.com/package/@alteriom/mqtt-schema
+- **Package Availability**: Package now accessible at <https://www.npmjs.com/package/@alteriom/mqtt-schema>
 
 ## [1.7.1] - 2025-10-15
 
@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Phase 2: Broadcast OTA & MQTT Status Bridge
 
 **Broadcast OTA Distribution**
+
 - ✨ **Broadcast Mode OTA**: True mesh-wide firmware distribution with ~98% network traffic reduction for 50+ node meshes
 - 📡 **Parallel Updates**: All nodes receive firmware chunks simultaneously instead of sequential unicast
 - ⚡ **Performance**: ~50x faster for 50-node mesh, ~100x faster for 100-node mesh
@@ -60,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 📊 **Scalability**: Efficiently handles 50-100+ node meshes with minimal overhead
 
 **MQTT Status Bridge**
+
 - 🌉 **Professional Monitoring**: Complete MQTT bridge for publishing mesh status to monitoring tools
 - 📈 **Multiple Topics**: Publishes topology, metrics, alerts, and per-node status
 - 🔗 **Tool Integration**: Ready for Grafana, InfluxDB, Prometheus, Home Assistant, Node-RED
@@ -157,14 +159,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ⚙️ Configuration Changes
 
 **library.json**
+
 - Added `"srcDir": "src"` for explicit source directory
 - Added `"includeDir": "src"` for explicit include directory
 - Removed conflicting `"export": {"include": "src"}` section
 
 **library.properties**
+
 - Updated `includes=painlessMesh.h` (was AlteriomPainlessMesh.h)
 
 **package.json**
+
 - Renamed `build` → `dev:build` (prevents auto-execution)
 - Renamed `prebuild` → `dev:prebuild` (prevents auto-execution)
 - Updated to @alteriom/mqtt-schema v0.5.0
@@ -172,6 +177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 📊 Performance Improvements
 
 **Broadcast OTA Performance**
+
 - **Network Traffic**: 90% reduction (10 nodes), 98% reduction (50 nodes), 99% reduction (100 nodes)
 - **Update Speed**: ~N times faster (parallel vs sequential)
 - **Example**: 150-chunk firmware to 50 nodes
@@ -180,6 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Savings: 98% (7,350 transmissions)**
 
 **Memory Impact**
+
 - Broadcast OTA: +2-5KB per node (chunk tracking)
 - MQTT Bridge: +5-8KB (root node only)
 - Minimal overhead for ESP32, acceptable for ESP8266
@@ -205,6 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **No migration required** for existing code. To adopt new features:
 
 **Enable Broadcast OTA:**
+
 ```cpp
 // Before (v1.6.x)
 mesh.offerOTA(role, hw, md5, parts, false, false, true);
@@ -215,6 +223,7 @@ mesh.offerOTA(role, hw, md5, parts, false, true, true);
 ```
 
 **Add MQTT Status Bridge:**
+
 ```cpp
 #include "examples/bridge/mqtt_status_bridge.hpp"
 
@@ -286,6 +295,7 @@ This release includes contributions from Phase 2 implementation, bug fixes disco
   - Clear instructions for NPM and GitHub Packages publication
 
 ### Changed  
+
 - **Library Name**: Updated from "Painless Mesh" to "Alteriom PainlessMesh" for Arduino Library Manager
 - **Release Process**: Streamlined to support multiple package managers
   - Single commit with "release:" prefix triggers full publication pipeline
@@ -301,6 +311,7 @@ This release includes contributions from Phase 2 implementation, bug fixes disco
   - Troubleshooting guides for each distribution channel
 
 ### Fixed
+
 - **NPM Publishing**: Fixed registry configuration issues that prevented NPM publication
 - **GitHub Pages**: Improved workflow to handle cases where Pages is not configured
 - **PlatformIO Build**: Fixed include paths in improved_sensor_node.ino example
@@ -311,6 +322,7 @@ This release includes contributions from Phase 2 implementation, bug fixes disco
 ## [1.6.0] - 2025-09-29
 
 ### Added
+
 - Enhanced Alteriom-specific package documentation and examples
 - Updated repository URLs and metadata for Alteriom fork
 - Improved release process documentation
@@ -319,11 +331,13 @@ This release includes contributions from Phase 2 implementation, bug fixes disco
 - Comprehensive Alteriom package documentation and quick start guide
 
 ### Changed  
+
 - Migrated from deprecated `actions/create-release@v1` to GitHub CLI for releases
 - Updated library.properties and library.json to reflect Alteriom ownership
 - Enhanced package descriptions to highlight Alteriom extensions
 
 ### Fixed
+
 - Fixed deprecated GitHub Actions in release workflow  
 - Corrected undefined variable references in upload workflow steps
 - Updated repository URLs from GitLab to GitHub in library files
@@ -331,6 +345,7 @@ This release includes contributions from Phase 2 implementation, bug fixes disco
 ## [1.5.6] - Current Release
 
 ### Features
+
 - painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices
 - Automatic routing and network management
 - JSON-based messaging system
@@ -339,16 +354,19 @@ This release includes contributions from Phase 2 implementation, bug fixes disco
 - Sensor network patterns for IoT applications
 
 ### Platforms Supported
+
 - ESP32 (espressif32)
 - ESP8266 (espressif8266)
 
 ### Dependencies
+
 - ArduinoJson ^7.4.2
 - TaskScheduler ^3.8.5
 - AsyncTCP ^3.4.7 (ESP32)
 - ESPAsyncTCP ^2.0.0 (ESP8266)
 
 ### Alteriom Extensions
+
 - SensorPackage for environmental monitoring
 - CommandPackage for device control
 - StatusPackage for health monitoring
