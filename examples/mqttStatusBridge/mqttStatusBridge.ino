@@ -181,9 +181,11 @@ void mqttCallback(char* topic, uint8_t* payload, unsigned int length) {
       // Get node list
       auto nodes = mesh.getNodeList(true);
       String nodeList = "{\"nodes\":[";
-      for (size_t i = 0; i < nodes.size(); i++) {
-        if (i > 0) nodeList += ",";
-        nodeList += String(nodes[i]);
+      bool firstNode = true;
+      for (auto nodeId : nodes) {
+        if (!firstNode) nodeList += ",";
+        firstNode = false;
+        nodeList += String(nodeId);
       }
       nodeList += "]}";
       mqttClient.publish("mesh/response/nodes", nodeList.c_str());
