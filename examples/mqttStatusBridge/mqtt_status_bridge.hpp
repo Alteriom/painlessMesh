@@ -136,7 +136,7 @@ public:
     publishTask.set(TASK_MILLISECOND * publishInterval, 
                    TASK_FOREVER, 
                    [this]() { this->publishStatus(); });
-    mesh.scheduler.addTask(publishTask);
+    mesh.mScheduler.addTask(publishTask);
     publishTask.enable();
     
     Serial.println("MQTT Status Bridge started");
@@ -147,9 +147,7 @@ public:
    * Stop publishing
    */
   void stop() {
-    if (publishTask != nullptr) {
-      publishTask->disable();
-    }
+    publishTask.disable();
   }
   
   /**
@@ -225,10 +223,12 @@ private:
     
     // Nodes array (required by proposed schema)
     payload += ",\"nodes\":[";
-    for (size_t i = 0; i < nodes.size(); i++) {
-      if (i > 0) payload += ",";
+    bool firstNode = true;
+    for (auto nodeId : nodes) {
+      if (!firstNode) payload += ",";
+      firstNode = false;
       payload += "{";
-      payload += "\"node_id\":\"" + String(nodes[i]) + "\"";
+      payload += "\"node_id\":\"" + String(nodeId) + "\"";
       payload += ",\"status\":\"online\"";  // All listed nodes are online
       payload += ",\"last_seen\":\"" + timestamp + "\"";
       payload += "}";
@@ -277,15 +277,15 @@ private:
     // Simplified: Each node connected to root (gateway)
     payload += ",\"connections\":[";
     bool first = true;
-    for (size_t i = 0; i < nodes.size(); i++) {
+    for (auto nodeId : nodes) {
       // Skip self (root node)
-      if (nodes[i] == mesh.getNodeId()) continue;
+      if (nodeId == mesh.getNodeId()) continue;
       
       if (!first) payload += ",";
       first = false;
       
       payload += "{";
-      payload += "\"from_node\":\"" + String(nodes[i]) + "\"";
+      payload += "\"from_node\":\"" + String(nodeId) + "\"";
       payload += ",\"to_node\":\"" + devId + "\"";
       payload += ",\"link_quality\":0.9";  // Default - can be enhanced
       payload += ",\"hop_count\":1";  // Simplified - assume direct connection
