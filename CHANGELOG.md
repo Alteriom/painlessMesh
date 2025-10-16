@@ -19,6 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.1] - 2025-10-15
+
+### Fixed
+
+- **mqttStatusBridge**: Fixed scheduler access by using external `Scheduler` reference instead of protected `mScheduler` member
+- **mqttStatusBridge**: Corrected Task handling - `publishTask` is an object, not a pointer
+- **mqttStatusBridge**: Fixed node list iteration using proper iterators instead of array-style indexing
+- **alteriomSensorNode**: Updated to ArduinoJson v7 API - replaced deprecated `DynamicJsonDocument` with `JsonDocument`
+- **alteriomSensorNode**: Removed usage of deprecated `jsonObjectSize()` method
+- Resolved compilation errors preventing ESP32/ESP8266 builds
+
+### Technical Details
+
+- `mesh.getNodeList()` returns `std::list<uint32_t>` which doesn't support `operator[]` indexing
+- Changed from `mesh.mScheduler.addTask()` to `scheduler.addTask()` with external scheduler
+- Changed from `DynamicJsonDocument doc(size)` to `JsonDocument doc` for ArduinoJson v7 compatibility
+
 ## [1.7.0] - 2025-10-15
 
 ### 🚀 Major Features
