@@ -80,11 +80,12 @@ Welcome to the comprehensive documentation for the Alteriom fork of painlessMesh
 
 ### 📦 Releases & Changelogs
 
-- **[Phase 1 Release](releases/PHASE1_SUMMARY.md)** - v1.6.x Unicast OTA features
-- **[Phase 2 Release](releases/PHASE2_SUMMARY.md)** - v1.7.x Broadcast OTA & MQTT Bridge
+- **[Feature History](releases/FEATURE_HISTORY.md)** - ⭐ Consolidated Phase 1 & 2 development history
 - **[Release Notes v1.7.0](releases/RELEASE_NOTES_1.7.0.md)** - Detailed v1.7.0 release notes
 - **[CHANGELOG](../CHANGELOG.md)** - Complete version history
 - **[RELEASE_GUIDE](../RELEASE_GUIDE.md)** - Maintainer release process
+- [Phase 1 Details](releases/PHASE1_SUMMARY.md) - v1.6.x detailed summary (archived)
+- [Phase 2 Details](releases/PHASE2_SUMMARY.md) - v1.7.x detailed summary (archived)
 
 ### 🗂️ Core Documentation (Root)
 
