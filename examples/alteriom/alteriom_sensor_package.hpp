@@ -13,15 +13,21 @@ namespace alteriom {
  */
 class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  double temperature = 0.0;      // Temperature in Celsius
-  double humidity = 0.0;         // Relative humidity percentage
-  double pressure = 0.0;         // Atmospheric pressure in hPa
-  uint32_t sensorId = 0;         // Unique sensor identifier
-  uint32_t timestamp = 0;        // Unix timestamp of measurement
-  uint8_t batteryLevel = 0;      // Battery level percentage
+  // Temperature in Celsius
+  double temperature = 0.0;
+  // Relative humidity percentage
+  double humidity = 0.0;
+  // Atmospheric pressure in hPa
+  double pressure = 0.0;
+  // Unique sensor identifier
+  uint32_t sensorId = 0;
+  // Unix timestamp of measurement
+  uint32_t timestamp = 0;
+  // Battery level percentage
+  uint8_t batteryLevel = 0;
 
-  SensorPackage()
-      : BroadcastPackage(200) {}  // Type ID 200 for Alteriom sensors
+  // Type ID 200 for Alteriom sensors
+  SensorPackage() : BroadcastPackage(200) {}
 
   SensorPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     temperature = jsonObj["temp"];

@@ -52,7 +52,11 @@
  */
 
 #include "painlessMesh.h"
+#ifdef ESP8266
+#include <ESP8266WiFi.h>
+#else
 #include <WiFi.h>
+#endif
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
