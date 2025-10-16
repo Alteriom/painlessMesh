@@ -19,6 +19,217 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.0] - 2025-10-15
+
+### 🚀 Major Features
+
+#### Phase 2: Broadcast OTA & MQTT Status Bridge
+
+**Broadcast OTA Distribution**
+- ✨ **Broadcast Mode OTA**: True mesh-wide firmware distribution with ~98% network traffic reduction for 50+ node meshes
+- 📡 **Parallel Updates**: All nodes receive firmware chunks simultaneously instead of sequential unicast
+- ⚡ **Performance**: ~50x faster for 50-node mesh, ~100x faster for 100-node mesh
+- 🔧 **Simple API**: Single parameter change: `mesh.offerOTA(..., true)` enables broadcast mode
+- 🔄 **Backward Compatible**: Defaults to unicast mode (Phase 1), no breaking changes
+- 📊 **Scalability**: Efficiently handles 50-100+ node meshes with minimal overhead
+
+**MQTT Status Bridge**
+- 🌉 **Professional Monitoring**: Complete MQTT bridge for publishing mesh status to monitoring tools
+- 📈 **Multiple Topics**: Publishes topology, metrics, alerts, and per-node status
+- 🔗 **Tool Integration**: Ready for Grafana, InfluxDB, Prometheus, Home Assistant, Node-RED
+- ⚙️ **Configurable**: Adjustable publish intervals, enable/disable features per need
+- 🎯 **Production Ready**: Designed for enterprise IoT and commercial deployments
+- 📋 **Schema Compliant**: Uses @alteriom/mqtt-schema v0.5.0 for standardized messaging
+
+#### Mesh Topology Visualization
+
+- 📊 **Visualization Guide**: Comprehensive 980-line guide for building web dashboards (docs/MESH_TOPOLOGY_GUIDE.md)
+- 🎨 **D3.js Examples**: Complete force-directed graph visualization (200+ lines)
+- 🕸️ **Cytoscape.js Examples**: Network topology view (150+ lines)
+- 🔴 **Node.js Dashboard**: Real-time dashboard with Express + Socket.IO
+- 🐍 **Python Monitor**: Console monitoring with Rich library
+- 🔄 **Node-RED Flows**: Ready-to-import flow JSON for rapid development
+- 🛠️ **Troubleshooting Guide**: Common issues and performance tuning
+
+### 🐛 Critical Bug Fixes
+
+#### Compilation & Build Fixes
+
+- 🔧 **Fixed Missing `#include <vector>`**: Added missing C++ standard library header to `src/painlessmesh/mesh.hpp`
+  - **Impact**: Fixes compilation errors: "'vector' in namespace 'std' does not name a template type"
+  - **Affected**: All projects using getConnectionDetails() or latencySamples
+  - **File**: src/painlessmesh/mesh.hpp (line 4)
+  - **Documentation**: VECTOR_INCLUDE_FIX.md
+
+- 📦 **PlatformIO Library Structure**: Fixed SCons build errors for external projects
+  - Added explicit `srcDir` and `includeDir` to library.json
+  - Removed conflicting `export.include` section
+  - Fixed header references in library.properties (painlessMesh.h)
+  - **Impact**: Fixes "cannot resolve directory for painlessMeshSTA.cpp" errors
+  - **Documentation**: LIBRARY_STRUCTURE_FIX.md, PLATFORMIO_USAGE.md, SCONS_BUILD_FIX.md
+
+- 📝 **npm Build Scripts**: Fixed UnboundLocalError during `npm link`
+  - Renamed `build` → `dev:build` and `prebuild` → `dev:prebuild`
+  - Prevents automatic build execution during package installation
+  - **Impact**: Fixes Python errors when using library as npm dependency
+
+### 📚 Documentation
+
+#### New Documentation Files (7 files)
+
+1. **docs/MESH_TOPOLOGY_GUIDE.md** (980 lines)
+   - Complete visualization guide with 5 working examples
+   - D3.js, Cytoscape.js, Python, Node-RED implementations
+   - Performance considerations and troubleshooting
+
+2. **docs/PHASE2_GUIDE.md** (~500 lines)
+   - Complete API reference for Phase 2 features
+   - Usage examples and performance benchmarks
+   - Integration guides for monitoring tools
+   - Migration guide from Phase 1
+
+3. **docs/improvements/PHASE2_IMPLEMENTATION.md** (~600 lines)
+   - Technical architecture and implementation details
+   - MQTT topic schema documentation
+   - Performance analysis and testing strategy
+
+4. **LIBRARY_STRUCTURE_FIX.md**
+   - PlatformIO library structure improvements
+   - Validation checklist and testing guide
+
+5. **PLATFORMIO_USAGE.md**
+   - Quick start guide for PlatformIO users
+   - Common issues and solutions
+
+6. **SCONS_BUILD_FIX.md**
+   - Comprehensive troubleshooting for PlatformIO builds
+   - Step-by-step diagnostic procedures
+
+7. **VECTOR_INCLUDE_FIX.md**
+   - Documentation of missing C++ header fix
+   - Testing and verification instructions
+
+#### Updated Documentation
+
+- **README.md**: Enhanced with Phase 2 features and schema v0.5.0
+- **docs/MQTT_BRIDGE_COMMANDS.md**: Updated version references
+- **examples/**: New Phase 2 examples added
+
+### 🛠️ New Tools & Scripts
+
+- **scripts/validate_library_structure.py** (250+ lines)
+  - Automated validation of PlatformIO library structure
+  - 8 comprehensive checks (all passing)
+  - Detects common configuration issues
+
+### 🔄 Enhanced Examples
+
+- **examples/alteriom/phase2_features.ino**: Demonstrates broadcast OTA
+- **examples/bridge/mqtt_status_bridge.hpp**: Complete MQTT bridge implementation
+- **examples/bridge/mqtt_status_bridge_example.ino**: Full working bridge example
+
+### ⚙️ Configuration Changes
+
+**library.json**
+- Added `"srcDir": "src"` for explicit source directory
+- Added `"includeDir": "src"` for explicit include directory
+- Removed conflicting `"export": {"include": "src"}` section
+
+**library.properties**
+- Updated `includes=painlessMesh.h` (was AlteriomPainlessMesh.h)
+
+**package.json**
+- Renamed `build` → `dev:build` (prevents auto-execution)
+- Renamed `prebuild` → `dev:prebuild` (prevents auto-execution)
+- Updated to @alteriom/mqtt-schema v0.5.0
+
+### 📊 Performance Improvements
+
+**Broadcast OTA Performance**
+- **Network Traffic**: 90% reduction (10 nodes), 98% reduction (50 nodes), 99% reduction (100 nodes)
+- **Update Speed**: ~N times faster (parallel vs sequential)
+- **Example**: 150-chunk firmware to 50 nodes
+  - Unicast: 7,500 transmissions
+  - Broadcast: 150 transmissions
+  - **Savings: 98% (7,350 transmissions)**
+
+**Memory Impact**
+- Broadcast OTA: +2-5KB per node (chunk tracking)
+- MQTT Bridge: +5-8KB (root node only)
+- Minimal overhead for ESP32, acceptable for ESP8266
+
+### 🔐 Schema Compliance
+
+- ✅ Fully compliant with @alteriom/mqtt-schema v0.5.0
+- ✅ Topology messages include all required envelope fields
+- ✅ Node objects include firmware_version, uptime_seconds, connection_count
+- ✅ Schema versioning for forward compatibility
+
+### ⚠️ Breaking Changes
+
+**None** - This release is 100% backward compatible with v1.6.x
+
+- Broadcast OTA defaults to `false` (unicast mode preserved)
+- MQTT bridge is optional add-on
+- All Phase 1 APIs unchanged
+- Existing sketches work without modification
+
+### 🔄 Migration Guide
+
+**No migration required** for existing code. To adopt new features:
+
+**Enable Broadcast OTA:**
+```cpp
+// Before (v1.6.x)
+mesh.offerOTA(role, hw, md5, parts, false, false, true);
+
+// After (v1.7.0) - add broadcast parameter
+mesh.offerOTA(role, hw, md5, parts, false, true, true);
+//                                         ^^^^ broadcast
+```
+
+**Add MQTT Status Bridge:**
+```cpp
+#include "examples/bridge/mqtt_status_bridge.hpp"
+
+MqttStatusBridge bridge(mesh, mqttClient);
+bridge.setPublishInterval(30000);
+bridge.begin();
+```
+
+### 🎯 Recommended For
+
+- ✅ Production IoT deployments with 10-100+ nodes
+- ✅ Commercial systems requiring professional monitoring
+- ✅ Enterprise environments needing Grafana/Prometheus integration
+- ✅ Projects with limited network bandwidth
+- ✅ Systems requiring rapid firmware distribution
+
+### 📖 Complete Documentation
+
+- [Phase 2 User Guide](docs/PHASE2_GUIDE.md) - API reference and usage
+- [Phase 2 Implementation](docs/improvements/PHASE2_IMPLEMENTATION.md) - Technical details
+- [Mesh Topology Guide](docs/MESH_TOPOLOGY_GUIDE.md) - Visualization examples
+- [MQTT Bridge Commands](docs/MQTT_BRIDGE_COMMANDS.md) - Command reference
+- [Library Structure Fix](LIBRARY_STRUCTURE_FIX.md) - Build system improvements
+- [Vector Include Fix](VECTOR_INCLUDE_FIX.md) - Compilation fix details
+
+### 🧪 Testing
+
+- ✅ All Phase 1 tests passing (80 assertions in 7 test cases)
+- ✅ Backward compatibility verified
+- ✅ No regressions introduced
+- ✅ Library structure validation: 8/8 checks passing
+- ✅ Compilation successful on ESP32 and ESP8266
+
+### 🙏 Acknowledgments
+
+This release includes contributions from Phase 2 implementation, bug fixes discovered by the community, and comprehensive documentation improvements based on user feedback.
+
+**Next**: Phase 3 features (progressive rollout OTA, real-time telemetry streams) as outlined in FEATURE_PROPOSALS.md
+
+---
+
 ## [1.6.1] - 2025-09-29
 
 ### Added

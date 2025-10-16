@@ -13,21 +13,15 @@ namespace alteriom {
  */
 class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  // Temperature in Celsius
-  double temperature = 0.0;
-  // Relative humidity percentage
-  double humidity = 0.0;
-  // Atmospheric pressure in hPa
-  double pressure = 0.0;
-  // Unique sensor identifier
-  uint32_t sensorId = 0;
-  // Unix timestamp of measurement
-  uint32_t timestamp = 0;
-  // Battery level percentage
-  uint8_t batteryLevel = 0;
+  double temperature = 0.0;  // Temperature in Celsius
+  double humidity = 0.0;     // Relative humidity percentage
+  double pressure = 0.0;     // Atmospheric pressure in hPa
+  uint32_t sensorId = 0;     // Unique sensor identifier
+  uint32_t timestamp = 0;    // Unix timestamp of measurement
+  uint8_t batteryLevel = 0;  // Battery level percentage
 
-  // Type ID 200 for Alteriom sensors
-  SensorPackage() : BroadcastPackage(200) {}
+  SensorPackage()
+      : BroadcastPackage(200) {}  // Type ID 200 for Alteriom sensors
 
   SensorPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     temperature = jsonObj["temp"];
@@ -102,10 +96,6 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   uint8_t wifiStrength = 0;      // WiFi signal strength
   TSTRING firmwareVersion = "";  // Current firmware version
 
-  // Command response fields (for MQTT bridge)
-  uint32_t responseToCommand = 0;  // CommandId this is responding to
-  TSTRING responseMessage = "";    // Success/error message
-
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
   StatusPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
@@ -114,8 +104,6 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     freeMemory = jsonObj["mem"];
     wifiStrength = jsonObj["wifi"];
     firmwareVersion = jsonObj["fw"].as<TSTRING>();
-    responseToCommand = jsonObj["respTo"] | 0;
-    responseMessage = jsonObj["respMsg"].as<TSTRING>();
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -125,17 +113,12 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     jsonObj["mem"] = freeMemory;
     jsonObj["wifi"] = wifiStrength;
     jsonObj["fw"] = firmwareVersion;
-    if (responseToCommand > 0) {
-      jsonObj["respTo"] = responseToCommand;
-      jsonObj["respMsg"] = responseMessage;
-    }
     return jsonObj;
   }
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 7) + firmwareVersion.length() +
-           responseMessage.length();
+    return JSON_OBJECT_SIZE(noJsonFields + 5) + firmwareVersion.length();
   }
 #endif
 };

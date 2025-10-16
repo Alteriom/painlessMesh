@@ -13,21 +13,15 @@ namespace alteriom {
  */
 class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  // Temperature in Celsius
-  double temperature = 0.0;
-  // Relative humidity percentage
-  double humidity = 0.0;
-  // Atmospheric pressure in hPa
-  double pressure = 0.0;
-  // Unique sensor identifier
-  uint32_t sensorId = 0;
-  // Unix timestamp of measurement
-  uint32_t timestamp = 0;
-  // Battery level percentage
-  uint8_t batteryLevel = 0;
+  double temperature = 0.0;  // Temperature in Celsius
+  double humidity = 0.0;     // Relative humidity percentage
+  double pressure = 0.0;     // Atmospheric pressure in hPa
+  uint32_t sensorId = 0;     // Unique sensor identifier
+  uint32_t timestamp = 0;    // Unix timestamp of measurement
+  uint8_t batteryLevel = 0;  // Battery level percentage
 
-  // Type ID 200 for Alteriom sensors
-  SensorPackage() : BroadcastPackage(200) {}
+  SensorPackage()
+      : BroadcastPackage(200) {}  // Type ID 200 for Alteriom sensors
 
   SensorPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     temperature = jsonObj["temp"];
@@ -96,15 +90,15 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
  */
 class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  uint8_t deviceStatus = 0;      // Device status flags
-  uint32_t uptime = 0;           // Device uptime in seconds
-  uint16_t freeMemory = 0;       // Free memory in KB
-  uint8_t wifiStrength = 0;      // WiFi signal strength
-  TSTRING firmwareVersion = "";  // Current firmware version
+  uint8_t deviceStatus = 0;     // Device status flags
+  uint32_t uptime = 0;          // Device uptime in seconds
+  uint16_t freeMemory = 0;      // Free memory in KB
+  uint8_t wifiStrength = 0;     // WiFi signal strength
+  TSTRING firmwareVersion = ""; // Current firmware version
 
   // Command response fields (for MQTT bridge)
-  uint32_t responseToCommand = 0;  // CommandId this is responding to
-  TSTRING responseMessage = "";    // Success/error message
+  uint32_t responseToCommand = 0; // CommandId this is responding to
+  TSTRING responseMessage = "";   // Success/error message
 
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 

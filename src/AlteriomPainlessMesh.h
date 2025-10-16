@@ -13,8 +13,8 @@
 // Include the core painlessMesh library
 #include "painlessMesh.h"
 
-// Include Alteriom extensions
-#include "examples/alteriom/alteriom_sensor_package.hpp"
+// Note: Alteriom extensions (alteriom_sensor_package.hpp) are provided as examples
+// and should be included directly in your sketch when needed
 
 /**
  * @namespace alteriom

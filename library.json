@@ -6,9 +6,11 @@
         "type": "git",
         "url": "https://github.com/Alteriom/painlessMesh"
     },
-    "version": "1.6.1",
+    "version": "1.7.0",
     "frameworks": ["arduino"],
     "platforms": ["espressif8266", "espressif32"],
+    "srcDir": "src",
+    "includeDir": "src",
     "dependencies": [
         { "owner": "esp32async", "name": "AsyncTCP", "version": "^3.4.7",  "platforms" : ["espressif32"] },
         { "owner": "esp32async", "name": "ESPAsyncTCP", "version": "^2.0.0",  "platforms" : ["espressif8266"] },
@@ -33,7 +35,7 @@
     ],
     "license": "LGPL-3.0",
     "homepage": "https://github.com/Alteriom/painlessMesh",
-    "headers": "painlessMesh.h",
+    "headers": ["painlessMesh.h", "AlteriomPainlessMesh.h"],
     "examples": [
         "examples/alteriom/alteriom.ino",
         "examples/alteriom/alteriom_sensor_node.ino", 
@@ -49,8 +51,5 @@
         "examples/otaSender/otaSender.ino",
         "examples/startHere/startHere.ino",
         "examples/webServer/webServer.ino"
-    ],
-    "export": {
-        "include": "src"
-    }
+    ]
 }

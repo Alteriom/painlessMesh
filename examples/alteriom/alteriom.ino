@@ -9,6 +9,7 @@
 //************************************************************
 
 #include "AlteriomPainlessMesh.h"
+#include "alteriom_sensor_package.hpp"
 
 #define MESH_PREFIX "AlteriomMesh"
 #define MESH_PASSWORD "somethingSneaky"
@@ -68,8 +69,8 @@ void sendSensorData() {
   sensorData.pressure = 1013.25 + random(-50, 50) / 10.0;  // Simulate pressure
   sensorData.batteryLevel = 85 + random(-20, 15);          // Simulate battery
 
-  // Serialize and send
-  DynamicJsonDocument doc(sensorData.jsonObjectSize());
+  // Serialize and send (using ArduinoJson v7 API)
+  JsonDocument doc;
   JsonObject obj = doc.to<JsonObject>();
   sensorData.addTo(std::move(obj));
 
@@ -91,8 +92,8 @@ void handleStatusRequest() {
   status.wifiStrength = 75;                      // Placeholder
   status.firmwareVersion = "1.0.0-alteriom";
 
-  // Serialize and send
-  DynamicJsonDocument doc(status.jsonObjectSize());
+  // Serialize and send (using ArduinoJson v7 API)
+  JsonDocument doc;
   JsonObject obj = doc.to<JsonObject>();
   status.addTo(std::move(obj));
 
@@ -107,8 +108,8 @@ void handleStatusRequest() {
 void handleIncomingPackage(uint32_t from, String& msg) {
   Serial.printf("Received from %u: %s\n", from, msg.c_str());
 
-  // Parse the JSON message
-  DynamicJsonDocument doc(1024);
+  // Parse the JSON message (using ArduinoJson v7 API)
+  JsonDocument doc;
   deserializeJson(doc, msg);
   JsonObject obj = doc.as<JsonObject>();
 

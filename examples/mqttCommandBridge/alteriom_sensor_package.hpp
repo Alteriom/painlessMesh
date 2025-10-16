@@ -13,21 +13,15 @@ namespace alteriom {
  */
 class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  // Temperature in Celsius
-  double temperature = 0.0;
-  // Relative humidity percentage
-  double humidity = 0.0;
-  // Atmospheric pressure in hPa
-  double pressure = 0.0;
-  // Unique sensor identifier
-  uint32_t sensorId = 0;
-  // Unix timestamp of measurement
-  uint32_t timestamp = 0;
-  // Battery level percentage
-  uint8_t batteryLevel = 0;
+  double temperature = 0.0;  // Temperature in Celsius
+  double humidity = 0.0;  // Relative humidity percentage
+  double pressure = 0.0;  // Atmospheric pressure in hPa
+  uint32_t sensorId = 0;  // Unique sensor identifier
+  uint32_t timestamp = 0;  // Unix timestamp of measurement
+  uint8_t batteryLevel = 0;  // Battery level percentage
 
-  // Type ID 200 for Alteriom sensors
-  SensorPackage() : BroadcastPackage(200) {}
+  SensorPackage()
+      : BroadcastPackage(200) {}  // Type ID 200 for Alteriom sensors
 
   SensorPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     temperature = jsonObj["temp"];
@@ -61,10 +55,10 @@ class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
  */
 class CommandPackage : public painlessmesh::plugin::SinglePackage {
  public:
-  uint8_t command = 0;        // Command type
+  uint8_t command = 0;  // Command type
   uint32_t targetDevice = 0;  // Target device ID
-  TSTRING parameters = "";    // Command parameters as JSON string
-  uint32_t commandId = 0;     // Unique command identifier for tracking
+  TSTRING parameters = "";  // Command parameters as JSON string
+  uint32_t commandId = 0;  // Unique command identifier for tracking
 
   CommandPackage() : SinglePackage(201) {}  // Type ID 201 for Alteriom commands
 
@@ -96,15 +90,15 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
  */
 class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  uint8_t deviceStatus = 0;      // Device status flags
-  uint32_t uptime = 0;           // Device uptime in seconds
-  uint16_t freeMemory = 0;       // Free memory in KB
-  uint8_t wifiStrength = 0;      // WiFi signal strength
+  uint8_t deviceStatus = 0;  // Device status flags
+  uint32_t uptime = 0;  // Device uptime in seconds
+  uint16_t freeMemory = 0;  // Free memory in KB
+  uint8_t wifiStrength = 0;  // WiFi signal strength
   TSTRING firmwareVersion = "";  // Current firmware version
 
   // Command response fields (for MQTT bridge)
   uint32_t responseToCommand = 0;  // CommandId this is responding to
-  TSTRING responseMessage = "";    // Success/error message
+  TSTRING responseMessage = "";  // Success/error message
 
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
@@ -150,24 +144,24 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
 class EnhancedStatusPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
   // Device Health (from original StatusPackage)
-  uint8_t deviceStatus = 0;      // Device status flags
-  uint32_t uptime = 0;           // Device uptime in seconds
-  uint16_t freeMemory = 0;       // Free memory in KB
-  uint8_t wifiStrength = 0;      // WiFi signal strength
+  uint8_t deviceStatus = 0;  // Device status flags
+  uint32_t uptime = 0;  // Device uptime in seconds
+  uint16_t freeMemory = 0;  // Free memory in KB
+  uint8_t wifiStrength = 0;  // WiFi signal strength
   TSTRING firmwareVersion = "";  // Current firmware version
-  TSTRING firmwareMD5 = "";      // Firmware hash for OTA verification
+  TSTRING firmwareMD5 = "";  // Firmware hash for OTA verification
 
   // Mesh Statistics
-  uint16_t nodeCount = 0;         // Number of known nodes in mesh
-  uint8_t connectionCount = 0;    // Number of direct connections
+  uint16_t nodeCount = 0;  // Number of known nodes in mesh
+  uint8_t connectionCount = 0;  // Number of direct connections
   uint32_t messagesReceived = 0;  // Total messages received
-  uint32_t messagesSent = 0;      // Total messages sent
-  uint32_t messagesDropped = 0;   // Total messages dropped/failed
+  uint32_t messagesSent = 0;  // Total messages sent
+  uint32_t messagesDropped = 0;  // Total messages dropped/failed
 
   // Performance Metrics
-  uint16_t avgLatency = 0;     // Average message latency in ms
+  uint16_t avgLatency = 0;  // Average message latency in ms
   uint8_t packetLossRate = 0;  // Packet loss rate percentage (0-100)
-  uint16_t throughput = 0;     // Network throughput in bytes/sec
+  uint16_t throughput = 0;  // Network throughput in bytes/sec
 
   // Warnings/Alerts
   uint8_t alertFlags = 0;  // Bit flags for various alert conditions

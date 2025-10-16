@@ -1,0 +1,33 @@
+# Docker Compose for painlessMesh Development
+# Simplifies Docker commands and provides consistent environment
+
+version: '3.8'
+
+services:
+  painlessmesh-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: painlessmesh-test
+    volumes:
+      - .:/workspace
+      - build-cache:/workspace/build
+    working_dir: /workspace
+    command: /workspace/run-tests.sh
+    
+  # Interactive development shell
+  painlessmesh-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: painlessmesh-dev
+    volumes:
+      - .:/workspace
+      - build-cache:/workspace/build
+    working_dir: /workspace
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+
+volumes:
+  build-cache:
