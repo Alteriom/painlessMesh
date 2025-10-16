@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.2] - 2025-10-15
+
+### Fixed
+
+- **NPM Configuration**: Updated `.npmrc` to use public NPM registry instead of GitHub Packages
+- **Dependencies**: Moved `@alteriom/mqtt-schema` back to `devDependencies` now that it's publicly available
+- **Automated Releases**: Fixed npm install failures during automated release workflow
+- **Package Availability**: Package now accessible at https://www.npmjs.com/package/@alteriom/mqtt-schema
+
 ## [1.7.1] - 2025-10-15
 
 ### Fixed
