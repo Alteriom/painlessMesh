@@ -1,9 +1,9 @@
 #include <Arduino.h>
 #include "painlessMesh.h"
 #include <PubSubClient.h>
-#include "examples/bridge/mqtt_command_bridge.hpp"
-#include "examples/bridge/mesh_topology_reporter.hpp"
-#include "examples/bridge/mesh_event_publisher.hpp"
+#include "mqtt_command_bridge.hpp"
+#include "mesh_topology_reporter.hpp"
+#include "mesh_event_publisher.hpp"
 
 // Mesh configuration
 #define MESH_PREFIX     "AlteriomMesh"
