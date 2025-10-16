@@ -1,6 +1,11 @@
 #include "painlessMesh.h"
 #include "alteriom_sensor_package.hpp"
 
+// Define LED_BUILTIN for ESP32 boards that don't have it predefined
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+
 #define MESH_PREFIX     "AlteriomMesh"
 #define MESH_PASSWORD   "somethingSneaky"
 #define MESH_PORT       5555
@@ -42,7 +47,7 @@ void setup() {
     Serial.printf("Received from %u\n", from);
     
     // Parse message
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc(1024);
     DeserializationError error = deserializeJson(doc, msg);
     
     if (error) {
@@ -94,7 +99,7 @@ void handleCommand(const CommandPackage& cmd) {
       break;
       
     case SLEEP: {
-      DynamicJsonDocument params(256);
+      JsonDocument params(256);
       deserializeJson(params, cmd.parameters);
       uint32_t duration = params["duration_ms"];
       
@@ -106,7 +111,7 @@ void handleCommand(const CommandPackage& cmd) {
     }
     
     case LED_CONTROL: {
-      DynamicJsonDocument params(256);
+      JsonDocument params(256);
       deserializeJson(params, cmd.parameters);
       
       bool state = params["state"];
@@ -125,7 +130,7 @@ void handleCommand(const CommandPackage& cmd) {
     }
     
     case RELAY_SWITCH: {
-      DynamicJsonDocument params(256);
+      JsonDocument params(256);
       deserializeJson(params, cmd.parameters);
       
       uint8_t channel = params["channel"];
@@ -139,7 +144,7 @@ void handleCommand(const CommandPackage& cmd) {
     }
     
     case PWM_SET: {
-      DynamicJsonDocument params(256);
+      JsonDocument params(256);
       deserializeJson(params, cmd.parameters);
       
       uint8_t pin = params["pin"];
@@ -184,17 +189,17 @@ void handleCommand(const CommandPackage& cmd) {
     }
     
     case SET_CONFIG: {
-      DynamicJsonDocument params(512);
+      JsonDocument params(512);
       deserializeJson(params, cmd.parameters);
       
       JsonObject config = params.as<JsonObject>();
       
-      if (config.containsKey("deviceName")) {
+      if (config["deviceName"].is<String>()) {
         String name = config["deviceName"];
         Serial.printf("Config: deviceName=%s\n", name.c_str());
       }
       
-      if (config.containsKey("sampleRate")) {
+      if (config["sampleRate"].is<uint32_t>()) {
         uint32_t rate = config["sampleRate"];
         Serial.printf("Config: sampleRate=%u\n", rate);
       }
@@ -235,7 +240,7 @@ void sendStatusResponse(uint32_t commandId, String message, uint8_t status) {
  * @brief Send configuration
  */
 void sendConfiguration() {
-  DynamicJsonDocument config(512);
+  JsonDocument config(512);
   config["deviceName"] = "Sensor-" + String(mesh.getNodeId());
   config["firmwareVersion"] = "1.0.0";
   config["role"] = "sensor";
