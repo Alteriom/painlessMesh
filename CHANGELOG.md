@@ -277,8 +277,8 @@ This release includes contributions from Phase 2 implementation, bug fixes disco
   - Release validation with multi-file version consistency
 - **Arduino IDE Support**: Added keywords.txt for syntax highlighting
 - **Distribution Documentation**: Complete guides for all publication channels
-  - RELEASE_SUMMARY.md template for release notes
-  - TRIGGER_RELEASE.md for step-by-step release instructions
+  - docs/archive/RELEASE_SUMMARY.md template for release notes (archived)
+  - docs/archive/TRIGGER_RELEASE.md for step-by-step release instructions (archived, see RELEASE_GUIDE.md)
   - Enhanced RELEASE_GUIDE.md with comprehensive publication workflow
 - **Version Management**: Enhanced bump-version script
   - Updates all three version files simultaneously (library.properties, library.json, package.json)
