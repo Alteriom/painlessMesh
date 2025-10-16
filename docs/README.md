@@ -1,8 +1,15 @@
-# painlessMesh Documentation
+# 📚 AlteriomPainlessMesh Documentation
 
-Welcome to the comprehensive documentation for painlessMesh - a user-friendly ESP8266/ESP32 mesh networking library that automatically handles routing and network management.
+Welcome to the comprehensive documentation for the Alteriom fork of painlessMesh - a user-friendly ESP8266/ESP32 mesh networking library with advanced OTA updates, MQTT integration, and structured IoT packages.
 
-## Documentation Structure
+## 🌟 What's New in Alteriom Fork
+
+- **Broadcast OTA Distribution** - 98% network traffic reduction for large meshes
+- **MQTT Status Bridge** - Enterprise monitoring integration (Grafana, InfluxDB)
+- **Structured Packages** - SensorPackage, CommandPackage, StatusPackage
+- **Enhanced CI/CD** - Automated releases to NPM, PlatformIO, Arduino Library Manager
+
+## 📖 Documentation Structure
 
 ### Getting Started
 - [Quick Start Guide](getting-started/quickstart.md) - Get up and running in minutes
@@ -33,6 +40,13 @@ Welcome to the comprehensive documentation for painlessMesh - a user-friendly ES
 - [Command System](alteriom/command-system.md) - Device command and control
 - [Status Monitoring](alteriom/status-monitoring.md) - Device health and diagnostics
 
+### 📡 MQTT Integration
+- **[MQTT Bridge Commands](MQTT_BRIDGE_COMMANDS.md)** - Complete MQTT command API
+- **[MQTT Bridge Implementation](MQTT_BRIDGE_IMPLEMENTATION_SUMMARY.md)** - Implementation details
+- **[MQTT Schema Compliance](MQTT_SCHEMA_COMPLIANCE.md)** - Schema validation
+- **[OTA Commands Reference](OTA_COMMANDS_REFERENCE.md)** - OTA update commands
+- **[Mesh Topology Guide](MESH_TOPOLOGY_GUIDE.md)** - Topology reporting over MQTT
+
 ### Advanced Topics
 - [Performance Optimization](advanced/performance.md) - Optimizing mesh performance
 - [Memory Management](advanced/memory.md) - Managing ESP8266/ESP32 memory constraints
@@ -50,6 +64,28 @@ Welcome to the comprehensive documentation for painlessMesh - a user-friendly ES
 - [Building & Testing](development/building.md) - Development environment setup
 - [Documentation](development/documentation.md) - Contributing to documentation
 - [Release Process](development/releases.md) - Understanding releases and versioning
+- **[Docker Testing](development/DOCKER_TESTING.md)** - Containerized testing environment
+- **[Testing Summary](development/TESTING_SUMMARY.md)** - Complete test suite overview
+- **[Arduino Compliance](development/ARDUINO_COMPLIANCE_SUMMARY.md)** - Arduino Library Manager standards
+- **[PlatformIO Usage](development/PLATFORMIO_USAGE.md)** - PlatformIO integration guide
+
+### 📦 Releases & Changelogs
+- **[Phase 1 Release](releases/PHASE1_SUMMARY.md)** - v1.6.x Unicast OTA features
+- **[Phase 2 Release](releases/PHASE2_SUMMARY.md)** - v1.7.x Broadcast OTA & MQTT Bridge
+- **[Release Notes v1.7.0](releases/RELEASE_NOTES_1.7.0.md)** - Detailed v1.7.0 release notes
+- **[CHANGELOG](../CHANGELOG.md)** - Complete version history
+- **[RELEASE_GUIDE](../RELEASE_GUIDE.md)** - Maintainer release process
+
+### 🗂️ Core Documentation (Root)
+- **[Main README](../README.md)** - Project overview and quick start
+- **[CONTRIBUTING](../CONTRIBUTING.md)** - Contribution guidelines
+- **[LICENSE](../LICENSE)** - LGPL-3.0 license terms
+
+### 🗃️ Historical & Archive
+- **[Archive](archive/)** - Historical bug fixes and obsolete documentation
+  - Bug fix documentation (SCONS, VECTOR, LIBRARY fixes)
+  - Legacy deployment guides
+  - Superseded release documentation
 
 ### Improvements & Proposals
 - [Library Improvements](improvements/README.md) - Overview of performance and security enhancements
