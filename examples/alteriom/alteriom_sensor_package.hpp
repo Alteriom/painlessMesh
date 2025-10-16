@@ -18,7 +18,7 @@ class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
   double pressure = 0.0;        // Atmospheric pressure in hPa
   uint32_t sensorId = 0;        // Unique sensor identifier
   uint32_t timestamp = 0;       // Unix timestamp of measurement
-  uint8_t batteryLevel = 0;  // Battery level percentage
+  uint8_t batteryLevel = 0;     // Battery level percentage
 
   SensorPackage()
       : BroadcastPackage(200) {}  // Type ID 200 for Alteriom sensors
@@ -58,7 +58,7 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
   uint8_t command = 0;        // Command type
   uint32_t targetDevice = 0;  // Target device ID
   TSTRING parameters = "";    // Command parameters as JSON string
-  uint32_t commandId = 0;  // Unique command identifier for tracking
+  uint32_t commandId = 0;     // Unique command identifier for tracking
 
   CommandPackage() : SinglePackage(201) {}  // Type ID 201 for Alteriom commands
 
@@ -156,7 +156,7 @@ class EnhancedStatusPackage : public painlessmesh::plugin::BroadcastPackage {
   uint8_t connectionCount = 0;    // Number of direct connections
   uint32_t messagesReceived = 0;  // Total messages received
   uint32_t messagesSent = 0;      // Total messages sent
-  uint32_t messagesDropped = 0;  // Total messages dropped/failed
+  uint32_t messagesDropped = 0;   // Total messages dropped/failed
 
   // Performance Metrics
   uint16_t avgLatency = 0;     // Average message latency in ms
