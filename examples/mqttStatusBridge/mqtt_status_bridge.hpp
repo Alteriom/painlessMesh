@@ -36,6 +36,7 @@ class MqttStatusBridge {
 private:
   painlessMesh& mesh;
   PubSubClient& mqttClient;
+  Scheduler& scheduler;
   
   // Configuration
   uint32_t publishInterval = 30000;  // Default 30 seconds
@@ -62,9 +63,10 @@ public:
    * Constructor
    * @param mesh Reference to painlessMesh instance
    * @param mqttClient Reference to PubSubClient instance
+   * @param scheduler Reference to Scheduler instance
    */
-  MqttStatusBridge(painlessMesh& mesh, PubSubClient& mqttClient) 
-    : mesh(mesh), mqttClient(mqttClient) {
+  MqttStatusBridge(painlessMesh& mesh, PubSubClient& mqttClient, Scheduler& scheduler) 
+    : mesh(mesh), mqttClient(mqttClient), scheduler(scheduler) {
   }
   
   /**
@@ -136,7 +138,7 @@ public:
     publishTask.set(TASK_MILLISECOND * publishInterval, 
                    TASK_FOREVER, 
                    [this]() { this->publishStatus(); });
-    mesh.mScheduler.addTask(publishTask);
+    scheduler.addTask(publishTask);
     publishTask.enable();
     
     Serial.println("MQTT Status Bridge started");

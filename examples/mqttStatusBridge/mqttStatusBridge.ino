@@ -54,6 +54,7 @@ IPAddress getlocalIP();
 IPAddress myIP(0, 0, 0, 0);
 IPAddress mqttBroker(192, 168, 1, 100);  // Change to your MQTT broker IP
 
+Scheduler userScheduler;
 painlessMesh mesh;
 WiFiClient wifiClient;
 PubSubClient mqttClient(mqttBroker, MQTT_BROKER_PORT, mqttCallback, wifiClient);
@@ -67,7 +68,7 @@ void setup() {
 
   // Initialize mesh
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, MESH_PORT, WIFI_AP_STA, 6);
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6);
   mesh.onReceive(&receivedCallback);
 
   // Connect to external WiFi for MQTT
@@ -107,7 +108,7 @@ void loop() {
 
       // Phase 2: Initialize and start MQTT Status Bridge
       if (statusBridge == nullptr) {
-        statusBridge = new MqttStatusBridge(mesh, mqttClient);
+        statusBridge = new MqttStatusBridge(mesh, mqttClient, userScheduler);
         
         // Configure the bridge
         statusBridge->setPublishInterval(30000);  // Publish every 30 seconds

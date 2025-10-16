@@ -67,7 +67,7 @@ void sendSensorData() {
   sensorData.batteryLevel = 85 + random(-20, 15);          // Simulate battery
 
   // Serialize and send
-  DynamicJsonDocument doc(sensorData.jsonObjectSize());
+  JsonDocument doc;
   JsonObject obj = doc.to<JsonObject>();
   sensorData.addTo(std::move(obj));
 
@@ -90,7 +90,7 @@ void handleStatusRequest() {
   status.firmwareVersion = "1.0.0-alteriom";
 
   // Serialize and send
-  DynamicJsonDocument doc(status.jsonObjectSize());
+  JsonDocument doc;
   JsonObject obj = doc.to<JsonObject>();
   status.addTo(std::move(obj));
 
@@ -106,7 +106,7 @@ void handleIncomingPackage(uint32_t from, String& msg) {
   Serial.printf("Received from %u: %s\n", from, msg.c_str());
 
   // Parse the JSON message
-  DynamicJsonDocument doc(1024);
+  JsonDocument doc;
   deserializeJson(doc, msg);
   JsonObject obj = doc.as<JsonObject>();
 
