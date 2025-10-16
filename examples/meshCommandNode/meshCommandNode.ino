@@ -47,7 +47,7 @@ void setup() {
     Serial.printf("Received from %u\n", from);
     
     // Parse message
-    JsonDocument doc(1024);
+    JsonDocument doc;
     DeserializationError error = deserializeJson(doc, msg);
     
     if (error) {
@@ -99,7 +99,7 @@ void handleCommand(const CommandPackage& cmd) {
       break;
       
     case SLEEP: {
-      JsonDocument params(256);
+      JsonDocument params;
       deserializeJson(params, cmd.parameters);
       uint32_t duration = params["duration_ms"];
       
@@ -111,7 +111,7 @@ void handleCommand(const CommandPackage& cmd) {
     }
     
     case LED_CONTROL: {
-      JsonDocument params(256);
+      JsonDocument params;
       deserializeJson(params, cmd.parameters);
       
       bool state = params["state"];
@@ -130,7 +130,7 @@ void handleCommand(const CommandPackage& cmd) {
     }
     
     case RELAY_SWITCH: {
-      JsonDocument params(256);
+      JsonDocument params;
       deserializeJson(params, cmd.parameters);
       
       uint8_t channel = params["channel"];
@@ -144,7 +144,7 @@ void handleCommand(const CommandPackage& cmd) {
     }
     
     case PWM_SET: {
-      JsonDocument params(256);
+      JsonDocument params;
       deserializeJson(params, cmd.parameters);
       
       uint8_t pin = params["pin"];
@@ -189,7 +189,7 @@ void handleCommand(const CommandPackage& cmd) {
     }
     
     case SET_CONFIG: {
-      JsonDocument params(512);
+      JsonDocument params;
       deserializeJson(params, cmd.parameters);
       
       JsonObject config = params.as<JsonObject>();
@@ -240,7 +240,7 @@ void sendStatusResponse(uint32_t commandId, String message, uint8_t status) {
  * @brief Send configuration
  */
 void sendConfiguration() {
-  JsonDocument config(512);
+  JsonDocument config;
   config["deviceName"] = "Sensor-" + String(mesh.getNodeId());
   config["firmwareVersion"] = "1.0.0";
   config["role"] = "sensor";
