@@ -19,6 +19,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.3] - 2025-10-16
+
+### Fixed
+
+- **Router Memory Safety**: Replaced dangerous escalating memory allocation workaround with safe pre-calculated capacity
+  - Removed static `baseCapacity` variable that grew indefinitely (512B → 20KB)
+  - Implemented single-allocation strategy with pre-calculated capacity based on message size and nesting depth
+  - Added 8KB safety cap to protect ESP8266 devices from OOM crashes
+  - Support for both ArduinoJson v6 and v7 with version-aware capacity calculation
+
+### Performance
+
+- **Small messages (50B)**: +512B predictable overhead (vs. variable 512B-20KB in v1.7.0)
+- **Medium messages (500B)**: -3596B saved by eliminating retry allocations
+- **Large messages (2KB)**: -17KB saved by preventing escalation to 20KB
+
+### Added
+
+- **Tests**: New comprehensive memory safety test suite (`test/catch/catch_router_memory.cpp`)
+  - Simple message parsing tests
+  - Deeply nested JSON structure tests (10+ levels)
+  - Oversized message handling tests
+  - Predictable capacity allocation verification
+  - 14 new assertions, all passing
+
+### Documentation
+
+- **CODE_REFACTORING_RECOMMENDATIONS.md**: Comprehensive code analysis document with 8 prioritized refactoring recommendations (P0-P3)
+- **PATCH_v1.7.3.md**: Complete release notes with before/after comparison, performance metrics, and migration guide
+
+### Technical Details
+
+- Fixes issue #521: ArduinoJson copy constructor segmentation fault workaround
+- All 710+ test assertions passing across 18 test suites
+- Docker-based testing on Linux x86_64 with CMake + Ninja
+
 ## [1.7.2] - 2025-10-15
 
 ### Fixed
