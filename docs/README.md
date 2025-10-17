@@ -100,13 +100,15 @@ Welcome to the comprehensive documentation for the Alteriom fork of painlessMesh
   - Legacy deployment guides
   - Superseded release documentation
 
-### Improvements & Proposals
+### 🚀 Improvements & Enhancements
 
-- [Library Improvements](improvements/README.md) - Overview of performance and security enhancements
-- **[Feature Proposals: OTA & Status](improvements/FEATURE_PROPOSALS.md)** 🆕 - Comprehensive proposals for OTA distribution and mesh status monitoring
-  - [Full Analysis](improvements/ota-and-status-enhancements.md) - Detailed exploration of 10+ enhancement options
-  - [Quick Reference](improvements/ota-status-quick-reference.md) - TL;DR with decision guides
-  - [Architecture Diagrams](improvements/ota-status-architecture-diagrams.md) - Visual diagrams of each option
+- **[Improvements Overview](improvements/README.md)** - Complete guide to library enhancements
+- **[OTA & Status Enhancements](improvements/OTA_STATUS_ENHANCEMENTS.md)** 📋 - Complete reference for all options
+  - ✅ Phase 1 (v1.6.x): Compressed OTA + Enhanced Status
+  - ✅ Phase 2 (v1.7.0): Broadcast OTA + MQTT Bridge
+  - 📋 Phase 3 (Future): Progressive rollout, P2P distribution, real-time telemetry
+- **[Implementation History](improvements/IMPLEMENTATION_HISTORY.md)** 🔧 - Technical details for Phases 1-2
+- **[Future Proposals](improvements/FUTURE_PROPOSALS.md)** 🚀 - Phase 3+ roadmap and specifications
 
 ## Quick Links
 
