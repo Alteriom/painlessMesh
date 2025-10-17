@@ -541,7 +541,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   bool semaphoreTake() {
 #ifdef ESP32
-    return xSemaphoreTake(xSemaphore, (TickType_t)10) == pdTRUE;
+    return xSemaphoreTake(xSemaphore, (TickType_t)100) == pdTRUE;  // Was 10
 #else
     return true;
 #endif
