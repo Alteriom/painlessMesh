@@ -57,3 +57,5 @@ cmake.zip
 cmake-*/
 *.tar
 *.tar.gz
+test-output.log
+test-results.txt
