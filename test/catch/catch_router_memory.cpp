@@ -138,9 +138,15 @@ SCENARIO("Router JSON parsing with improved capacity calculation", "[router][mem
       size_t nestingDepth = std::count(json.begin(), json.end(), '{') + 
                             std::count(json.begin(), json.end(), '[');
       
+#if ARDUINOJSON_VERSION_MAJOR >= 7
+      // ArduinoJson v7: automatic capacity management
+      size_t calculatedCapacity = json.length() + 1024;
+#else
+      // ArduinoJson v6: manual capacity calculation
       size_t calculatedCapacity = json.length() + 
                                   JSON_OBJECT_SIZE(10) * std::max(nestingDepth, size_t(1)) + 
                                   512;
+#endif
       
       constexpr size_t MAX_MESSAGE_CAPACITY = 8192;
       size_t capacity = std::min(calculatedCapacity, MAX_MESSAGE_CAPACITY);
@@ -172,9 +178,15 @@ SCENARIO("Memory allocation patterns are predictable", "[router][memory]") {
         size_t nestingDepth = std::count(json.begin(), json.end(), '{') + 
                               std::count(json.begin(), json.end(), '[');
         
+#if ARDUINOJSON_VERSION_MAJOR >= 7
+        // ArduinoJson v7: automatic capacity management
+        size_t calculatedCapacity = json.length() + 1024;
+#else
+        // ArduinoJson v6: manual capacity calculation
         size_t calculatedCapacity = json.length() + 
                                     JSON_OBJECT_SIZE(10) * std::max(nestingDepth, size_t(1)) + 
                                     512;
+#endif
         
         constexpr size_t MAX_MESSAGE_CAPACITY = 8192;
         size_t capacity = std::min(calculatedCapacity, MAX_MESSAGE_CAPACITY);
