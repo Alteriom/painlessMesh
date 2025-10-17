@@ -190,26 +190,42 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
     Log(DEBUG, "routePackage(): No callbacks executed; %u, %s\n",
         variant.type(), pkg.c_str());
 #else
-  static size_t baseCapacity = 512;
-  // Using a ptr so we can overwrite it if we need to grow capacity.
-  // Bug in copy constructor with grown capacity can cause segmentation fault
-  auto variant =
-      std::make_shared<protocol::Variant>(pkg, pkg.length() + baseCapacity);
-  while (variant->error == DeserializationError::NoMemory &&
-         baseCapacity <= 20480) {
-    // Not enough memory, adapt scaling (variant::capacityScaling) and log the
-    // new value
-    Log(DEBUG,
-        "routePackage(): parsing failed. err=%u, increasing capacity: %u\n",
-        variant->error, baseCapacity);
-    baseCapacity += 256;
-    variant =
-        std::make_shared<protocol::Variant>(pkg, pkg.length() + baseCapacity);
-  }
+  // Calculate required capacity based on message size and nesting depth
+  // Fixed capacity approach to avoid segmentation fault issues with
+  // dynamic reallocation (see issue #521 and CODE_REFACTORING_RECOMMENDATIONS.md)
+  size_t nestingDepth = std::count(pkg.begin(), pkg.end(), '{') + 
+                        std::count(pkg.begin(), pkg.end(), '[');
+  
+#if ARDUINOJSON_VERSION_MAJOR >= 7
+  // ArduinoJson v7: automatic capacity management, use generous buffer
+  size_t calculatedCapacity = pkg.length() + 1024;
+#else
+  // ArduinoJson v6: manual capacity calculation required
+  // Base capacity: message length + overhead for JSON structure
+  // Each nesting level adds overhead for pointers and metadata
+  size_t calculatedCapacity = pkg.length() + 
+                              JSON_OBJECT_SIZE(10) * std::max(nestingDepth, size_t(1)) + 
+                              512;  // Additional buffer for strings and padding
+#endif
+  
+  // Cap at 8KB for safety on ESP8266 (which has ~80KB total heap)
+  // Messages larger than this should be rejected
+  constexpr size_t MAX_MESSAGE_CAPACITY = 8192;
+  size_t capacity = std::min(calculatedCapacity, MAX_MESSAGE_CAPACITY);
+  
+  auto variant = std::make_shared<protocol::Variant>(pkg, capacity);
+  
   if (variant->error) {
-    Log(ERROR,
-        "routePackage(): parsing failed. err=%u, total_length=%d, data=%s<--\n",
-        variant->error, pkg.length(), pkg.c_str());
+    if (variant->error == DeserializationError::NoMemory) {
+      Log(ERROR,
+          "routePackage(): Message too large. length=%d, calculated_capacity=%u, "
+          "nesting_depth=%u. Consider increasing MAX_MESSAGE_CAPACITY if needed.\n",
+          pkg.length(), calculatedCapacity, nestingDepth);
+    } else {
+      Log(ERROR,
+          "routePackage(): parsing failed. err=%u, length=%d, data=%s<--\n",
+          variant->error, pkg.length(), pkg.c_str());
+    }
     return;
   }
 
