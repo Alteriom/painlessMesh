@@ -43,7 +43,7 @@ Task taskMqttReconnect(TASK_SECOND * 5, TASK_FOREVER, []() {
 // Task for periodic gateway status
 Task taskGatewayStatus(TASK_MINUTE, TASK_FOREVER, []() {
   if (mqttClient.connected()) {
-    DynamicJsonDocument status(512);
+    JsonDocument status;  // ArduinoJson v7: automatic sizing
     status["gateway_id"] = mesh.getNodeId();
     status["status"] = "online";
     status["uptime"] = millis() / 1000;

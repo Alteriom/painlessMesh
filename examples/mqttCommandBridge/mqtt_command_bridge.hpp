@@ -203,7 +203,10 @@ public:
         bool state = params["state"];
         uint8_t brightness = params["brightness"] | 255;
         
-        // Control LED
+        // Control LED (use GPIO2 if LED_BUILTIN not defined on ESP32)
+        #ifndef LED_BUILTIN
+        #define LED_BUILTIN 2
+        #endif
         digitalWrite(LED_BUILTIN, state ? LOW : HIGH);
         
         response.responseMessage = "LED " + String(state ? "ON" : "OFF");
@@ -253,8 +256,8 @@ public:
         break;
         
       case 202: // StatusPackage
-        // Check if it's a command response
-        if (doc.containsKey("respTo") && doc["respTo"] > 0) {
+        // Check if it's a command response (ArduinoJson v7 compatible)
+        if (doc["respTo"].is<uint32_t>() && doc["respTo"].as<uint32_t>() > 0) {
           publishToMqtt("mesh/response/" + String(from), msg);
         } else {
           publishToMqtt("mesh/status/" + String(from), msg);
@@ -397,14 +400,14 @@ public:
   void handleConfigUpdate(JsonDocument& doc) {
     JsonObject config = doc["config"];
     
-    // Apply configuration updates
-    if (config.containsKey("deviceName")) {
+    // Apply configuration updates (ArduinoJson v7 compatible)
+    if (config["deviceName"].is<const char*>()) {
       String newName = config["deviceName"];
       Serial.printf("Config update: deviceName=%s\n", newName.c_str());
       // Store to preferences/EEPROM in production
     }
     
-    if (config.containsKey("meshPrefix")) {
+    if (config["meshPrefix"].is<const char*>()) {
       String newPrefix = config["meshPrefix"];
       Serial.printf("Config update: meshPrefix=%s (requires restart)\n", newPrefix.c_str());
     }

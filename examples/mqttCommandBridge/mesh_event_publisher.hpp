@@ -40,7 +40,7 @@ public:
    * Called when a new node connects to the mesh
    */
   void publishNodeJoin(uint32_t nodeId) {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;  // ArduinoJson v7: automatic sizing
     
     // Envelope
     doc["schema_version"] = 1;
@@ -54,10 +54,10 @@ public:
     doc["event_type"] = "node_join";
     doc["mesh_id"] = meshId;
     
-    JsonArray affected = doc.createNestedArray("affected_nodes");
+    JsonArray affected = doc["affected_nodes"].to<JsonArray>();
     affected.add(generateDeviceId(nodeId));
     
-    JsonObject details = doc.createNestedObject("details");
+    JsonObject details = doc["details"].to<JsonObject>();
     details["total_nodes"] = mesh.getNodeList().size() + 1;
     details["timestamp"] = getISO8601Timestamp();
     
@@ -69,7 +69,7 @@ public:
    * Called when a node disconnects from the mesh
    */
   void publishNodeLeave(uint32_t nodeId) {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;  // ArduinoJson v7: automatic sizing
     
     // Envelope
     doc["schema_version"] = 1;
@@ -83,10 +83,10 @@ public:
     doc["event_type"] = "node_leave";
     doc["mesh_id"] = meshId;
     
-    JsonArray affected = doc.createNestedArray("affected_nodes");
+    JsonArray affected = doc["affected_nodes"].to<JsonArray>();
     affected.add(generateDeviceId(nodeId));
     
-    JsonObject details = doc.createNestedObject("details");
+    JsonObject details = doc["details"].to<JsonObject>();
     details["reason"] = "connection_lost";
     details["last_seen"] = getISO8601Timestamp();
     details["total_nodes"] = mesh.getNodeList().size() + 1;
@@ -99,7 +99,7 @@ public:
    * Called when a direct connection fails
    */
   void publishConnectionLost(uint32_t nodeId) {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;  // ArduinoJson v7: automatic sizing
     
     doc["schema_version"] = 1;
     doc["device_id"] = generateDeviceId(mesh.getNodeId());
@@ -111,10 +111,10 @@ public:
     doc["event_type"] = "connection_lost";
     doc["mesh_id"] = meshId;
     
-    JsonArray affected = doc.createNestedArray("affected_nodes");
+    JsonArray affected = doc["affected_nodes"].to<JsonArray>();
     affected.add(generateDeviceId(nodeId));
     
-    JsonObject details = doc.createNestedObject("details");
+    JsonObject details = doc["details"].to<JsonObject>();
     details["reason"] = "timeout";
     details["timestamp"] = getISO8601Timestamp();
     
@@ -126,7 +126,7 @@ public:
    * Called when a connection is re-established
    */
   void publishConnectionRestored(uint32_t nodeId) {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;  // ArduinoJson v7: automatic sizing
     
     doc["schema_version"] = 1;
     doc["device_id"] = generateDeviceId(mesh.getNodeId());
@@ -138,10 +138,10 @@ public:
     doc["event_type"] = "connection_restored";
     doc["mesh_id"] = meshId;
     
-    JsonArray affected = doc.createNestedArray("affected_nodes");
+    JsonArray affected = doc["affected_nodes"].to<JsonArray>();
     affected.add(generateDeviceId(nodeId));
     
-    JsonObject details = doc.createNestedObject("details");
+    JsonObject details = doc["details"].to<JsonObject>();
     details["timestamp"] = getISO8601Timestamp();
     
     publishEvent(doc, "Connection Restored");
@@ -152,7 +152,7 @@ public:
    * Called when mesh partitions into separate segments
    */
   void publishNetworkSplit() {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;  // ArduinoJson v7: automatic sizing
     
     doc["schema_version"] = 1;
     doc["device_id"] = generateDeviceId(mesh.getNodeId());
@@ -164,10 +164,10 @@ public:
     doc["event_type"] = "network_split";
     doc["mesh_id"] = meshId;
     
-    JsonArray affected = doc.createNestedArray("affected_nodes");
+    JsonArray affected = doc["affected_nodes"].to<JsonArray>();
     // TODO: Detect which nodes are in different partitions
     
-    JsonObject details = doc.createNestedObject("details");
+    JsonObject details = doc["details"].to<JsonObject>();
     details["timestamp"] = getISO8601Timestamp();
     details["partition_count"] = 2;  // TODO: Calculate actual partitions
     
@@ -179,7 +179,7 @@ public:
    * Called when mesh partitions rejoin
    */
   void publishNetworkMerged() {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;  // ArduinoJson v7: automatic sizing
     
     doc["schema_version"] = 1;
     doc["device_id"] = generateDeviceId(mesh.getNodeId());
@@ -191,10 +191,10 @@ public:
     doc["event_type"] = "network_merged";
     doc["mesh_id"] = meshId;
     
-    JsonArray affected = doc.createNestedArray("affected_nodes");
+    JsonArray affected = doc["affected_nodes"].to<JsonArray>();
     // TODO: List nodes that rejoined
     
-    JsonObject details = doc.createNestedObject("details");
+    JsonObject details = doc["details"].to<JsonObject>();
     details["timestamp"] = getISO8601Timestamp();
     
     publishEvent(doc, "Network Merged");
@@ -204,7 +204,7 @@ private:
   /**
    * Internal method to publish event to MQTT
    */
-  void publishEvent(const DynamicJsonDocument& doc, const char* eventName) {
+  void publishEvent(const JsonDocument& doc, const char* eventName) {
     if (!mqttClient.connected()) {
       Serial.printf("[Event] ⚠️ MQTT not connected, cannot publish %s\n", eventName);
       return;

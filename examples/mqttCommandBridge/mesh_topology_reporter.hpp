@@ -37,7 +37,7 @@ public:
    * alteriom/mesh/{mesh_id}/topology
    */
   String generateFullTopology() {
-    DynamicJsonDocument doc(8192);  // Large buffer for full topology
+    JsonDocument doc;  // ArduinoJson v7: automatic sizing
     
     // Envelope fields (from @alteriom/mqtt-schema)
     doc["schema_version"] = 1;
@@ -53,8 +53,8 @@ public:
     doc["mesh_id"] = meshId;
     doc["gateway_node_id"] = generateDeviceId(mesh.getNodeId());
     
-    // Nodes array
-    JsonArray nodes = doc.createNestedArray("nodes");
+    // Nodes array - ArduinoJson v7 syntax
+    JsonArray nodes = doc["nodes"].to<JsonArray>();
     addNodeInfo(nodes, mesh.getNodeId(), "gateway");  // Self
     
     auto nodeList = mesh.getNodeList(false);
@@ -62,12 +62,12 @@ public:
       addNodeInfo(nodes, nodeId, "sensor");  // Assume sensor role
     }
     
-    // Connections array
-    JsonArray connections = doc.createNestedArray("connections");
+    // Connections array - ArduinoJson v7 syntax
+    JsonArray connections = doc["connections"].to<JsonArray>();
     addConnectionInfo(connections);
     
-    // Network metrics
-    JsonObject metrics = doc.createNestedObject("metrics");
+    // Network metrics - ArduinoJson v7 syntax
+    JsonObject metrics = doc["metrics"].to<JsonObject>();
     metrics["total_nodes"] = nodeList.size() + 1;  // +1 for gateway
     metrics["online_nodes"] = nodeList.size() + 1;
     metrics["network_diameter"] = calculateNetworkDiameter();
@@ -88,7 +88,7 @@ public:
    * @param joined true if node joined, false if left
    */
   String generateIncrementalUpdate(uint32_t nodeId, bool joined) {
-    DynamicJsonDocument doc(2048);
+    JsonDocument doc;  // ArduinoJson v7: automatic sizing
     
     // Envelope fields
     doc["schema_version"] = 1;
@@ -101,25 +101,25 @@ public:
     doc["mesh_id"] = meshId;
     doc["gateway_node_id"] = generateDeviceId(mesh.getNodeId());
     
-    // Node that changed
-    JsonArray nodes = doc.createNestedArray("nodes");
+    // Node that changed - ArduinoJson v7 syntax
+    JsonArray nodes = doc["nodes"].to<JsonArray>();
     if (joined) {
       addNodeInfo(nodes, nodeId, "sensor");
     } else {
       // For node leaving, mark as offline
-      JsonObject node = nodes.createNestedObject();
+      JsonObject node = nodes.add<JsonObject>();
       node["node_id"] = generateDeviceId(nodeId);
       node["status"] = "offline";
     }
     
-    // Update connections
-    JsonArray connections = doc.createNestedArray("connections");
+    // Update connections - ArduinoJson v7 syntax
+    JsonArray connections = doc["connections"].to<JsonArray>();
     // Add connections related to this node
     addConnectionInfoForNode(connections, nodeId);
     
-    // Updated metrics
+    // Updated metrics - ArduinoJson v7 syntax
     auto nodeList = mesh.getNodeList(false);
-    JsonObject metrics = doc.createNestedObject("metrics");
+    JsonObject metrics = doc["metrics"].to<JsonObject>();
     metrics["total_nodes"] = nodeList.size() + 1;
     metrics["online_nodes"] = nodeList.size() + 1;
     
@@ -148,7 +148,7 @@ private:
    * Add node information to JSON array
    */
   void addNodeInfo(JsonArray& nodes, uint32_t nodeId, const char* role) {
-    JsonObject node = nodes.createNestedObject();
+    JsonObject node = nodes.add<JsonObject>();  // ArduinoJson v7 syntax
     node["node_id"] = generateDeviceId(nodeId);
     node["role"] = role;
     node["status"] = "online";
@@ -184,7 +184,7 @@ private:
     String gatewayId = generateDeviceId(mesh.getNodeId());
     
     for (auto& conn : connDetails) {
-      JsonObject connObj = connections.createNestedObject();
+      JsonObject connObj = connections.add<JsonObject>();  // ArduinoJson v7 syntax
       connObj["from_node"] = gatewayId;
       connObj["to_node"] = generateDeviceId(conn.nodeId);
       connObj["quality"] = conn.quality;
@@ -207,7 +207,7 @@ private:
     
     for (auto& conn : connDetails) {
       if (conn.nodeId == nodeId) {
-        JsonObject connObj = connections.createNestedObject();
+        JsonObject connObj = connections.add<JsonObject>();  // ArduinoJson v7 syntax
         connObj["from_node"] = gatewayId;
         connObj["to_node"] = targetId;
         connObj["quality"] = conn.quality;
