@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <TaskScheduler.h>  // Required for LDF to find TaskScheduler dependency
 #include "painlessMesh.h"
 #include <PubSubClient.h>
 #include "mqtt_command_bridge.hpp"

@@ -51,6 +51,7 @@
  * @version 1.0.0
  */
 
+#include <TaskScheduler.h>  // Required for LDF to find TaskScheduler dependency
 #include "painlessMesh.h"
 #ifdef ESP8266
 #include <ESP8266WiFi.h>

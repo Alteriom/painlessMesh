@@ -5,6 +5,7 @@
 // sensor node using custom packages with painlessMesh
 //************************************************************
 
+#include <TaskScheduler.h>  // Required for LDF to find TaskScheduler dependency
 #include "alteriom_sensor_package.hpp"
 #include "painlessMesh.h"
 
