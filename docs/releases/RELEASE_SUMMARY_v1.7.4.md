@@ -7,15 +7,15 @@
 
 ## Release Status
 
-✅ **RELEASED** - All automation workflows triggered
+✅ **RELEASED** - Successfully published to all registries
 
 ### Automated Workflows Status
 
-- ✅ **Git Tag Created:** v1.7.4
-- ✅ **GitHub Release:** Auto-created from tag
-- ✅ **NPM Publishing:** Should trigger automatically (check [GitHub Actions](https://github.com/Alteriom/painlessMesh/actions))
-- ✅ **PlatformIO Registry:** Should sync from GitHub release
-- ⏳ **Arduino Library Manager:** May take 24-48 hours for indexing
+- ✅ **Git Tag Created:** v1.7.4 (October 19, 2025)
+- ✅ **GitHub Release:** [View Release](https://github.com/Alteriom/painlessMesh/releases/tag/v1.7.4)
+- ✅ **NPM Publishing:** @alteriom/painlessmesh@1.7.4 (Published October 19, 2025)
+- ✅ **PlatformIO Registry:** sparck75/AlteriomPainlessMesh@1.7.4 (Published 16:19:10 UTC)
+- ✅ **Arduino Library Manager:** Already registered, auto-updates from GitHub releases
 
 ## What's New in v1.7.4
 

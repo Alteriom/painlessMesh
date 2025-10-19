@@ -1,12 +1,19 @@
 # Sensor Node Connection Crash - Action Plan
 
-## ✅ STATUS: FIXED (October 21, 2024)
+## ✅ STATUS: FIXED (October 19, 2025)
 
 **Fix Implemented:** Commit [7391717](https://github.com/Alteriom/painlessMesh/commit/7391717)  
-**Version:** painlessMesh v1.7.3+  
+**Released:** painlessMesh v1.7.4  
 **Implementation:** See [FREERTOS_FIX_IMPLEMENTATION.md](FREERTOS_FIX_IMPLEMENTATION.md)
 
-The complete dual-approach fix (Option A + Option B) is now merged into the main branch. Users can update to the latest version and the fix will be automatically applied when building for ESP32 platforms.
+The complete dual-approach fix (Option A + Option B) is now available in v1.7.4. Update to the latest version to automatically apply the fix when building for ESP32 platforms.
+
+**Installation:**
+
+- **PlatformIO:** `pio pkg update sparck75/AlteriomPainlessMesh`
+- **NPM:** `npm install @alteriom/painlessmesh@1.7.4`
+- **Arduino IDE:** Library Manager → Search "painlessMesh" → Update to 1.7.4
+- **GitHub:** [Release v1.7.4](https://github.com/Alteriom/painlessMesh/releases/tag/v1.7.4)
 
 ---
 

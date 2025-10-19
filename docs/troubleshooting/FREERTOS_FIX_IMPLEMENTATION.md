@@ -1,7 +1,7 @@
 # FreeRTOS Assertion Fix Implementation Summary
 
 **Status:** ✅ IMPLEMENTED (Commit 7391717)  
-**Date:** October 21, 2024  
+**Date:** October 19, 2025  
 **Issue:** ESP32 crashes with `vTaskPriorityDisinheritAfterTimeout` assertion failure when sensor nodes connect  
 
 ## Overview
