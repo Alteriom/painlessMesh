@@ -1,5 +1,15 @@
 # Sensor Node Connection Crash - Action Plan
 
+## ✅ STATUS: FIXED (October 21, 2024)
+
+**Fix Implemented:** Commit [7391717](https://github.com/Alteriom/painlessMesh/commit/7391717)  
+**Version:** painlessMesh v1.7.3+  
+**Implementation:** See [FREERTOS_FIX_IMPLEMENTATION.md](FREERTOS_FIX_IMPLEMENTATION.md)
+
+The complete dual-approach fix (Option A + Option B) is now merged into the main branch. Users can update to the latest version and the fix will be automatically applied when building for ESP32 platforms.
+
+---
+
 ## Issue Summary
 
 **Symptom:** FreeRTOS assertion failure when sensor nodes connect to mesh  
