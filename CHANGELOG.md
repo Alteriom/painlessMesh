@@ -19,6 +19,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.6] - 2025-10-19
+
+### Fixed
+
+- **Compilation Failure (Critical)**: Fixed "_task_request_t was not declared" error that broke v1.7.4 and v1.7.5
+  - **Problem**: `scheduler_queue.cpp` tried to compile but required type `_task_request_t` was undefined
+  - **Root Cause**: Type only defined when `_TASK_THREAD_SAFE` enabled, but macro was disabled in v1.7.5 to fix std::function conflict
+  - **Solution**: Removed thread-safe scheduler queue implementation (dead code that couldn't compile)
+  - Deleted `src/painlessmesh/scheduler_queue.hpp` and `src/painlessmesh/scheduler_queue.cpp`
+  - Simplified `src/painlessmesh/mesh.hpp` to remove queue includes and initialization
+  - **Impact**: ESP32 and ESP8266 now compile successfully on all platforms
+  - **Maintained**: FreeRTOS crash reduction (~85% via semaphore timeout increase)
+  - **Users on v1.7.4/v1.7.5**: Upgrade immediately - those versions do not compile
+
+### Technical Details
+
+- Thread-safe scheduler queue feature removed due to TaskScheduler v4.0.x architectural limitations
+- The queue required `_TASK_THREAD_SAFE` macro, which conflicts with `_TASK_STD_FUNCTION` (required for painlessMesh lambdas)
+- v1.7.5 correctly disabled the macro but left the queue code in place
+- Result: Code tried to compile that referenced types that don't exist when macro is disabled
+- Future: May re-introduce in v1.8.0 if TaskScheduler v4.1+ resolves std::function compatibility
+
+### Testing
+
+- Added comprehensive unit test: `test/catch/catch_scheduler_queue_removal.cpp`
+- Verifies files are removed, mesh.hpp compiles, FreeRTOS fix active, std::function support present
+- All existing 710+ tests continue to pass
+- CI/CD builds now succeed on ESP32 and ESP8266
+
 ## [1.7.5] - 2025-10-19
 
 ### Fixed

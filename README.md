@@ -207,16 +207,16 @@ void receivedCallback(uint32_t from, String& msg) {
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT
 
-## Latest Release: v1.7.5 (October 19, 2025)
+## Latest Release: v1.7.6 (October 19, 2025)
 
-**Critical patch release** fixing TaskScheduler compatibility and CI/CD build issues:
+**Critical emergency fix** for compilation failures in v1.7.4 and v1.7.5:
 
-- ✅ **TaskScheduler Compatibility** - Resolved architectural incompatibility with thread-safe mode
-- ✅ **CI/CD Fixes** - Fixed PlatformIO LDF configuration for all examples
-- ✅ **Include Order** - Corrected example include patterns for proper compilation
+- ✅ **Compilation Fixed** - Resolved "_task_request_t was not declared" error
+- ✅ **ESP32 & ESP8266** - All platforms now compile successfully  
 - ✅ **FreeRTOS Stability** - Maintained ~85% crash reduction on ESP32
+- 🚨 **v1.7.4/v1.7.5 Users** - Upgrade immediately (those versions don't compile)
 
-**[📋 Full Release Notes](docs/releases/RELEASE_SUMMARY_v1.7.5.md)** | **[🔖 CHANGELOG](CHANGELOG.md)**
+**[📋 Full Release Notes](docs/releases/RELEASE_SUMMARY_v1.7.6.md)** | **[🔖 CHANGELOG](CHANGELOG.md)**
 
 ## Getting Help
 

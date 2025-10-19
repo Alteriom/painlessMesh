@@ -16,10 +16,6 @@
 #include "painlessmesh/ota.hpp"
 #endif
 
-#if defined(ESP32) && defined(_TASK_THREAD_SAFE)
-#include "painlessmesh/scheduler_queue.hpp"
-#endif
-
 namespace painlessmesh {
 typedef std::function<void(uint32_t nodeId)> newConnectionCallback_t;
 typedef std::function<void(uint32_t nodeId)> droppedConnectionCallback_t;
@@ -45,13 +41,6 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
 #ifdef ESP32
     xSemaphore = xSemaphoreCreateMutex();
-    
-#ifdef _TASK_THREAD_SAFE
-    // Initialize the TaskScheduler request queue for thread-safe operations
-    if (!scheduler::initQueue()) {
-      Log(ERROR, "Failed to create TaskScheduler request queue\n");
-    }
-#endif
 #endif
 
     // Add package handlers
