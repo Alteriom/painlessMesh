@@ -1,6 +1,9 @@
 #define CATCH_CONFIG_MAIN
 #include "catch2/catch.hpp"
 
+// Include painlessMesh configuration to ensure macros are defined before testing them
+#include "painlessTaskOptions.h"
+
 /**
  * Unit tests for v1.7.6 fix
  * 
