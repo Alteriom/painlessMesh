@@ -35,8 +35,8 @@ Examples:
 
 function Test-DockerRunning {
     try {
-        docker info > $null 2>&1
-        return $?
+        docker info 2>&1 | Out-Null
+        return $LASTEXITCODE -eq 0
     } catch {
         return $false
     }
