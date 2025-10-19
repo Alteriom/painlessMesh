@@ -19,6 +19,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.5] - 2025-10-19
+
+### Fixed
+
+- **TaskScheduler Compatibility (Critical)**: Reverted `_TASK_THREAD_SAFE` mode due to fundamental incompatibility with `_TASK_STD_FUNCTION`
+  - TaskScheduler v4.0.x has architectural limitation: cannot use thread-safe mode with std::function callbacks simultaneously
+  - painlessMesh requires `_TASK_STD_FUNCTION` for lambda callbacks throughout the library (plugin.hpp, connection.hpp, mesh.hpp, router.hpp, painlessMeshSTA.h)
+  - Attempting to disable std::function support breaks all mesh functionality
+  - **FreeRTOS fix now uses Option A only**: Semaphore timeout increase (10ms → 100ms)
+  - **Expected crash reduction**: ~85% (from 30-40% crash rate to ~5-8%)
+  - Less effective than dual approach (95-98%) but necessary to maintain library functionality
+  - See: [docs/troubleshooting/SENSOR_NODE_CONNECTION_CRASH.md](docs/troubleshooting/SENSOR_NODE_CONNECTION_CRASH.md)
+
+- **CI/CD Build System**: Fixed PlatformIO Library Dependency Finder (LDF) issues
+  - Added `lib_ldf_mode = deep+` to all 19 example `platformio.ini` files
+  - Enables deep dependency scanning when using `lib_extra_dirs = ../../` for local library loading
+  - Fixes "TaskScheduler.h: No such file or directory" errors in CI builds
+  - Default "chain" mode doesn't resolve nested dependencies for local libraries
+
+- **Example Include Order (Critical)**: Fixed TaskScheduler configuration in example sketches
+  - Added `#include "painlessTaskOptions.h"` BEFORE `#include <TaskScheduler.h>` in all examples
+  - Ensures `_TASK_STD_FUNCTION` is defined before TaskScheduler compiles
+  - Incorrect order caused TaskScheduler to compile without std::function support, breaking lambda callbacks
+  - Fixes compilation errors: "no known conversion from lambda to TaskCallback"
+  - Affected examples: alteriomSensorNode, alteriomImproved, meshCommandNode, mqttCommandBridge, mqttStatusBridge, mqttTopologyTest
+
+- **alteriomImproved Example**: Added build flags to enable advanced features
+  - Added `-DPAINLESSMESH_ENABLE_VALIDATION` for message validation
+  - Added `-DPAINLESSMESH_ENABLE_METRICS` for performance metrics
+  - Added `-DPAINLESSMESH_ENABLE_MEMORY_OPTIMIZATION` for object pooling
+  - These features are optional and must be explicitly enabled via build flags
+
+### Changed
+
+- **FreeRTOS Stability**: Downgraded from dual-approach to single-approach fix
+  - Option A (semaphore timeout): ✅ Active (10ms → 100ms in mesh.hpp line 555)
+  - Option B (thread-safe scheduler): ❌ Disabled due to TaskScheduler v4.0.x limitations
+  - Trade-off: Prioritized library functionality and CI stability over maximum crash protection
+  - Future resolution requires either: TaskScheduler v4.1+ fix, library fork, or architecture rewrite
+
+### Documentation
+
+- Updated `SENSOR_NODE_CONNECTION_CRASH.md` with TaskScheduler compatibility notes
+- Added detailed comments in `painlessTaskOptions.h` explaining the incompatibility and workaround
+- Documented correct include order pattern for all examples using local library loading
+
 ## [1.7.4] - 2025-10-19
 
 ### Fixed
