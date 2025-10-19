@@ -113,7 +113,7 @@ void sendEnhancedStatus() {
   
   // Convert to JSON and send
   String msg;
-  DynamicJsonDocument doc(status.jsonObjectSize());
+  JsonDocument doc;  // ArduinoJson v7 uses automatic sizing
   JsonObject obj = doc.to<JsonObject>();
   status.addTo(std::move(obj));
   serializeJson(doc, msg);
@@ -132,7 +132,7 @@ void receivedCallback(uint32_t from, String& msg) {
   totalMessagesReceived++;
   
   // Parse the message to identify the type
-  DynamicJsonDocument doc(2048);
+  JsonDocument doc;  // ArduinoJson v7 uses automatic sizing
   DeserializationError error = deserializeJson(doc, msg);
   
   if (error) {
