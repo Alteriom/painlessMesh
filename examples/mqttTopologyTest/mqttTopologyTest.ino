@@ -51,6 +51,7 @@
  * @version 1.0.0
  */
 
+#include "painlessTaskOptions.h"  // Must be first to configure TaskScheduler
 #include <TaskScheduler.h>  // Required for LDF to find TaskScheduler dependency
 #include "painlessMesh.h"
 #ifdef ESP8266

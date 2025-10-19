@@ -1,3 +1,4 @@
+#include "painlessTaskOptions.h"  // Must be first to configure TaskScheduler
 #include <TaskScheduler.h>  // Required for LDF to find TaskScheduler dependency
 #include "painlessMesh.h"
 #include "alteriom_sensor_package.hpp"
