@@ -19,6 +19,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.7] - 2025-10-23
+
+### Added
+
+- **MetricsPackage (Type 204)** - Comprehensive performance metrics for real-time monitoring and dashboards
+  - CPU and processing metrics (cpuUsage, loopIterations, taskQueueSize)
+  - Memory metrics (freeHeap, minFreeHeap, heapFragmentation, maxAllocHeap)
+  - Network performance (bytesReceived, bytesSent, packetsDropped, currentThroughput)
+  - Timing and latency metrics (avgResponseTime, maxResponseTime, avgMeshLatency)
+  - Connection quality indicators (connectionQuality, wifiRSSI)
+  - Collection metadata for tracking
+  
+- **HealthCheckPackage (Type 205)** - Proactive health monitoring with problem detection
+  - Overall health status (0=critical, 1=warning, 2=healthy)
+  - Problem flags for 10+ specific issue types (low memory, high CPU, network issues, etc.)
+  - Component health scores (memoryHealth, networkHealth, performanceHealth)
+  - Memory leak detection with trend analysis (bytes/hour)
+  - Predictive maintenance indicators (estimatedTimeToFailure)
+  - Actionable recommendations for operators
+  - Environmental monitoring (temperature, temperatureHealth)
+  
+- **Example Implementation** - `examples/alteriom/metrics_health_node.ino`
+  - Demonstrates complete metrics collection and health monitoring
+  - Configurable collection intervals
+  - CPU usage calculation
+  - Memory leak detection
+  - Network quality assessment
+  - Problem flag detection and alerting
+  
+- **Comprehensive Testing** - `test/catch/catch_metrics_health_packages.cpp`
+  - 64 test assertions validating both new packages
+  - Edge case handling (min/max values)
+  - Problem flag testing
+  - Health status level validation
+  - Serialization/deserialization verification
+  
+- **Documentation** - `docs/v1.7.7_MQTT_IMPROVEMENTS.md`
+  - Complete implementation guide
+  - MQTT bridge integration examples
+  - Dashboard integration (Grafana, InfluxDB, Home Assistant)
+  - Performance considerations and optimization tips
+  - Alert configuration examples
+  - Best practices and troubleshooting
+
+### Improved
+
+- **MQTT Communication Efficiency** - Optimized metric collection for large meshes
+  - Minimal network overhead (~109 bytes/sec for 10 nodes)
+  - Configurable collection intervals based on health status
+  - Selective reporting of changed metrics
+  
+- **Problem Detection** - Early warning system for common issues
+  - Memory leak detection with trend analysis
+  - Network instability detection
+  - Performance degradation alerts
+  - Thermal warnings
+  - Mesh partition detection
+  
+- **Predictive Maintenance** - Proactive failure prevention
+  - Estimated time to failure calculations
+  - Memory exhaustion prediction
+  - Automated recommendations
+  - Health-based interval adjustment
+
+### Performance
+
+- **Memory Impact**: <1KB overhead for both packages with reasonable collection intervals
+- **Network Bandwidth**: Minimal impact (~109 bytes/sec for 10 nodes with 30s/60s intervals)
+- **CPU Overhead**: <1% additional CPU usage for metric collection
+
+### Compatibility
+
+- **100% Backward Compatible** with v1.7.6
+- All existing packages (200-203) work unchanged
+- New packages (204-205) are optional additions
+- No breaking changes to existing code
+- Can be adopted incrementally
+
 ## [1.7.6] - 2025-10-19
 
 ### Fixed

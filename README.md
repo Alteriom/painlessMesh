@@ -28,6 +28,8 @@ This fork includes specialized packages for structured IoT communication:
 - **`CommandPackage`** (Type 201) - Device control and automation commands  
 - **`StatusPackage`** (Type 202) - Health monitoring and system status reporting
 - **`EnhancedStatusPackage`** (Type 203) - Detailed performance metrics and mesh statistics
+- **`MetricsPackage`** (Type 204) - Comprehensive performance metrics for dashboards (v1.7.7+)
+- **`HealthCheckPackage`** (Type 205) - Proactive health monitoring and problem detection (v1.7.7+)
 
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging.
 
@@ -180,6 +182,8 @@ void receivedCallback(uint32_t from, String& msg) {
 | 201 | `CommandPackage` | Device control | `command`, `targetDevice`, `parameters`, `commandId` |
 | 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
 | 203 | `EnhancedStatusPackage` | Performance metrics | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate`, `alertFlags` |
+| 204 | `MetricsPackage` | Detailed metrics (v1.7.7+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
+| 205 | `HealthCheckPackage` | Health monitoring (v1.7.7+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
 
 ## Key Features
 

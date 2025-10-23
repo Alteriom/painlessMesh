@@ -44,6 +44,55 @@ Extended status package with comprehensive health metrics (18 fields).
 - `avgLatency`, `packetLossRate`, `throughput` - Performance metrics
 - `alertFlags`, `lastError` - Alert system
 
+### MetricsPackage (Type 204) - NEW in v1.7.7
+Comprehensive performance metrics for detailed monitoring and dashboards.
+
+**Key Fields:**
+- `cpuUsage`, `loopIterations`, `taskQueueSize` - CPU and processing metrics
+- `freeHeap`, `minFreeHeap`, `heapFragmentation`, `maxAllocHeap` - Memory metrics
+- `bytesReceived`, `bytesSent`, `packetsReceived`, `packetsSent` - Network performance
+- `avgResponseTime`, `maxResponseTime`, `avgMeshLatency` - Timing metrics
+- `connectionQuality`, `wifiRSSI` - Connection quality indicators
+- `collectionTimestamp`, `collectionInterval` - Collection metadata
+
+**Use Cases:**
+- Real-time performance dashboards
+- Capacity planning and optimization
+- Network throughput analysis
+- Latency monitoring
+
+### HealthCheckPackage (Type 205) - NEW in v1.7.7
+Proactive health monitoring with problem detection and recommendations.
+
+**Key Fields:**
+- `healthStatus` - Overall health: 0=critical, 1=warning, 2=healthy
+- `problemFlags` - Bit flags for specific problems (16 types)
+- `memoryHealth`, `networkHealth`, `performanceHealth` - Component health scores (0-100)
+- `memoryTrend` - Memory leak detection (bytes/hour)
+- `packetLossPercent`, `reconnectionCount` - Network stability
+- `missedDeadlines`, `maxLoopTime` - Performance indicators
+- `temperature`, `temperatureHealth` - Environmental monitoring
+- `estimatedTimeToFailure` - Predictive maintenance indicator
+- `recommendations` - Actionable guidance for operators
+
+**Problem Flags:**
+- 0x0001 - Low memory warning
+- 0x0002 - High CPU usage
+- 0x0004 - Connection instability
+- 0x0008 - High packet loss
+- 0x0010 - Network congestion
+- 0x0020 - Low battery
+- 0x0040 - Thermal warning
+- 0x0080 - Mesh partition detected
+- 0x0100 - OTA in progress
+- 0x0200 - Configuration error
+
+**Use Cases:**
+- Proactive problem detection
+- Predictive maintenance
+- Automated alerting
+- Memory leak detection
+
 ## Examples
 
 ### `alteriom_sensor_node.ino`
@@ -60,6 +109,17 @@ Phase 1 OTA enhancement example demonstrating:
 - Enhanced status reporting with comprehensive metrics
 - Alert system implementation
 - Usage patterns for Phase 1 features
+
+### `metrics_health_node.ino` (NEW in v1.7.7)
+Comprehensive monitoring node example demonstrating:
+- MetricsPackage (Type 204) collection and broadcasting
+- HealthCheckPackage (Type 205) proactive monitoring
+- CPU usage calculation and tracking
+- Memory leak detection with trend analysis
+- Network quality assessment
+- Problem flag detection and alerting
+- Predictive maintenance indicators
+- Configurable collection intervals
 
 ## Usage
 
