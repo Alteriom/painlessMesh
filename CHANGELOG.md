@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MQTT Schema v0.7.1 Compliance** - Updated to @alteriom/mqtt-schema v0.7.1
+  - Added `message_type` field to all packages for 90% faster classification
+  - MetricsPackage uses message_type 204
+  - HealthCheckPackage uses message_type 205
+  - Compatible with mesh bridge schema (type 603) for future integration
+  
 - **MetricsPackage (Type 204)** - Comprehensive performance metrics for real-time monitoring and dashboards
   - CPU and processing metrics (cpuUsage, loopIterations, taskQueueSize)
   - Memory metrics (freeHeap, minFreeHeap, heapFragmentation, maxAllocHeap)

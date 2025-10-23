@@ -276,6 +276,9 @@ class MetricsPackage : public painlessmesh::plugin::BroadcastPackage {
   // Collection metadata
   uint32_t collectionTimestamp = 0; // When metrics were collected
   uint32_t collectionInterval = 0;  // Interval between collections in ms
+  
+  // MQTT Schema v0.7.1+ message_type for faster classification
+  uint16_t messageType = 204;       // Custom metrics type code
 
   MetricsPackage() : BroadcastPackage(204) {}
 
@@ -305,6 +308,7 @@ class MetricsPackage : public painlessmesh::plugin::BroadcastPackage {
     
     collectionTimestamp = jsonObj["ts"];
     collectionInterval = jsonObj["interval"];
+    messageType = jsonObj["message_type"] | 204;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -341,6 +345,7 @@ class MetricsPackage : public painlessmesh::plugin::BroadcastPackage {
     // Metadata
     jsonObj["ts"] = collectionTimestamp;
     jsonObj["interval"] = collectionInterval;
+    jsonObj["message_type"] = messageType;  // MQTT Schema v0.7.1+
     
     return jsonObj;
   }
@@ -410,6 +415,9 @@ class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
   // Check metadata
   uint32_t checkTimestamp = 0;     // When check was performed
   uint32_t nextCheckDue = 0;       // When next check is due
+  
+  // MQTT Schema v0.7.1+ message_type for faster classification
+  uint16_t messageType = 205;      // Custom health check type code
 
   HealthCheckPackage() : BroadcastPackage(205) {}
 
@@ -440,6 +448,7 @@ class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
     
     checkTimestamp = jsonObj["ts"];
     nextCheckDue = jsonObj["nextCheck"];
+    messageType = jsonObj["message_type"] | 205;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -471,6 +480,7 @@ class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
     
     jsonObj["ts"] = checkTimestamp;
     jsonObj["nextCheck"] = nextCheckDue;
+    jsonObj["message_type"] = messageType;  // MQTT Schema v0.7.1+
     
     return jsonObj;
   }

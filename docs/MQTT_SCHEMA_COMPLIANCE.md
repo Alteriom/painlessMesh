@@ -6,10 +6,44 @@ The painlessMesh library is compliant with the **@alteriom/mqtt-schema** specifi
 
 ## Schema Package
 
-- **Package:** `@alteriom/mqtt-schema` v0.5.0 (latest)
+- **Package:** `@alteriom/mqtt-schema` v0.7.1 (latest)
 - **Registry:** npm (https://www.npmjs.com/package/@alteriom/mqtt-schema)
 - **Documentation:** https://github.com/Alteriom/alteriom-mqtt-schema
-- **Release:** v0.5.0 includes mesh topology and event schemas!
+- **Release:** v0.7.1 includes message type codes and mesh bridge schema!
+
+## v0.7.1 New Features
+
+### Message Type Codes (Faster Classification)
+
+The schema now includes standardized message type codes for 90% faster message classification:
+
+- **200:** SENSOR_DATA
+- **201:** SENSOR_HEARTBEAT  
+- **202:** SENSOR_STATUS
+- **204:** Custom - MetricsPackage (painlessMesh v1.7.7+)
+- **205:** Custom - HealthCheckPackage (painlessMesh v1.7.7+)
+- **300:** GATEWAY_INFO
+- **301:** GATEWAY_METRICS
+- **400:** COMMAND
+- **401:** COMMAND_RESPONSE
+- **500:** FIRMWARE_STATUS
+- **600:** MESH_NODE_LIST
+- **601:** MESH_TOPOLOGY
+- **602:** MESH_ALERT
+- **603:** MESH_BRIDGE (new in v0.7.1)
+
+All painlessMesh packages now include the optional `message_type` field for optimal performance.
+
+### Mesh Bridge Schema (Type 603)
+
+New schema for bridging painlessMesh protocol to MQTT, enabling standardized mesh protocol integration.
+
+**Key Features:**
+- Native painlessMesh message encapsulation
+- Support for SINGLE, BROADCAST, and other mesh message types
+- RSSI, hop count, and timing information
+- Optional payload decoding for MQTT v1 messages
+- Multiple mesh protocol support (painlessMesh, ESP-NOW, BLE Mesh, etc.)
 
 ---
 
