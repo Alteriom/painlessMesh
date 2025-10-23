@@ -130,7 +130,7 @@ SCENARIO("HealthCheckPackage serialization works correctly") {
         pkg.checkTimestamp = 1234567890;
         pkg.nextCheckDue = 1234571490;  // 1 hour later
         
-        REQUIRE(pkg.type == 205);
+        REQUIRE(pkg.type == 802);  // Updated to 802 (vendor-specific) per mqtt-schema v0.7.2
         
         WHEN("Converting it to and from Variant") {
             auto var = protocol::Variant(&pkg);

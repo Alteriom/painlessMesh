@@ -2,7 +2,7 @@
  * Alteriom Metrics and Health Monitoring Node
  * 
  * This example demonstrates the new MetricsPackage (Type 204) and 
- * HealthCheckPackage (Type 205) introduced in painlessMesh v1.7.7.
+ * HealthCheckPackage (Type 802) introduced in painlessMesh v1.7.7.
  * 
  * Features:
  * - Comprehensive performance metrics collection
@@ -60,7 +60,7 @@ uint16_t reconnectionCount = 0;
 void setup() {
   Serial.begin(115200);
   Serial.println("\n\n=== Alteriom Metrics & Health Monitoring Node ===");
-  Serial.println("painlessMesh v1.7.7 - Type 204 & 205 Packages");
+  Serial.println("painlessMesh v1.7.7 - Type 204 & 802 Packages");
   
   // Initialize mesh
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
@@ -389,13 +389,13 @@ void receivedCallback(uint32_t from, String& msg) {
     case 202:  // StatusPackage
       Serial.println("  -> Status");
       break;
-    case 203:  // EnhancedStatusPackage
+    case 800:  // EnhancedStatusPackage (vendor-specific)
       Serial.println("  -> Enhanced Status");
       break;
-    case 204:  // MetricsPackage
+    case 204:  // MetricsPackage (SENSOR_METRICS per schema v0.7.2+)
       Serial.println("  -> Metrics");
       break;
-    case 205:  // HealthCheckPackage
+    case 802:  // HealthCheckPackage (vendor-specific)
       Serial.println("  -> Health Check");
       break;
     default:

@@ -194,7 +194,7 @@ SCENARIO("Alteriom EnhancedStatusPackage serialization works correctly") {
         pkg.lastError = "Connection timeout";
         
         REQUIRE(pkg.routing == router::BROADCAST);
-        REQUIRE(pkg.type == 203);
+        REQUIRE(pkg.type == 800);  // Updated to 800 (vendor-specific) per mqtt-schema v0.7.2
         
         WHEN("Converting it to and from Variant") {
             auto var = protocol::Variant(&pkg);

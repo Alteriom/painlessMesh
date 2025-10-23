@@ -6,31 +6,51 @@ The painlessMesh library is compliant with the **@alteriom/mqtt-schema** specifi
 
 ## Schema Package
 
-- **Package:** `@alteriom/mqtt-schema` v0.7.1 (latest)
+- **Package:** `@alteriom/mqtt-schema` v0.7.2 (latest)
 - **Registry:** npm (https://www.npmjs.com/package/@alteriom/mqtt-schema)
 - **Documentation:** https://github.com/Alteriom/alteriom-mqtt-schema
-- **Release:** v0.7.1 includes message type codes and mesh bridge schema!
+- **Release:** v0.7.2 includes sensor metrics and enhanced message types!
 
-## v0.7.1 New Features
+## v0.7.2 Schema Alignment
 
 ### Message Type Codes (Faster Classification)
 
 The schema now includes standardized message type codes for 90% faster message classification:
 
-- **200:** SENSOR_DATA
-- **201:** SENSOR_HEARTBEAT  
-- **202:** SENSOR_STATUS
-- **204:** Custom - MetricsPackage (painlessMesh v1.7.7+)
-- **205:** Custom - HealthCheckPackage (painlessMesh v1.7.7+)
-- **300:** GATEWAY_INFO
-- **301:** GATEWAY_METRICS
-- **400:** COMMAND
-- **401:** COMMAND_RESPONSE
-- **500:** FIRMWARE_STATUS
-- **600:** MESH_NODE_LIST
-- **601:** MESH_TOPOLOGY
-- **602:** MESH_ALERT
-- **603:** MESH_BRIDGE (new in v0.7.1)
+**Standard Schema Codes:**
+- **200:** SENSOR_DATA - Sensor telemetry readings
+- **201:** SENSOR_HEARTBEAT - Sensor presence/health
+- **202:** SENSOR_STATUS - Sensor status change
+- **203:** SENSOR_INFO - Sensor identification and capabilities (v0.7.2+)
+- **204:** SENSOR_METRICS - Sensor health and performance metrics (v0.7.2+)
+- **300:** GATEWAY_INFO - Gateway identification
+- **301:** GATEWAY_METRICS - Gateway health metrics
+- **302:** GATEWAY_DATA - Gateway telemetry (v0.7.2+)
+- **303:** GATEWAY_HEARTBEAT - Gateway presence (v0.7.2+)
+- **304:** GATEWAY_STATUS - Gateway status (v0.7.2+)
+- **400:** COMMAND - Device control command
+- **401:** COMMAND_RESPONSE - Command execution result
+- **500:** FIRMWARE_STATUS - Firmware update status
+- **600:** MESH_NODE_LIST - Mesh node inventory
+- **601:** MESH_TOPOLOGY - Mesh network topology
+- **602:** MESH_ALERT - Mesh network alert
+- **603:** MESH_BRIDGE - Mesh protocol bridge (v0.7.1+)
+- **604:** MESH_STATUS - Mesh status (v0.7.2+)
+- **605:** MESH_METRICS - Mesh-level metrics (v0.7.2+)
+- **700:** DEVICE_CONFIG - Device configuration management
+
+**painlessMesh Custom Codes (Vendor-Specific 800+):**
+- **800:** EnhancedStatusPackage - Extended status with mesh statistics
+- **801:** Reserved for future use
+- **802:** HealthCheckPackage - Proactive health monitoring (v1.7.7+)
+
+**painlessMesh Schema-Aligned Codes:**
+- **200:** SensorPackage → SENSOR_DATA ✓
+- **202:** StatusPackage → SENSOR_STATUS ✓
+- **204:** MetricsPackage → SENSOR_METRICS ✓ (aligns with v0.7.2+)
+
+**Backward Compatibility Note:**
+- **201:** CommandPackage (conflicts with SENSOR_HEARTBEAT, kept for backward compatibility)
 
 All painlessMesh packages now include the optional `message_type` field for optimal performance.
 

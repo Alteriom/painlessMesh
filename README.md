@@ -182,8 +182,9 @@ void receivedCallback(uint32_t from, String& msg) {
 | 201 | `CommandPackage` | Device control | `command`, `targetDevice`, `parameters`, `commandId` |
 | 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
 | 203 | `EnhancedStatusPackage` | Performance metrics | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate`, `alertFlags` |
-| 204 | `MetricsPackage` | Detailed metrics (v1.7.7+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
-| 205 | `HealthCheckPackage` | Health monitoring (v1.7.7+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
+| 204 | `MetricsPackage` | Sensor metrics (v1.7.7+, aligns with schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
+| 800 | `EnhancedStatusPackage` | Enhanced status (vendor-specific) | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate` |
+| 802 | `HealthCheckPackage` | Health monitoring (v1.7.7+, vendor-specific) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
 
 ## Key Features
 

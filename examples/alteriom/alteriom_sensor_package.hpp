@@ -66,7 +66,7 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
   TSTRING parameters = "";    // Command parameters as JSON string
   uint32_t commandId = 0;     // Unique command identifier for tracking
 
-  CommandPackage() : SinglePackage(201) {}  // Type ID 201 for Alteriom commands
+  CommandPackage() : SinglePackage(201) {}  // Type ID 201 (NOTE: conflicts with schema SENSOR_HEARTBEAT, kept for backward compatibility)
 
   CommandPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {
     command = jsonObj["cmd"];
@@ -174,7 +174,7 @@ class EnhancedStatusPackage : public painlessmesh::plugin::BroadcastPackage {
   TSTRING lastError = "";  // Last error message for diagnostics
 
   EnhancedStatusPackage()
-      : BroadcastPackage(203) {}  // Type ID 203 for enhanced status
+      : BroadcastPackage(800) {}  // Type ID 800 for enhanced status (vendor-specific)
 
   EnhancedStatusPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     deviceStatus = jsonObj["status"];
@@ -277,8 +277,8 @@ class MetricsPackage : public painlessmesh::plugin::BroadcastPackage {
   uint32_t collectionTimestamp = 0; // When metrics were collected
   uint32_t collectionInterval = 0;  // Interval between collections in ms
   
-  // MQTT Schema v0.7.1+ message_type for faster classification
-  uint16_t messageType = 204;       // Custom metrics type code
+  // MQTT Schema v0.7.2+ message_type for faster classification
+  uint16_t messageType = 204;       // SENSOR_METRICS (aligns with schema v0.7.2+)
 
   MetricsPackage() : BroadcastPackage(204) {}
 
@@ -416,10 +416,10 @@ class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
   uint32_t checkTimestamp = 0;     // When check was performed
   uint32_t nextCheckDue = 0;       // When next check is due
   
-  // MQTT Schema v0.7.1+ message_type for faster classification
-  uint16_t messageType = 205;      // Custom health check type code
+  // MQTT Schema v0.7.2+ message_type for faster classification
+  uint16_t messageType = 802;      // Custom health check type code (vendor-specific 800+)
 
-  HealthCheckPackage() : BroadcastPackage(205) {}
+  HealthCheckPackage() : BroadcastPackage(802) {}
 
   HealthCheckPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     healthStatus = jsonObj["health"];
@@ -448,7 +448,7 @@ class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
     
     checkTimestamp = jsonObj["ts"];
     nextCheckDue = jsonObj["nextCheck"];
-    messageType = jsonObj["message_type"] | 205;
+    messageType = jsonObj["message_type"] | 802;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
