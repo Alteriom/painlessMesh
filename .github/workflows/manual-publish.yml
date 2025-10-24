@@ -1,0 +1,98 @@
+﻿name: Manual Package Publishing
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_npm:
+        description: 'Publish to NPM Registry'
+        required: true
+        type: boolean
+        default: true
+      publish_github:
+        description: 'Publish to GitHub Packages'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  npm-publish:
+    runs-on: ubuntu-latest
+    if: inputs.publish_npm
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js for NPM
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Install dependencies
+      run: npm install --ignore-scripts
+    
+    - name: Read version
+      id: version
+      run: |
+        VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Publishing version: $VERSION"
+    
+    - name: Publish to NPM
+      run: |
+        echo " Publishing to NPM..."
+        npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    
+    - name: Success
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        echo " NPM Publication Successful!"
+        echo " Package: @alteriom/painlessmesh@$VERSION"
+        echo " https://www.npmjs.com/package/@alteriom/painlessmesh"
+
+  github-packages-publish:
+    runs-on: ubuntu-latest
+    if: inputs.publish_github
+    continue-on-error: true
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@alteriom'
+    
+    - name: Install dependencies
+      run: npm install --ignore-scripts
+    
+    - name: Configure package.json
+      run: |
+        jq '.publishConfig = {"@alteriom:registry": "https://npm.pkg.github.com"}' package.json > package.json.tmp
+        mv package.json.tmp package.json
+    
+    - name: Publish to GitHub Packages
+      run: npm publish
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Success
+      run: echo " GitHub Packages publication successful!"
