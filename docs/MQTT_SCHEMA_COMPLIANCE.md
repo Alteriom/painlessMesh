@@ -39,10 +39,9 @@ The schema now includes standardized message type codes for 90% faster message c
 - **605:** MESH_METRICS - Mesh-level metrics (v0.7.2+)
 - **700:** DEVICE_CONFIG - Device configuration management
 
-**painlessMesh Custom Codes (Vendor-Specific 800+):**
-- **800:** EnhancedStatusPackage - Extended status with mesh statistics
-- **801:** Reserved for future use
-- **802:** HealthCheckPackage - Proactive health monitoring (v1.7.7+)
+**painlessMesh Mesh-Specific Codes (600+ range):**
+- **604:** EnhancedStatusPackage → MESH_STATUS (v1.7.7+)
+- **605:** HealthCheckPackage → MESH_METRICS (v1.7.7+)
 
 **painlessMesh Schema-Aligned Codes:**
 - **200:** SensorPackage → SENSOR_DATA ✓

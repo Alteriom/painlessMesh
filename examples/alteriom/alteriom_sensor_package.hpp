@@ -174,7 +174,7 @@ class EnhancedStatusPackage : public painlessmesh::plugin::BroadcastPackage {
   TSTRING lastError = "";  // Last error message for diagnostics
 
   EnhancedStatusPackage()
-      : BroadcastPackage(800) {}  // Type ID 800 for enhanced status (vendor-specific)
+      : BroadcastPackage(604) {}  // Type ID 604 for enhanced status (MESH_STATUS per mqtt-schema v0.7.2+)
 
   EnhancedStatusPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     deviceStatus = jsonObj["status"];
@@ -362,7 +362,7 @@ class MetricsPackage : public painlessmesh::plugin::BroadcastPackage {
  *
  * Provides early warning indicators and health status to detect issues
  * before they cause failures. Used for predictive maintenance and alerting.
- * Type ID 802 for Alteriom health checks (vendor-specific per mqtt-schema v0.7.2+).
+ * Type ID 605 for Alteriom health checks (MESH_METRICS per mqtt-schema v0.7.2+).
  */
 class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
@@ -417,9 +417,9 @@ class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
   uint32_t nextCheckDue = 0;       // When next check is due
   
   // MQTT Schema v0.7.2+ message_type for faster classification
-  uint16_t messageType = 802;      // Custom health check type code (vendor-specific 800+)
+  uint16_t messageType = 605;      // MESH_METRICS type code (mesh performance health per mqtt-schema v0.7.2+)
 
-  HealthCheckPackage() : BroadcastPackage(802) {}
+  HealthCheckPackage() : BroadcastPackage(605) {}
 
   HealthCheckPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     healthStatus = jsonObj["health"];
@@ -448,7 +448,7 @@ class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
     
     checkTimestamp = jsonObj["ts"];
     nextCheckDue = jsonObj["nextCheck"];
-    messageType = jsonObj["message_type"] | 802;
+    messageType = jsonObj["message_type"] | 605;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {

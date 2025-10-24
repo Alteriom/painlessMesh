@@ -26,8 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MQTT Schema v0.7.2 Compliance** - Updated to @alteriom/mqtt-schema v0.7.2
   - Added `message_type` field to all packages for 90% faster classification
   - MetricsPackage (204) now aligns with schema SENSOR_METRICS (v0.7.2+)
-  - HealthCheckPackage moved to 802 (vendor-specific custom code)
-  - EnhancedStatusPackage moved to 800 (vendor-specific custom code)
+  - HealthCheckPackage uses 605 (MESH_METRICS per mqtt-schema v0.7.2+)
+  - EnhancedStatusPackage uses 604 (MESH_STATUS per mqtt-schema v0.7.2+)
   - Compatible with mesh bridge schema (type 603) for future integration
   
 - **MetricsPackage (Type 204)** - Comprehensive performance metrics for real-time monitoring and dashboards
@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Connection quality indicators (connectionQuality, wifiRSSI)
   - Collection metadata for tracking
   
-- **HealthCheckPackage (Type 802)** - Proactive health monitoring with problem detection (vendor-specific code per mqtt-schema v0.7.2+)
+- **HealthCheckPackage (Type 605)** - Proactive health monitoring with problem detection (MESH_METRICS per mqtt-schema v0.7.2+)
   - Overall health status (0=critical, 1=warning, 2=healthy)
   - Problem flags for 10+ specific issue types (low memory, high CPU, network issues, etc.)
   - Component health scores (memoryHealth, networkHealth, performanceHealth)
@@ -100,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **100% Backward Compatible** with v1.7.6
 - All existing packages (200-203) work unchanged
-- New packages (204, 802) are optional additions
+- New packages (204, 604, 605) are optional additions
 - No breaking changes to existing code
 - Can be adopted incrementally
 

@@ -7,7 +7,7 @@
  * Extends the basic MQTT bridge with:
  * - Command handlers for requesting specific metrics
  * - Aggregated network statistics
- * - Support for MetricsPackage (Type 204) and HealthCheckPackage (Type 802)
+ * - Support for MetricsPackage (Type 204) and HealthCheckPackage (Type 605)
  * - Real-time metric requests and responses
  * - Network-wide health aggregation
  * 
@@ -218,7 +218,7 @@ private:
       case 204:  // MetricsPackage (SENSOR_METRICS per schema v0.7.2+)
         handleMetricsPackage(from, obj);
         break;
-      case 802:  // HealthCheckPackage (vendor-specific)
+      case 605:  // HealthCheckPackage (MESH_METRICS per schema v0.7.2+)
         handleHealthPackage(from, obj);
         break;
       case CMD_METRICS_RESPONSE:

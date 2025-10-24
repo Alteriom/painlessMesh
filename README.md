@@ -29,7 +29,7 @@ This fork includes specialized packages for structured IoT communication:
 - **`StatusPackage`** (Type 202) - Health monitoring and system status reporting
 - **`EnhancedStatusPackage`** (Type 203) - Detailed performance metrics and mesh statistics
 - **`MetricsPackage`** (Type 204) - Comprehensive performance metrics for dashboards (v1.7.7+)
-- **`HealthCheckPackage`** (Type 802) - Proactive health monitoring and problem detection (v1.7.7+, vendor-specific)
+- **`HealthCheckPackage`** (Type 605) - Proactive health monitoring and problem detection (v1.7.7+, MESH_METRICS)
 
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging.
 
@@ -183,8 +183,8 @@ void receivedCallback(uint32_t from, String& msg) {
 | 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
 | 203 | `EnhancedStatusPackage` | Performance metrics | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate`, `alertFlags` |
 | 204 | `MetricsPackage` | Sensor metrics (v1.7.7+, aligns with schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
-| 800 | `EnhancedStatusPackage` | Enhanced status (vendor-specific) | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate` |
-| 802 | `HealthCheckPackage` | Health monitoring (v1.7.7+, vendor-specific) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
+| 604 | `EnhancedStatusPackage` | Mesh status (MESH_STATUS per schema v0.7.2+) | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate` |
+| 605 | `HealthCheckPackage` | Mesh metrics (v1.7.7+, MESH_METRICS per schema v0.7.2+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
 
 ## Key Features
 
