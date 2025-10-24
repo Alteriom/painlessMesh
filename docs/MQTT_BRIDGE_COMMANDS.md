@@ -36,7 +36,7 @@ Target Node → Mesh Network → Gateway Bridge → MQTT Broker → Web Applicat
 
 | Direction | Package Type | Purpose |
 |-----------|--------------|---------|
-| MQTT → Mesh | CommandPackage (201) | Control device, request data |
+| MQTT → Mesh | CommandPackage (400) | Control device, request data |
 | Mesh → MQTT | StatusPackage (202) | Report device status |
 | Mesh → MQTT | SensorPackage (200) | Sensor data reports |
 | Mesh → MQTT | EnhancedStatusPackage (203) | Detailed health metrics |
@@ -74,7 +74,7 @@ Target Node → Mesh Network → Gateway Bridge → MQTT Broker → Web Applicat
 | Command ID | Name | Description | Parameters |
 |------------|------|-------------|------------|
 | 200 | GET_STATUS | Request basic status | None |
-| 201 | GET_METRICS | Request performance metrics | None |
+| 400 | GET_METRICS | Request performance metrics | None |
 | 202 | GET_DIAGNOSTICS | Request detailed diagnostics | None |
 | 210 | START_MONITORING | Begin continuous monitoring | `interval_ms` (uint32_t) |
 | 211 | STOP_MONITORING | Stop continuous monitoring | None |
@@ -155,7 +155,7 @@ alteriom/mesh/{mesh_id}/events            # Real-time mesh state change events
 
 ## Command Definitions
 
-### CommandPackage Structure (Type 201)
+### CommandPackage (Type 400)
 
 Defined in `examples/alteriom/alteriom_sensor_package.hpp`:
 
@@ -167,7 +167,7 @@ public:
   uint32_t commandId = 0;       // Unique command tracking ID
   TSTRING parameters = "";      // JSON-encoded parameters
   
-  CommandPackage() : SinglePackage(201) {}
+  CommandPackage() : SinglePackage(400) {}
 };
 ```
 
@@ -235,7 +235,7 @@ The gateway bridge is implemented in `examples/bridge/mqtt_command_bridge.hpp` a
 Mesh nodes implement command handlers in `examples/alteriom/mesh_command_node.ino`:
 
 1. **Command Reception**
-   - Listen for CommandPackage (Type 201)
+   - Listen for CommandPackage (Type 400)
    - Parse command and parameters
    - Execute appropriate action
 
@@ -354,7 +354,7 @@ The mesh topology system provides real-time visibility into the structure and he
 
 ```json
 {
-  "type": 201,
+  "type": 400,
   "command": 300,
   "targetDevice": 0,
   "commandId": 12345,
@@ -525,7 +525,7 @@ client.loop_forever()
 
 ```json
 {
-  "type": 201,
+  "type": 400,
   "command": 10,
   "targetDevice": 123456,
   "commandId": 1001,
@@ -554,7 +554,7 @@ client.loop_forever()
 
 ```json
 {
-  "type": 201,
+  "type": 400,
   "command": 100,
   "targetDevice": 0,
   "commandId": 2001,
@@ -594,7 +594,7 @@ All nodes respond with their configuration on respective `mesh/config/<nodeId>` 
 
 ```json
 {
-  "type": 201,
+  "type": 400,
   "command": 200,
   "targetDevice": 123456,
   "commandId": 3001,
@@ -673,7 +673,7 @@ def on_connect(client, userdata, flags, rc):
     
     # Send LED control command
     command = {
-        "type": 201,
+        "type": 400,
         "command": 10,
         "targetDevice": 123456,
         "commandId": int(time.time() * 1000),

@@ -6,10 +6,65 @@ The painlessMesh library is compliant with the **@alteriom/mqtt-schema** specifi
 
 ## Schema Package
 
-- **Package:** `@alteriom/mqtt-schema` v0.5.0 (latest)
+- **Package:** `@alteriom/mqtt-schema` v0.7.2 (latest)
 - **Registry:** npm (https://www.npmjs.com/package/@alteriom/mqtt-schema)
 - **Documentation:** https://github.com/Alteriom/alteriom-mqtt-schema
-- **Release:** v0.5.0 includes mesh topology and event schemas!
+- **Release:** v0.7.2 includes sensor metrics and enhanced message types!
+
+## v0.7.2 Schema Alignment
+
+### Message Type Codes (Faster Classification)
+
+The schema now includes standardized message type codes for 90% faster message classification:
+
+**Standard Schema Codes:**
+- **200:** SENSOR_DATA - Sensor telemetry readings
+- **201:** SENSOR_HEARTBEAT - Sensor presence/health
+- **202:** SENSOR_STATUS - Sensor status change
+- **203:** SENSOR_INFO - Sensor identification and capabilities (v0.7.2+)
+- **204:** SENSOR_METRICS - Sensor health and performance metrics (v0.7.2+)
+- **300:** GATEWAY_INFO - Gateway identification
+- **301:** GATEWAY_METRICS - Gateway health metrics
+- **302:** GATEWAY_DATA - Gateway telemetry (v0.7.2+)
+- **303:** GATEWAY_HEARTBEAT - Gateway presence (v0.7.2+)
+- **304:** GATEWAY_STATUS - Gateway status (v0.7.2+)
+- **400:** COMMAND - Device control command
+- **401:** COMMAND_RESPONSE - Command execution result
+- **500:** FIRMWARE_STATUS - Firmware update status
+- **600:** MESH_NODE_LIST - Mesh node inventory
+- **601:** MESH_TOPOLOGY - Mesh network topology
+- **602:** MESH_ALERT - Mesh network alert
+- **603:** MESH_BRIDGE - Mesh protocol bridge (v0.7.1+)
+- **604:** MESH_STATUS - Mesh status (v0.7.2+)
+- **605:** MESH_METRICS - Mesh-level metrics (v0.7.2+)
+- **700:** DEVICE_CONFIG - Device configuration management
+
+**painlessMesh Mesh-Specific Codes (600+ range):**
+- **600:** MeshNodeListPackage → MESH_NODE_LIST (v1.7.7+)
+- **601:** MeshTopologyPackage → MESH_TOPOLOGY (v1.7.7+)
+- **602:** MeshAlertPackage → MESH_ALERT (v1.7.7+)
+- **603:** MeshBridgePackage → MESH_BRIDGE (v1.7.7+)
+- **604:** EnhancedStatusPackage → MESH_STATUS (v1.7.7+)
+- **605:** HealthCheckPackage → MESH_METRICS (v1.7.7+)
+
+**painlessMesh Schema-Aligned Codes:**
+- **200:** SensorPackage → SENSOR_DATA ✓
+- **202:** StatusPackage → SENSOR_STATUS ✓
+- **204:** MetricsPackage → SENSOR_METRICS ✓ (aligns with v0.7.2+)
+- **400:** CommandPackage → COMMAND ✓ (moved from 201 in v1.7.7 for full schema compliance)
+
+All painlessMesh packages now include the optional `message_type` field for optimal performance.
+
+### Mesh Bridge Schema (Type 603)
+
+New schema for bridging painlessMesh protocol to MQTT, enabling standardized mesh protocol integration.
+
+**Key Features:**
+- Native painlessMesh message encapsulation
+- Support for SINGLE, BROADCAST, and other mesh message types
+- RSSI, hop count, and timing information
+- Optional payload decoding for MQTT v1 messages
+- Multiple mesh protocol support (painlessMesh, ESP-NOW, BLE Mesh, etc.)
 
 ---
 

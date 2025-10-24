@@ -186,7 +186,7 @@ void receivedCallback(uint32_t from, String& msg) {
     case 200:  // SensorPackage
       handleSensorData(alteriom::SensorPackage(obj), from);
       break;
-    case 201:  // CommandPackage
+    case 400:  // CommandPackage
       handleCommand(alteriom::CommandPackage(obj), from);
       break;
     case 202:  // StatusPackage

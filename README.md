@@ -25,9 +25,15 @@ This fork includes specialized packages for structured IoT communication:
 #### Custom Package Types
 
 - **`SensorPackage`** (Type 200) - Environmental data collection (temperature, humidity, pressure, battery levels)
-- **`CommandPackage`** (Type 201) - Device control and automation commands  
+- **`CommandPackage`** (Type 400) - Device control and automation commands (COMMAND per mqtt-schema v0.7.2+)
 - **`StatusPackage`** (Type 202) - Health monitoring and system status reporting
-- **`EnhancedStatusPackage`** (Type 203) - Detailed performance metrics and mesh statistics
+- **`MetricsPackage`** (Type 204) - Comprehensive performance metrics for dashboards (v1.7.7+, SENSOR_METRICS)
+- **`MeshNodeListPackage`** (Type 600) - Mesh node inventory and discovery (v1.7.7+, MESH_NODE_LIST)
+- **`MeshTopologyPackage`** (Type 601) - Network topology and connections (v1.7.7+, MESH_TOPOLOGY)
+- **`MeshAlertPackage`** (Type 602) - Mesh network alerts (v1.7.7+, MESH_ALERT)
+- **`MeshBridgePackage`** (Type 603) - Mesh protocol bridging (v1.7.7+, MESH_BRIDGE)
+- **`EnhancedStatusPackage`** (Type 604) - Detailed mesh status (v1.7.7+, MESH_STATUS)
+- **`HealthCheckPackage`** (Type 605) - Proactive health monitoring and problem detection (v1.7.7+, MESH_METRICS)
 
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging.
 
@@ -179,7 +185,13 @@ void receivedCallback(uint32_t from, String& msg) {
 | 200 | `SensorPackage` | Environmental data | `temperature`, `humidity`, `pressure`, `sensorId`, `timestamp`, `batteryLevel` |
 | 201 | `CommandPackage` | Device control | `command`, `targetDevice`, `parameters`, `commandId` |
 | 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
-| 203 | `EnhancedStatusPackage` | Performance metrics | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate`, `alertFlags` |
+| 204 | `MetricsPackage` | Sensor metrics (v1.7.7+, aligns with schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
+| 600 | `MeshNodeListPackage` | Mesh node list (v1.7.7+, MESH_NODE_LIST) | `nodes[]` (nodeId, status, lastSeen, signalStrength), `nodeCount`, `meshId` |
+| 601 | `MeshTopologyPackage` | Mesh topology (v1.7.7+, MESH_TOPOLOGY) | `connections[]` (fromNode, toNode, linkQuality, latencyMs), `rootNode` |
+| 602 | `MeshAlertPackage` | Mesh alerts (v1.7.7+, MESH_ALERT) | `alerts[]` (alertType, severity, message, nodeId), `alertCount` |
+| 603 | `MeshBridgePackage` | Mesh bridge (v1.7.7+, MESH_BRIDGE) | `meshProtocol`, `fromNodeId`, `toNodeId`, `meshType`, `rawPayload`, `rssi`, `hopCount` |
+| 604 | `EnhancedStatusPackage` | Mesh status (MESH_STATUS per schema v0.7.2+) | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate` |
+| 605 | `HealthCheckPackage` | Mesh metrics (v1.7.7+, MESH_METRICS per schema v0.7.2+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
 
 ## Key Features
 
