@@ -540,9 +540,9 @@ class MeshNodeListPackage : public painlessmesh::plugin::BroadcastPackage {
   JsonObject addTo(JsonObject&& jsonObj) const {
     jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
     
-    JsonArray nodesArray = jsonObj.createNestedArray("nodes");
+    JsonArray nodesArray = jsonObj["nodes"].to<JsonArray>();
     for (uint8_t i = 0; i < nodeCount; i++) {
-      JsonObject node = nodesArray.createNestedObject();
+      JsonObject node = nodesArray.add<JsonObject>();
       node["nodeId"] = nodes[i].nodeId;
       node["status"] = nodes[i].status;
       node["lastSeen"] = nodes[i].lastSeen;
@@ -616,9 +616,9 @@ class MeshTopologyPackage : public painlessmesh::plugin::BroadcastPackage {
   JsonObject addTo(JsonObject&& jsonObj) const {
     jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
     
-    JsonArray connsArray = jsonObj.createNestedArray("connections");
+    JsonArray connsArray = jsonObj["connections"].to<JsonArray>();
     for (uint8_t i = 0; i < connectionCount; i++) {
-      JsonObject conn = connsArray.createNestedObject();
+      JsonObject conn = connsArray.add<JsonObject>();
       conn["from"] = connections[i].fromNode;
       conn["to"] = connections[i].toNode;
       conn["quality"] = connections[i].linkQuality;
@@ -694,9 +694,9 @@ class MeshAlertPackage : public painlessmesh::plugin::BroadcastPackage {
   JsonObject addTo(JsonObject&& jsonObj) const {
     jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
     
-    JsonArray alertsArray = jsonObj.createNestedArray("alerts");
+    JsonArray alertsArray = jsonObj["alerts"].to<JsonArray>();
     for (uint8_t i = 0; i < alertCount; i++) {
-      JsonObject alert = alertsArray.createNestedObject();
+      JsonObject alert = alertsArray.add<JsonObject>();
       alert["type"] = alerts[i].alertType;
       alert["severity"] = alerts[i].severity;
       alert["msg"] = alerts[i].message;
