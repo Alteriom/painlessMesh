@@ -81,8 +81,15 @@ jobs:
         registry-url: 'https://npm.pkg.github.com'
         scope: '@alteriom'
     
+    - name: Configure npm for GitHub Packages
+      run: |
+        echo "@alteriom:registry=https://npm.pkg.github.com" >> .npmrc
+        echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+    
     - name: Install dependencies
       run: npm install --ignore-scripts
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Configure package.json
       run: |
