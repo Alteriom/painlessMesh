@@ -130,9 +130,13 @@ unsigned long lastTopologyUpdate = 0;
  * Format: ALT-XXXXXXXXXXXX (uppercase hex)
  */
 String getDeviceId() {
+#ifdef ESP32
   uint64_t chipid = ESP.getEfuseMac();  // ESP32 unique ID
+#else
+  uint32_t chipid = ESP.getChipId();    // ESP8266 chip ID
+#endif
   char deviceId[17];
-  snprintf(deviceId, sizeof(deviceId), "ALT-%012llX", chipid);
+  snprintf(deviceId, sizeof(deviceId), "ALT-%012llX", (uint64_t)chipid);
   return String(deviceId);
 }
 
