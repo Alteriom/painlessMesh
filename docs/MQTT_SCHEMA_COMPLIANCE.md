@@ -40,6 +40,10 @@ The schema now includes standardized message type codes for 90% faster message c
 - **700:** DEVICE_CONFIG - Device configuration management
 
 **painlessMesh Mesh-Specific Codes (600+ range):**
+- **600:** MeshNodeListPackage → MESH_NODE_LIST (v1.7.7+)
+- **601:** MeshTopologyPackage → MESH_TOPOLOGY (v1.7.7+)
+- **602:** MeshAlertPackage → MESH_ALERT (v1.7.7+)
+- **603:** MeshBridgePackage → MESH_BRIDGE (v1.7.7+)
 - **604:** EnhancedStatusPackage → MESH_STATUS (v1.7.7+)
 - **605:** HealthCheckPackage → MESH_METRICS (v1.7.7+)
 

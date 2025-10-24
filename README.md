@@ -181,8 +181,11 @@ void receivedCallback(uint32_t from, String& msg) {
 | 200 | `SensorPackage` | Environmental data | `temperature`, `humidity`, `pressure`, `sensorId`, `timestamp`, `batteryLevel` |
 | 201 | `CommandPackage` | Device control | `command`, `targetDevice`, `parameters`, `commandId` |
 | 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
-| 203 | `EnhancedStatusPackage` | Performance metrics | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate`, `alertFlags` |
 | 204 | `MetricsPackage` | Sensor metrics (v1.7.7+, aligns with schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
+| 600 | `MeshNodeListPackage` | Mesh node list (v1.7.7+, MESH_NODE_LIST) | `nodes[]` (nodeId, status, lastSeen, signalStrength), `nodeCount`, `meshId` |
+| 601 | `MeshTopologyPackage` | Mesh topology (v1.7.7+, MESH_TOPOLOGY) | `connections[]` (fromNode, toNode, linkQuality, latencyMs), `rootNode` |
+| 602 | `MeshAlertPackage` | Mesh alerts (v1.7.7+, MESH_ALERT) | `alerts[]` (alertType, severity, message, nodeId), `alertCount` |
+| 603 | `MeshBridgePackage` | Mesh bridge (v1.7.7+, MESH_BRIDGE) | `meshProtocol`, `fromNodeId`, `toNodeId`, `meshType`, `rawPayload`, `rssi`, `hopCount` |
 | 604 | `EnhancedStatusPackage` | Mesh status (MESH_STATUS per schema v0.7.2+) | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate` |
 | 605 | `HealthCheckPackage` | Mesh metrics (v1.7.7+, MESH_METRICS per schema v0.7.2+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
 

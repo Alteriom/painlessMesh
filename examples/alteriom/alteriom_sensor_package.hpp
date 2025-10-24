@@ -492,6 +492,304 @@ class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
 #endif
 };
 
+/**
+ * @brief Mesh node information for a single node
+ */
+struct MeshNodeInfo {
+  uint32_t nodeId = 0;          // Node identifier
+  uint8_t status = 0;           // 0=offline, 1=online, 2=unreachable
+  uint32_t lastSeen = 0;        // Unix timestamp of last communication
+  int8_t signalStrength = 0;    // RSSI in dBm
+};
+
+/**
+ * @brief Mesh node list package (Type 600 - MESH_NODE_LIST)
+ *
+ * Provides list of all nodes in the mesh network with their status.
+ * Type ID 600 for MESH_NODE_LIST per mqtt-schema v0.7.2+.
+ */
+class MeshNodeListPackage : public painlessmesh::plugin::BroadcastPackage {
+ public:
+  // Array of node information (max 50 nodes)
+  MeshNodeInfo nodes[50];
+  uint8_t nodeCount = 0;        // Actual number of nodes
+  TSTRING meshId = "";          // Mesh network identifier
+  
+  // MQTT Schema v0.7.2+ message_type
+  uint16_t messageType = 600;   // MESH_NODE_LIST
+
+  MeshNodeListPackage() : BroadcastPackage(600) {}
+
+  MeshNodeListPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    JsonArray nodesArray = jsonObj["nodes"];
+    nodeCount = nodesArray.size();
+    if (nodeCount > 50) nodeCount = 50;
+    
+    for (uint8_t i = 0; i < nodeCount; i++) {
+      JsonObject node = nodesArray[i];
+      nodes[i].nodeId = node["nodeId"];
+      nodes[i].status = node["status"];
+      nodes[i].lastSeen = node["lastSeen"];
+      nodes[i].signalStrength = node["rssi"];
+    }
+    
+    meshId = jsonObj["meshId"].as<TSTRING>();
+    messageType = jsonObj["message_type"] | 600;
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    
+    JsonArray nodesArray = jsonObj.createNestedArray("nodes");
+    for (uint8_t i = 0; i < nodeCount; i++) {
+      JsonObject node = nodesArray.createNestedObject();
+      node["nodeId"] = nodes[i].nodeId;
+      node["status"] = nodes[i].status;
+      node["lastSeen"] = nodes[i].lastSeen;
+      node["rssi"] = nodes[i].signalStrength;
+    }
+    
+    jsonObj["nodeCount"] = nodeCount;
+    jsonObj["meshId"] = meshId;
+    jsonObj["message_type"] = messageType;
+    
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    return JSON_OBJECT_SIZE(noJsonFields + 3) + 
+           JSON_ARRAY_SIZE(nodeCount) + 
+           nodeCount * JSON_OBJECT_SIZE(4) +
+           meshId.length();
+  }
+#endif
+};
+
+/**
+ * @brief Mesh connection information
+ */
+struct MeshConnection {
+  uint32_t fromNode = 0;        // Source node ID
+  uint32_t toNode = 0;          // Destination node ID
+  float linkQuality = 0.0;      // Link quality 0.0-1.0
+  uint16_t latencyMs = 0;       // Latency in milliseconds
+  uint8_t hopCount = 1;         // Number of hops
+};
+
+/**
+ * @brief Mesh topology package (Type 601 - MESH_TOPOLOGY)
+ *
+ * Provides mesh network topology with all connections.
+ * Type ID 601 for MESH_TOPOLOGY per mqtt-schema v0.7.2+.
+ */
+class MeshTopologyPackage : public painlessmesh::plugin::BroadcastPackage {
+ public:
+  // Array of connections (max 100 connections)
+  MeshConnection connections[100];
+  uint8_t connectionCount = 0;  // Actual number of connections
+  uint32_t rootNode = 0;        // Root/gateway node ID
+  
+  // MQTT Schema v0.7.2+ message_type
+  uint16_t messageType = 601;   // MESH_TOPOLOGY
+
+  MeshTopologyPackage() : BroadcastPackage(601) {}
+
+  MeshTopologyPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    JsonArray connsArray = jsonObj["connections"];
+    connectionCount = connsArray.size();
+    if (connectionCount > 100) connectionCount = 100;
+    
+    for (uint8_t i = 0; i < connectionCount; i++) {
+      JsonObject conn = connsArray[i];
+      connections[i].fromNode = conn["from"];
+      connections[i].toNode = conn["to"];
+      connections[i].linkQuality = conn["quality"];
+      connections[i].latencyMs = conn["latency"];
+      connections[i].hopCount = conn["hops"];
+    }
+    
+    rootNode = jsonObj["rootNode"];
+    messageType = jsonObj["message_type"] | 601;
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    
+    JsonArray connsArray = jsonObj.createNestedArray("connections");
+    for (uint8_t i = 0; i < connectionCount; i++) {
+      JsonObject conn = connsArray.createNestedObject();
+      conn["from"] = connections[i].fromNode;
+      conn["to"] = connections[i].toNode;
+      conn["quality"] = connections[i].linkQuality;
+      conn["latency"] = connections[i].latencyMs;
+      conn["hops"] = connections[i].hopCount;
+    }
+    
+    jsonObj["totalConnections"] = connectionCount;
+    jsonObj["rootNode"] = rootNode;
+    jsonObj["message_type"] = messageType;
+    
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    return JSON_OBJECT_SIZE(noJsonFields + 3) + 
+           JSON_ARRAY_SIZE(connectionCount) + 
+           connectionCount * JSON_OBJECT_SIZE(5);
+  }
+#endif
+};
+
+/**
+ * @brief Mesh alert information
+ */
+struct MeshAlert {
+  uint8_t alertType = 0;        // 0=low_memory, 1=node_offline, 2=connection_lost, etc.
+  uint8_t severity = 0;         // 0=info, 1=warning, 2=critical
+  TSTRING message = "";         // Human-readable message
+  uint32_t nodeId = 0;          // Related node ID
+  float metricValue = 0.0;      // Related metric value
+  float threshold = 0.0;        // Threshold that triggered alert
+  uint32_t alertId = 0;         // Unique alert ID
+};
+
+/**
+ * @brief Mesh alert package (Type 602 - MESH_ALERT)
+ *
+ * Provides mesh network alerts for critical events.
+ * Type ID 602 for MESH_ALERT per mqtt-schema v0.7.2+.
+ */
+class MeshAlertPackage : public painlessmesh::plugin::BroadcastPackage {
+ public:
+  // Array of alerts (max 20 alerts)
+  MeshAlert alerts[20];
+  uint8_t alertCount = 0;       // Actual number of alerts
+  
+  // MQTT Schema v0.7.2+ message_type
+  uint16_t messageType = 602;   // MESH_ALERT
+
+  MeshAlertPackage() : BroadcastPackage(602) {}
+
+  MeshAlertPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    JsonArray alertsArray = jsonObj["alerts"];
+    alertCount = alertsArray.size();
+    if (alertCount > 20) alertCount = 20;
+    
+    for (uint8_t i = 0; i < alertCount; i++) {
+      JsonObject alert = alertsArray[i];
+      alerts[i].alertType = alert["type"];
+      alerts[i].severity = alert["severity"];
+      alerts[i].message = alert["msg"].as<TSTRING>();
+      alerts[i].nodeId = alert["nodeId"];
+      alerts[i].metricValue = alert["value"];
+      alerts[i].threshold = alert["threshold"];
+      alerts[i].alertId = alert["alertId"];
+    }
+    
+    messageType = jsonObj["message_type"] | 602;
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    
+    JsonArray alertsArray = jsonObj.createNestedArray("alerts");
+    for (uint8_t i = 0; i < alertCount; i++) {
+      JsonObject alert = alertsArray.createNestedObject();
+      alert["type"] = alerts[i].alertType;
+      alert["severity"] = alerts[i].severity;
+      alert["msg"] = alerts[i].message;
+      alert["nodeId"] = alerts[i].nodeId;
+      alert["value"] = alerts[i].metricValue;
+      alert["threshold"] = alerts[i].threshold;
+      alert["alertId"] = alerts[i].alertId;
+    }
+    
+    jsonObj["alertCount"] = alertCount;
+    jsonObj["message_type"] = messageType;
+    
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    size_t size = JSON_OBJECT_SIZE(noJsonFields + 2) + 
+                  JSON_ARRAY_SIZE(alertCount) + 
+                  alertCount * JSON_OBJECT_SIZE(7);
+    for (uint8_t i = 0; i < alertCount; i++) {
+      size += alerts[i].message.length();
+    }
+    return size;
+  }
+#endif
+};
+
+/**
+ * @brief Mesh bridge package (Type 603 - MESH_BRIDGE)
+ *
+ * Encapsulates native mesh protocol messages for bridging.
+ * Type ID 603 for MESH_BRIDGE per mqtt-schema v0.7.2+.
+ */
+class MeshBridgePackage : public painlessmesh::plugin::BroadcastPackage {
+ public:
+  uint8_t meshProtocol = 0;     // 0=painlessMesh, 1=esp-now, 2=ble-mesh, etc.
+  uint32_t fromNodeId = 0;      // Source node ID
+  uint32_t toNodeId = 0;        // Destination node ID (0=broadcast)
+  uint16_t meshType = 0;        // Mesh protocol-specific message type
+  TSTRING rawPayload = "";      // Raw payload (hex/base64 encoded)
+  int8_t rssi = 0;              // Signal strength
+  uint8_t hopCount = 0;         // Number of hops
+  uint32_t meshTimestamp = 0;   // Mesh protocol timestamp
+  uint32_t gatewayNodeId = 0;   // Gateway's node ID
+  TSTRING meshNetworkId = "";   // Mesh network identifier
+  
+  // MQTT Schema v0.7.2+ message_type
+  uint16_t messageType = 603;   // MESH_BRIDGE
+
+  MeshBridgePackage() : BroadcastPackage(603) {}
+
+  MeshBridgePackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    meshProtocol = jsonObj["protocol"];
+    fromNodeId = jsonObj["fromNode"];
+    toNodeId = jsonObj["toNode"];
+    meshType = jsonObj["meshType"];
+    rawPayload = jsonObj["payload"].as<TSTRING>();
+    rssi = jsonObj["rssi"];
+    hopCount = jsonObj["hops"];
+    meshTimestamp = jsonObj["meshTs"];
+    gatewayNodeId = jsonObj["gateway"];
+    meshNetworkId = jsonObj["meshId"].as<TSTRING>();
+    messageType = jsonObj["message_type"] | 603;
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    
+    jsonObj["protocol"] = meshProtocol;
+    jsonObj["fromNode"] = fromNodeId;
+    jsonObj["toNode"] = toNodeId;
+    jsonObj["meshType"] = meshType;
+    jsonObj["payload"] = rawPayload;
+    jsonObj["rssi"] = rssi;
+    jsonObj["hops"] = hopCount;
+    jsonObj["meshTs"] = meshTimestamp;
+    jsonObj["gateway"] = gatewayNodeId;
+    jsonObj["meshId"] = meshNetworkId;
+    jsonObj["message_type"] = messageType;
+    
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    return JSON_OBJECT_SIZE(noJsonFields + 11) + 
+           rawPayload.length() + 
+           meshNetworkId.length();
+  }
+#endif
+};
+
 }  // namespace alteriom
 
 #endif  // ALTERIOM_SENSOR_PACKAGE_HPP

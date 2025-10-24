@@ -38,6 +38,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Connection quality indicators (connectionQuality, wifiRSSI)
   - Collection metadata for tracking
   
+- **MeshNodeListPackage (Type 600)** - List of all nodes in mesh network (MESH_NODE_LIST per mqtt-schema v0.7.2+)
+  - Array of node information (nodeId, status, lastSeen, signalStrength)
+  - Total node count and mesh identifier
+  - Enables node discovery and monitoring
+
+- **MeshTopologyPackage (Type 601)** - Mesh network topology with connections (MESH_TOPOLOGY per mqtt-schema v0.7.2+)
+  - Array of connections between nodes (fromNode, toNode, linkQuality, latencyMs, hopCount)
+  - Root/gateway node identification
+  - Enables topology visualization and network analysis
+
+- **MeshAlertPackage (Type 602)** - Mesh network alerts and warnings (MESH_ALERT per mqtt-schema v0.7.2+)
+  - Array of alerts with type, severity, and message
+  - Node-specific and network-wide alerts
+  - Threshold-based alerting with metric values
+
+- **MeshBridgePackage (Type 603)** - Bridge for native mesh protocol messages (MESH_BRIDGE per mqtt-schema v0.7.2+)
+  - Encapsulates native painlessMesh protocol messages
+  - Supports multiple mesh protocols (painlessMesh, esp-now, ble-mesh, etc.)
+  - Includes RSSI, hop count, and timing information
+  - Enables mesh-to-MQTT bridging
+
 - **HealthCheckPackage (Type 605)** - Proactive health monitoring with problem detection (MESH_METRICS per mqtt-schema v0.7.2+)
   - Overall health status (0=critical, 1=warning, 2=healthy)
   - Problem flags for 10+ specific issue types (low memory, high CPU, network issues, etc.)

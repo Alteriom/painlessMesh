@@ -93,6 +93,80 @@ Proactive health monitoring with problem detection and recommendations.
 - Automated alerting
 - Memory leak detection
 
+### MeshNodeListPackage (Type 600) - NEW in v1.7.7
+List of all nodes in the mesh network with their status.
+
+**Fields:**
+- `nodes[]` - Array of node information (max 50)
+  - `nodeId` - Node identifier
+  - `status` - 0=offline, 1=online, 2=unreachable
+  - `lastSeen` - Unix timestamp of last communication
+  - `signalStrength` - RSSI in dBm
+- `nodeCount` - Total number of nodes
+- `meshId` - Mesh network identifier
+
+**Use Cases:**
+- Node discovery and monitoring
+- Network health visualization
+- Device inventory management
+
+### MeshTopologyPackage (Type 601) - NEW in v1.7.7
+Mesh network topology with all connections between nodes.
+
+**Fields:**
+- `connections[]` - Array of connections (max 100)
+  - `fromNode` - Source node ID
+  - `toNode` - Destination node ID
+  - `linkQuality` - Link quality 0.0-1.0
+  - `latencyMs` - Latency in milliseconds
+  - `hopCount` - Number of hops
+- `connectionCount` - Total number of connections
+- `rootNode` - Root/gateway node ID
+
+**Use Cases:**
+- Topology visualization
+- Network optimization
+- Path analysis
+
+### MeshAlertPackage (Type 602) - NEW in v1.7.7
+Mesh network alerts for critical events and warnings.
+
+**Fields:**
+- `alerts[]` - Array of alerts (max 20)
+  - `alertType` - Alert type (0-8: low_memory, node_offline, connection_lost, etc.)
+  - `severity` - 0=info, 1=warning, 2=critical
+  - `message` - Human-readable alert message
+  - `nodeId` - Related node ID
+  - `metricValue` - Related metric value
+  - `threshold` - Threshold that triggered alert
+  - `alertId` - Unique alert identifier
+- `alertCount` - Total number of alerts
+
+**Use Cases:**
+- Automated alerting
+- Problem notification
+- Event logging
+
+### MeshBridgePackage (Type 603) - NEW in v1.7.7
+Bridge package for encapsulating native mesh protocol messages.
+
+**Fields:**
+- `meshProtocol` - 0=painlessMesh, 1=esp-now, 2=ble-mesh, etc.
+- `fromNodeId` - Source node ID
+- `toNodeId` - Destination node ID (0=broadcast)
+- `meshType` - Mesh protocol-specific message type
+- `rawPayload` - Raw payload (hex/base64 encoded)
+- `rssi` - Signal strength in dBm
+- `hopCount` - Number of hops
+- `meshTimestamp` - Mesh protocol timestamp
+- `gatewayNodeId` - Gateway's node ID
+- `meshNetworkId` - Mesh network identifier
+
+**Use Cases:**
+- Mesh-to-MQTT bridging
+- Multi-protocol support
+- Protocol translation
+
 ## Examples
 
 ### `alteriom_sensor_node.ino`
