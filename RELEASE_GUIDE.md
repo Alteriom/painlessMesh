@@ -344,6 +344,42 @@ npm whoami
 # Create any page to initialize, then re-run release
 ```
 
+**NPM/GitHub Packages Not Published Automatically**
+
+If the automated release ran but NPM and GitHub Packages weren't published, it's likely due to the commit message not matching the required pattern.
+
+The automated workflow requires the commit message to start with `release:` (lowercase with colon):
+```bash
+# ✅ Correct - Will trigger NPM/GitHub Packages publishing
+git commit -m "release: v1.7.7 - Complete mqtt-schema implementation"
+
+# ❌ Wrong - Will create tag/release but skip NPM publishing  
+git commit -m "Release v1.7.7 - Complete mqtt-schema implementation"
+```
+
+**Solution: Use Manual Publishing Workflow**
+
+If this happens, you can manually publish packages:
+
+1. Go to **Actions** → **Manual Package Publishing**
+2. Click **Run workflow**
+3. Select options:
+   - ✅ Publish to NPM Registry
+   - ✅ Publish to GitHub Packages
+4. Click **Run workflow**
+
+The manual workflow will:
+- Read the current version from `library.properties`
+- Publish to NPM (if selected)
+- Publish to GitHub Packages (if selected)
+- Show success/failure status for each
+
+Alternatively, from command line:
+```bash
+# Trigger via GitHub CLI
+gh workflow run manual-publish.yml
+```
+
 ### Manual Override
 
 If automation fails, you can manually perform any step:
