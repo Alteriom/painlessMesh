@@ -77,7 +77,7 @@ For environmental sensor data collection:
 - Battery level monitoring
 - Timestamp synchronization
 
-### CommandPackage (Type 201)
+### CommandPackage (Type 400)
 For device control and automation:
 - Remote device commands
 - Parameter passing via JSON

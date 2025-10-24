@@ -17,7 +17,7 @@ SCENARIO("MQTT Command Bridge routing works correctly") {
     cmd.commandId = 1001;
     cmd.parameters = "{\"state\":true,\"brightness\":75}";
     
-    REQUIRE(cmd.type == 201);
+    REQUIRE(cmd.type == 400);
     REQUIRE(cmd.command == 10);
     REQUIRE(cmd.targetDevice == 222222);
     
@@ -37,7 +37,7 @@ SCENARIO("MQTT Command Bridge routing works correctly") {
         REQUIRE(cmd2.targetDevice == cmd.targetDevice);
         REQUIRE(cmd2.commandId == cmd.commandId);
         REQUIRE(cmd2.parameters == cmd.parameters);
-        REQUIRE(cmd2.type == 201);
+        REQUIRE(cmd2.type == 400);
       }
     }
     

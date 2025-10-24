@@ -58,7 +58,7 @@ SCENARIO("Alteriom CommandPackage serialization works correctly") {
         pkg.commandId = 9876;
         
         REQUIRE(pkg.routing == router::SINGLE);
-        REQUIRE(pkg.type == 201);
+        REQUIRE(pkg.type == 400);
         
         WHEN("Converting it to and from Variant") {
             auto var = protocol::Variant(&pkg);
@@ -129,10 +129,10 @@ SCENARIO("Alteriom packages can be used with PackageHandler") {
             return true;
         });
         
-        handler.onPackage(201, [&commandPackageReceived](protocol::Variant& variant) {
+        handler.onPackage(400, [&commandPackageReceived](protocol::Variant& variant) {
             auto pkg = variant.to<CommandPackage>();
             commandPackageReceived = true;
-            REQUIRE(pkg.type == 201);
+            REQUIRE(pkg.type == 400);
             return true;
         });
         

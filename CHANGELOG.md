@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MQTT Schema v0.7.2 Compliance** - Updated to @alteriom/mqtt-schema v0.7.2
   - Added `message_type` field to all packages for 90% faster classification
   - MetricsPackage (204) now aligns with schema SENSOR_METRICS (v0.7.2+)
+  - CommandPackage moved from type 201 → 400 (COMMAND per schema, resolves conflict with SENSOR_HEARTBEAT)
   - HealthCheckPackage uses 605 (MESH_METRICS per mqtt-schema v0.7.2+)
   - EnhancedStatusPackage uses 604 (MESH_STATUS per mqtt-schema v0.7.2+)
   - Compatible with mesh bridge schema (type 603) for future integration

@@ -172,7 +172,7 @@ const client = mqtt.connect('mqtt://192.168.1.100:1883');
 
 // Send LED control command
 const command = {
-  type: 201,
+  type: 400,
   command: 10,
   targetDevice: 123456,
   commandId: Date.now(),

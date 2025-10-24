@@ -15,8 +15,8 @@ Broadcast package for sharing environmental sensor data across the mesh.
 - `timestamp` - Unix timestamp of measurement
 - `batteryLevel` - Battery level percentage (0-100)
 
-### CommandPackage (Type 201)
-Single-destination package for sending commands to specific nodes.
+### CommandPackage (Type 400)
+Single-destination package for sending commands to specific nodes. Uses COMMAND code (400) per mqtt-schema v0.7.2+ for full compliance.
 
 **Fields:**
 - `command` - Command type identifier
@@ -211,7 +211,7 @@ mesh.sendBroadcast(sensor.toJsonString());
 // Handle incoming commands
 void handleMessage(String& msg) {
     auto doc = parseJson(msg);
-    if (doc["type"] == 201) {
+    if (doc["type"] == 400) {
         CommandPackage cmd(doc.as<JsonObject>());
         processCommand(cmd);
     }

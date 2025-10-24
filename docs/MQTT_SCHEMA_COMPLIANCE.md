@@ -51,9 +51,7 @@ The schema now includes standardized message type codes for 90% faster message c
 - **200:** SensorPackage → SENSOR_DATA ✓
 - **202:** StatusPackage → SENSOR_STATUS ✓
 - **204:** MetricsPackage → SENSOR_METRICS ✓ (aligns with v0.7.2+)
-
-**Backward Compatibility Note:**
-- **201:** CommandPackage (conflicts with SENSOR_HEARTBEAT, kept for backward compatibility)
+- **400:** CommandPackage → COMMAND ✓ (moved from 201 in v1.7.7 for full schema compliance)
 
 All painlessMesh packages now include the optional `message_type` field for optimal performance.
 

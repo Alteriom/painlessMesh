@@ -72,7 +72,7 @@ All original functionality from the upstream library is maintained:
 
 ### Enhanced Packages
 - **SensorPackage** (Type 200): Environmental monitoring with temperature, humidity, pressure, battery levels
-- **CommandPackage** (Type 201): Device control and automation commands
+- **CommandPackage (Type 400): Device control and automation commands
 - **StatusPackage** (Type 202): Health monitoring and system status reporting
 
 ### Additional Features

@@ -36,7 +36,7 @@ mesh.sendPackage(&sensor);
 - Greenhouse automation
 - Industrial sensor networks
 
-### CommandPackage (Type 201)
+### CommandPackage (Type 400)
 For sending control commands to specific devices.
 
 ```cpp
@@ -155,7 +155,7 @@ Alteriom uses reserved type ID range 200-299:
 ```cpp
 enum AlteriomTypes {
     ALTERIOM_SENSOR = 200,    // SensorPackage
-    ALTERIOM_COMMAND = 201,   // CommandPackage  
+    ALTERIOM_COMMAND = 400,   // CommandPackage  
     ALTERIOM_STATUS = 202,    // StatusPackage
     // 203-299 reserved for future Alteriom packages
 };

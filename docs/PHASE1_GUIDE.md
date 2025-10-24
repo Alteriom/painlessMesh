@@ -194,7 +194,7 @@ The `alertFlags` field uses bit flags for different alert conditions:
 | Type | Package Name | Description |
 |------|--------------|-------------|
 | 200  | SensorPackage | Environmental sensor data |
-| 201  | CommandPackage | Device control commands |
+| 400  | CommandPackage | Device control commands |
 | 202  | StatusPackage | Basic status (original) |
 | **203** | **EnhancedStatusPackage** | **Comprehensive status (Phase 1)** |
 

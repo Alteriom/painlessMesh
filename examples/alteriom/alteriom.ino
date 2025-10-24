@@ -126,7 +126,7 @@ void handleIncomingPackage(uint32_t from, String& msg) {
       // Process sensor data (store, forward, analyze, etc.)
     } break;
 
-    case 201:  // CommandPackage
+    case 400:  // CommandPackage
     {
       CommandPackage receivedCmd(obj);
       if (receivedCmd.dest == mesh.getNodeId()) {

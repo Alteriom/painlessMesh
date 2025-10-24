@@ -66,7 +66,7 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
   TSTRING parameters = "";    // Command parameters as JSON string
   uint32_t commandId = 0;     // Unique command identifier for tracking
 
-  CommandPackage() : SinglePackage(201) {}  // Type ID 201 (NOTE: conflicts with schema SENSOR_HEARTBEAT, kept for backward compatibility)
+  CommandPackage() : SinglePackage(400) {}  // Type ID 400 (COMMAND per mqtt-schema v0.7.2+)
 
   CommandPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {
     command = jsonObj["cmd"];

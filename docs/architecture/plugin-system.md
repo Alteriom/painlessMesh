@@ -155,7 +155,7 @@ enum CustomTypes {
 // Alteriom types: 200+ (for Alteriom extensions)
 enum AlteriomTypes {
     ALTERIOM_SENSOR = 200,
-    ALTERIOM_COMMAND = 201,
+    ALTERIOM_COMMAND = 400,
     ALTERIOM_STATUS = 202
 };
 ```

@@ -25,10 +25,14 @@ This fork includes specialized packages for structured IoT communication:
 #### Custom Package Types
 
 - **`SensorPackage`** (Type 200) - Environmental data collection (temperature, humidity, pressure, battery levels)
-- **`CommandPackage`** (Type 201) - Device control and automation commands  
+- **`CommandPackage`** (Type 400) - Device control and automation commands (COMMAND per mqtt-schema v0.7.2+)
 - **`StatusPackage`** (Type 202) - Health monitoring and system status reporting
-- **`EnhancedStatusPackage`** (Type 203) - Detailed performance metrics and mesh statistics
-- **`MetricsPackage`** (Type 204) - Comprehensive performance metrics for dashboards (v1.7.7+)
+- **`MetricsPackage`** (Type 204) - Comprehensive performance metrics for dashboards (v1.7.7+, SENSOR_METRICS)
+- **`MeshNodeListPackage`** (Type 600) - Mesh node inventory and discovery (v1.7.7+, MESH_NODE_LIST)
+- **`MeshTopologyPackage`** (Type 601) - Network topology and connections (v1.7.7+, MESH_TOPOLOGY)
+- **`MeshAlertPackage`** (Type 602) - Mesh network alerts (v1.7.7+, MESH_ALERT)
+- **`MeshBridgePackage`** (Type 603) - Mesh protocol bridging (v1.7.7+, MESH_BRIDGE)
+- **`EnhancedStatusPackage`** (Type 604) - Detailed mesh status (v1.7.7+, MESH_STATUS)
 - **`HealthCheckPackage`** (Type 605) - Proactive health monitoring and problem detection (v1.7.7+, MESH_METRICS)
 
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging.

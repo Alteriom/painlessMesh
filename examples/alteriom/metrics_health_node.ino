@@ -383,7 +383,7 @@ void receivedCallback(uint32_t from, String& msg) {
     case 200:  // SensorPackage
       Serial.println("  -> Sensor data");
       break;
-    case 201:  // CommandPackage
+    case 400:  // CommandPackage (COMMAND per schema v0.7.2+)
       Serial.println("  -> Command");
       break;
     case 202:  // StatusPackage
