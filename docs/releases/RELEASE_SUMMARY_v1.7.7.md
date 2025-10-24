@@ -28,8 +28,8 @@ Comprehensive performance metrics package for real-time monitoring and dashboard
 - Network throughput analysis
 - Troubleshooting and diagnostics
 
-#### HealthCheckPackage (Type 205)
-Proactive health monitoring with problem detection and predictive maintenance.
+#### HealthCheckPackage (Type 802)
+Proactive health monitoring with problem detection and predictive maintenance. **Uses vendor-specific code 802 (800+ range) per mqtt-schema v0.7.2+ conventions.**
 
 **Key Capabilities:**
 - 3-level health status (healthy/warning/critical)
@@ -278,7 +278,7 @@ bridge.update();
 
 | Feature | v1.7.6 | v1.7.7 |
 |---------|--------|--------|
-| Package Types | 4 (200-203) | 6 (200-205) |
+| Package Types | 4 (200-203) | 6 (200, 202, 204, 800, 802) |
 | Metrics Detail | Basic | Comprehensive (22 fields) |
 | Health Monitoring | Status only | Proactive with predictions |
 | MQTT Commands | None | 3 command types |

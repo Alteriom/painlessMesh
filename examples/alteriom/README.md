@@ -61,7 +61,7 @@ Comprehensive performance metrics for detailed monitoring and dashboards.
 - Network throughput analysis
 - Latency monitoring
 
-### HealthCheckPackage (Type 205) - NEW in v1.7.7
+### HealthCheckPackage (Type 802) - NEW in v1.7.7
 Proactive health monitoring with problem detection and recommendations.
 
 **Key Fields:**
@@ -113,7 +113,7 @@ Phase 1 OTA enhancement example demonstrating:
 ### `metrics_health_node.ino` (NEW in v1.7.7)
 Comprehensive monitoring node example demonstrating:
 - MetricsPackage (Type 204) collection and broadcasting
-- HealthCheckPackage (Type 205) proactive monitoring
+- HealthCheckPackage (Type 802) proactive monitoring (vendor-specific)
 - CPU usage calculation and tracking
 - Memory leak detection with trend analysis
 - Network quality assessment

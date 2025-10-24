@@ -362,7 +362,7 @@ class MetricsPackage : public painlessmesh::plugin::BroadcastPackage {
  *
  * Provides early warning indicators and health status to detect issues
  * before they cause failures. Used for predictive maintenance and alerting.
- * Type ID 205 for Alteriom health checks.
+ * Type ID 802 for Alteriom health checks (vendor-specific per mqtt-schema v0.7.2+).
  */
 class HealthCheckPackage : public painlessmesh::plugin::BroadcastPackage {
  public:

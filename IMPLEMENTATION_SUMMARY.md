@@ -26,7 +26,7 @@ A comprehensive performance metrics package with 22 fields covering:
 - Network optimization insights
 - Troubleshooting diagnostics
 
-#### 2. HealthCheckPackage (Type 205)
+#### 2. HealthCheckPackage (Type 802)
 Proactive health monitoring with 20 fields including:
 - **Health Status:** 3-level system (healthy/warning/critical)
 - **Problem Flags:** 10+ specific issue types (bit flags)

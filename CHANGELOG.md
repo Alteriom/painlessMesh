@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Connection quality indicators (connectionQuality, wifiRSSI)
   - Collection metadata for tracking
   
-- **HealthCheckPackage (Type 205)** - Proactive health monitoring with problem detection
+- **HealthCheckPackage (Type 802)** - Proactive health monitoring with problem detection (vendor-specific code per mqtt-schema v0.7.2+)
   - Overall health status (0=critical, 1=warning, 2=healthy)
   - Problem flags for 10+ specific issue types (low memory, high CPU, network issues, etc.)
   - Component health scores (memoryHealth, networkHealth, performanceHealth)
@@ -100,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **100% Backward Compatible** with v1.7.6
 - All existing packages (200-203) work unchanged
-- New packages (204-205) are optional additions
+- New packages (204, 802) are optional additions
 - No breaking changes to existing code
 - Can be adopted incrementally
 

@@ -29,7 +29,7 @@ This fork includes specialized packages for structured IoT communication:
 - **`StatusPackage`** (Type 202) - Health monitoring and system status reporting
 - **`EnhancedStatusPackage`** (Type 203) - Detailed performance metrics and mesh statistics
 - **`MetricsPackage`** (Type 204) - Comprehensive performance metrics for dashboards (v1.7.7+)
-- **`HealthCheckPackage`** (Type 205) - Proactive health monitoring and problem detection (v1.7.7+)
+- **`HealthCheckPackage`** (Type 802) - Proactive health monitoring and problem detection (v1.7.7+, vendor-specific)
 
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging.
 
