@@ -24,18 +24,80 @@ This fork includes specialized packages for structured IoT communication:
 
 #### Custom Package Types
 
-- **`SensorPackage`** (Type 200) - Environmental data collection (temperature, humidity, pressure, battery levels)
-- **`CommandPackage`** (Type 400) - Device control and automation commands (COMMAND per mqtt-schema v0.7.2+)
-- **`StatusPackage`** (Type 202) - Health monitoring and system status reporting
-- **`MetricsPackage`** (Type 204) - Comprehensive performance metrics for dashboards (v1.7.7+, SENSOR_METRICS)
-- **`MeshNodeListPackage`** (Type 600) - Mesh node inventory and discovery (v1.7.7+, MESH_NODE_LIST)
-- **`MeshTopologyPackage`** (Type 601) - Network topology and connections (v1.7.7+, MESH_TOPOLOGY)
-- **`MeshAlertPackage`** (Type 602) - Mesh network alerts (v1.7.7+, MESH_ALERT)
-- **`MeshBridgePackage`** (Type 603) - Mesh protocol bridging (v1.7.7+, MESH_BRIDGE)
-- **`EnhancedStatusPackage`** (Type 604) - Detailed mesh status (v1.7.7+, MESH_STATUS)
-- **`HealthCheckPackage`** (Type 605) - Proactive health monitoring and problem detection (v1.7.7+, MESH_METRICS)
+**Core IoT Packages:**
 
-All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging.
+- **`SensorPackage`** (Type 200) - Environmental data collection
+  - Temperature, humidity, pressure monitoring
+  - Battery level tracking
+  - Sensor ID and timestamp fields
+  - Ideal for environmental monitoring and smart agriculture
+
+- **`StatusPackage`** (Type 202) - Basic health monitoring
+  - Device status flags and uptime
+  - Free memory and WiFi strength
+  - Firmware version tracking
+  - Command response capability for MQTT bridge
+
+- **`CommandPackage`** (Type 400) - Device control and automation (COMMAND per mqtt-schema v0.7.2+)
+  - Targeted command execution
+  - JSON parameter support
+  - Command tracking with unique IDs
+  - Perfect for remote device control
+
+**Advanced Monitoring Packages (Phase 2):**
+
+- **`MetricsPackage`** (Type 204) - Comprehensive performance metrics (SENSOR_METRICS per mqtt-schema v0.7.2+)
+  - CPU usage and processing metrics
+  - Memory health (heap, fragmentation, max allocation)
+  - Network throughput and packet statistics
+  - Response time and latency tracking
+  - Connection quality and WiFi RSSI
+  - Dashboard-ready data collection
+
+- **`HealthCheckPackage`** (Type 605) - Proactive problem detection (MESH_METRICS per mqtt-schema v0.7.2+)
+  - Overall health scoring (0-100 for memory, network, performance)
+  - Problem flag indicators (16-bit flags for specific issues)
+  - Memory leak detection with trend analysis
+  - Predictive maintenance (estimated time to failure)
+  - Crash tracking and reboot reason codes
+  - Actionable recommendations
+
+**Mesh Topology & Management (Phase 2):**
+
+- **`EnhancedStatusPackage`** (Type 604) - Detailed mesh status (MESH_STATUS per mqtt-schema v0.7.2+)
+  - Complete mesh statistics (node count, connections, messages)
+  - Performance metrics (latency, packet loss, throughput)
+  - Alert flags and error reporting
+  - Firmware verification with MD5 hash
+
+- **`MeshNodeListPackage`** (Type 600) - Node discovery and inventory (MESH_NODE_LIST per mqtt-schema v0.7.2+)
+  - List of all mesh nodes with status (offline/online/unreachable)
+  - Signal strength (RSSI) for each node
+  - Last seen timestamps
+  - Supports up to 50 nodes per message
+
+- **`MeshTopologyPackage`** (Type 601) - Network topology visualization (MESH_TOPOLOGY per mqtt-schema v0.7.2+)
+  - Connection graph with link quality
+  - Latency measurements per connection
+  - Hop count tracking
+  - Root/gateway node identification
+  - Supports up to 100 connections per message
+
+- **`MeshAlertPackage`** (Type 602) - Network event notifications (MESH_ALERT per mqtt-schema v0.7.2+)
+  - Configurable alert types (low memory, node offline, connection lost)
+  - Severity levels (info, warning, critical)
+  - Metric-based threshold triggering
+  - Human-readable alert messages
+  - Supports up to 20 alerts per message
+
+- **`MeshBridgePackage`** (Type 603) - Protocol bridging (MESH_BRIDGE per mqtt-schema v0.7.2+)
+  - Encapsulates native mesh protocol messages
+  - Multi-protocol support (painlessMesh, ESP-NOW, BLE-Mesh)
+  - Raw payload with signal strength
+  - Gateway node identification
+  - Enables heterogeneous mesh networks
+
+All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging. They align with mqtt-schema v0.7.2+ for enterprise IoT integration.
 
 #### 🚀 Phase 2 Features (v1.7.0+)
 
