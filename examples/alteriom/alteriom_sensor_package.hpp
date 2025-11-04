@@ -3,6 +3,57 @@
 
 #include "painlessmesh/plugin.hpp"
 
+/**
+ * @file alteriom_sensor_package.hpp
+ * @brief Alteriom custom package definitions for painlessMesh
+ * 
+ * TIME FIELD NAMING CONVENTION
+ * ============================
+ * 
+ * For consistency and developer convenience, all time-based configuration fields
+ * in Alteriom packages follow a standardized naming convention:
+ * 
+ * INTERNAL STORAGE:
+ * - Always use milliseconds (uint32_t)
+ * - Use descriptive field names WITHOUT unit suffixes
+ *   Examples: sensorReadInterval, transmissionInterval
+ * 
+ * JSON SERIALIZATION:
+ * - ALWAYS provide BOTH millisecond and second variants:
+ *   - {fieldname}_ms : The value in milliseconds (uint32_t)
+ *   - {fieldname}_s  : The value in seconds (uint32_t, calculated as ms/1000)
+ * 
+ * JSON DESERIALIZATION:
+ * - Read from the _ms variant (milliseconds are the source of truth)
+ * - The _s variant is provided for consumer convenience but not used for input
+ * 
+ * EXAMPLE:
+ * ```cpp
+ * // C++ field declaration
+ * uint32_t sensorReadInterval = 0;  // Internal storage in milliseconds
+ * 
+ * // JSON serialization (in addTo method)
+ * sensors["read_interval_ms"] = sensorReadInterval;           // 30000
+ * sensors["read_interval_s"] = sensorReadInterval / 1000;     // 30
+ * 
+ * // JSON deserialization (in constructor)
+ * sensorReadInterval = sensors["read_interval_ms"] | 0;
+ * ```
+ * 
+ * BENEFITS:
+ * - Consumer Convenience: No mental overhead for unit conversion
+ * - Flexibility: Consumers choose the unit appropriate for their context
+ * - Self-Documenting: Field names clearly indicate available units
+ * - Precision: Millisecond precision preserved, seconds for readability
+ * - Consistency: Predictable pattern across all time-based fields
+ * 
+ * WHEN TO APPLY:
+ * - Use this convention for ALL time-based configuration/interval fields
+ * - Applies to fields typically >= 1000ms (1 second)
+ * - Examples: intervals, timeouts, durations, delays
+ * - Does NOT apply to timestamps (which should remain in seconds as per Unix convention)
+ */
+
 namespace alteriom {
 
 /**
@@ -116,6 +167,8 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   bool deviceSecretSet = false;  // Whether device secret is configured
 
   // Sensor configuration (Build 8057 - Gateway format compatibility)
+  // Note: Time fields follow Alteriom time field naming convention (see file header)
+  // Stored in milliseconds, serialized as both _ms and _s variants
   uint32_t sensorReadInterval = 0;      // Sensor read interval in milliseconds
   uint32_t transmissionInterval = 0;    // Transmission interval in milliseconds
   double tempOffset = 0.0;              // Temperature calibration offset
