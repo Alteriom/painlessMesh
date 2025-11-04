@@ -447,8 +447,8 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
             deviceName.length() + deviceLocation.length();
 
     // Always add sensor configuration object size (Build 8057)
-    // sensors object with read_interval_ms, read_interval_s, transmission_interval_ms, transmission_interval_s
-    size += JSON_OBJECT_SIZE(4);
+    // sensors object with read_interval_ms, read_interval_s, transmission_interval_ms, transmission_interval_s, calibration
+    size += JSON_OBJECT_SIZE(5);
     // calibration nested object - always included
     size += JSON_OBJECT_SIZE(3);
 
