@@ -109,6 +109,54 @@ SCENARIO("Alteriom StatusPackage serialization works correctly") {
     }
 }
 
+SCENARIO("Alteriom StatusPackage organization fields serialize correctly") {
+    GIVEN("A StatusPackage with organization metadata") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.deviceStatus = 0x03;
+        pkg.uptime = 3600;
+        pkg.freeMemory = 256;
+        pkg.wifiStrength = 85;
+        pkg.firmwareVersion = "1.8.0";
+        
+        // Set organization fields
+        pkg.organizationId = "org123";
+        pkg.customerId = "cust456";
+        pkg.deviceGroup = "sensors";
+        pkg.deviceName = "Test Sensor";
+        pkg.deviceLocation = "Building A";
+        pkg.deviceSecretSet = true;
+        
+        REQUIRE(pkg.routing == router::BROADCAST);
+        REQUIRE(pkg.type == 202);
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Should result in the same values including organization fields") {
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.deviceStatus == pkg.deviceStatus);
+                REQUIRE(pkg2.uptime == pkg.uptime);
+                REQUIRE(pkg2.freeMemory == pkg.freeMemory);
+                REQUIRE(pkg2.wifiStrength == pkg.wifiStrength);
+                REQUIRE(pkg2.firmwareVersion == pkg.firmwareVersion);
+                
+                // Verify organization fields
+                REQUIRE(pkg2.organizationId == pkg.organizationId);
+                REQUIRE(pkg2.customerId == pkg.customerId);
+                REQUIRE(pkg2.deviceGroup == pkg.deviceGroup);
+                REQUIRE(pkg2.deviceName == pkg.deviceName);
+                REQUIRE(pkg2.deviceLocation == pkg.deviceLocation);
+                REQUIRE(pkg2.deviceSecretSet == pkg.deviceSecretSet);
+                
+                REQUIRE(pkg2.routing == pkg.routing);
+                REQUIRE(pkg2.type == pkg.type);
+            }
+        }
+    }
+}
+
 SCENARIO("Alteriom packages can be used with PackageHandler") {
     GIVEN("A mock connection and package handler") {
         class MockConnection : public layout::Neighbour {
