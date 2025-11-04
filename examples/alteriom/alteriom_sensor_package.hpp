@@ -60,6 +60,10 @@
  * Alteriom packages follow consistent patterns for organizing configuration data
  * in JSON structures. This ensures maintainability and predictability across the API.
  * 
+ * IMPORTANT: As of PR #37, ALL configuration sections always serialize with default
+ * values, providing predictable JSON structure. Consumers no longer need to check
+ * for key existence. Default values (0, false, "") indicate "not configured" state.
+ * 
  * See docs/API_DESIGN_GUIDELINES.md for comprehensive documentation.
  * 
  * QUICK REFERENCE:
