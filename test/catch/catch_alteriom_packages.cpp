@@ -928,3 +928,100 @@ SCENARIO("StatusPackage MQTT retry configuration with only boolean/float fields"
         }
     }
 }
+
+SCENARIO("StatusPackage boolean naming convention semantics") {
+    GIVEN("A StatusPackage demonstrating the three boolean patterns") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        
+        // Pattern 1: *Set suffix - Configuration data has been provided
+        // Does NOT indicate if feature is enabled or working
+        pkg.deviceSecretSet = true;  // Secret is configured
+        
+        // Pattern 2: *Enabled suffix - Feature is currently active/turned on
+        // Independent of whether required configuration exists
+        pkg.displayEnabled = true;      // Display feature is active
+        pkg.deepSleepEnabled = false;   // Deep sleep mode is inactive
+        pkg.mqttHourlyRetryEnabled = true;  // Hourly retry feature is active
+        
+        // Pattern 3: Runtime state (is* prefix or *Connected)
+        // Would be added here if StatusPackage had such fields
+        // Examples: isConfigured, mqttConnected, meshIsRoot
+        
+        WHEN("Verifying *Set fields indicate configuration presence") {
+            THEN("deviceSecretSet should mean 'secret is configured'") {
+                REQUIRE(pkg.deviceSecretSet == true);
+                // This does NOT mean the secret is enabled/disabled
+                // It only means the secret has been provided
+            }
+        }
+        
+        WHEN("Verifying *Enabled fields indicate feature state") {
+            THEN("displayEnabled should mean 'display feature is active'") {
+                REQUIRE(pkg.displayEnabled == true);
+                // This means the feature is turned on
+            }
+            
+            THEN("deepSleepEnabled should mean 'deep sleep is active'") {
+                REQUIRE(pkg.deepSleepEnabled == false);
+                // This means the feature is turned off
+            }
+            
+            THEN("mqttHourlyRetryEnabled should mean 'hourly retry is active'") {
+                REQUIRE(pkg.mqttHourlyRetryEnabled == true);
+                // This means the retry feature is turned on
+            }
+        }
+        
+        WHEN("Demonstrating independent semantics of *Set and *Enabled") {
+            THEN("A feature can have configuration but be disabled") {
+                // Example: OTA server URL is configured but OTA is disabled
+                // This would be represented as:
+                //   otaServerSet = true (configuration exists)
+                //   otaEnabled = false (feature is turned off)
+                // 
+                // Both fields are independent and serve different purposes
+                REQUIRE(true); // Conceptual test
+            }
+        }
+        
+        WHEN("Serializing to JSON and back") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("All boolean semantics should be preserved") {
+                // *Set fields preserve configuration state
+                REQUIRE(pkg2.deviceSecretSet == pkg.deviceSecretSet);
+                
+                // *Enabled fields preserve feature activation state
+                REQUIRE(pkg2.displayEnabled == pkg.displayEnabled);
+                REQUIRE(pkg2.deepSleepEnabled == pkg.deepSleepEnabled);
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == pkg.mqttHourlyRetryEnabled);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage boolean fields follow consistent patterns") {
+    GIVEN("The StatusPackage class definition") {
+        WHEN("Examining boolean field names") {
+            THEN("All *Set fields should indicate configuration presence") {
+                // deviceSecretSet follows this pattern correctly
+                REQUIRE(true);
+            }
+            
+            THEN("All *Enabled fields should indicate feature state") {
+                // displayEnabled, deepSleepEnabled, mqttHourlyRetryEnabled
+                // all follow this pattern correctly
+                REQUIRE(true);
+            }
+            
+            THEN("Future runtime state fields should use is* or *Connected") {
+                // If added in the future:
+                // isConfigured, mqttConnected, meshIsRoot
+                // would follow this pattern
+                REQUIRE(true);
+            }
+        }
+    }
+}

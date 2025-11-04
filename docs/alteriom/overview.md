@@ -498,11 +498,34 @@ public:
 3. **Validate under memory pressure**
 4. **Test with maximum expected node count**
 
+## Code Conventions
+
+### Boolean Field Naming
+
+Alteriom packages follow a consistent naming convention for boolean fields to improve code clarity:
+
+- **`*Set` suffix**: Configuration data has been provided (e.g., `deviceSecretSet`)
+- **`*Enabled` suffix**: Feature is currently active (e.g., `displayEnabled`)
+- **`is*` prefix or `*Connected`**: Current runtime state (e.g., `mqttConnected`)
+
+See [Boolean Naming Convention](../BOOLEAN_NAMING_CONVENTION.md) for complete guidelines.
+
+### Time Field Naming
+
+Time-based configuration fields follow a dual-unit convention:
+
+- **Internal storage**: Always milliseconds (e.g., `sensorReadInterval`)
+- **JSON serialization**: Both milliseconds (`_ms`) and seconds (`_s`) variants
+- **JSON deserialization**: Read from milliseconds (`_ms`) variant
+
+See package header documentation for complete details.
+
 ## Next Steps
 
 - Learn about [Sensor Packages](sensor-packages.md) in detail
 - Explore [Command System](command-system.md) implementation
 - Study [Status Monitoring](status-monitoring.md) patterns
+- Review [Boolean Naming Convention](../BOOLEAN_NAMING_CONVENTION.md) guidelines
 - See [Tutorial Examples](../tutorials/sensor-networks.md) for hands-on practice
 
 The Alteriom extensions provide a solid foundation for building robust IoT applications with painlessMesh. They demonstrate production-ready patterns while remaining flexible enough to adapt to your specific needs.
