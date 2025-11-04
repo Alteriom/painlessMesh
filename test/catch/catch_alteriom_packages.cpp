@@ -679,3 +679,238 @@ SCENARIO("StatusPackage with no sensor data") {
         }
     }
 }
+
+SCENARIO("StatusPackage time field naming convention consistency") {
+    GIVEN("A StatusPackage with time-based configuration values") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.deviceStatus = 0x03;
+        pkg.uptime = 3600;
+        
+        // Set time-based fields with values that are easily converted
+        pkg.sensorReadInterval = 30000;      // 30 seconds in milliseconds
+        pkg.transmissionInterval = 60000;    // 60 seconds in milliseconds
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("All time fields should provide both _ms and _s variants") {
+                REQUIRE(obj["sensors"].is<JsonObject>());
+                JsonObject sensors = obj["sensors"];
+                
+                // Verify read_interval has both variants
+                REQUIRE(sensors["read_interval_ms"].is<uint32_t>());
+                REQUIRE(sensors["read_interval_s"].is<uint32_t>());
+                REQUIRE(sensors["read_interval_ms"] == 30000);
+                REQUIRE(sensors["read_interval_s"] == 30);
+                
+                // Verify transmission_interval has both variants
+                REQUIRE(sensors["transmission_interval_ms"].is<uint32_t>());
+                REQUIRE(sensors["transmission_interval_s"].is<uint32_t>());
+                REQUIRE(sensors["transmission_interval_ms"] == 60000);
+                REQUIRE(sensors["transmission_interval_s"] == 60);
+            }
+            
+            THEN("Seconds variants should be correctly calculated from milliseconds") {
+                JsonObject sensors = obj["sensors"];
+                
+                // Verify the conversion is correct (milliseconds / 1000 = seconds)
+                uint32_t read_ms = sensors["read_interval_ms"];
+                uint32_t read_s = sensors["read_interval_s"];
+                REQUIRE(read_s == read_ms / 1000);
+                
+                uint32_t trans_ms = sensors["transmission_interval_ms"];
+                uint32_t trans_s = sensors["transmission_interval_s"];
+                REQUIRE(trans_s == trans_ms / 1000);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage time field naming convention with various values") {
+    GIVEN("Time fields with different magnitudes") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        
+        WHEN("Using sub-second precision values") {
+            pkg.sensorReadInterval = 500;        // 500ms (0.5 seconds)
+            pkg.transmissionInterval = 250;      // 250ms (0.25 seconds)
+            
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Millisecond precision is preserved while seconds are truncated") {
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["read_interval_ms"] == 500);
+                REQUIRE(sensors["read_interval_s"] == 0);  // 500ms truncates to 0s
+                REQUIRE(sensors["transmission_interval_ms"] == 250);
+                REQUIRE(sensors["transmission_interval_s"] == 0);  // 250ms truncates to 0s
+            }
+        }
+        
+        WHEN("Using large time values") {
+            pkg.sensorReadInterval = 3600000;    // 1 hour = 3600 seconds
+            pkg.transmissionInterval = 86400000; // 1 day = 86400 seconds
+            
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Both milliseconds and seconds are correctly represented") {
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["read_interval_ms"] == 3600000);
+                REQUIRE(sensors["read_interval_s"] == 3600);
+                REQUIRE(sensors["transmission_interval_ms"] == 86400000);
+                REQUIRE(sensors["transmission_interval_s"] == 86400);
+            }
+        }
+        
+        WHEN("Using edge case values") {
+            pkg.sensorReadInterval = 999;        // Just under 1 second
+            pkg.transmissionInterval = 1000;     // Exactly 1 second
+            
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Edge case conversions are handled correctly") {
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["read_interval_ms"] == 999);
+                REQUIRE(sensors["read_interval_s"] == 0);    // 999ms truncates to 0s
+                REQUIRE(sensors["transmission_interval_ms"] == 1000);
+                REQUIRE(sensors["transmission_interval_s"] == 1);    // Exactly 1 second
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage time field deserialization backward compatibility") {
+    GIVEN("JSON with time fields") {
+        WHEN("JSON contains only _ms variants") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            obj["from"] = 12345;
+            obj["type"] = 202;
+            
+            JsonObject sensors = obj["sensors"].to<JsonObject>();
+            sensors["read_interval_ms"] = 30000;
+            sensors["transmission_interval_ms"] = 60000;
+            // Intentionally omit _s variants
+            
+            auto pkg = StatusPackage(obj);
+            
+            THEN("Package should deserialize correctly using _ms values") {
+                REQUIRE(pkg.from == 12345);
+                REQUIRE(pkg.sensorReadInterval == 30000);
+                REQUIRE(pkg.transmissionInterval == 60000);
+            }
+        }
+        
+        WHEN("JSON contains both _ms and _s variants") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            obj["from"] = 12345;
+            obj["type"] = 202;
+            
+            JsonObject sensors = obj["sensors"].to<JsonObject>();
+            sensors["read_interval_ms"] = 30000;
+            sensors["read_interval_s"] = 30;
+            sensors["transmission_interval_ms"] = 60000;
+            sensors["transmission_interval_s"] = 60;
+            
+            auto pkg = StatusPackage(obj);
+            
+            THEN("Package should deserialize using _ms values (milliseconds are source of truth)") {
+                REQUIRE(pkg.from == 12345);
+                REQUIRE(pkg.sensorReadInterval == 30000);
+                REQUIRE(pkg.transmissionInterval == 60000);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage time field naming convention documentation") {
+    GIVEN("The StatusPackage class") {
+        THEN("Time-based fields follow consistent naming pattern") {
+            // This test serves as living documentation of the naming convention:
+            //
+            // CONVENTION FOR TIME-BASED FIELDS:
+            // ---------------------------------
+            // 1. Internal storage: Always use milliseconds (uint32_t)
+            // 2. Field naming: Use descriptive names without unit suffix
+            //    Examples: sensorReadInterval, transmissionInterval
+            //
+            // 3. JSON serialization: ALWAYS provide BOTH variants:
+            //    - {fieldname}_ms: The value in milliseconds
+            //    - {fieldname}_s: The value in seconds (milliseconds / 1000)
+            //
+            // 4. JSON deserialization: Read from _ms variant
+            //    (This makes milliseconds the source of truth)
+            //
+            // BENEFITS:
+            // - Consumer convenience: No mental overhead for unit conversion
+            // - Flexibility: Consumers choose the unit that makes sense for their context
+            // - Self-documenting: Field names clearly indicate available units
+            // - Precision: Milliseconds preserved, seconds provided for readability
+            //
+            // EXAMPLE:
+            // Internal: uint32_t sensorReadInterval = 30000;
+            // JSON out: {"read_interval_ms": 30000, "read_interval_s": 30}
+            // JSON in:  Reads from "read_interval_ms"
+            
+            // Verify the convention is followed in the existing code
+            auto pkg = StatusPackage();
+            pkg.sensorReadInterval = 45000;
+            pkg.transmissionInterval = 90000;
+            
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            JsonObject sensors = obj["sensors"];
+            
+            // Convention is correctly implemented
+            REQUIRE(sensors["read_interval_ms"].is<uint32_t>());
+            REQUIRE(sensors["read_interval_s"].is<uint32_t>());
+            REQUIRE(sensors["transmission_interval_ms"].is<uint32_t>());
+            REQUIRE(sensors["transmission_interval_s"].is<uint32_t>());
+            
+            // Values match the convention
+            REQUIRE(sensors["read_interval_ms"] == 45000);
+            REQUIRE(sensors["read_interval_s"] == 45);
+            REQUIRE(sensors["transmission_interval_ms"] == 90000);
+            REQUIRE(sensors["transmission_interval_s"] == 90);
+        }
+    }
+}
