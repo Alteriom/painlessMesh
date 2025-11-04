@@ -287,7 +287,8 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
 
     // Serialize MQTT retry configuration (with both _ms and _s variants)
     if (mqttMaxRetryAttempts > 0 || mqttCircuitBreakerMs > 0 || 
-        mqttInitialRetryMs > 0 || mqttMaxRetryMs > 0) {
+        mqttInitialRetryMs > 0 || mqttMaxRetryMs > 0 || 
+        mqttHourlyRetryEnabled || mqttBackoffMultiplier != 0.0) {
       JsonObject mqttRetry = jsonObj["mqtt_retry"].to<JsonObject>();
       mqttRetry["max_attempts"] = mqttMaxRetryAttempts;
       mqttRetry["circuit_breaker_ms"] = mqttCircuitBreakerMs;
@@ -347,7 +348,8 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
 
     // Add MQTT retry configuration object size if populated
     if (mqttMaxRetryAttempts > 0 || mqttCircuitBreakerMs > 0 || 
-        mqttInitialRetryMs > 0 || mqttMaxRetryMs > 0) {
+        mqttInitialRetryMs > 0 || mqttMaxRetryMs > 0 || 
+        mqttHourlyRetryEnabled || mqttBackoffMultiplier != 0.0) {
       // mqtt_retry object with max_attempts, circuit_breaker_ms, circuit_breaker_s, hourly_retry_enabled,
       // initial_retry_ms, initial_retry_s, max_retry_ms, max_retry_s, backoff_multiplier
       size += JSON_OBJECT_SIZE(9) + 10; // Extra space for backoff_multiplier string

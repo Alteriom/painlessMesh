@@ -892,3 +892,39 @@ SCENARIO("StatusPackage backward compatibility for time fields") {
         }
     }
 }
+
+SCENARIO("StatusPackage MQTT retry configuration with only boolean/float fields") {
+    GIVEN("A StatusPackage with only mqttHourlyRetryEnabled set") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.mqttHourlyRetryEnabled = true;
+        pkg.mqttBackoffMultiplier = 1.5;
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("mqtt_retry object should be created even without time fields") {
+                REQUIRE(obj["mqtt_retry"].is<JsonObject>());
+                JsonObject mqttRetry = obj["mqtt_retry"];
+                REQUIRE(mqttRetry["hourly_retry_enabled"] == true);
+                REQUIRE(mqttRetry["backoff_multiplier"] == 1.5);
+            }
+        }
+        
+        WHEN("Converting to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Should round-trip correctly") {
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == true);
+                REQUIRE(pkg2.mqttBackoffMultiplier == 1.5);
+            }
+        }
+    }
+}
