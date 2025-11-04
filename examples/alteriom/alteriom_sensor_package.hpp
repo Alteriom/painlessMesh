@@ -375,76 +375,63 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     }
     
     // Serialize organization metadata (mixed case per MQTT Schema v0.7.2)
-    if (organizationId.length() > 0 || customerId.length() > 0 || 
-        deviceGroup.length() > 0 || deviceName.length() > 0 || 
-        deviceLocation.length() > 0 || deviceSecretSet) {
-      JsonObject org = jsonObj["organization"].to<JsonObject>();
-      org["organizationId"] = organizationId;
-      org["customerId"] = customerId;
-      org["deviceGroup"] = deviceGroup;
-      org["device_name"] = deviceName;
-      org["device_location"] = deviceLocation;
-      org["device_secret_set"] = deviceSecretSet;
-    }
+    // Always serialize - empty strings and false indicate "not configured"
+    JsonObject org = jsonObj["organization"].to<JsonObject>();
+    org["organizationId"] = organizationId;
+    org["customerId"] = customerId;
+    org["deviceGroup"] = deviceGroup;
+    org["device_name"] = deviceName;
+    org["device_location"] = deviceLocation;
+    org["device_secret_set"] = deviceSecretSet;
 
     // Serialize sensor configuration (Build 8057 - Match gateway format)
-    if (sensorReadInterval > 0 || transmissionInterval > 0 || 
-        tempOffset != 0.0 || humidityOffset != 0.0 || pressureOffset != 0.0) {
-      JsonObject sensors = jsonObj["sensors"].to<JsonObject>();
-      sensors["read_interval_ms"] = sensorReadInterval;
-      sensors["read_interval_s"] = sensorReadInterval / 1000;
-      sensors["transmission_interval_ms"] = transmissionInterval;
-      sensors["transmission_interval_s"] = transmissionInterval / 1000;
-      
-      // Nested calibration object
-      if (tempOffset != 0.0 || humidityOffset != 0.0 || pressureOffset != 0.0) {
-        JsonObject calibration = sensors["calibration"].to<JsonObject>();
-        calibration["temperature_offset"] = tempOffset;
-        calibration["humidity_offset"] = humidityOffset;
-        calibration["pressure_offset"] = pressureOffset;
-      }
-    }
+    // Always serialize - 0 values indicate "not configured"
+    JsonObject sensors = jsonObj["sensors"].to<JsonObject>();
+    sensors["read_interval_ms"] = sensorReadInterval;
+    sensors["read_interval_s"] = sensorReadInterval / 1000;
+    sensors["transmission_interval_ms"] = transmissionInterval;
+    sensors["transmission_interval_s"] = transmissionInterval / 1000;
+    
+    // Always include calibration subsection - 0.0 values indicate "not configured"
+    JsonObject calibration = sensors["calibration"].to<JsonObject>();
+    calibration["temperature_offset"] = tempOffset;
+    calibration["humidity_offset"] = humidityOffset;
+    calibration["pressure_offset"] = pressureOffset;
 
     // Serialize sensor inventory (Build 8057 - Separate key to avoid collision)
-    if (sensorCount > 0 || sensorTypeMask > 0) {
-      JsonObject sensorInventory = jsonObj["sensor_inventory"].to<JsonObject>();
-      sensorInventory["count"] = sensorCount;
-      sensorInventory["type_mask"] = sensorTypeMask;
-    }
+    // Always serialize - 0 values indicate "not configured"
+    JsonObject sensorInventory = jsonObj["sensor_inventory"].to<JsonObject>();
+    sensorInventory["count"] = sensorCount;
+    sensorInventory["type_mask"] = sensorTypeMask;
 
     // Serialize display configuration (with both _ms and _s variants)
-    if (displayEnabled || displayBrightness > 0 || displayTimeout > 0) {
-      JsonObject displayConfig = jsonObj["display_config"].to<JsonObject>();
-      displayConfig["enabled"] = displayEnabled;
-      displayConfig["brightness"] = displayBrightness;
-      displayConfig["timeout_ms"] = displayTimeout;
-      displayConfig["timeout_s"] = displayTimeout / 1000;
-    }
+    // Always serialize - false/0 values indicate "not configured" or "disabled"
+    JsonObject displayConfig = jsonObj["display_config"].to<JsonObject>();
+    displayConfig["enabled"] = displayEnabled;
+    displayConfig["brightness"] = displayBrightness;
+    displayConfig["timeout_ms"] = displayTimeout;
+    displayConfig["timeout_s"] = displayTimeout / 1000;
 
     // Serialize power configuration (with both _ms and _s variants)
-    if (deepSleepEnabled || deepSleepInterval > 0 || batteryPercent > 0) {
-      JsonObject powerConfig = jsonObj["power_config"].to<JsonObject>();
-      powerConfig["deep_sleep_enabled"] = deepSleepEnabled;
-      powerConfig["deep_sleep_interval_ms"] = deepSleepInterval;
-      powerConfig["deep_sleep_interval_s"] = deepSleepInterval / 1000;
-      powerConfig["battery_percent"] = batteryPercent;
-    }
+    // Always serialize - false/0 values indicate "not configured" or "disabled"
+    JsonObject powerConfig = jsonObj["power_config"].to<JsonObject>();
+    powerConfig["deep_sleep_enabled"] = deepSleepEnabled;
+    powerConfig["deep_sleep_interval_ms"] = deepSleepInterval;
+    powerConfig["deep_sleep_interval_s"] = deepSleepInterval / 1000;
+    powerConfig["battery_percent"] = batteryPercent;
 
     // Serialize MQTT retry configuration (with both _ms and _s variants)
-    if (mqttMaxRetryAttempts > 0 || mqttCircuitBreakerMs > 0 || 
-        mqttInitialRetryMs > 0 || mqttMaxRetryMs > 0 || 
-        mqttHourlyRetryEnabled || mqttBackoffMultiplier > 0.001) {
-      JsonObject mqttRetry = jsonObj["mqtt_retry"].to<JsonObject>();
-      mqttRetry["max_attempts"] = mqttMaxRetryAttempts;
-      mqttRetry["circuit_breaker_ms"] = mqttCircuitBreakerMs;
-      mqttRetry["circuit_breaker_s"] = mqttCircuitBreakerMs / 1000;
-      mqttRetry["hourly_retry_enabled"] = mqttHourlyRetryEnabled;
-      mqttRetry["initial_retry_ms"] = mqttInitialRetryMs;
-      mqttRetry["initial_retry_s"] = mqttInitialRetryMs / 1000;
-      mqttRetry["max_retry_ms"] = mqttMaxRetryMs;
-      mqttRetry["max_retry_s"] = mqttMaxRetryMs / 1000;
-      mqttRetry["backoff_multiplier"] = mqttBackoffMultiplier;
-    }
+    // Always serialize - false/0 values indicate "not configured" or "disabled"
+    JsonObject mqttRetry = jsonObj["mqtt_retry"].to<JsonObject>();
+    mqttRetry["max_attempts"] = mqttMaxRetryAttempts;
+    mqttRetry["circuit_breaker_ms"] = mqttCircuitBreakerMs;
+    mqttRetry["circuit_breaker_s"] = mqttCircuitBreakerMs / 1000;
+    mqttRetry["hourly_retry_enabled"] = mqttHourlyRetryEnabled;
+    mqttRetry["initial_retry_ms"] = mqttInitialRetryMs;
+    mqttRetry["initial_retry_s"] = mqttInitialRetryMs / 1000;
+    mqttRetry["max_retry_ms"] = mqttMaxRetryMs;
+    mqttRetry["max_retry_s"] = mqttMaxRetryMs / 1000;
+    mqttRetry["backoff_multiplier"] = mqttBackoffMultiplier;
     
     return jsonObj;
   }
@@ -454,51 +441,32 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     size_t size = JSON_OBJECT_SIZE(noJsonFields + 7) + firmwareVersion.length() +
            responseMessage.length();
     
-    // Add organization object size if populated
-    if (organizationId.length() > 0 || customerId.length() > 0 || 
-        deviceGroup.length() > 0 || deviceName.length() > 0 || 
-        deviceLocation.length() > 0 || deviceSecretSet) {
-      size += JSON_OBJECT_SIZE(6) + organizationId.length() + 
-              customerId.length() + deviceGroup.length() + 
-              deviceName.length() + deviceLocation.length();
-    }
+    // Always add organization object size (always serialized)
+    size += JSON_OBJECT_SIZE(6) + organizationId.length() + 
+            customerId.length() + deviceGroup.length() + 
+            deviceName.length() + deviceLocation.length();
 
-    // Add sensor configuration object size if populated (Build 8057)
-    if (sensorReadInterval > 0 || transmissionInterval > 0 || 
-        tempOffset != 0.0 || humidityOffset != 0.0 || pressureOffset != 0.0) {
-      // sensors object with read_interval_ms, read_interval_s, transmission_interval_ms, transmission_interval_s
-      size += JSON_OBJECT_SIZE(4);
-      // calibration nested object if any offset is set
-      if (tempOffset != 0.0 || humidityOffset != 0.0 || pressureOffset != 0.0) {
-        size += JSON_OBJECT_SIZE(3);
-      }
-    }
+    // Always add sensor configuration object size (always serialized)
+    // sensors object with read_interval_ms, read_interval_s, transmission_interval_ms, transmission_interval_s
+    size += JSON_OBJECT_SIZE(4);
+    // calibration nested object (always included)
+    size += JSON_OBJECT_SIZE(3);
 
-    // Add sensor inventory object size if populated (Build 8057)
-    if (sensorCount > 0 || sensorTypeMask > 0) {
-      size += JSON_OBJECT_SIZE(2);  // sensor_inventory object with count and type_mask
-    }
+    // Always add sensor inventory object size (always serialized)
+    size += JSON_OBJECT_SIZE(2);  // sensor_inventory object with count and type_mask
 
-    // Add display configuration object size if populated
-    if (displayEnabled || displayBrightness > 0 || displayTimeout > 0) {
-      // display_config object with enabled, brightness, timeout_ms, timeout_s
-      size += JSON_OBJECT_SIZE(4);
-    }
+    // Always add display configuration object size (always serialized)
+    // display_config object with enabled, brightness, timeout_ms, timeout_s
+    size += JSON_OBJECT_SIZE(4);
 
-    // Add power configuration object size if populated
-    if (deepSleepEnabled || deepSleepInterval > 0 || batteryPercent > 0) {
-      // power_config object with deep_sleep_enabled, deep_sleep_interval_ms, deep_sleep_interval_s, battery_percent
-      size += JSON_OBJECT_SIZE(4);
-    }
+    // Always add power configuration object size (always serialized)
+    // power_config object with deep_sleep_enabled, deep_sleep_interval_ms, deep_sleep_interval_s, battery_percent
+    size += JSON_OBJECT_SIZE(4);
 
-    // Add MQTT retry configuration object size if populated
-    if (mqttMaxRetryAttempts > 0 || mqttCircuitBreakerMs > 0 || 
-        mqttInitialRetryMs > 0 || mqttMaxRetryMs > 0 || 
-        mqttHourlyRetryEnabled || mqttBackoffMultiplier > 0.001) {
-      // mqtt_retry object with max_attempts, circuit_breaker_ms, circuit_breaker_s, hourly_retry_enabled,
-      // initial_retry_ms, initial_retry_s, max_retry_ms, max_retry_s, backoff_multiplier
-      size += JSON_OBJECT_SIZE(9) + 10; // Extra space for backoff_multiplier string
-    }
+    // Always add MQTT retry configuration object size (always serialized)
+    // mqtt_retry object with max_attempts, circuit_breaker_ms, circuit_breaker_s, hourly_retry_enabled,
+    // initial_retry_ms, initial_retry_s, max_retry_ms, max_retry_s, backoff_multiplier
+    size += JSON_OBJECT_SIZE(9) + 10; // Extra space for backoff_multiplier string
     
     return size;
   }
