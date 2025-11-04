@@ -679,3 +679,252 @@ SCENARIO("StatusPackage with no sensor data") {
         }
     }
 }
+
+SCENARIO("StatusPackage time field naming consistency") {
+    GIVEN("A StatusPackage with display, power, and MQTT retry configuration") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.deviceStatus = 0x01;
+        pkg.uptime = 3600;
+        pkg.freeMemory = 256;
+        pkg.wifiStrength = 80;
+        pkg.firmwareVersion = "1.0.0";
+        
+        // Set display configuration
+        pkg.displayEnabled = true;
+        pkg.displayBrightness = 128;
+        pkg.displayTimeout = 45000; // 45 seconds in ms
+        
+        // Set power configuration
+        pkg.deepSleepEnabled = true;
+        pkg.deepSleepInterval = 300000; // 5 minutes in ms
+        pkg.batteryPercent = 75;
+        
+        // Set MQTT retry configuration
+        pkg.mqttMaxRetryAttempts = 5;
+        pkg.mqttCircuitBreakerMs = 120000; // 2 minutes in ms
+        pkg.mqttHourlyRetryEnabled = true;
+        pkg.mqttInitialRetryMs = 5000; // 5 seconds in ms
+        pkg.mqttMaxRetryMs = 60000; // 1 minute in ms
+        pkg.mqttBackoffMultiplier = 2.0;
+        
+        WHEN("Converting to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("All configuration fields should round-trip correctly") {
+                // Display config
+                REQUIRE(pkg2.displayEnabled == pkg.displayEnabled);
+                REQUIRE(pkg2.displayBrightness == pkg.displayBrightness);
+                REQUIRE(pkg2.displayTimeout == pkg.displayTimeout);
+                
+                // Power config
+                REQUIRE(pkg2.deepSleepEnabled == pkg.deepSleepEnabled);
+                REQUIRE(pkg2.deepSleepInterval == pkg.deepSleepInterval);
+                REQUIRE(pkg2.batteryPercent == pkg.batteryPercent);
+                
+                // MQTT retry config
+                REQUIRE(pkg2.mqttMaxRetryAttempts == pkg.mqttMaxRetryAttempts);
+                REQUIRE(pkg2.mqttCircuitBreakerMs == pkg.mqttCircuitBreakerMs);
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == pkg.mqttHourlyRetryEnabled);
+                REQUIRE(pkg2.mqttInitialRetryMs == pkg.mqttInitialRetryMs);
+                REQUIRE(pkg2.mqttMaxRetryMs == pkg.mqttMaxRetryMs);
+                REQUIRE(pkg2.mqttBackoffMultiplier == pkg.mqttBackoffMultiplier);
+            }
+        }
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(4096); // Larger size for all the new fields
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Display config should have both _ms and _s variants") {
+                REQUIRE(obj["display_config"].is<JsonObject>());
+                JsonObject displayConfig = obj["display_config"];
+                
+                REQUIRE(displayConfig["enabled"] == true);
+                REQUIRE(displayConfig["brightness"] == 128);
+                REQUIRE(displayConfig["timeout_ms"] == 45000);
+                REQUIRE(displayConfig["timeout_s"] == 45);
+            }
+            
+            THEN("Power config should have both _ms and _s variants") {
+                REQUIRE(obj["power_config"].is<JsonObject>());
+                JsonObject powerConfig = obj["power_config"];
+                
+                REQUIRE(powerConfig["deep_sleep_enabled"] == true);
+                REQUIRE(powerConfig["deep_sleep_interval_ms"] == 300000);
+                REQUIRE(powerConfig["deep_sleep_interval_s"] == 300);
+                REQUIRE(powerConfig["battery_percent"] == 75);
+            }
+            
+            THEN("MQTT retry config should have both _ms and _s variants") {
+                REQUIRE(obj["mqtt_retry"].is<JsonObject>());
+                JsonObject mqttRetry = obj["mqtt_retry"];
+                
+                REQUIRE(mqttRetry["max_attempts"] == 5);
+                REQUIRE(mqttRetry["circuit_breaker_ms"] == 120000);
+                REQUIRE(mqttRetry["circuit_breaker_s"] == 120);
+                REQUIRE(mqttRetry["hourly_retry_enabled"] == true);
+                REQUIRE(mqttRetry["initial_retry_ms"] == 5000);
+                REQUIRE(mqttRetry["initial_retry_s"] == 5);
+                REQUIRE(mqttRetry["max_retry_ms"] == 60000);
+                REQUIRE(mqttRetry["max_retry_s"] == 60);
+                REQUIRE(mqttRetry["backoff_multiplier"] == 2.0);
+            }
+        }
+    }
+    
+    GIVEN("A StatusPackage without display, power, or MQTT config") {
+        auto pkg = StatusPackage();
+        pkg.from = 54321;
+        pkg.deviceStatus = 0x02;
+        pkg.uptime = 7200;
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Should not create display_config, power_config, or mqtt_retry objects") {
+                REQUIRE_FALSE(obj["display_config"].is<JsonObject>());
+                REQUIRE_FALSE(obj["power_config"].is<JsonObject>());
+                REQUIRE_FALSE(obj["mqtt_retry"].is<JsonObject>());
+            }
+        }
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Round-trip should work correctly with defaults") {
+                REQUIRE(pkg2.displayEnabled == false);
+                REQUIRE(pkg2.displayBrightness == 0);
+                REQUIRE(pkg2.displayTimeout == 0);
+                REQUIRE(pkg2.deepSleepEnabled == false);
+                REQUIRE(pkg2.deepSleepInterval == 0);
+                REQUIRE(pkg2.batteryPercent == 0);
+                REQUIRE(pkg2.mqttMaxRetryAttempts == 0);
+                REQUIRE(pkg2.mqttCircuitBreakerMs == 0);
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == false);
+                REQUIRE(pkg2.mqttInitialRetryMs == 0);
+                REQUIRE(pkg2.mqttMaxRetryMs == 0);
+                REQUIRE(pkg2.mqttBackoffMultiplier == 0.0);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage backward compatibility for time fields") {
+    GIVEN("A JSON payload with old field names (no _ms suffix)") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+        JsonDocument jsonDoc;
+#else
+        DynamicJsonDocument jsonDoc(2048);
+#endif
+        JsonObject obj = jsonDoc.to<JsonObject>();
+        
+        // Simulate old format without _ms suffix
+        JsonObject displayConfig = obj["display_config"].to<JsonObject>();
+        displayConfig["enabled"] = true;
+        displayConfig["brightness"] = 100;
+        displayConfig["timeout"] = 30000; // Old field name
+        
+        JsonObject powerConfig = obj["power_config"].to<JsonObject>();
+        powerConfig["deep_sleep_enabled"] = true;
+        powerConfig["deep_sleep_interval"] = 600000; // Old field name
+        powerConfig["battery_percent"] = 80;
+        
+        WHEN("Deserializing from old format") {
+            auto pkg = StatusPackage(obj);
+            
+            THEN("Should correctly parse old field names") {
+                REQUIRE(pkg.displayEnabled == true);
+                REQUIRE(pkg.displayBrightness == 100);
+                REQUIRE(pkg.displayTimeout == 30000);
+                
+                REQUIRE(pkg.deepSleepEnabled == true);
+                REQUIRE(pkg.deepSleepInterval == 600000);
+                REQUIRE(pkg.batteryPercent == 80);
+            }
+        }
+    }
+    
+    GIVEN("A JSON payload with new field names (_ms suffix)") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+        JsonDocument jsonDoc;
+#else
+        DynamicJsonDocument jsonDoc(2048);
+#endif
+        JsonObject obj = jsonDoc.to<JsonObject>();
+        
+        // New format with _ms suffix
+        JsonObject displayConfig = obj["display_config"].to<JsonObject>();
+        displayConfig["enabled"] = true;
+        displayConfig["brightness"] = 150;
+        displayConfig["timeout_ms"] = 60000; // New field name
+        
+        JsonObject powerConfig = obj["power_config"].to<JsonObject>();
+        powerConfig["deep_sleep_enabled"] = false;
+        powerConfig["deep_sleep_interval_ms"] = 900000; // New field name
+        powerConfig["battery_percent"] = 90;
+        
+        WHEN("Deserializing from new format") {
+            auto pkg = StatusPackage(obj);
+            
+            THEN("Should correctly parse new field names") {
+                REQUIRE(pkg.displayEnabled == true);
+                REQUIRE(pkg.displayBrightness == 150);
+                REQUIRE(pkg.displayTimeout == 60000);
+                
+                REQUIRE(pkg.deepSleepEnabled == false);
+                REQUIRE(pkg.deepSleepInterval == 900000);
+                REQUIRE(pkg.batteryPercent == 90);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage MQTT retry configuration with only boolean/float fields") {
+    GIVEN("A StatusPackage with only mqttHourlyRetryEnabled set") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.mqttHourlyRetryEnabled = true;
+        pkg.mqttBackoffMultiplier = 1.5;
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("mqtt_retry object should be created even without time fields") {
+                REQUIRE(obj["mqtt_retry"].is<JsonObject>());
+                JsonObject mqttRetry = obj["mqtt_retry"];
+                REQUIRE(mqttRetry["hourly_retry_enabled"] == true);
+                REQUIRE(mqttRetry["backoff_multiplier"] == 1.5);
+            }
+        }
+        
+        WHEN("Converting to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Should round-trip correctly") {
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == true);
+                REQUIRE(pkg2.mqttBackoffMultiplier == 1.5);
+            }
+        }
+    }
+}

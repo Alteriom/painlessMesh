@@ -126,6 +126,24 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   uint8_t sensorCount = 0;       // Number of sensors attached
   uint8_t sensorTypeMask = 0;    // Bitmask of sensor types present
 
+  // Display configuration
+  bool displayEnabled = false;      // Display enabled flag
+  uint8_t displayBrightness = 0;    // Display brightness (0-255)
+  uint32_t displayTimeout = 0;      // Display timeout in milliseconds
+
+  // Power configuration
+  bool deepSleepEnabled = false;    // Deep sleep enabled flag
+  uint32_t deepSleepInterval = 0;   // Deep sleep interval in milliseconds
+  uint8_t batteryPercent = 0;       // Battery percentage (0-100)
+
+  // MQTT retry configuration
+  uint8_t mqttMaxRetryAttempts = 0;   // Maximum retry attempts
+  uint32_t mqttCircuitBreakerMs = 0;  // Circuit breaker timeout in milliseconds
+  bool mqttHourlyRetryEnabled = false; // Hourly retry enabled flag
+  uint32_t mqttInitialRetryMs = 0;    // Initial retry delay in milliseconds
+  uint32_t mqttMaxRetryMs = 0;        // Maximum retry delay in milliseconds
+  float mqttBackoffMultiplier = 0.0;  // Backoff multiplier for exponential backoff
+
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
   StatusPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
@@ -167,6 +185,35 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       JsonObject sensorInventory = jsonObj["sensor_inventory"];
       sensorCount = sensorInventory["count"] | 0;
       sensorTypeMask = sensorInventory["type_mask"] | 0;
+    }
+
+    // Deserialize display configuration (with backward compatibility)
+    if (jsonObj["display_config"].is<JsonObject>()) {
+      JsonObject displayConfig = jsonObj["display_config"];
+      displayEnabled = displayConfig["enabled"] | false;
+      displayBrightness = displayConfig["brightness"] | 0;
+      // Support both old and new field names for backward compatibility
+      displayTimeout = displayConfig["timeout_ms"] | displayConfig["timeout"] | 0;
+    }
+
+    // Deserialize power configuration (with backward compatibility)
+    if (jsonObj["power_config"].is<JsonObject>()) {
+      JsonObject powerConfig = jsonObj["power_config"];
+      deepSleepEnabled = powerConfig["deep_sleep_enabled"] | false;
+      // Support both old and new field names for backward compatibility
+      deepSleepInterval = powerConfig["deep_sleep_interval_ms"] | powerConfig["deep_sleep_interval"] | 0;
+      batteryPercent = powerConfig["battery_percent"] | 0;
+    }
+
+    // Deserialize MQTT retry configuration
+    if (jsonObj["mqtt_retry"].is<JsonObject>()) {
+      JsonObject mqttRetry = jsonObj["mqtt_retry"];
+      mqttMaxRetryAttempts = mqttRetry["max_attempts"] | 0;
+      mqttCircuitBreakerMs = mqttRetry["circuit_breaker_ms"] | 0;
+      mqttHourlyRetryEnabled = mqttRetry["hourly_retry_enabled"] | false;
+      mqttInitialRetryMs = mqttRetry["initial_retry_ms"] | 0;
+      mqttMaxRetryMs = mqttRetry["max_retry_ms"] | 0;
+      mqttBackoffMultiplier = mqttRetry["backoff_multiplier"] | 0.0;
     }
   }
 
@@ -219,6 +266,40 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       sensorInventory["count"] = sensorCount;
       sensorInventory["type_mask"] = sensorTypeMask;
     }
+
+    // Serialize display configuration (with both _ms and _s variants)
+    if (displayEnabled || displayBrightness > 0 || displayTimeout > 0) {
+      JsonObject displayConfig = jsonObj["display_config"].to<JsonObject>();
+      displayConfig["enabled"] = displayEnabled;
+      displayConfig["brightness"] = displayBrightness;
+      displayConfig["timeout_ms"] = displayTimeout;
+      displayConfig["timeout_s"] = displayTimeout / 1000;
+    }
+
+    // Serialize power configuration (with both _ms and _s variants)
+    if (deepSleepEnabled || deepSleepInterval > 0 || batteryPercent > 0) {
+      JsonObject powerConfig = jsonObj["power_config"].to<JsonObject>();
+      powerConfig["deep_sleep_enabled"] = deepSleepEnabled;
+      powerConfig["deep_sleep_interval_ms"] = deepSleepInterval;
+      powerConfig["deep_sleep_interval_s"] = deepSleepInterval / 1000;
+      powerConfig["battery_percent"] = batteryPercent;
+    }
+
+    // Serialize MQTT retry configuration (with both _ms and _s variants)
+    if (mqttMaxRetryAttempts > 0 || mqttCircuitBreakerMs > 0 || 
+        mqttInitialRetryMs > 0 || mqttMaxRetryMs > 0 || 
+        mqttHourlyRetryEnabled || mqttBackoffMultiplier > 0.001) {
+      JsonObject mqttRetry = jsonObj["mqtt_retry"].to<JsonObject>();
+      mqttRetry["max_attempts"] = mqttMaxRetryAttempts;
+      mqttRetry["circuit_breaker_ms"] = mqttCircuitBreakerMs;
+      mqttRetry["circuit_breaker_s"] = mqttCircuitBreakerMs / 1000;
+      mqttRetry["hourly_retry_enabled"] = mqttHourlyRetryEnabled;
+      mqttRetry["initial_retry_ms"] = mqttInitialRetryMs;
+      mqttRetry["initial_retry_s"] = mqttInitialRetryMs / 1000;
+      mqttRetry["max_retry_ms"] = mqttMaxRetryMs;
+      mqttRetry["max_retry_s"] = mqttMaxRetryMs / 1000;
+      mqttRetry["backoff_multiplier"] = mqttBackoffMultiplier;
+    }
     
     return jsonObj;
   }
@@ -251,6 +332,27 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     // Add sensor inventory object size if populated (Build 8057)
     if (sensorCount > 0 || sensorTypeMask > 0) {
       size += JSON_OBJECT_SIZE(2);  // sensor_inventory object with count and type_mask
+    }
+
+    // Add display configuration object size if populated
+    if (displayEnabled || displayBrightness > 0 || displayTimeout > 0) {
+      // display_config object with enabled, brightness, timeout_ms, timeout_s
+      size += JSON_OBJECT_SIZE(4);
+    }
+
+    // Add power configuration object size if populated
+    if (deepSleepEnabled || deepSleepInterval > 0 || batteryPercent > 0) {
+      // power_config object with deep_sleep_enabled, deep_sleep_interval_ms, deep_sleep_interval_s, battery_percent
+      size += JSON_OBJECT_SIZE(4);
+    }
+
+    // Add MQTT retry configuration object size if populated
+    if (mqttMaxRetryAttempts > 0 || mqttCircuitBreakerMs > 0 || 
+        mqttInitialRetryMs > 0 || mqttMaxRetryMs > 0 || 
+        mqttHourlyRetryEnabled || mqttBackoffMultiplier > 0.001) {
+      // mqtt_retry object with max_attempts, circuit_breaker_ms, circuit_breaker_s, hourly_retry_enabled,
+      // initial_retry_ms, initial_retry_s, max_retry_ms, max_retry_s, backoff_multiplier
+      size += JSON_OBJECT_SIZE(9) + 10; // Extra space for backoff_multiplier string
     }
     
     return size;
