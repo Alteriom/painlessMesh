@@ -107,6 +107,14 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   uint32_t responseToCommand = 0;  // CommandId this is responding to
   TSTRING responseMessage = "";    // Success/error message
 
+  // Organization metadata (Build 8052 - Phase 2.7)
+  TSTRING organizationId = "";   // Organization identifier
+  TSTRING customerId = "";       // Customer identifier
+  TSTRING deviceGroup = "";      // Device group/category
+  TSTRING deviceName = "";       // Device name
+  TSTRING deviceLocation = "";   // Device location
+  bool deviceSecretSet = false;  // Whether device secret is configured
+
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
   StatusPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
@@ -117,6 +125,17 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     firmwareVersion = jsonObj["fw"].as<TSTRING>();
     responseToCommand = jsonObj["respTo"] | 0;
     responseMessage = jsonObj["respMsg"].as<TSTRING>();
+    
+    // Deserialize organization metadata (camelCase format)
+    if (jsonObj["organization"].is<JsonObject>()) {
+      JsonObject org = jsonObj["organization"];
+      organizationId = org["organizationId"].as<TSTRING>();
+      customerId = org["customerId"].as<TSTRING>();
+      deviceGroup = org["deviceGroup"].as<TSTRING>();
+      deviceName = org["device_name"].as<TSTRING>();
+      deviceLocation = org["device_location"].as<TSTRING>();
+      deviceSecretSet = org["device_secret_set"] | false;
+    }
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -130,13 +149,38 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       jsonObj["respTo"] = responseToCommand;
       jsonObj["respMsg"] = responseMessage;
     }
+    
+    // Serialize organization metadata (mixed case per MQTT Schema v0.7.2)
+    if (organizationId.length() > 0 || customerId.length() > 0 || 
+        deviceGroup.length() > 0 || deviceName.length() > 0 || 
+        deviceLocation.length() > 0 || deviceSecretSet) {
+      JsonObject org = jsonObj["organization"].to<JsonObject>();
+      org["organizationId"] = organizationId;
+      org["customerId"] = customerId;
+      org["deviceGroup"] = deviceGroup;
+      org["device_name"] = deviceName;
+      org["device_location"] = deviceLocation;
+      org["device_secret_set"] = deviceSecretSet;
+    }
+    
     return jsonObj;
   }
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 7) + firmwareVersion.length() +
+    size_t size = JSON_OBJECT_SIZE(noJsonFields + 7) + firmwareVersion.length() +
            responseMessage.length();
+    
+    // Add organization object size if populated
+    if (organizationId.length() > 0 || customerId.length() > 0 || 
+        deviceGroup.length() > 0 || deviceName.length() > 0 || 
+        deviceLocation.length() > 0 || deviceSecretSet) {
+      size += JSON_OBJECT_SIZE(6) + organizationId.length() + 
+              customerId.length() + deviceGroup.length() + 
+              deviceName.length() + deviceLocation.length();
+    }
+    
+    return size;
   }
 #endif
 };
