@@ -115,6 +115,17 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   TSTRING deviceLocation = "";   // Device location
   bool deviceSecretSet = false;  // Whether device secret is configured
 
+  // Sensor configuration (Build 8057 - Gateway format compatibility)
+  uint32_t sensorReadInterval = 0;      // Sensor read interval in milliseconds
+  uint32_t transmissionInterval = 0;    // Transmission interval in milliseconds
+  double tempOffset = 0.0;              // Temperature calibration offset
+  double humidityOffset = 0.0;          // Humidity calibration offset
+  double pressureOffset = 0.0;          // Pressure calibration offset
+
+  // Sensor inventory (Build 8057 - Separate from config to avoid collision)
+  uint8_t sensorCount = 0;       // Number of sensors attached
+  uint8_t sensorTypeMask = 0;    // Bitmask of sensor types present
+
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
   StatusPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
@@ -135,6 +146,27 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       deviceName = org["device_name"].as<TSTRING>();
       deviceLocation = org["device_location"].as<TSTRING>();
       deviceSecretSet = org["device_secret_set"] | false;
+    }
+
+    // Deserialize sensor configuration (Build 8057 - Gateway format)
+    if (jsonObj["sensors"].is<JsonObject>()) {
+      JsonObject sensors = jsonObj["sensors"];
+      sensorReadInterval = sensors["read_interval_ms"] | 0;
+      transmissionInterval = sensors["transmission_interval_ms"] | 0;
+      
+      if (sensors["calibration"].is<JsonObject>()) {
+        JsonObject calibration = sensors["calibration"];
+        tempOffset = calibration["temperature_offset"] | 0.0;
+        humidityOffset = calibration["humidity_offset"] | 0.0;
+        pressureOffset = calibration["pressure_offset"] | 0.0;
+      }
+    }
+
+    // Deserialize sensor inventory (Build 8057 - Separate key)
+    if (jsonObj["sensor_inventory"].is<JsonObject>()) {
+      JsonObject sensorInventory = jsonObj["sensor_inventory"];
+      sensorCount = sensorInventory["count"] | 0;
+      sensorTypeMask = sensorInventory["type_mask"] | 0;
     }
   }
 
@@ -162,6 +194,31 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       org["device_location"] = deviceLocation;
       org["device_secret_set"] = deviceSecretSet;
     }
+
+    // Serialize sensor configuration (Build 8057 - Match gateway format)
+    if (sensorReadInterval > 0 || transmissionInterval > 0 || 
+        tempOffset != 0.0 || humidityOffset != 0.0 || pressureOffset != 0.0) {
+      JsonObject sensors = jsonObj["sensors"].to<JsonObject>();
+      sensors["read_interval_ms"] = sensorReadInterval;
+      sensors["read_interval_s"] = sensorReadInterval / 1000;
+      sensors["transmission_interval_ms"] = transmissionInterval;
+      sensors["transmission_interval_s"] = transmissionInterval / 1000;
+      
+      // Nested calibration object
+      if (tempOffset != 0.0 || humidityOffset != 0.0 || pressureOffset != 0.0) {
+        JsonObject calibration = sensors["calibration"].to<JsonObject>();
+        calibration["temperature_offset"] = tempOffset;
+        calibration["humidity_offset"] = humidityOffset;
+        calibration["pressure_offset"] = pressureOffset;
+      }
+    }
+
+    // Serialize sensor inventory (Build 8057 - Separate key to avoid collision)
+    if (sensorCount > 0 || sensorTypeMask > 0) {
+      JsonObject sensorInventory = jsonObj["sensor_inventory"].to<JsonObject>();
+      sensorInventory["count"] = sensorCount;
+      sensorInventory["type_mask"] = sensorTypeMask;
+    }
     
     return jsonObj;
   }
@@ -178,6 +235,22 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       size += JSON_OBJECT_SIZE(6) + organizationId.length() + 
               customerId.length() + deviceGroup.length() + 
               deviceName.length() + deviceLocation.length();
+    }
+
+    // Add sensor configuration object size if populated (Build 8057)
+    if (sensorReadInterval > 0 || transmissionInterval > 0 || 
+        tempOffset != 0.0 || humidityOffset != 0.0 || pressureOffset != 0.0) {
+      // sensors object with read_interval_ms, read_interval_s, transmission_interval_ms, transmission_interval_s
+      size += JSON_OBJECT_SIZE(4);
+      // calibration nested object if any offset is set
+      if (tempOffset != 0.0 || humidityOffset != 0.0 || pressureOffset != 0.0) {
+        size += JSON_OBJECT_SIZE(3);
+      }
+    }
+
+    // Add sensor inventory object size if populated (Build 8057)
+    if (sensorCount > 0 || sensorTypeMask > 0) {
+      size += JSON_OBJECT_SIZE(2);  // sensor_inventory object with count and type_mask
     }
     
     return size;
