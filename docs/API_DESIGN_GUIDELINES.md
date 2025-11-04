@@ -15,12 +15,19 @@ This document provides guidelines for designing consistent and maintainable JSON
 
 Alteriom packages use JSON serialization for configuration and status data. This document establishes clear patterns for when to use nested structures versus flat key-value pairs to ensure consistency and maintainability across the codebase.
 
+**Related Issues:**
+- [Issue #28](https://github.com/Alteriom/painlessMesh/issues/28) - Inconsistent Nested vs Flat Configuration Structure
+- [Issue #29](https://github.com/Alteriom/painlessMesh/issues/29) - Inconsistent Optional vs Required Field Serialization Pattern
+- [PR #36](https://github.com/Alteriom/painlessMesh/pull/36) - Documented nesting patterns (this file)
+- [PR #37](https://github.com/Alteriom/painlessMesh/pull/37) - Removed conditional serialization for predictable JSON structure
+
 ### Key Principles
 
 1. **Consistency over perfection** - Follow existing patterns in similar sections
 2. **Simplicity by default** - Use flat structures unless nesting provides clear benefits
 3. **Future-proof** - Consider extensibility when designing structures
 4. **Clarity** - Structure should reflect logical grouping
+5. **Predictable structure** - All sections always serialize with default values (addressed in PR #37)
 
 ## Nesting vs Flat Structure Guidelines
 
@@ -52,9 +59,11 @@ Alteriom packages use JSON serialization for configuration and status data. This
 
 ## Current Structure Patterns
 
+**Important Note (as of PR #37):** All configuration sections now **always serialize** regardless of whether values are at their defaults. This provides predictable JSON structure and eliminates the need for consumers to check key existence. Default values (0, false, "") clearly indicate "not configured" state.
+
 ### Flat Sections (No Nesting)
 
-These sections use simple key-value pairs:
+These sections use simple key-value pairs at a single level:
 
 #### Display Configuration
 ```json
@@ -370,9 +379,27 @@ if (jsonObj["network"]["wifi"].is<JsonObject>()) {
 | **Logical Grouping** | No clear subsystems | Clear semantic grouping |
 | **Extensibility** | Low likelihood of growth | Anticipated expansion |
 | **Complexity** | Simple values | Complex relationships |
-| **Examples** | display_config, power_config, ota, encoding | sensors.calibration, organization |
+| **Serialization** | Always present (PR #37) | Always present (PR #37) |
+| **Examples** | display_config, power_config, ota, encoding, mqtt_retry | sensors.calibration, organization |
 
 **Golden Rule:** When uncertain, prefer flat structures. Nesting should provide clear organizational or extensibility benefits to justify the added complexity.
+
+### Resolution of Issue #28
+
+Issue #28 identified inconsistent nesting patterns and proposed three options:
+
+1. **Option 1: Keep Current Structure (Document Pattern)** ✅ **ADOPTED**
+2. Option 2: Nest Network Configuration (Breaking Change)
+3. Option 3: Nest MQTT Retry Backoff Settings (Minimal Change)
+
+**Decision Rationale:**
+- Current flat structure for most sections (display_config, power_config, mqtt_retry) is functional and simple
+- Only sensors.calibration uses nesting, which is justified by its semantic separation
+- Avoiding breaking changes preserves compatibility with existing consumers
+- Clear documentation (this file) addresses the inconsistency concern
+- PR #37's unconditional serialization provides the predictable structure that was the real underlying concern
+
+**Result:** The pattern is now documented and validated. Future additions should follow the decision tree in this document.
 
 ## References
 
@@ -383,4 +410,5 @@ if (jsonObj["network"]["wifi"].is<JsonObject>()) {
 
 ## Revision History
 
-- **2025-11-04**: Initial version documenting StatusPackage nesting patterns
+- **2025-11-04 (PR #37)**: Updated to reflect unconditional serialization pattern - all sections always serialize with default values for predictable structure
+- **2025-11-04 (PR #36)**: Initial version documenting StatusPackage nesting patterns in response to Issue #28
