@@ -154,6 +154,26 @@ SCENARIO("Alteriom StatusPackage organization fields serialize correctly") {
                 REQUIRE(pkg2.type == pkg.type);
             }
         }
+        
+        WHEN("Only some organization fields are set") {
+            auto pkg3 = StatusPackage();
+            pkg3.from = 99999;
+            pkg3.deviceName = "Partial Device";
+            pkg3.deviceSecretSet = true;
+            // Leave organizationId, customerId, deviceGroup, deviceLocation empty
+            
+            auto var3 = protocol::Variant(&pkg3);
+            auto pkg4 = var3.to<StatusPackage>();
+            
+            THEN("Organization object should still be created and fields preserved") {
+                REQUIRE(pkg4.deviceName == "Partial Device");
+                REQUIRE(pkg4.deviceSecretSet == true);
+                REQUIRE(pkg4.organizationId == "");
+                REQUIRE(pkg4.customerId == "");
+                REQUIRE(pkg4.deviceGroup == "");
+                REQUIRE(pkg4.deviceLocation == "");
+            }
+        }
     }
 }
 

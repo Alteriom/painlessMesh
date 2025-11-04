@@ -150,8 +150,10 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       jsonObj["respMsg"] = responseMessage;
     }
     
-    // Serialize organization metadata (camelCase format)
-    if (organizationId.length() > 0 || deviceGroup.length() > 0) {
+    // Serialize organization metadata (mixed case per MQTT Schema v0.7.2)
+    if (organizationId.length() > 0 || customerId.length() > 0 || 
+        deviceGroup.length() > 0 || deviceName.length() > 0 || 
+        deviceLocation.length() > 0 || deviceSecretSet) {
       JsonObject org = jsonObj["organization"].to<JsonObject>();
       org["organizationId"] = organizationId;
       org["customerId"] = customerId;
@@ -170,7 +172,9 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
            responseMessage.length();
     
     // Add organization object size if populated
-    if (organizationId.length() > 0 || deviceGroup.length() > 0) {
+    if (organizationId.length() > 0 || customerId.length() > 0 || 
+        deviceGroup.length() > 0 || deviceName.length() > 0 || 
+        deviceLocation.length() > 0 || deviceSecretSet) {
       size += JSON_OBJECT_SIZE(6) + organizationId.length() + 
               customerId.length() + deviceGroup.length() + 
               deviceName.length() + deviceLocation.length();
