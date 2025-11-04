@@ -145,6 +145,32 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
 
 /**
  * @brief Status report package for device health monitoring
+ * 
+ * BOOLEAN FIELD NAMING CONVENTION
+ * ================================
+ * 
+ * This package follows a standardized naming convention for boolean fields
+ * to improve code clarity and reduce ambiguity. See docs/BOOLEAN_NAMING_CONVENTION.md
+ * for complete documentation.
+ * 
+ * Three patterns are used:
+ * 
+ * 1. *Set suffix: Configuration data has been provided
+ *    Example: deviceSecretSet = true means secret is configured
+ *    Does NOT indicate if feature is enabled or working
+ * 
+ * 2. *Enabled suffix: Feature is currently active/turned on
+ *    Example: displayEnabled = true means display feature is active
+ *    Independent of whether required configuration exists
+ * 
+ * 3. is* prefix or *Connected: Current runtime state
+ *    Example: mqttConnected = true means currently connected
+ *    Reflects actual runtime conditions, not configuration
+ * 
+ * A feature may have both *Set and *Enabled fields:
+ * - otaServerSet=true, otaEnabled=false: Server configured but feature disabled
+ * - otaServerSet=false, otaEnabled=true: Feature enabled but no server (invalid)
+ * - otaServerSet=true, otaEnabled=true: Fully configured and active
  */
 class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
@@ -164,7 +190,7 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   TSTRING deviceGroup = "";      // Device group/category
   TSTRING deviceName = "";       // Device name
   TSTRING deviceLocation = "";   // Device location
-  bool deviceSecretSet = false;  // Whether device secret is configured
+  bool deviceSecretSet = false;  // *Set: Has device secret been configured? (not enabled/disabled)
 
   // Sensor configuration (Build 8057 - Gateway format compatibility)
   // Note: Time fields follow Alteriom time field naming convention (see file header)
@@ -180,19 +206,19 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   uint8_t sensorTypeMask = 0;    // Bitmask of sensor types present
 
   // Display configuration
-  bool displayEnabled = false;      // Display enabled flag
+  bool displayEnabled = false;      // *Enabled: Is display feature currently active?
   uint8_t displayBrightness = 0;    // Display brightness (0-255)
   uint32_t displayTimeout = 0;      // Display timeout in milliseconds
 
   // Power configuration
-  bool deepSleepEnabled = false;    // Deep sleep enabled flag
+  bool deepSleepEnabled = false;    // *Enabled: Is deep sleep mode currently active?
   uint32_t deepSleepInterval = 0;   // Deep sleep interval in milliseconds
   uint8_t batteryPercent = 0;       // Battery percentage (0-100)
 
   // MQTT retry configuration
   uint8_t mqttMaxRetryAttempts = 0;   // Maximum retry attempts
   uint32_t mqttCircuitBreakerMs = 0;  // Circuit breaker timeout in milliseconds
-  bool mqttHourlyRetryEnabled = false; // Hourly retry enabled flag
+  bool mqttHourlyRetryEnabled = false; // *Enabled: Is hourly retry feature active?
   uint32_t mqttInitialRetryMs = 0;    // Initial retry delay in milliseconds
   uint32_t mqttMaxRetryMs = 0;        // Maximum retry delay in milliseconds
   float mqttBackoffMultiplier = 0.0;  // Backoff multiplier for exponential backoff
