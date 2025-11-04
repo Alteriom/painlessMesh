@@ -1,5 +1,7 @@
 # Boolean Field Naming Convention
 
+**Related Issue**: #27
+
 ## Overview
 
 This document establishes the standard naming conventions for boolean fields in Alteriom packages, particularly in `StatusPackage`. Consistent naming patterns make the code self-documenting and help developers understand field semantics at a glance.
