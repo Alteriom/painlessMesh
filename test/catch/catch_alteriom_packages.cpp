@@ -568,14 +568,18 @@ SCENARIO("StatusPackage sensor config without calibration") {
             JsonObject obj = jsonDoc.to<JsonObject>();
             pkg.addTo(std::move(obj));
             
-            THEN("Should create sensors object but calibration should be minimal") {
+            THEN("Should create sensors object with calibration always present") {
                 REQUIRE(obj["sensors"].is<JsonObject>());
                 JsonObject sensors = obj["sensors"];
                 REQUIRE(sensors["read_interval_ms"] == 30000);
                 REQUIRE(sensors["transmission_interval_ms"] == 60000);
                 
-                // Calibration object should not be created when all offsets are 0
-                REQUIRE_FALSE(sensors["calibration"].is<JsonObject>());
+                // Calibration object should always be present for predictable structure
+                REQUIRE(sensors["calibration"].is<JsonObject>());
+                JsonObject calibration = sensors["calibration"];
+                REQUIRE(calibration["temperature_offset"] == 0.0);
+                REQUIRE(calibration["humidity_offset"] == 0.0);
+                REQUIRE(calibration["pressure_offset"] == 0.0);
             }
         }
         
@@ -657,9 +661,19 @@ SCENARIO("StatusPackage with no sensor data") {
             JsonObject obj = jsonDoc.to<JsonObject>();
             pkg.addTo(std::move(obj));
             
-            THEN("Should not create sensors or sensor_inventory objects") {
-                REQUIRE_FALSE(obj["sensors"].is<JsonObject>());
-                REQUIRE_FALSE(obj["sensor_inventory"].is<JsonObject>());
+            THEN("Should always create sensors and sensor_inventory objects with default values") {
+                // All sections are always present for predictable structure
+                REQUIRE(obj["sensors"].is<JsonObject>());
+                REQUIRE(obj["sensor_inventory"].is<JsonObject>());
+                
+                // Verify default values indicate "not configured"
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["read_interval_ms"] == 0);
+                REQUIRE(sensors["transmission_interval_ms"] == 0);
+                
+                JsonObject sensorInventory = obj["sensor_inventory"];
+                REQUIRE(sensorInventory["count"] == 0);
+                REQUIRE(sensorInventory["type_mask"] == 0);
             }
         }
         
@@ -794,10 +808,27 @@ SCENARIO("StatusPackage time field naming consistency") {
             JsonObject obj = jsonDoc.to<JsonObject>();
             pkg.addTo(std::move(obj));
             
-            THEN("Should not create display_config, power_config, or mqtt_retry objects") {
-                REQUIRE_FALSE(obj["display_config"].is<JsonObject>());
-                REQUIRE_FALSE(obj["power_config"].is<JsonObject>());
-                REQUIRE_FALSE(obj["mqtt_retry"].is<JsonObject>());
+            THEN("Should always create display_config, power_config, and mqtt_retry objects with default values") {
+                // All sections are always present for predictable structure
+                REQUIRE(obj["display_config"].is<JsonObject>());
+                REQUIRE(obj["power_config"].is<JsonObject>());
+                REQUIRE(obj["mqtt_retry"].is<JsonObject>());
+                
+                // Verify default values indicate "not configured"
+                JsonObject displayConfig = obj["display_config"];
+                REQUIRE(displayConfig["enabled"] == false);
+                REQUIRE(displayConfig["brightness"] == 0);
+                REQUIRE(displayConfig["timeout_ms"] == 0);
+                
+                JsonObject powerConfig = obj["power_config"];
+                REQUIRE(powerConfig["deep_sleep_enabled"] == false);
+                REQUIRE(powerConfig["deep_sleep_interval_ms"] == 0);
+                REQUIRE(powerConfig["battery_percent"] == 0);
+                
+                JsonObject mqttRetry = obj["mqtt_retry"];
+                REQUIRE(mqttRetry["max_attempts"] == 0);
+                REQUIRE(mqttRetry["circuit_breaker_ms"] == 0);
+                REQUIRE(mqttRetry["hourly_retry_enabled"] == false);
             }
         }
         
@@ -1224,6 +1255,168 @@ SCENARIO("StatusPackage structure consistency validates nesting rules") {
                 // docs/API_DESIGN_GUIDELINES.md
                 // examples/alteriom/alteriom_sensor_package.hpp header comments
                 REQUIRE(true);
+            }
+        }
+    }
+}
+SCENARIO("StatusPackage always serializes all sections for predictable structure") {
+    GIVEN("A StatusPackage with completely default values") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        // Leave all optional fields at their default values
+        
+        WHEN("Serializing to JSON") {
+            JsonDocument jsonDoc;
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("All configuration sections should be present with default values") {
+                // Organization section always present
+                REQUIRE(obj["organization"].is<JsonObject>());
+                JsonObject org = obj["organization"];
+                REQUIRE(org["organizationId"].as<TSTRING>() == "");
+                REQUIRE(org["customerId"].as<TSTRING>() == "");
+                REQUIRE(org["deviceGroup"].as<TSTRING>() == "");
+                REQUIRE(org["device_name"].as<TSTRING>() == "");
+                REQUIRE(org["device_location"].as<TSTRING>() == "");
+                REQUIRE(org["device_secret_set"] == false);
+                
+                // Sensor configuration always present
+                REQUIRE(obj["sensors"].is<JsonObject>());
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["read_interval_ms"] == 0);
+                REQUIRE(sensors["read_interval_s"] == 0);
+                REQUIRE(sensors["transmission_interval_ms"] == 0);
+                REQUIRE(sensors["transmission_interval_s"] == 0);
+                REQUIRE(sensors["calibration"].is<JsonObject>());
+                JsonObject calibration = sensors["calibration"];
+                REQUIRE(calibration["temperature_offset"] == 0.0);
+                REQUIRE(calibration["humidity_offset"] == 0.0);
+                REQUIRE(calibration["pressure_offset"] == 0.0);
+                
+                // Sensor inventory always present
+                REQUIRE(obj["sensor_inventory"].is<JsonObject>());
+                JsonObject sensorInventory = obj["sensor_inventory"];
+                REQUIRE(sensorInventory["count"] == 0);
+                REQUIRE(sensorInventory["type_mask"] == 0);
+                
+                // Display configuration always present
+                REQUIRE(obj["display_config"].is<JsonObject>());
+                JsonObject displayConfig = obj["display_config"];
+                REQUIRE(displayConfig["enabled"] == false);
+                REQUIRE(displayConfig["brightness"] == 0);
+                REQUIRE(displayConfig["timeout_ms"] == 0);
+                REQUIRE(displayConfig["timeout_s"] == 0);
+                
+                // Power configuration always present
+                REQUIRE(obj["power_config"].is<JsonObject>());
+                JsonObject powerConfig = obj["power_config"];
+                REQUIRE(powerConfig["deep_sleep_enabled"] == false);
+                REQUIRE(powerConfig["deep_sleep_interval_ms"] == 0);
+                REQUIRE(powerConfig["deep_sleep_interval_s"] == 0);
+                REQUIRE(powerConfig["battery_percent"] == 0);
+                
+                // MQTT retry configuration always present
+                REQUIRE(obj["mqtt_retry"].is<JsonObject>());
+                JsonObject mqttRetry = obj["mqtt_retry"];
+                REQUIRE(mqttRetry["max_attempts"] == 0);
+                REQUIRE(mqttRetry["circuit_breaker_ms"] == 0);
+                REQUIRE(mqttRetry["circuit_breaker_s"] == 0);
+                REQUIRE(mqttRetry["hourly_retry_enabled"] == false);
+                REQUIRE(mqttRetry["initial_retry_ms"] == 0);
+                REQUIRE(mqttRetry["initial_retry_s"] == 0);
+                REQUIRE(mqttRetry["max_retry_ms"] == 0);
+                REQUIRE(mqttRetry["max_retry_s"] == 0);
+                REQUIRE(mqttRetry["backoff_multiplier"] == 0.0);
+            }
+        }
+        
+        WHEN("Converting to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("All default values should round-trip correctly") {
+                // Organization fields
+                REQUIRE(pkg2.organizationId == "");
+                REQUIRE(pkg2.customerId == "");
+                REQUIRE(pkg2.deviceGroup == "");
+                REQUIRE(pkg2.deviceName == "");
+                REQUIRE(pkg2.deviceLocation == "");
+                REQUIRE(pkg2.deviceSecretSet == false);
+                
+                // Sensor configuration fields
+                REQUIRE(pkg2.sensorReadInterval == 0);
+                REQUIRE(pkg2.transmissionInterval == 0);
+                REQUIRE(pkg2.tempOffset == 0.0);
+                REQUIRE(pkg2.humidityOffset == 0.0);
+                REQUIRE(pkg2.pressureOffset == 0.0);
+                
+                // Sensor inventory fields
+                REQUIRE(pkg2.sensorCount == 0);
+                REQUIRE(pkg2.sensorTypeMask == 0);
+                
+                // Display configuration fields
+                REQUIRE(pkg2.displayEnabled == false);
+                REQUIRE(pkg2.displayBrightness == 0);
+                REQUIRE(pkg2.displayTimeout == 0);
+                
+                // Power configuration fields
+                REQUIRE(pkg2.deepSleepEnabled == false);
+                REQUIRE(pkg2.deepSleepInterval == 0);
+                REQUIRE(pkg2.batteryPercent == 0);
+                
+                // MQTT retry configuration fields
+                REQUIRE(pkg2.mqttMaxRetryAttempts == 0);
+                REQUIRE(pkg2.mqttCircuitBreakerMs == 0);
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == false);
+                REQUIRE(pkg2.mqttInitialRetryMs == 0);
+                REQUIRE(pkg2.mqttMaxRetryMs == 0);
+                REQUIRE(pkg2.mqttBackoffMultiplier == 0.0);
+            }
+        }
+    }
+    
+    GIVEN("A StatusPackage with mixed configured and unconfigured sections") {
+        auto pkg = StatusPackage();
+        pkg.from = 67890;
+        
+        // Configure only organization and display, leave others at defaults
+        pkg.organizationId = "test_org";
+        pkg.deviceName = "Test Device";
+        pkg.displayEnabled = true;
+        pkg.displayBrightness = 100;
+        
+        WHEN("Serializing to JSON") {
+            JsonDocument jsonDoc;
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Both configured and unconfigured sections should be present") {
+                // Organization section with actual values
+                REQUIRE(obj["organization"].is<JsonObject>());
+                JsonObject org = obj["organization"];
+                REQUIRE(org["organizationId"].as<TSTRING>() == "test_org");
+                REQUIRE(org["device_name"].as<TSTRING>() == "Test Device");
+                REQUIRE(org["customerId"].as<TSTRING>() == "");  // Default
+                
+                // Display config with actual values
+                REQUIRE(obj["display_config"].is<JsonObject>());
+                JsonObject displayConfig = obj["display_config"];
+                REQUIRE(displayConfig["enabled"] == true);
+                REQUIRE(displayConfig["brightness"] == 100);
+                
+                // Unconfigured sections still present with defaults
+                REQUIRE(obj["sensors"].is<JsonObject>());
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["read_interval_ms"] == 0);
+                
+                REQUIRE(obj["power_config"].is<JsonObject>());
+                JsonObject powerConfig = obj["power_config"];
+                REQUIRE(powerConfig["deep_sleep_enabled"] == false);
+                
+                REQUIRE(obj["mqtt_retry"].is<JsonObject>());
+                JsonObject mqttRetry = obj["mqtt_retry"];
+                REQUIRE(mqttRetry["max_attempts"] == 0);
             }
         }
     }
