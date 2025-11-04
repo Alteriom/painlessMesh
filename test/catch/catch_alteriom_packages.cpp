@@ -401,3 +401,281 @@ SCENARIO("Alteriom packages handle edge cases correctly") {
         }
     }
 }
+
+SCENARIO("StatusPackage sensor configuration serialization works correctly") {
+    GIVEN("A StatusPackage with sensor configuration data") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.deviceStatus = 0x03;
+        pkg.uptime = 3600;
+        pkg.freeMemory = 256;
+        pkg.wifiStrength = 85;
+        pkg.firmwareVersion = "1.8.0";
+        
+        // Set sensor configuration
+        pkg.sensorReadInterval = 30000;      // 30 seconds
+        pkg.transmissionInterval = 60000;    // 60 seconds
+        pkg.tempOffset = 0.5;
+        pkg.humidityOffset = -1.0;
+        pkg.pressureOffset = 2.0;
+        
+        REQUIRE(pkg.routing == router::BROADCAST);
+        REQUIRE(pkg.type == 202);
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Should result in the same sensor configuration values") {
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.deviceStatus == pkg.deviceStatus);
+                REQUIRE(pkg2.sensorReadInterval == 30000);
+                REQUIRE(pkg2.transmissionInterval == 60000);
+                REQUIRE(pkg2.tempOffset == 0.5);
+                REQUIRE(pkg2.humidityOffset == -1.0);
+                REQUIRE(pkg2.pressureOffset == 2.0);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage sensor inventory serialization works correctly") {
+    GIVEN("A StatusPackage with sensor inventory data") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.deviceStatus = 0x03;
+        pkg.uptime = 3600;
+        
+        // Set sensor inventory
+        pkg.sensorCount = 3;
+        pkg.sensorTypeMask = 7;  // 0b111 - three sensor types
+        
+        REQUIRE(pkg.routing == router::BROADCAST);
+        REQUIRE(pkg.type == 202);
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Should result in the same sensor inventory values") {
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.sensorCount == 3);
+                REQUIRE(pkg2.sensorTypeMask == 7);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage sensor config and inventory no collision") {
+    GIVEN("A StatusPackage with both sensor config and inventory") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.deviceStatus = 0x03;
+        pkg.uptime = 3600;
+        pkg.freeMemory = 256;
+        pkg.wifiStrength = 85;
+        pkg.firmwareVersion = "1.8.0";
+        
+        // Set sensor configuration
+        pkg.sensorReadInterval = 30000;
+        pkg.transmissionInterval = 60000;
+        pkg.tempOffset = 0.5;
+        pkg.humidityOffset = -1.0;
+        pkg.pressureOffset = 2.0;
+        
+        // Set sensor inventory
+        pkg.sensorCount = 3;
+        pkg.sensorTypeMask = 7;
+        
+        WHEN("Serializing to JSON") {
+            // Create JSON document and serialize package
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Should have separate 'sensors' and 'sensor_inventory' keys") {
+                REQUIRE(obj["sensors"].is<JsonObject>());
+                REQUIRE(obj["sensor_inventory"].is<JsonObject>());
+                
+                // Verify sensors config structure
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["read_interval_ms"] == 30000);
+                REQUIRE(sensors["read_interval_s"] == 30);
+                REQUIRE(sensors["transmission_interval_ms"] == 60000);
+                REQUIRE(sensors["transmission_interval_s"] == 60);
+                REQUIRE(sensors["calibration"].is<JsonObject>());
+                
+                JsonObject calibration = sensors["calibration"];
+                REQUIRE(calibration["temperature_offset"] == 0.5);
+                REQUIRE(calibration["humidity_offset"] == -1.0);
+                REQUIRE(calibration["pressure_offset"] == 2.0);
+                
+                // Verify sensor_inventory structure
+                JsonObject sensorInventory = obj["sensor_inventory"];
+                REQUIRE(sensorInventory["count"] == 3);
+                REQUIRE(sensorInventory["type_mask"] == 7);
+                
+                // Verify no collision - sensors object should NOT have count/type_mask
+                REQUIRE_FALSE(sensors["count"].is<uint8_t>());
+                REQUIRE_FALSE(sensors["type_mask"].is<uint8_t>());
+            }
+        }
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Round-trip should preserve all values correctly") {
+                // Verify sensor configuration preserved
+                REQUIRE(pkg2.sensorReadInterval == 30000);
+                REQUIRE(pkg2.transmissionInterval == 60000);
+                REQUIRE(pkg2.tempOffset == 0.5);
+                REQUIRE(pkg2.humidityOffset == -1.0);
+                REQUIRE(pkg2.pressureOffset == 2.0);
+                
+                // Verify sensor inventory preserved
+                REQUIRE(pkg2.sensorCount == 3);
+                REQUIRE(pkg2.sensorTypeMask == 7);
+                
+                // Verify other fields preserved
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.deviceStatus == pkg.deviceStatus);
+                REQUIRE(pkg2.uptime == pkg.uptime);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage sensor config without calibration") {
+    GIVEN("A StatusPackage with intervals but no calibration offsets") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        
+        // Set only intervals, leave offsets at 0
+        pkg.sensorReadInterval = 30000;
+        pkg.transmissionInterval = 60000;
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Should create sensors object but calibration should be minimal") {
+                REQUIRE(obj["sensors"].is<JsonObject>());
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["read_interval_ms"] == 30000);
+                REQUIRE(sensors["transmission_interval_ms"] == 60000);
+                
+                // Calibration object should not be created when all offsets are 0
+                REQUIRE_FALSE(sensors["calibration"].is<JsonObject>());
+            }
+        }
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Round-trip should work correctly") {
+                REQUIRE(pkg2.sensorReadInterval == 30000);
+                REQUIRE(pkg2.transmissionInterval == 60000);
+                REQUIRE(pkg2.tempOffset == 0.0);
+                REQUIRE(pkg2.humidityOffset == 0.0);
+                REQUIRE(pkg2.pressureOffset == 0.0);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage with only calibration offsets") {
+    GIVEN("A StatusPackage with calibration but no intervals") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        
+        // Set only calibration offsets, leave intervals at 0
+        pkg.tempOffset = 1.5;
+        pkg.humidityOffset = -2.5;
+        pkg.pressureOffset = 0.3;
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Should create sensors object with calibration") {
+                REQUIRE(obj["sensors"].is<JsonObject>());
+                JsonObject sensors = obj["sensors"];
+                REQUIRE(sensors["calibration"].is<JsonObject>());
+                
+                JsonObject calibration = sensors["calibration"];
+                REQUIRE(calibration["temperature_offset"] == 1.5);
+                REQUIRE(calibration["humidity_offset"] == -2.5);
+                REQUIRE(calibration["pressure_offset"] == 0.3);
+            }
+        }
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Round-trip should work correctly") {
+                REQUIRE(pkg2.tempOffset == 1.5);
+                REQUIRE(pkg2.humidityOffset == -2.5);
+                REQUIRE(pkg2.pressureOffset == 0.3);
+                REQUIRE(pkg2.sensorReadInterval == 0);
+                REQUIRE(pkg2.transmissionInterval == 0);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage with no sensor data") {
+    GIVEN("A StatusPackage with no sensor config or inventory") {
+        auto pkg = StatusPackage();
+        pkg.from = 12345;
+        pkg.deviceStatus = 0x03;
+        pkg.uptime = 3600;
+        // Leave all sensor fields at default 0
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(2048);
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Should not create sensors or sensor_inventory objects") {
+                REQUIRE_FALSE(obj["sensors"].is<JsonObject>());
+                REQUIRE_FALSE(obj["sensor_inventory"].is<JsonObject>());
+            }
+        }
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("Round-trip should work correctly with defaults") {
+                REQUIRE(pkg2.sensorReadInterval == 0);
+                REQUIRE(pkg2.transmissionInterval == 0);
+                REQUIRE(pkg2.tempOffset == 0.0);
+                REQUIRE(pkg2.humidityOffset == 0.0);
+                REQUIRE(pkg2.pressureOffset == 0.0);
+                REQUIRE(pkg2.sensorCount == 0);
+                REQUIRE(pkg2.sensorTypeMask == 0);
+            }
+        }
+    }
+}
