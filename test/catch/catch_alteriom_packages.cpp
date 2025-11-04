@@ -680,16 +680,110 @@ SCENARIO("StatusPackage with no sensor data") {
     }
 }
 
-SCENARIO("StatusPackage time field naming convention consistency") {
-    GIVEN("A StatusPackage with time-based configuration values") {
+SCENARIO("StatusPackage time field naming consistency") {
+    GIVEN("A StatusPackage with display, power, and MQTT retry configuration") {
         auto pkg = StatusPackage();
         pkg.from = 12345;
-        pkg.deviceStatus = 0x03;
+        pkg.deviceStatus = 0x01;
         pkg.uptime = 3600;
+        pkg.freeMemory = 256;
+        pkg.wifiStrength = 80;
+        pkg.firmwareVersion = "1.0.0";
         
-        // Set time-based fields with values that are easily converted
-        pkg.sensorReadInterval = 30000;      // 30 seconds in milliseconds
-        pkg.transmissionInterval = 60000;    // 60 seconds in milliseconds
+        // Set display configuration
+        pkg.displayEnabled = true;
+        pkg.displayBrightness = 128;
+        pkg.displayTimeout = 45000; // 45 seconds in ms
+        
+        // Set power configuration
+        pkg.deepSleepEnabled = true;
+        pkg.deepSleepInterval = 300000; // 5 minutes in ms
+        pkg.batteryPercent = 75;
+        
+        // Set MQTT retry configuration
+        pkg.mqttMaxRetryAttempts = 5;
+        pkg.mqttCircuitBreakerMs = 120000; // 2 minutes in ms
+        pkg.mqttHourlyRetryEnabled = true;
+        pkg.mqttInitialRetryMs = 5000; // 5 seconds in ms
+        pkg.mqttMaxRetryMs = 60000; // 1 minute in ms
+        pkg.mqttBackoffMultiplier = 2.0;
+        
+        WHEN("Converting to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
+            
+            THEN("All configuration fields should round-trip correctly") {
+                // Display config
+                REQUIRE(pkg2.displayEnabled == pkg.displayEnabled);
+                REQUIRE(pkg2.displayBrightness == pkg.displayBrightness);
+                REQUIRE(pkg2.displayTimeout == pkg.displayTimeout);
+                
+                // Power config
+                REQUIRE(pkg2.deepSleepEnabled == pkg.deepSleepEnabled);
+                REQUIRE(pkg2.deepSleepInterval == pkg.deepSleepInterval);
+                REQUIRE(pkg2.batteryPercent == pkg.batteryPercent);
+                
+                // MQTT retry config
+                REQUIRE(pkg2.mqttMaxRetryAttempts == pkg.mqttMaxRetryAttempts);
+                REQUIRE(pkg2.mqttCircuitBreakerMs == pkg.mqttCircuitBreakerMs);
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == pkg.mqttHourlyRetryEnabled);
+                REQUIRE(pkg2.mqttInitialRetryMs == pkg.mqttInitialRetryMs);
+                REQUIRE(pkg2.mqttMaxRetryMs == pkg.mqttMaxRetryMs);
+                REQUIRE(pkg2.mqttBackoffMultiplier == pkg.mqttBackoffMultiplier);
+            }
+        }
+        
+        WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+            JsonDocument jsonDoc;
+#else
+            DynamicJsonDocument jsonDoc(4096); // Larger size for all the new fields
+#endif
+            JsonObject obj = jsonDoc.to<JsonObject>();
+            pkg.addTo(std::move(obj));
+            
+            THEN("Display config should have both _ms and _s variants") {
+                REQUIRE(obj["display_config"].is<JsonObject>());
+                JsonObject displayConfig = obj["display_config"];
+                
+                REQUIRE(displayConfig["enabled"] == true);
+                REQUIRE(displayConfig["brightness"] == 128);
+                REQUIRE(displayConfig["timeout_ms"] == 45000);
+                REQUIRE(displayConfig["timeout_s"] == 45);
+            }
+            
+            THEN("Power config should have both _ms and _s variants") {
+                REQUIRE(obj["power_config"].is<JsonObject>());
+                JsonObject powerConfig = obj["power_config"];
+                
+                REQUIRE(powerConfig["deep_sleep_enabled"] == true);
+                REQUIRE(powerConfig["deep_sleep_interval_ms"] == 300000);
+                REQUIRE(powerConfig["deep_sleep_interval_s"] == 300);
+                REQUIRE(powerConfig["battery_percent"] == 75);
+            }
+            
+            THEN("MQTT retry config should have both _ms and _s variants") {
+                REQUIRE(obj["mqtt_retry"].is<JsonObject>());
+                JsonObject mqttRetry = obj["mqtt_retry"];
+                
+                REQUIRE(mqttRetry["max_attempts"] == 5);
+                REQUIRE(mqttRetry["circuit_breaker_ms"] == 120000);
+                REQUIRE(mqttRetry["circuit_breaker_s"] == 120);
+                REQUIRE(mqttRetry["hourly_retry_enabled"] == true);
+                REQUIRE(mqttRetry["initial_retry_ms"] == 5000);
+                REQUIRE(mqttRetry["initial_retry_s"] == 5);
+                REQUIRE(mqttRetry["max_retry_ms"] == 60000);
+                REQUIRE(mqttRetry["max_retry_s"] == 60);
+                REQUIRE(mqttRetry["backoff_multiplier"] == 2.0);
+            }
+        }
+    }
+    
+    GIVEN("A StatusPackage without display, power, or MQTT config") {
+        auto pkg = StatusPackage();
+        pkg.from = 54321;
+        pkg.deviceStatus = 0x02;
+        pkg.uptime = 7200;
         
         WHEN("Serializing to JSON") {
 #if ARDUINOJSON_VERSION_MAJOR == 7
@@ -700,48 +794,113 @@ SCENARIO("StatusPackage time field naming convention consistency") {
             JsonObject obj = jsonDoc.to<JsonObject>();
             pkg.addTo(std::move(obj));
             
-            THEN("All time fields should provide both _ms and _s variants") {
-                REQUIRE(obj["sensors"].is<JsonObject>());
-                JsonObject sensors = obj["sensors"];
-                
-                // Verify read_interval has both variants
-                REQUIRE(sensors["read_interval_ms"].is<uint32_t>());
-                REQUIRE(sensors["read_interval_s"].is<uint32_t>());
-                REQUIRE(sensors["read_interval_ms"] == 30000);
-                REQUIRE(sensors["read_interval_s"] == 30);
-                
-                // Verify transmission_interval has both variants
-                REQUIRE(sensors["transmission_interval_ms"].is<uint32_t>());
-                REQUIRE(sensors["transmission_interval_s"].is<uint32_t>());
-                REQUIRE(sensors["transmission_interval_ms"] == 60000);
-                REQUIRE(sensors["transmission_interval_s"] == 60);
+            THEN("Should not create display_config, power_config, or mqtt_retry objects") {
+                REQUIRE_FALSE(obj["display_config"].is<JsonObject>());
+                REQUIRE_FALSE(obj["power_config"].is<JsonObject>());
+                REQUIRE_FALSE(obj["mqtt_retry"].is<JsonObject>());
             }
+        }
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
             
-            THEN("Seconds variants should be correctly calculated from milliseconds") {
-                JsonObject sensors = obj["sensors"];
-                
-                // Verify the conversion is correct (milliseconds / 1000 = seconds)
-                uint32_t read_ms = sensors["read_interval_ms"];
-                uint32_t read_s = sensors["read_interval_s"];
-                REQUIRE(read_s == read_ms / 1000);
-                
-                uint32_t trans_ms = sensors["transmission_interval_ms"];
-                uint32_t trans_s = sensors["transmission_interval_s"];
-                REQUIRE(trans_s == trans_ms / 1000);
+            THEN("Round-trip should work correctly with defaults") {
+                REQUIRE(pkg2.displayEnabled == false);
+                REQUIRE(pkg2.displayBrightness == 0);
+                REQUIRE(pkg2.displayTimeout == 0);
+                REQUIRE(pkg2.deepSleepEnabled == false);
+                REQUIRE(pkg2.deepSleepInterval == 0);
+                REQUIRE(pkg2.batteryPercent == 0);
+                REQUIRE(pkg2.mqttMaxRetryAttempts == 0);
+                REQUIRE(pkg2.mqttCircuitBreakerMs == 0);
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == false);
+                REQUIRE(pkg2.mqttInitialRetryMs == 0);
+                REQUIRE(pkg2.mqttMaxRetryMs == 0);
+                REQUIRE(pkg2.mqttBackoffMultiplier == 0.0);
             }
         }
     }
 }
 
-SCENARIO("StatusPackage time field naming convention with various values") {
-    GIVEN("Time fields with different magnitudes") {
+SCENARIO("StatusPackage backward compatibility for time fields") {
+    GIVEN("A JSON payload with old field names (no _ms suffix)") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+        JsonDocument jsonDoc;
+#else
+        DynamicJsonDocument jsonDoc(2048);
+#endif
+        JsonObject obj = jsonDoc.to<JsonObject>();
+        
+        // Simulate old format without _ms suffix
+        JsonObject displayConfig = obj["display_config"].to<JsonObject>();
+        displayConfig["enabled"] = true;
+        displayConfig["brightness"] = 100;
+        displayConfig["timeout"] = 30000; // Old field name
+        
+        JsonObject powerConfig = obj["power_config"].to<JsonObject>();
+        powerConfig["deep_sleep_enabled"] = true;
+        powerConfig["deep_sleep_interval"] = 600000; // Old field name
+        powerConfig["battery_percent"] = 80;
+        
+        WHEN("Deserializing from old format") {
+            auto pkg = StatusPackage(obj);
+            
+            THEN("Should correctly parse old field names") {
+                REQUIRE(pkg.displayEnabled == true);
+                REQUIRE(pkg.displayBrightness == 100);
+                REQUIRE(pkg.displayTimeout == 30000);
+                
+                REQUIRE(pkg.deepSleepEnabled == true);
+                REQUIRE(pkg.deepSleepInterval == 600000);
+                REQUIRE(pkg.batteryPercent == 80);
+            }
+        }
+    }
+    
+    GIVEN("A JSON payload with new field names (_ms suffix)") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+        JsonDocument jsonDoc;
+#else
+        DynamicJsonDocument jsonDoc(2048);
+#endif
+        JsonObject obj = jsonDoc.to<JsonObject>();
+        
+        // New format with _ms suffix
+        JsonObject displayConfig = obj["display_config"].to<JsonObject>();
+        displayConfig["enabled"] = true;
+        displayConfig["brightness"] = 150;
+        displayConfig["timeout_ms"] = 60000; // New field name
+        
+        JsonObject powerConfig = obj["power_config"].to<JsonObject>();
+        powerConfig["deep_sleep_enabled"] = false;
+        powerConfig["deep_sleep_interval_ms"] = 900000; // New field name
+        powerConfig["battery_percent"] = 90;
+        
+        WHEN("Deserializing from new format") {
+            auto pkg = StatusPackage(obj);
+            
+            THEN("Should correctly parse new field names") {
+                REQUIRE(pkg.displayEnabled == true);
+                REQUIRE(pkg.displayBrightness == 150);
+                REQUIRE(pkg.displayTimeout == 60000);
+                
+                REQUIRE(pkg.deepSleepEnabled == false);
+                REQUIRE(pkg.deepSleepInterval == 900000);
+                REQUIRE(pkg.batteryPercent == 90);
+            }
+        }
+    }
+}
+
+SCENARIO("StatusPackage MQTT retry configuration with only boolean/float fields") {
+    GIVEN("A StatusPackage with only mqttHourlyRetryEnabled set") {
         auto pkg = StatusPackage();
         pkg.from = 12345;
+        pkg.mqttHourlyRetryEnabled = true;
+        pkg.mqttBackoffMultiplier = 1.5;
         
-        WHEN("Using sub-second precision values") {
-            pkg.sensorReadInterval = 500;        // 500ms (0.5 seconds)
-            pkg.transmissionInterval = 250;      // 250ms (0.25 seconds)
-            
+        WHEN("Serializing to JSON") {
 #if ARDUINOJSON_VERSION_MAJOR == 7
             JsonDocument jsonDoc;
 #else
@@ -750,167 +909,22 @@ SCENARIO("StatusPackage time field naming convention with various values") {
             JsonObject obj = jsonDoc.to<JsonObject>();
             pkg.addTo(std::move(obj));
             
-            THEN("Millisecond precision is preserved while seconds are truncated") {
-                JsonObject sensors = obj["sensors"];
-                REQUIRE(sensors["read_interval_ms"] == 500);
-                REQUIRE(sensors["read_interval_s"] == 0);  // 500ms truncates to 0s
-                REQUIRE(sensors["transmission_interval_ms"] == 250);
-                REQUIRE(sensors["transmission_interval_s"] == 0);  // 250ms truncates to 0s
+            THEN("mqtt_retry object should be created even without time fields") {
+                REQUIRE(obj["mqtt_retry"].is<JsonObject>());
+                JsonObject mqttRetry = obj["mqtt_retry"];
+                REQUIRE(mqttRetry["hourly_retry_enabled"] == true);
+                REQUIRE(mqttRetry["backoff_multiplier"] == 1.5);
             }
         }
         
-        WHEN("Using large time values") {
-            pkg.sensorReadInterval = 3600000;    // 1 hour = 3600 seconds
-            pkg.transmissionInterval = 86400000; // 1 day = 86400 seconds
+        WHEN("Converting to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<StatusPackage>();
             
-#if ARDUINOJSON_VERSION_MAJOR == 7
-            JsonDocument jsonDoc;
-#else
-            DynamicJsonDocument jsonDoc(2048);
-#endif
-            JsonObject obj = jsonDoc.to<JsonObject>();
-            pkg.addTo(std::move(obj));
-            
-            THEN("Both milliseconds and seconds are correctly represented") {
-                JsonObject sensors = obj["sensors"];
-                REQUIRE(sensors["read_interval_ms"] == 3600000);
-                REQUIRE(sensors["read_interval_s"] == 3600);
-                REQUIRE(sensors["transmission_interval_ms"] == 86400000);
-                REQUIRE(sensors["transmission_interval_s"] == 86400);
+            THEN("Should round-trip correctly") {
+                REQUIRE(pkg2.mqttHourlyRetryEnabled == true);
+                REQUIRE(pkg2.mqttBackoffMultiplier == 1.5);
             }
-        }
-        
-        WHEN("Using edge case values") {
-            pkg.sensorReadInterval = 999;        // Just under 1 second
-            pkg.transmissionInterval = 1000;     // Exactly 1 second
-            
-#if ARDUINOJSON_VERSION_MAJOR == 7
-            JsonDocument jsonDoc;
-#else
-            DynamicJsonDocument jsonDoc(2048);
-#endif
-            JsonObject obj = jsonDoc.to<JsonObject>();
-            pkg.addTo(std::move(obj));
-            
-            THEN("Edge case conversions are handled correctly") {
-                JsonObject sensors = obj["sensors"];
-                REQUIRE(sensors["read_interval_ms"] == 999);
-                REQUIRE(sensors["read_interval_s"] == 0);    // 999ms truncates to 0s
-                REQUIRE(sensors["transmission_interval_ms"] == 1000);
-                REQUIRE(sensors["transmission_interval_s"] == 1);    // Exactly 1 second
-            }
-        }
-    }
-}
-
-SCENARIO("StatusPackage time field deserialization backward compatibility") {
-    GIVEN("JSON with time fields") {
-        WHEN("JSON contains only _ms variants") {
-#if ARDUINOJSON_VERSION_MAJOR == 7
-            JsonDocument jsonDoc;
-#else
-            DynamicJsonDocument jsonDoc(2048);
-#endif
-            JsonObject obj = jsonDoc.to<JsonObject>();
-            obj["from"] = 12345;
-            obj["type"] = 202;
-            
-            JsonObject sensors = obj["sensors"].to<JsonObject>();
-            sensors["read_interval_ms"] = 30000;
-            sensors["transmission_interval_ms"] = 60000;
-            // Intentionally omit _s variants
-            
-            auto pkg = StatusPackage(obj);
-            
-            THEN("Package should deserialize correctly using _ms values") {
-                REQUIRE(pkg.from == 12345);
-                REQUIRE(pkg.sensorReadInterval == 30000);
-                REQUIRE(pkg.transmissionInterval == 60000);
-            }
-        }
-        
-        WHEN("JSON contains both _ms and _s variants") {
-#if ARDUINOJSON_VERSION_MAJOR == 7
-            JsonDocument jsonDoc;
-#else
-            DynamicJsonDocument jsonDoc(2048);
-#endif
-            JsonObject obj = jsonDoc.to<JsonObject>();
-            obj["from"] = 12345;
-            obj["type"] = 202;
-            
-            JsonObject sensors = obj["sensors"].to<JsonObject>();
-            sensors["read_interval_ms"] = 30000;
-            sensors["read_interval_s"] = 30;
-            sensors["transmission_interval_ms"] = 60000;
-            sensors["transmission_interval_s"] = 60;
-            
-            auto pkg = StatusPackage(obj);
-            
-            THEN("Package should deserialize using _ms values (milliseconds are source of truth)") {
-                REQUIRE(pkg.from == 12345);
-                REQUIRE(pkg.sensorReadInterval == 30000);
-                REQUIRE(pkg.transmissionInterval == 60000);
-            }
-        }
-    }
-}
-
-SCENARIO("StatusPackage time field naming convention documentation") {
-    GIVEN("The StatusPackage class") {
-        THEN("Time-based fields follow consistent naming pattern") {
-            // This test serves as living documentation of the naming convention:
-            //
-            // CONVENTION FOR TIME-BASED FIELDS:
-            // ---------------------------------
-            // 1. Internal storage: Always use milliseconds (uint32_t)
-            // 2. Field naming: Use descriptive names without unit suffix
-            //    Examples: sensorReadInterval, transmissionInterval
-            //
-            // 3. JSON serialization: ALWAYS provide BOTH variants:
-            //    - {fieldname}_ms: The value in milliseconds
-            //    - {fieldname}_s: The value in seconds (milliseconds / 1000)
-            //
-            // 4. JSON deserialization: Read from _ms variant
-            //    (This makes milliseconds the source of truth)
-            //
-            // BENEFITS:
-            // - Consumer convenience: No mental overhead for unit conversion
-            // - Flexibility: Consumers choose the unit that makes sense for their context
-            // - Self-documenting: Field names clearly indicate available units
-            // - Precision: Milliseconds preserved, seconds provided for readability
-            //
-            // EXAMPLE:
-            // Internal: uint32_t sensorReadInterval = 30000;
-            // JSON out: {"read_interval_ms": 30000, "read_interval_s": 30}
-            // JSON in:  Reads from "read_interval_ms"
-            
-            // Verify the convention is followed in the existing code
-            auto pkg = StatusPackage();
-            pkg.sensorReadInterval = 45000;
-            pkg.transmissionInterval = 90000;
-            
-#if ARDUINOJSON_VERSION_MAJOR == 7
-            JsonDocument jsonDoc;
-#else
-            DynamicJsonDocument jsonDoc(2048);
-#endif
-            JsonObject obj = jsonDoc.to<JsonObject>();
-            pkg.addTo(std::move(obj));
-            
-            JsonObject sensors = obj["sensors"];
-            
-            // Convention is correctly implemented
-            REQUIRE(sensors["read_interval_ms"].is<uint32_t>());
-            REQUIRE(sensors["read_interval_s"].is<uint32_t>());
-            REQUIRE(sensors["transmission_interval_ms"].is<uint32_t>());
-            REQUIRE(sensors["transmission_interval_s"].is<uint32_t>());
-            
-            // Values match the convention
-            REQUIRE(sensors["read_interval_ms"] == 45000);
-            REQUIRE(sensors["read_interval_s"] == 45);
-            REQUIRE(sensors["transmission_interval_ms"] == 90000);
-            REQUIRE(sensors["transmission_interval_s"] == 90);
         }
     }
 }
