@@ -52,6 +52,72 @@
  * - Applies to fields typically >= 1000ms (1 second)
  * - Examples: intervals, timeouts, durations, delays
  * - Does NOT apply to timestamps (which should remain in seconds as per Unix convention)
+ * 
+ * 
+ * JSON STRUCTURE NESTING GUIDELINES
+ * ==================================
+ * 
+ * Alteriom packages follow consistent patterns for organizing configuration data
+ * in JSON structures. This ensures maintainability and predictability across the API.
+ * 
+ * See docs/API_DESIGN_GUIDELINES.md for comprehensive documentation.
+ * 
+ * QUICK REFERENCE:
+ * 
+ * Use FLAT structure (simple key-value pairs) when:
+ * - Section has < 4 total fields
+ * - No clear logical subsystems
+ * - Simple value types
+ * 
+ * Use NESTED structure (grouped subsections) when:
+ * - 3+ fields belong to same logical subsystem
+ * - Clear semantic grouping exists
+ * - Future extensibility anticipated
+ * - Subsystem has distinct meaning
+ * 
+ * CURRENT STRUCTURE PATTERNS:
+ * 
+ * Flat Sections:
+ * - display_config: enabled, brightness, timeout (3 fields, no subsystems)
+ * - power_config: deep_sleep_enabled, deep_sleep_interval, battery_percent (3 fields)
+ * - mqtt_retry: retry settings and backoff parameters (9 fields, cohesive purpose)
+ * - ota: enabled, server, port (3 fields)
+ * - encoding: compression and format settings (3 fields)
+ * 
+ * Nested Sections:
+ * - sensors.calibration: temperature_offset, humidity_offset, pressure_offset
+ *   (Rationale: Calibration is distinct subsystem, optional, semantically separate)
+ * - organization: organizationId, customerId, deviceGroup, device_name, etc.
+ *   (Rationale: Optional metadata subsystem, may not be present on all devices)
+ * 
+ * EXAMPLES:
+ * 
+ * Flat structure:
+ * ```json
+ * "display_config": {
+ *   "enabled": true,
+ *   "brightness": 128,
+ *   "timeout_ms": 30000,
+ *   "timeout_s": 30
+ * }
+ * ```
+ * 
+ * Nested structure:
+ * ```json
+ * "sensors": {
+ *   "read_interval_ms": 30000,
+ *   "read_interval_s": 30,
+ *   "calibration": {
+ *     "temperature_offset": 0.5,
+ *     "humidity_offset": -2.0,
+ *     "pressure_offset": 0.0
+ *   }
+ * }
+ * ```
+ * 
+ * DECISION RULE:
+ * When in doubt, prefer flat structures. Nesting should provide clear organizational
+ * or extensibility benefits to justify the added complexity.
  */
 
 namespace alteriom {
