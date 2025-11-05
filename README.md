@@ -191,6 +191,8 @@ painlessMesh makes use of the following libraries, which can be installed throug
 
 If platformio is used to install the library, then the dependencies will be installed automatically.
 
+> **⚠️ ESP32-C6 Users:** If you experience crashes with `tcp_alloc` errors, you need AsyncTCP v3.3.0+ with LWIP locking support. Use the [ESP32Async/AsyncTCP](https://github.com/ESP32Async/AsyncTCP) library or see the [ESP32-C6 Compatibility Guide](docs/troubleshooting/ESP32_C6_COMPATIBILITY.md) for details.
+
 ## Quick Start with Alteriom Packages
 
 ### Basic Sensor Node
@@ -280,7 +282,7 @@ void receivedCallback(uint32_t from, String& msg) {
 - **Home Automation** - Distributed lighting, HVAC control
 - **Industrial Monitoring** - Equipment status, predictive maintenance  
 - **Event Coordination** - Synchronized displays, distributed processing
-- **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT
+- **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
 ## Development Version: v1.7.8
 
@@ -412,6 +414,7 @@ You can tip me using ko-fi:
 | Topic | Description | Link |
 |-------|-------------|------|
 | **🌳 Architecture** | How painlessMesh works internally | [📖 Architecture](https://alteriom.github.io/painlessMesh/#/architecture/mesh-architecture) |
+| **🌉 Bridge to Internet** | Connect mesh to WiFi/Internet/MQTT | [📖 Bridge Guide](BRIDGE_TO_INTERNET.md) |
 | **🔌 Plugin System** | Create custom message packages | [📖 Plugins](https://alteriom.github.io/painlessMesh/#/architecture/plugin-system) |
 | **🎓 Tutorials** | Step-by-step examples and patterns | [📖 Tutorials](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples) |
 | **🛠️ Troubleshooting** | Common issues and solutions | [📖 Help](https://alteriom.github.io/painlessMesh/#/troubleshooting/common-issues) |

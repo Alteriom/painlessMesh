@@ -36,7 +36,7 @@ Welcome to the comprehensive documentation for the Alteriom fork of painlessMesh
 - [Basic Examples](tutorials/basic-examples.md) - Simple mesh networking examples
 - [Custom Packages](tutorials/custom-packages.md) - Creating your own message types
 - [Sensor Networks](tutorials/sensor-networks.md) - Building IoT sensor networks
-- [Bridge Applications](tutorials/bridge-apps.md) - Connecting mesh to external networks
+- [Bridge to Internet](../BRIDGE_TO_INTERNET.md) - Connecting mesh to WiFi/Internet/MQTT
 
 ### Alteriom Extensions
 
@@ -63,6 +63,7 @@ Welcome to the comprehensive documentation for the Alteriom fork of painlessMesh
 ### Troubleshooting
 
 - [Common Issues](troubleshooting/common-issues.md) - Solutions to frequent problems
+- [ESP32-C6 Compatibility](troubleshooting/ESP32_C6_COMPATIBILITY.md) - ESP32-C6 specific issues and solutions
 - [Debugging Guide](troubleshooting/debugging.md) - Tools and techniques for debugging
 - [FAQ](troubleshooting/faq.md) - Frequently asked questions
 - [Network Issues](troubleshooting/network-issues.md) - Connectivity and mesh topology problems

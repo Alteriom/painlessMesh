@@ -60,6 +60,8 @@ void receivedCallback(uint32_t from, String& msg) {
    - Call `mesh.setRoot(true)` on the bridge node
    - Call `mesh.setContainsRoot(true)` on all mesh nodes for optimal routing
 
+4. **ESP32-C6 Compatibility**: If using ESP32-C6 or experiencing crashes with `tcp_alloc` errors, ensure you have AsyncTCP v3.3.0+ installed. See the [ESP32-C6 Compatibility Guide](docs/troubleshooting/ESP32_C6_COMPATIBILITY.md) for details.
+
 ## Complete Examples
 
 We provide several working bridge examples in the repository:
