@@ -153,6 +153,9 @@ class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
   // Battery level percentage
   uint8_t batteryLevel = 0;
 
+  // MQTT Schema v0.7.3+ message_type for faster classification
+  uint16_t messageType = 200;  // SENSOR_DATA
+
   // Type ID 200 for Alteriom sensors
   SensorPackage() : BroadcastPackage(200) {}
 
@@ -163,6 +166,7 @@ class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
     sensorId = jsonObj["sid"];
     timestamp = jsonObj["ts"];
     batteryLevel = jsonObj["bat"];
+    messageType = jsonObj["message_type"] | 200;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -173,6 +177,7 @@ class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
     jsonObj["sid"] = sensorId;
     jsonObj["ts"] = timestamp;
     jsonObj["bat"] = batteryLevel;
+    jsonObj["message_type"] = messageType;
     return jsonObj;
   }
 
@@ -193,14 +198,18 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
   TSTRING parameters = "";    // Command parameters as JSON string
   uint32_t commandId = 0;     // Unique command identifier for tracking
 
+  // MQTT Schema v0.7.3+ message_type for faster classification
+  uint16_t messageType = 400;  // COMMAND
+
   CommandPackage()
-      : SinglePackage(400) {}  // Type ID 400 (COMMAND per mqtt-schema v0.7.2+)
+      : SinglePackage(400) {}  // Type ID 400 (COMMAND per mqtt-schema v0.7.3+)
 
   CommandPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {
     command = jsonObj["cmd"];
     targetDevice = jsonObj["target"];
     parameters = jsonObj["params"].as<TSTRING>();
     commandId = jsonObj["cid"];
+    messageType = jsonObj["message_type"] | 400;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -209,6 +218,7 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
     jsonObj["target"] = targetDevice;
     jsonObj["params"] = parameters;
     jsonObj["cid"] = commandId;
+    jsonObj["message_type"] = messageType;
     return jsonObj;
   }
 
@@ -305,6 +315,9 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   float mqttBackoffMultiplier =
       0.0;  // Backoff multiplier for exponential backoff
 
+  // MQTT Schema v0.7.3+ message_type for faster classification
+  uint16_t messageType = 202;  // SENSOR_STATUS
+
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
   StatusPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
@@ -378,6 +391,9 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       mqttMaxRetryMs = mqttRetry["max_retry_ms"] | 0;
       mqttBackoffMultiplier = mqttRetry["backoff_multiplier"] | 0.0;
     }
+
+    // Deserialize message_type field
+    messageType = jsonObj["message_type"] | 202;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -450,6 +466,9 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     mqttRetry["max_retry_ms"] = mqttMaxRetryMs;
     mqttRetry["max_retry_s"] = mqttMaxRetryMs / 1000;
     mqttRetry["backoff_multiplier"] = mqttBackoffMultiplier;
+
+    // Serialize message_type field
+    jsonObj["message_type"] = messageType;
 
     return jsonObj;
   }

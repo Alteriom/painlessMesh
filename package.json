@@ -39,7 +39,7 @@
     "url": "https://github.com/Alteriom/painlessMesh/issues"
   },
   "devDependencies": {
-    "@alteriom/mqtt-schema": "^0.7.2",
+    "@alteriom/mqtt-schema": "^0.7.3",
     "@eslint/js": "^9.0.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",

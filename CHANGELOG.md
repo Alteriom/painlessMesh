@@ -19,7 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
-## [1.7.8] - 2025-11-04
+## [1.7.8] - 2025-11-05
+
+### Added
+
+- **MQTT Schema v0.7.3 Compliance** - Upgraded from v0.7.2 to v0.7.3
+  - Added `message_type` field to SensorPackage (Type 200)
+  - Added `message_type` field to StatusPackage (Type 202)
+  - Added `message_type` field to CommandPackage (Type 400)
+  - All packages now have `message_type` for 90% faster message classification
+  - Full alignment with @alteriom/mqtt-schema v0.7.3 specification
 
 ### Added
 

@@ -27,6 +27,7 @@ SCENARIO("Alteriom SensorPackage serialization works correctly") {
         
         REQUIRE(pkg.routing == router::BROADCAST);
         REQUIRE(pkg.type == 200);
+        REQUIRE(pkg.messageType == 200);  // MQTT Schema v0.7.3+ message_type field
         
         WHEN("Converting it to and from Variant") {
             auto var = protocol::Variant(&pkg);
@@ -42,6 +43,7 @@ SCENARIO("Alteriom SensorPackage serialization works correctly") {
                 REQUIRE(pkg2.batteryLevel == pkg.batteryLevel);
                 REQUIRE(pkg2.routing == pkg.routing);
                 REQUIRE(pkg2.type == pkg.type);
+                REQUIRE(pkg2.messageType == pkg.messageType);  // Verify message_type persists
             }
         }
     }
@@ -59,6 +61,7 @@ SCENARIO("Alteriom CommandPackage serialization works correctly") {
         
         REQUIRE(pkg.routing == router::SINGLE);
         REQUIRE(pkg.type == 400);
+        REQUIRE(pkg.messageType == 400);  // MQTT Schema v0.7.3+ message_type field
         
         WHEN("Converting it to and from Variant") {
             auto var = protocol::Variant(&pkg);
@@ -73,6 +76,7 @@ SCENARIO("Alteriom CommandPackage serialization works correctly") {
                 REQUIRE(pkg2.commandId == pkg.commandId);
                 REQUIRE(pkg2.routing == pkg.routing);
                 REQUIRE(pkg2.type == pkg.type);
+                REQUIRE(pkg2.messageType == pkg.messageType);  // Verify message_type persists
             }
         }
     }
@@ -90,6 +94,7 @@ SCENARIO("Alteriom StatusPackage serialization works correctly") {
         
         REQUIRE(pkg.routing == router::BROADCAST);
         REQUIRE(pkg.type == 202);
+        REQUIRE(pkg.messageType == 202);  // MQTT Schema v0.7.3+ message_type field
         
         WHEN("Converting it to and from Variant") {
             auto var = protocol::Variant(&pkg);
@@ -104,6 +109,7 @@ SCENARIO("Alteriom StatusPackage serialization works correctly") {
                 REQUIRE(pkg2.firmwareVersion == pkg.firmwareVersion);
                 REQUIRE(pkg2.routing == pkg.routing);
                 REQUIRE(pkg2.type == pkg.type);
+                REQUIRE(pkg2.messageType == pkg.messageType);  // Verify message_type persists
             }
         }
     }
