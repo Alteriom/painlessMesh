@@ -36,7 +36,7 @@ Welcome to the comprehensive documentation for the Alteriom fork of painlessMesh
 - [Basic Examples](tutorials/basic-examples.md) - Simple mesh networking examples
 - [Custom Packages](tutorials/custom-packages.md) - Creating your own message types
 - [Sensor Networks](tutorials/sensor-networks.md) - Building IoT sensor networks
-- [Bridge Applications](tutorials/bridge-apps.md) - Connecting mesh to external networks
+- [Bridge to Internet](../BRIDGE_TO_INTERNET.md) - Connecting mesh to WiFi/Internet/MQTT
 
 ### Alteriom Extensions
 

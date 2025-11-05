@@ -280,7 +280,7 @@ void receivedCallback(uint32_t from, String& msg) {
 - **Home Automation** - Distributed lighting, HVAC control
 - **Industrial Monitoring** - Equipment status, predictive maintenance  
 - **Event Coordination** - Synchronized displays, distributed processing
-- **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT
+- **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
 ## Development Version: v1.7.8
 
@@ -412,6 +412,7 @@ You can tip me using ko-fi:
 | Topic | Description | Link |
 |-------|-------------|------|
 | **🌳 Architecture** | How painlessMesh works internally | [📖 Architecture](https://alteriom.github.io/painlessMesh/#/architecture/mesh-architecture) |
+| **🌉 Bridge to Internet** | Connect mesh to WiFi/Internet/MQTT | [📖 Bridge Guide](BRIDGE_TO_INTERNET.md) |
 | **🔌 Plugin System** | Create custom message packages | [📖 Plugins](https://alteriom.github.io/painlessMesh/#/architecture/plugin-system) |
 | **🎓 Tutorials** | Step-by-step examples and patterns | [📖 Tutorials](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples) |
 | **🛠️ Troubleshooting** | Common issues and solutions | [📖 Help](https://alteriom.github.io/painlessMesh/#/troubleshooting/common-issues) |
