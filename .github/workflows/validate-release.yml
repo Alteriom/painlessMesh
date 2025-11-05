@@ -1,18 +1,12 @@
 name: Validate Release
 
 on:
-  pull_request:
-    paths:
-      - 'library.properties'
-      - 'library.json'
-      - 'CHANGELOG.md'
-      - 'scripts/**'
-  push:
-    branches: [ main ]
-    paths:
-      - 'library.properties'
-      - 'library.json'
-      - 'CHANGELOG.md'
+  # Run after CI pipeline completes successfully
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+    branches: [ main, develop, 'copilot/**' ]
+  # Allow manual trigger
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
@@ -27,10 +21,14 @@ jobs:
   validate:
     name: Release Validation
     runs-on: ubuntu-latest
+    # Only run if CI passed or on manual trigger
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # When triggered by workflow_run, checkout the PR head
+          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
           fetch-depth: 0
           submodules: recursive
 
@@ -146,3 +144,7 @@ jobs:
           else
             echo "- CHANGELOG.md: ⚠️ Missing" >> $GITHUB_STEP_SUMMARY
           fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **All release validation checks passed!**" >> $GITHUB_STEP_SUMMARY
+          echo "The repository is ready for release." >> $GITHUB_STEP_SUMMARY

@@ -282,16 +282,23 @@ void receivedCallback(uint32_t from, String& msg) {
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT
 
-## Latest Release: v1.7.6 (October 19, 2025)
+## Development Version: v1.7.8
 
-**Critical emergency fix** for compilation failures in v1.7.4 and v1.7.5:
+**In Development** - Next release after v1.7.7
 
-- ✅ **Compilation Fixed** - Resolved "_task_request_t was not declared" error
-- ✅ **ESP32 & ESP8266** - All platforms now compile successfully  
-- ✅ **FreeRTOS Stability** - Maintained ~85% crash reduction on ESP32
-- 🚨 **v1.7.4/v1.7.5 Users** - Upgrade immediately (those versions don't compile)
+See [CHANGELOG](CHANGELOG.md) for upcoming changes.
 
-**[📋 Full Release Notes](docs/releases/RELEASE_SUMMARY_v1.7.6.md)** | **[🔖 CHANGELOG](CHANGELOG.md)**
+## Latest Release: v1.7.7 (November 5, 2025)
+
+**MQTT Schema v0.7.2 Compliance with Enhanced Monitoring**:
+
+- ✅ **MetricsPackage (Type 204)** - Comprehensive performance metrics for real-time monitoring
+- ✅ **HealthCheckPackage (Type 605)** - Proactive health monitoring with problem detection
+- ✅ **Mesh Topology Packages** - Complete network visualization (Types 600-603)
+- ✅ **Enhanced MQTT Bridge** - On-demand metrics, health checks, and aggregated statistics
+- ✅ **100% Backward Compatible** - All existing code continues to work
+
+**[📋 Full Release Notes](docs/releases/RELEASE_SUMMARY_v1.7.7.md)** | **[🔖 CHANGELOG](CHANGELOG.md)**
 
 ## Getting Help
 
