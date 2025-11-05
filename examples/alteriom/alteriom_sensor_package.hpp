@@ -6,96 +6,102 @@
 /**
  * @file alteriom_sensor_package.hpp
  * @brief Alteriom custom package definitions for painlessMesh
- * 
+ *
  * TIME FIELD NAMING CONVENTION
  * ============================
- * 
- * For consistency and developer convenience, all time-based configuration fields
- * in Alteriom packages follow a standardized naming convention:
- * 
+ *
+ * For consistency and developer convenience, all time-based configuration
+ * fields in Alteriom packages follow a standardized naming convention:
+ *
  * INTERNAL STORAGE:
  * - Always use milliseconds (uint32_t)
  * - Use descriptive field names WITHOUT unit suffixes
  *   Examples: sensorReadInterval, transmissionInterval
- * 
+ *
  * JSON SERIALIZATION:
  * - ALWAYS provide BOTH millisecond and second variants:
  *   - {fieldname}_ms : The value in milliseconds (uint32_t)
  *   - {fieldname}_s  : The value in seconds (uint32_t, calculated as ms/1000)
- * 
+ *
  * JSON DESERIALIZATION:
  * - Read from the _ms variant (milliseconds are the source of truth)
  * - The _s variant is provided for consumer convenience but not used for input
- * 
+ *
  * EXAMPLE:
  * ```cpp
  * // C++ field declaration
  * uint32_t sensorReadInterval = 0;  // Internal storage in milliseconds
- * 
+ *
  * // JSON serialization (in addTo method)
  * sensors["read_interval_ms"] = sensorReadInterval;           // 30000
  * sensors["read_interval_s"] = sensorReadInterval / 1000;     // 30
- * 
+ *
  * // JSON deserialization (in constructor)
  * sensorReadInterval = sensors["read_interval_ms"] | 0;
  * ```
- * 
+ *
  * BENEFITS:
  * - Consumer Convenience: No mental overhead for unit conversion
  * - Flexibility: Consumers choose the unit appropriate for their context
  * - Self-Documenting: Field names clearly indicate available units
  * - Precision: Millisecond precision preserved, seconds for readability
  * - Consistency: Predictable pattern across all time-based fields
- * 
+ *
  * WHEN TO APPLY:
  * - Use this convention for ALL time-based configuration/interval fields
  * - Applies to fields typically >= 1000ms (1 second)
  * - Examples: intervals, timeouts, durations, delays
- * - Does NOT apply to timestamps (which should remain in seconds as per Unix convention)
- * 
- * 
+ * - Does NOT apply to timestamps (which should remain in seconds as per Unix
+ * convention)
+ *
+ *
  * JSON STRUCTURE NESTING GUIDELINES
  * ==================================
- * 
- * Alteriom packages follow consistent patterns for organizing configuration data
- * in JSON structures. This ensures maintainability and predictability across the API.
- * 
- * IMPORTANT: As of PR #37, ALL configuration sections always serialize with default
- * values, providing predictable JSON structure. Consumers no longer need to check
- * for key existence. Default values (0, false, "") indicate "not configured" state.
- * 
+ *
+ * Alteriom packages follow consistent patterns for organizing configuration
+ * data in JSON structures. This ensures maintainability and predictability
+ * across the API.
+ *
+ * IMPORTANT: As of PR #37, ALL configuration sections always serialize with
+ * default values, providing predictable JSON structure. Consumers no longer
+ * need to check for key existence. Default values (0, false, "") indicate "not
+ * configured" state.
+ *
  * See docs/API_DESIGN_GUIDELINES.md for comprehensive documentation.
- * 
+ *
  * QUICK REFERENCE:
- * 
+ *
  * Use FLAT structure (simple key-value pairs) when:
  * - Section has < 4 total fields
  * - No clear logical subsystems
  * - Simple value types
- * 
+ *
  * Use NESTED structure (grouped subsections) when:
  * - 3+ fields belong to same logical subsystem
  * - Clear semantic grouping exists
  * - Future extensibility anticipated
  * - Subsystem has distinct meaning
- * 
+ *
  * CURRENT STRUCTURE PATTERNS:
- * 
+ *
  * Flat Sections:
  * - display_config: enabled, brightness, timeout (3 fields, no subsystems)
- * - power_config: deep_sleep_enabled, deep_sleep_interval, battery_percent (3 fields)
- * - mqtt_retry: retry settings and backoff parameters (9 fields, cohesive purpose)
+ * - power_config: deep_sleep_enabled, deep_sleep_interval, battery_percent (3
+ * fields)
+ * - mqtt_retry: retry settings and backoff parameters (9 fields, cohesive
+ * purpose)
  * - ota: enabled, server, port (3 fields)
  * - encoding: compression and format settings (3 fields)
- * 
+ *
  * Nested Sections:
  * - sensors.calibration: temperature_offset, humidity_offset, pressure_offset
- *   (Rationale: Calibration is distinct subsystem, optional, semantically separate)
+ *   (Rationale: Calibration is distinct subsystem, optional, semantically
+ * separate)
  * - organization: organizationId, customerId, deviceGroup, device_name, etc.
  *   (Rationale: Optional metadata subsystem, may not be present on all devices)
- * 
+ *
  * EXAMPLES:
- * 
+ *
  * Flat structure:
  * ```json
  * "display_config": {
@@ -105,7 +111,7 @@
  *   "timeout_s": 30
  * }
  * ```
- * 
+ *
  * Nested structure:
  * ```json
  * "sensors": {
@@ -118,10 +124,10 @@
  *   }
  * }
  * ```
- * 
+ *
  * DECISION RULE:
- * When in doubt, prefer flat structures. Nesting should provide clear organizational
- * or extensibility benefits to justify the added complexity.
+ * When in doubt, prefer flat structures. Nesting should provide clear
+ * organizational or extensibility benefits to justify the added complexity.
  */
 
 namespace alteriom {
@@ -215,31 +221,32 @@ class CommandPackage : public painlessmesh::plugin::SinglePackage {
 
 /**
  * @brief Status report package for device health monitoring
- * 
+ *
  * BOOLEAN FIELD NAMING CONVENTION
  * ================================
- * 
+ *
  * This package follows a standardized naming convention for boolean fields
- * to improve code clarity and reduce ambiguity. See docs/BOOLEAN_NAMING_CONVENTION.md
- * for complete documentation.
- * 
+ * to improve code clarity and reduce ambiguity. See
+ * docs/BOOLEAN_NAMING_CONVENTION.md for complete documentation.
+ *
  * Three patterns are used:
- * 
+ *
  * 1. *Set suffix: Configuration data has been provided
  *    Example: deviceSecretSet = true means secret is configured
  *    Does NOT indicate if feature is enabled or working
- * 
+ *
  * 2. *Enabled suffix: Feature is currently active/turned on
  *    Example: displayEnabled = true means display feature is active
  *    Independent of whether required configuration exists
- * 
+ *
  * 3. is* prefix or *Connected: Current runtime state
  *    Example: mqttConnected = true means currently connected
  *    Reflects actual runtime conditions, not configuration
- * 
+ *
  * A feature may have both *Set and *Enabled fields:
  * - otaServerSet=true, otaEnabled=false: Server configured but feature disabled
- * - otaServerSet=false, otaEnabled=true: Feature enabled but no server (invalid)
+ * - otaServerSet=false, otaEnabled=true: Feature enabled but no server
+ * (invalid)
  * - otaServerSet=true, otaEnabled=true: Fully configured and active
  */
 class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
@@ -255,43 +262,48 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
   TSTRING responseMessage = "";    // Success/error message
 
   // Organization metadata (Build 8052 - Phase 2.7)
-  TSTRING organizationId = "";   // Organization identifier
-  TSTRING customerId = "";       // Customer identifier
-  TSTRING deviceGroup = "";      // Device group/category
-  TSTRING deviceName = "";       // Device name
-  TSTRING deviceLocation = "";   // Device location
-  bool deviceSecretSet = false;  // *Set: Has device secret been configured? (not enabled/disabled)
+  TSTRING organizationId = "";  // Organization identifier
+  TSTRING customerId = "";      // Customer identifier
+  TSTRING deviceGroup = "";     // Device group/category
+  TSTRING deviceName = "";      // Device name
+  TSTRING deviceLocation = "";  // Device location
+  bool deviceSecretSet =
+      false;  // *Set: Has device secret been configured? (not enabled/disabled)
 
   // Sensor configuration (Build 8057 - Gateway format compatibility)
-  // Note: Time fields follow Alteriom time field naming convention (see file header)
-  // Stored in milliseconds, serialized as both _ms and _s variants
-  uint32_t sensorReadInterval = 0;      // Sensor read interval in milliseconds
-  uint32_t transmissionInterval = 0;    // Transmission interval in milliseconds
-  double tempOffset = 0.0;              // Temperature calibration offset
-  double humidityOffset = 0.0;          // Humidity calibration offset
-  double pressureOffset = 0.0;          // Pressure calibration offset
+  // Note: Time fields follow Alteriom time field naming convention (see file
+  // header) Stored in milliseconds, serialized as both _ms and _s variants
+  uint32_t sensorReadInterval = 0;    // Sensor read interval in milliseconds
+  uint32_t transmissionInterval = 0;  // Transmission interval in milliseconds
+  double tempOffset = 0.0;            // Temperature calibration offset
+  double humidityOffset = 0.0;        // Humidity calibration offset
+  double pressureOffset = 0.0;        // Pressure calibration offset
 
   // Sensor inventory (Build 8057 - Separate from config to avoid collision)
-  uint8_t sensorCount = 0;       // Number of sensors attached
-  uint8_t sensorTypeMask = 0;    // Bitmask of sensor types present
+  uint8_t sensorCount = 0;     // Number of sensors attached
+  uint8_t sensorTypeMask = 0;  // Bitmask of sensor types present
 
   // Display configuration
-  bool displayEnabled = false;      // *Enabled: Is display feature currently active?
-  uint8_t displayBrightness = 0;    // Display brightness (0-255)
-  uint32_t displayTimeout = 0;      // Display timeout in milliseconds
+  bool displayEnabled =
+      false;  // *Enabled: Is display feature currently active?
+  uint8_t displayBrightness = 0;  // Display brightness (0-255)
+  uint32_t displayTimeout = 0;    // Display timeout in milliseconds
 
   // Power configuration
-  bool deepSleepEnabled = false;    // *Enabled: Is deep sleep mode currently active?
-  uint32_t deepSleepInterval = 0;   // Deep sleep interval in milliseconds
-  uint8_t batteryPercent = 0;       // Battery percentage (0-100)
+  bool deepSleepEnabled =
+      false;  // *Enabled: Is deep sleep mode currently active?
+  uint32_t deepSleepInterval = 0;  // Deep sleep interval in milliseconds
+  uint8_t batteryPercent = 0;      // Battery percentage (0-100)
 
   // MQTT retry configuration
   uint8_t mqttMaxRetryAttempts = 0;   // Maximum retry attempts
   uint32_t mqttCircuitBreakerMs = 0;  // Circuit breaker timeout in milliseconds
-  bool mqttHourlyRetryEnabled = false; // *Enabled: Is hourly retry feature active?
-  uint32_t mqttInitialRetryMs = 0;    // Initial retry delay in milliseconds
-  uint32_t mqttMaxRetryMs = 0;        // Maximum retry delay in milliseconds
-  float mqttBackoffMultiplier = 0.0;  // Backoff multiplier for exponential backoff
+  bool mqttHourlyRetryEnabled =
+      false;                        // *Enabled: Is hourly retry feature active?
+  uint32_t mqttInitialRetryMs = 0;  // Initial retry delay in milliseconds
+  uint32_t mqttMaxRetryMs = 0;      // Maximum retry delay in milliseconds
+  float mqttBackoffMultiplier =
+      0.0;  // Backoff multiplier for exponential backoff
 
   StatusPackage() : BroadcastPackage(202) {}  // Type ID 202 for Alteriom status
 
@@ -303,7 +315,7 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     firmwareVersion = jsonObj["fw"].as<TSTRING>();
     responseToCommand = jsonObj["respTo"] | 0;
     responseMessage = jsonObj["respMsg"].as<TSTRING>();
-    
+
     // Deserialize organization metadata (camelCase format)
     if (jsonObj["organization"].is<JsonObject>()) {
       JsonObject org = jsonObj["organization"];
@@ -320,7 +332,7 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       JsonObject sensors = jsonObj["sensors"];
       sensorReadInterval = sensors["read_interval_ms"] | 0;
       transmissionInterval = sensors["transmission_interval_ms"] | 0;
-      
+
       if (sensors["calibration"].is<JsonObject>()) {
         JsonObject calibration = sensors["calibration"];
         tempOffset = calibration["temperature_offset"] | 0.0;
@@ -342,7 +354,8 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       displayEnabled = displayConfig["enabled"] | false;
       displayBrightness = displayConfig["brightness"] | 0;
       // Support both old and new field names for backward compatibility
-      displayTimeout = displayConfig["timeout_ms"] | displayConfig["timeout"] | 0;
+      displayTimeout =
+          displayConfig["timeout_ms"] | displayConfig["timeout"] | 0;
     }
 
     // Deserialize power configuration (with backward compatibility)
@@ -350,7 +363,8 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       JsonObject powerConfig = jsonObj["power_config"];
       deepSleepEnabled = powerConfig["deep_sleep_enabled"] | false;
       // Support both old and new field names for backward compatibility
-      deepSleepInterval = powerConfig["deep_sleep_interval_ms"] | powerConfig["deep_sleep_interval"] | 0;
+      deepSleepInterval = powerConfig["deep_sleep_interval_ms"] |
+                          powerConfig["deep_sleep_interval"] | 0;
       batteryPercent = powerConfig["battery_percent"] | 0;
     }
 
@@ -377,7 +391,7 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
       jsonObj["respTo"] = responseToCommand;
       jsonObj["respMsg"] = responseMessage;
     }
-    
+
     // Serialize organization metadata (mixed case per MQTT Schema v0.7.2)
     // Always serialize to ensure predictable JSON structure
     JsonObject org = jsonObj["organization"].to<JsonObject>();
@@ -395,7 +409,7 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     sensors["read_interval_s"] = sensorReadInterval / 1000;
     sensors["transmission_interval_ms"] = transmissionInterval;
     sensors["transmission_interval_s"] = transmissionInterval / 1000;
-    
+
     // Nested calibration object - always serialize for consistency
     JsonObject calibration = sensors["calibration"].to<JsonObject>();
     calibration["temperature_offset"] = tempOffset;
@@ -436,42 +450,47 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
     mqttRetry["max_retry_ms"] = mqttMaxRetryMs;
     mqttRetry["max_retry_s"] = mqttMaxRetryMs / 1000;
     mqttRetry["backoff_multiplier"] = mqttBackoffMultiplier;
-    
+
     return jsonObj;
   }
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    size_t size = JSON_OBJECT_SIZE(noJsonFields + 7) + firmwareVersion.length() +
-           responseMessage.length();
-    
+    size_t size = JSON_OBJECT_SIZE(noJsonFields + 7) +
+                  firmwareVersion.length() + responseMessage.length();
+
     // Always add organization object size for predictable structure
-    size += JSON_OBJECT_SIZE(6) + organizationId.length() + 
-            customerId.length() + deviceGroup.length() + 
-            deviceName.length() + deviceLocation.length();
+    size += JSON_OBJECT_SIZE(6) + organizationId.length() +
+            customerId.length() + deviceGroup.length() + deviceName.length() +
+            deviceLocation.length();
 
     // Always add sensor configuration object size (Build 8057)
-    // sensors object with read_interval_ms, read_interval_s, transmission_interval_ms, transmission_interval_s, calibration
+    // sensors object with read_interval_ms, read_interval_s,
+    // transmission_interval_ms, transmission_interval_s, calibration
     size += JSON_OBJECT_SIZE(5);
     // calibration nested object - always included
     size += JSON_OBJECT_SIZE(3);
 
     // Always add sensor inventory object size (Build 8057)
-    size += JSON_OBJECT_SIZE(2);  // sensor_inventory object with count and type_mask
+    size += JSON_OBJECT_SIZE(
+        2);  // sensor_inventory object with count and type_mask
 
     // Always add display configuration object size
     // display_config object with enabled, brightness, timeout_ms, timeout_s
     size += JSON_OBJECT_SIZE(4);
 
     // Always add power configuration object size
-    // power_config object with deep_sleep_enabled, deep_sleep_interval_ms, deep_sleep_interval_s, battery_percent
+    // power_config object with deep_sleep_enabled, deep_sleep_interval_ms,
+    // deep_sleep_interval_s, battery_percent
     size += JSON_OBJECT_SIZE(4);
 
     // Always add MQTT retry configuration object size
-    // mqtt_retry object with max_attempts, circuit_breaker_ms, circuit_breaker_s, hourly_retry_enabled,
-    // initial_retry_ms, initial_retry_s, max_retry_ms, max_retry_s, backoff_multiplier
-    size += JSON_OBJECT_SIZE(9) + 10; // Extra space for backoff_multiplier string
-    
+    // mqtt_retry object with max_attempts, circuit_breaker_ms,
+    // circuit_breaker_s, hourly_retry_enabled, initial_retry_ms,
+    // initial_retry_s, max_retry_ms, max_retry_s, backoff_multiplier
+    size +=
+        JSON_OBJECT_SIZE(9) + 10;  // Extra space for backoff_multiplier string
+
     return size;
   }
 #endif

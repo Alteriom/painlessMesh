@@ -1139,12 +1139,13 @@ SCENARIO("StatusPackage JSON structure follows nesting guidelines") {
                 REQUIRE(displayConfig["timeout_s"].is<unsigned int>());
                 
                 // Verify no nested subsections exist
-                REQUIRE_FALSE(displayConfig.containsKey("brightness_config"));
-                REQUIRE_FALSE(displayConfig.containsKey("timeout_config"));
+                REQUIRE_FALSE(displayConfig["brightness_config"].is<JsonObject>());
+                REQUIRE_FALSE(displayConfig["timeout_config"].is<JsonObject>());
                 
                 // Count fields - should be 4 (enabled, brightness, timeout_ms, timeout_s)
                 size_t fieldCount = 0;
-                for (JsonPair kv : displayConfig) {
+                for (JsonPair kvpair : displayConfig) {
+                    (void)kvpair; // Suppress unused variable warning
                     fieldCount++;
                 }
                 REQUIRE(fieldCount == 4);
@@ -1162,12 +1163,13 @@ SCENARIO("StatusPackage JSON structure follows nesting guidelines") {
                 REQUIRE(powerConfig["battery_percent"].is<unsigned int>());
                 
                 // Verify no nested subsections exist
-                REQUIRE_FALSE(powerConfig.containsKey("deep_sleep"));
-                REQUIRE_FALSE(powerConfig.containsKey("battery"));
+                REQUIRE_FALSE(powerConfig["deep_sleep"].is<JsonObject>());
+                REQUIRE_FALSE(powerConfig["battery"].is<JsonObject>());
                 
                 // Count fields - should be 4
                 size_t fieldCount = 0;
-                for (JsonPair kv : powerConfig) {
+                for (JsonPair kvpair : powerConfig) {
+                    (void)kvpair; // Suppress unused variable warning
                     fieldCount++;
                 }
                 REQUIRE(fieldCount == 4);
@@ -1190,12 +1192,13 @@ SCENARIO("StatusPackage JSON structure follows nesting guidelines") {
                 REQUIRE(mqttRetry["backoff_multiplier"].is<double>());
                 
                 // Verify no nested subsections exist for backoff settings
-                REQUIRE_FALSE(mqttRetry.containsKey("backoff"));
-                REQUIRE_FALSE(mqttRetry.containsKey("retry_policy"));
+                REQUIRE_FALSE(mqttRetry["backoff"].is<JsonObject>());
+                REQUIRE_FALSE(mqttRetry["retry_policy"].is<JsonObject>());
                 
                 // Count fields - should be 9
                 size_t fieldCount = 0;
-                for (JsonPair kv : mqttRetry) {
+                for (JsonPair kvpair : mqttRetry) {
+                    (void)kvpair; // Suppress unused variable warning
                     fieldCount++;
                 }
                 REQUIRE(fieldCount == 9);
