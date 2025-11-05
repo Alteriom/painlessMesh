@@ -187,7 +187,7 @@ painlessMesh makes use of the following libraries, which can be installed throug
 - [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
 - [TaskScheduler](https://github.com/arkhipenko/TaskScheduler)
 - [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP) (ESP8266)
-- [AsyncTCP](https://github.com/me-no-dev/AsyncTCP) (ESP32)
+- [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) (ESP32) - v3.3.0+ required for ESP32-C6
 
 If platformio is used to install the library, then the dependencies will be installed automatically.
 
