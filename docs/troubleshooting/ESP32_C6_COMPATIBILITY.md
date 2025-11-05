@@ -43,7 +43,7 @@ framework = arduino
 
 lib_deps =
     https://github.com/Alteriom/painlessMesh.git
-    mathieucarbou/AsyncTCP @ ^3.4.91  ; Use latest version with LWIP locking
+    esp32async/AsyncTCP @ ^3.4.7  ; Use latest version with LWIP locking
     bblanchon/ArduinoJson @ ^7.4.2
     arkhipenko/TaskScheduler @ ^4.0.0
 ```
@@ -51,7 +51,7 @@ lib_deps =
 **For Arduino IDE:**
 
 1. Remove any existing AsyncTCP library installation
-2. Download the latest AsyncTCP from: https://github.com/mathieucarbou/AsyncTCP
+2. Download the latest AsyncTCP from: https://github.com/ESP32Async/AsyncTCP
 3. Install using "Sketch" → "Include Library" → "Add .ZIP Library"
 4. **Important:** Do not use the Arduino Library Manager for AsyncTCP, as it may install an outdated version
 
@@ -140,7 +140,7 @@ If you're still experiencing issues:
 
 ## References
 
-- [AsyncTCP Library (mathieucarbou fork)](https://github.com/mathieucarbou/AsyncTCP)
+- [AsyncTCP Library (ESP32Async)](https://github.com/ESP32Async/AsyncTCP)
 - [ESP32 Arduino Core Release Notes](https://github.com/espressif/arduino-esp32/releases)
 - [painlessMesh GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)
 

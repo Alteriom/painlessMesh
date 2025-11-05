@@ -18,15 +18,15 @@ This is a known compatibility issue with ESP32-C6 and newer ESP32 variants. See 
 📖 **[ESP32-C6 Compatibility Guide](ESP32_C6_COMPATIBILITY.md)**
 
 **Quick Fix:**
-Update your AsyncTCP library to version 3.3.0 or newer, or use the mathieucarbou fork which includes proper LWIP locking for Arduino ESP32 core 3.1.0+.
+Update your AsyncTCP library to version 3.3.0 or newer, or use the ESP32Async library which includes proper LWIP locking for Arduino ESP32 core 3.1.0+.
 
 For PlatformIO, add to your `platformio.ini`:
 ```ini
 lib_deps =
-    mathieucarbou/AsyncTCP @ ^3.4.91
+    esp32async/AsyncTCP @ ^3.4.7
 ```
 
-For Arduino IDE, download and install manually from: https://github.com/mathieucarbou/AsyncTCP
+For Arduino IDE, download and install manually from: https://github.com/ESP32Async/AsyncTCP
 
 ---
 
