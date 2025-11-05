@@ -282,6 +282,12 @@ void receivedCallback(uint32_t from, String& msg) {
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT
 
+## Development Version: v1.7.8
+
+**In Development** - Next release after v1.7.7
+
+See [CHANGELOG](CHANGELOG.md) for upcoming changes.
+
 ## Latest Release: v1.7.7 (November 5, 2025)
 
 **MQTT Schema v0.7.2 Compliance with Enhanced Monitoring**:
