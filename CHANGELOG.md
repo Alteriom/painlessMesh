@@ -19,19 +19,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
-## [1.7.8] - TBD
+## [1.7.8] - 2025-11-04
 
 ### Added
 
-- TBD
+- **BRIDGE_TO_INTERNET.md** - Comprehensive documentation for bridging mesh networks to the Internet via WiFi router
+  - Complete code examples with AP+STA mode configuration
+  - WiFi channel matching requirements and best practices
+  - Links to working bridge examples (basic, MQTT, web server, enhanced MQTT)
+  - Architecture diagrams and forwarding patterns
+  - Troubleshooting and additional resources
+
+- **Enhanced StatusPackage** - New organization and sensor configuration fields
+  - Organization fields: `organizationId`, `organizationName`, `organizationDomain`
+  - Sensor configuration: `sensorTypes` array, `sensorConfig` JSON, `sensorInventory` array
+  - Separate JSON serialization keys for sensors data vs configuration
+  - CamelCase field naming convention for consistency
+
+- **API Design Guidelines** - `docs/API_DESIGN_GUIDELINES.md`
+  - Field naming conventions (camelCase, units in field names)
+  - Boolean naming patterns (`is`, `has`, `should`, `can`)
+  - Time field naming with units (`_ms`, `_s`, `_us` suffixes)
+  - Serialization patterns and consistency rules
+  - Comprehensive validation tests
+
+- **Manual Publishing Workflow** - `.github/workflows/manual-publish.yml`
+  - On-demand NPM and GitHub Packages publishing
+  - Fixes cases where automated release doesn't trigger package publication
+  - Configurable options for selective publishing
 
 ### Changed
 
-- TBD
+- **Time Field Naming Convention** - Consistent unit suffixes across all packages
+  - `collectionTimestamp` → `collectionTimestamp_ms`
+  - `avgResponseTime` → `avgResponseTime_us`
+  - `estimatedTimeToFailure` → `estimatedTimeToFailure_s`
+  - All time fields now include explicit units in field names
+  - Documentation: `docs/architecture/TIME_FIELD_NAMING.md`
+
+- **StatusPackage JSON Structure** - Improved field organization
+  - Sensor data uses `sensors` key (array of readings)
+  - Sensor configuration uses separate keys (`sensorTypes`, `sensorConfig`, `sensorInventory`)
+  - No key collisions between runtime data and configuration
+  - Unconditional serialization for predictable JSON structure
+
+- **MQTT Retry Logic** - Fixed serialization to include all retry fields
+  - Proper condition for including retry configuration
+  - Epsilon comparison for floating-point backoff multiplier
 
 ### Fixed
 
-- TBD
+- **CI Pipeline** - Made validate-release depend on CI completion
+  - Prevents release validation from running before tests complete
+  - Ensures all tests pass before release can proceed
+
+- **ArduinoJson API** - Updated deprecated API usage
+  - Fixed deprecated JsonVariant::is<JsonObject>() calls
+  - Updated to ArduinoJson 7.x compatible patterns
+  - Code formatting improvements
+
+- **ESP8266 Compatibility** - Fixed `getDeviceId()` function
+  - Added proper ESP8266 implementation in mqttTopologyTest
+  - Platform-specific device ID retrieval
+
+- **Documentation** - Multiple improvements
+  - Fixed v1.7.7 release date in documentation
+  - Added comprehensive mqtt-schema v0.7.2+ message type codes table
+  - Corrected CommandPackage type number (400, not 201)
+  - Enhanced Alteriom Extensions section in README
+  - Added GitHub Packages authentication for npm install
 
 ## [1.7.7] - 2025-11-05
 
