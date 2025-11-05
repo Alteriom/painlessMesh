@@ -2,6 +2,34 @@
 
 This guide covers the most frequently encountered problems when working with painlessMesh and their solutions.
 
+## Platform-Specific Issues
+
+### ESP32-C6 Crashes on Startup
+
+**Symptoms:**
+- Device crashes immediately after mesh initialization
+- Endless reboot loop
+- Error message: `assert failed: tcp_alloc ... (Required to lock TCPIP core functionality!)`
+
+**Solution:**
+
+This is a known compatibility issue with ESP32-C6 and newer ESP32 variants. See the dedicated guide:
+
+📖 **[ESP32-C6 Compatibility Guide](ESP32_C6_COMPATIBILITY.md)**
+
+**Quick Fix:**
+Update your AsyncTCP library to version 3.3.0 or newer, or use the mathieucarbou fork which includes proper LWIP locking for Arduino ESP32 core 3.1.0+.
+
+For PlatformIO, add to your `platformio.ini`:
+```ini
+lib_deps =
+    mathieucarbou/AsyncTCP @ ^3.4.91
+```
+
+For Arduino IDE, download and install manually from: https://github.com/mathieucarbou/AsyncTCP
+
+---
+
 ## Connection Issues
 
 ### Nodes Not Connecting

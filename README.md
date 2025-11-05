@@ -191,6 +191,8 @@ painlessMesh makes use of the following libraries, which can be installed throug
 
 If platformio is used to install the library, then the dependencies will be installed automatically.
 
+> **⚠️ ESP32-C6 Users:** If you experience crashes with `tcp_alloc` errors, you need AsyncTCP v3.3.0+ with LWIP locking support. Use the [mathieucarbou/AsyncTCP](https://github.com/mathieucarbou/AsyncTCP) fork or see the [ESP32-C6 Compatibility Guide](docs/troubleshooting/ESP32_C6_COMPATIBILITY.md) for details.
+
 ## Quick Start with Alteriom Packages
 
 ### Basic Sensor Node
