@@ -1,6 +1,6 @@
 # painlessMesh v1.7.7 Release Summary
 
-**Release Date:** October 23, 2025  
+**Release Date:** November 5, 2025  
 **Version:** 1.7.7  
 **Type:** Feature Release  
 **Compatibility:** 100% backward compatible with v1.7.6
