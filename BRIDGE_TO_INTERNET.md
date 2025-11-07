@@ -5,6 +5,7 @@ You can bridge your mesh network to the Internet by creating a **gateway node** 
 ## Quick Start
 
 The gateway node operates in **AP+STA mode** (Access Point + Station), allowing it to:
+
 - Act as an Access Point for the mesh network
 - Connect as a Station to your router for Internet access
 
@@ -52,15 +53,62 @@ void receivedCallback(uint32_t from, String& msg) {
 
 ## Important Requirements
 
-1. **WiFi Channel Matching**: The mesh network and your router **must use the same WiFi channel**. In the example above, both use channel 6. You may need to configure your router to use a fixed channel.
+### ⚠️ Critical: WiFi Channel Matching
 
-2. **WIFI_AP_STA Mode**: This enables simultaneous AP (for mesh) and Station (for router) operation.
+**The mesh network and your router MUST use the same WiFi channel.** This is a hardware limitation of ESP32/ESP8266 - the WiFi radio can only operate on one channel at a time in AP+STA mode.
 
-3. **Root Configuration**: 
+**Why Channel Matching is Required:**
+
+When operating in `WIFI_AP_STA` mode (bridge mode):
+
+- **AP Mode (Mesh)**: Creates mesh network on specified channel
+- **STA Mode (Router)**: Connects to router on the **same** channel
+
+ESP32/ESP8266 cannot listen to two different channels simultaneously. If your router uses channel 1 but your code specifies channel 6, the station connection will fail.
+
+**How to Fix Channel Mismatch:**
+
+**Option 1 - Configure Router (Recommended):**
+
+1. Log into your router's admin interface
+2. Find WiFi settings (2.4GHz band)
+3. Change channel from "Auto" to match your mesh (e.g., channel 6)
+4. Save and reboot router
+
+**Option 2 - Change Mesh Channel:**
+
+```cpp
+// Change mesh channel to match your router's channel
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 1);
+//                                                      Router channel ↑
+```
+
+**Finding Your Router's Channel:**
+
+```cpp
+void setup() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin("YourRouterSSID", "YourPassword");
+  while (WiFi.status() != WL_CONNECTED) delay(500);
+  Serial.printf("Router channel: %d\n", WiFi.channel());
+}
+```
+
+**Best Practices:**
+
+- Use channels 1, 6, or 11 (non-overlapping 2.4GHz channels)
+- Avoid "Auto" channel selection on routers - use fixed channel
+- Use WiFi analyzer apps to find least congested channels
+
+### Other Requirements
+
+1. **WIFI_AP_STA Mode**: This enables simultaneous AP (for mesh) and Station (for router) operation.
+
+2. **Root Configuration**:
    - Call `mesh.setRoot(true)` on the bridge node
    - Call `mesh.setContainsRoot(true)` on all mesh nodes for optimal routing
 
-4. **ESP32-C6 Compatibility**: If using ESP32-C6 or experiencing crashes with `tcp_alloc` errors, ensure you have AsyncTCP v3.3.0+ installed. See the [ESP32-C6 Compatibility Guide](docs/troubleshooting/ESP32_C6_COMPATIBILITY.md) for details.
+3. **ESP32-C6 Compatibility**: If using ESP32-C6 or experiencing crashes with `tcp_alloc` errors, ensure you have AsyncTCP v3.3.0+ installed. See the [ESP32-C6 Compatibility Guide](docs/troubleshooting/ESP32_C6_COMPATIBILITY.md) for details.
 
 ## Complete Examples
 
@@ -93,7 +141,7 @@ void receivedCallback(uint32_t from, String& msg) {
 
 ## Architecture Diagram
 
-```
+```text
 Internet
    |
 Router (WiFi)
