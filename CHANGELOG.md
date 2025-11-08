@@ -23,11 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **CI/CD Pipeline** - Fixed submodule initialization failures in GitHub Actions workflows
+- **CI/CD Pipeline** - Fixed submodule initialization failures and PlatformIO test configuration in GitHub Actions workflows
   - Added explicit `submodules: recursive` to checkout action in CI workflow
   - Added manual `git submodule update --init --recursive` step for robustness
   - Ensures test dependencies (ArduinoJson and TaskScheduler) are properly initialized
   - Fixes build failures where submodules were not available during CI runs
+  - Removed redundant matrix strategy from PlatformIO build test (script builds both platforms anyway)
   - Affects all workflows: ci.yml, release.yml, docs.yml
 
 - **Workflow Triggers** - Fixed duplicate CI runs on PR branches

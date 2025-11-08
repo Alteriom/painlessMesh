@@ -130,10 +130,6 @@ jobs:
   build-platformio:
     name: PlatformIO Build Test  
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [espressif32, espressif8266]
     
     steps:
       - name: Checkout
