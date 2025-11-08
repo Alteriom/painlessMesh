@@ -31,8 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Affects all workflows: ci.yml, release.yml, docs.yml
 
 - **Workflow Triggers** - Fixed duplicate CI runs on PR branches
-  - Removed unnecessary `copilot/**` pattern from validate-release workflow
-  - Prevents double CI execution on pull requests
+  - Removed unnecessary `copilot/**` pattern from validate-release workflow branches filter
+  - Added explicit branch check in validate-release job condition to only run on main/develop
+  - Prevents validate-release workflow from running on PR branches
+  - Ensures CI runs only once per PR commit
 
 - **Example Code** - Fixed compilation errors in alteriomMetricsHealth example
   - Removed incorrect `userScheduler.size()` call (TaskScheduler API doesn't expose queue size)
