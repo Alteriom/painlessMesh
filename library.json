@@ -1,55 +1,95 @@
 {
-    "name": "AlteriomPainlessMesh",
-    "keywords": "ethernet, m2m, iot, mesh, alteriom, sensor, esp32, esp8266, json, time-sync, wireless, communication",
-    "description": "painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. This Alteriom fork includes additional packages for sensor data (SensorPackage), device commands (CommandPackage), and status monitoring (StatusPackage). It handles routing and network management automatically, so you can focus on your application. The library uses JSON-based messaging and syncs time across all nodes, making it ideal for coordinated behaviour like synchronized light displays or sensor networks reporting to a central node.",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/Alteriom/painlessMesh"
+  "name": "AlteriomPainlessMesh",
+  "keywords": "ethernet, m2m, iot, mesh, alteriom, sensor, esp32, esp8266, json, time-sync, wireless, communication",
+  "description": "painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. This Alteriom fork includes additional packages for sensor data (SensorPackage), device commands (CommandPackage), and status monitoring (StatusPackage). It handles routing and network management automatically, so you can focus on your application. The library uses JSON-based messaging and syncs time across all nodes, making it ideal for coordinated behaviour like synchronized light displays or sensor networks reporting to a central node.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alteriom/painlessMesh"
+  },
+  "version": "1.7.9",
+  "frameworks": [
+    "arduino"
+  ],
+  "platforms": [
+    "espressif8266",
+    "espressif32"
+  ],
+  "srcDir": "src",
+  "includeDir": "src",
+  "dependencies": [
+    {
+      "owner": "esp32async",
+      "name": "AsyncTCP",
+      "version": "^3.4.7",
+      "platforms": [
+        "espressif32"
+      ]
     },
-    "version": "1.7.8",
-    "frameworks": ["arduino"],
-    "platforms": ["espressif8266", "espressif32"],
-    "srcDir": "src",
-    "includeDir": "src",
-    "dependencies": [
-        { "owner": "esp32async", "name": "AsyncTCP", "version": "^3.4.7",  "platforms" : ["espressif32"] },
-        { "owner": "esp32async", "name": "ESPAsyncTCP", "version": "^2.0.0",  "platforms" : ["espressif8266"] },
-        { "owner": "bblanchon", "name": "ArduinoJson", "version": "^7.4.2" },
-        { "owner": "arkhipenko", "name": "TaskScheduler", "version": "^4.0.0" }
-    ],
-    "authors": [
-        { "name": "Scotty Franzyshen" }, 
-        { 
-            "name": "Coopdis",
-            "url": "https://github.com/Coopdis"
-        }, 
-        { "name": "Edwin van Leeuwen" },
-        { "name": "Germán Martín" },
-        { "name": "Maximilian Schwarz" },
-        { "name": "Doanh Doanh" },
-        { 
-            "name": "Alteriom",
-            "url": "https://github.com/Alteriom",
-            "maintainer": true
-        }
-    ],
-    "license": "LGPL-3.0",
-    "homepage": "https://github.com/Alteriom/painlessMesh",
-    "headers": ["painlessMesh.h", "AlteriomPainlessMesh.h"],
-    "examples": [
-        "examples/alteriom/alteriom.ino",
-        "examples/alteriom/alteriom_sensor_node.ino", 
-        "examples/alteriom/improved_sensor_node.ino",
-        "examples/basic/basic.ino",
-        "examples/bridge/bridge.ino",
-        "examples/echoNode/echoNode.ino",
-        "examples/logClient/logClient.ino",
-        "examples/logServer/logServer.ino",
-        "examples/mqttBridge/mqttBridge.ino",
-        "examples/namedMesh/namedMesh.ino",
-        "examples/otaReceiver/otaReceiver.ino",
-        "examples/otaSender/otaSender.ino",
-        "examples/startHere/startHere.ino",
-        "examples/webServer/webServer.ino"
-    ]
+    {
+      "owner": "esp32async",
+      "name": "ESPAsyncTCP",
+      "version": "^2.0.0",
+      "platforms": [
+        "espressif8266"
+      ]
+    },
+    {
+      "owner": "bblanchon",
+      "name": "ArduinoJson",
+      "version": "^7.4.2"
+    },
+    {
+      "owner": "arkhipenko",
+      "name": "TaskScheduler",
+      "version": "^4.0.0"
+    }
+  ],
+  "authors": [
+    {
+      "name": "Scotty Franzyshen"
+    },
+    {
+      "name": "Coopdis",
+      "url": "https://github.com/Coopdis"
+    },
+    {
+      "name": "Edwin van Leeuwen"
+    },
+    {
+      "name": "Germán Martín"
+    },
+    {
+      "name": "Maximilian Schwarz"
+    },
+    {
+      "name": "Doanh Doanh"
+    },
+    {
+      "name": "Alteriom",
+      "url": "https://github.com/Alteriom",
+      "maintainer": true
+    }
+  ],
+  "license": "LGPL-3.0",
+  "homepage": "https://github.com/Alteriom/painlessMesh",
+  "headers": [
+    "painlessMesh.h",
+    "AlteriomPainlessMesh.h"
+  ],
+  "examples": [
+    "examples/alteriom/alteriom.ino",
+    "examples/alteriom/alteriom_sensor_node.ino",
+    "examples/alteriom/improved_sensor_node.ino",
+    "examples/basic/basic.ino",
+    "examples/bridge/bridge.ino",
+    "examples/echoNode/echoNode.ino",
+    "examples/logClient/logClient.ino",
+    "examples/logServer/logServer.ino",
+    "examples/mqttBridge/mqttBridge.ino",
+    "examples/namedMesh/namedMesh.ino",
+    "examples/otaReceiver/otaReceiver.ino",
+    "examples/otaSender/otaSender.ino",
+    "examples/startHere/startHere.ino",
+    "examples/webServer/webServer.ino"
+  ]
 }

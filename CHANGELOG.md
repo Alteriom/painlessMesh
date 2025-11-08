@@ -19,6 +19,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.9] - 2025-11-08
+
+### Fixed
+
+- **CI/CD Pipeline** - Fixed submodule initialization failures and PlatformIO test configuration in GitHub Actions workflows
+  - Added explicit `submodules: recursive` to checkout action in CI workflow
+  - Added manual `git submodule update --init --recursive` step for robustness
+  - Ensures test dependencies (ArduinoJson and TaskScheduler) are properly initialized
+  - Fixes build failures where submodules were not available during CI runs
+  - Removed redundant matrix strategy from PlatformIO build test (script builds both platforms anyway)
+  - Changed PlatformIO tests from random to deterministic (tests critical examples: basic, alteriomSensorNode, alteriomMetricsHealth)
+  - Improved concurrency grouping to properly handle PR branch names and prevent premature cancellations
+  - Affects all workflows: ci.yml, release.yml, docs.yml
+
+- **Workflow Triggers** - Fixed duplicate CI runs and cancellation issues on PR branches
+  - Removed unnecessary `copilot/**` pattern from validate-release workflow branches filter
+  - Added explicit branch check in validate-release job condition to only run on main/develop
+  - Prevents validate-release workflow from running on PR branches
+  - Fixed concurrency grouping to use `github.head_ref` for PRs (branch name) instead of `github.ref` (commit SHA)
+  - Ensures proper workflow cancellation behavior and prevents confusion from cancelled runs
+
+- **Example Code** - Fixed compilation errors in alteriomMetricsHealth example
+  - Removed incorrect `userScheduler.size()` call (TaskScheduler API doesn't expose queue size)
+  - Replaced non-existent `toJsonString()` methods with proper JSON serialization pattern
+  - Updated deprecated `DynamicJsonDocument` to `JsonDocument` for ArduinoJson v7 compatibility
+  - Changed `msgType` from `uint8_t` to `uint16_t` to support message types > 255 (400, 604, 605)
+
+### Technical Details
+
+- GitHub Actions now properly initializes git submodules before build steps
+- Both automated checkout with `submodules: recursive` and manual initialization step included
+- Prevents "No such file or directory" errors for test/ArduinoJson and test/TaskScheduler
+- Critical fix for maintaining CI/CD reliability across all build and test workflows
+- Example code now uses proper serialization: `JsonDocument doc; JsonObject obj = doc.to<JsonObject>(); package.addTo(std::move(obj)); serializeJson(doc, msg);`
+
 ## [1.7.8] - 2025-11-05
 
 ### Added

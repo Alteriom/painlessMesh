@@ -11,8 +11,9 @@ on:
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
+# Use github.head_ref for PRs (branch name) and github.ref for push events
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -130,10 +131,6 @@ jobs:
   build-platformio:
     name: PlatformIO Build Test  
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [espressif32, espressif8266]
     
     steps:
       - name: Checkout
@@ -148,7 +145,11 @@ jobs:
         run: pip install platformio
 
       - name: Run PlatformIO tests
-        run: bash test/ci/test_platformio.sh --random
+        run: |
+          # Test critical examples instead of random to ensure reliability
+          bash test/ci/test_platformio.sh --example basic
+          bash test/ci/test_platformio.sh --example alteriomSensorNode
+          bash test/ci/test_platformio.sh --example alteriomMetricsHealth
 
   code-quality:
     name: Code Quality Checks
