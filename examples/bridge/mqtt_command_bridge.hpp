@@ -3,8 +3,8 @@
 
 #include "painlessMesh.h"
 #include <PubSubClient.h>
-#include "examples/alteriom/alteriom_sensor_package.hpp"
-#include "examples/bridge/mesh_topology_reporter.hpp"
+#include "alteriom_sensor_package.hpp"
+#include "mesh_topology_reporter.hpp"
 
 using namespace alteriom;
 
