@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - TBD
 
+## [1.7.9] - 2025-11-08
+
+### Fixed
+
+- **CI/CD Pipeline** - Fixed submodule initialization failures in GitHub Actions workflows
+  - Added explicit `submodules: recursive` to checkout action in CI workflow
+  - Added manual `git submodule update --init --recursive` step for robustness
+  - Ensures test dependencies (ArduinoJson and TaskScheduler) are properly initialized
+  - Fixes build failures where submodules were not available during CI runs
+  - Affects all workflows: ci.yml, release.yml, docs.yml
+
+### Technical Details
+
+- GitHub Actions now properly initializes git submodules before build steps
+- Both automated checkout with `submodules: recursive` and manual initialization step included
+- Prevents "No such file or directory" errors for test/ArduinoJson and test/TaskScheduler
+- Critical fix for maintaining CI/CD reliability across all build and test workflows
+
 ## [1.7.8] - 2025-11-05
 
 ### Added
