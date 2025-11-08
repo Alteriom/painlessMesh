@@ -29,13 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ensures test dependencies (ArduinoJson and TaskScheduler) are properly initialized
   - Fixes build failures where submodules were not available during CI runs
   - Removed redundant matrix strategy from PlatformIO build test (script builds both platforms anyway)
+  - Changed PlatformIO tests from random to deterministic (tests critical examples: basic, alteriomSensorNode, alteriomMetricsHealth)
+  - Improved concurrency grouping to properly handle PR branch names and prevent premature cancellations
   - Affects all workflows: ci.yml, release.yml, docs.yml
 
-- **Workflow Triggers** - Fixed duplicate CI runs on PR branches
+- **Workflow Triggers** - Fixed duplicate CI runs and cancellation issues on PR branches
   - Removed unnecessary `copilot/**` pattern from validate-release workflow branches filter
   - Added explicit branch check in validate-release job condition to only run on main/develop
   - Prevents validate-release workflow from running on PR branches
-  - Ensures CI runs only once per PR commit
+  - Fixed concurrency grouping to use `github.head_ref` for PRs (branch name) instead of `github.ref` (commit SHA)
+  - Ensures proper workflow cancellation behavior and prevents confusion from cancelled runs
 
 - **Example Code** - Fixed compilation errors in alteriomMetricsHealth example
   - Removed incorrect `userScheduler.size()` call (TaskScheduler API doesn't expose queue size)
