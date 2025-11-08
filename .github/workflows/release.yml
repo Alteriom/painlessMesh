@@ -40,7 +40,16 @@ jobs:
           echo "message=${MSG}" >> $GITHUB_OUTPUT
           
           # Check if this commit modifies version files (indicates version bump)
-          if git diff-tree --no-commit-id --name-only -r HEAD | grep -qE '(library\.properties|library\.json|package\.json)'; then
+          # For merge commits, check the full diff range; for regular commits, check just that commit
+          if git rev-parse --verify HEAD^2 >/dev/null 2>&1; then
+            # This is a merge commit - check all changes brought in by the merge
+            CHANGED_FILES=$(git diff --name-only HEAD^1..HEAD)
+          else
+            # This is a regular commit - check just this commit
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -qE '(library\.properties|library\.json|package\.json)'; then
             echo "is_version_bump=true" >> $GITHUB_OUTPUT
           else
             echo "is_version_bump=false" >> $GITHUB_OUTPUT
