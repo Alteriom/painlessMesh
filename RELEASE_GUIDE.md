@@ -79,7 +79,7 @@ version=1.6.1
 
 The release workflow triggers on commits to `main` that:
 1. Modify `library.properties`, `library.json`, `package.json`, or `CHANGELOG.md`
-2. Have a commit message starting with `release:`
+2. Have version files modified OR commit message starting with `release:`
 
 ### What Gets Automated
 
@@ -386,16 +386,25 @@ npm whoami
 
 **NPM/GitHub Packages Not Published Automatically**
 
-If the automated release ran but NPM and GitHub Packages weren't published, it's likely due to the commit message not matching the required pattern.
+The automated workflow triggers a release in two ways:
 
-The automated workflow requires the commit message to start with `release:` (lowercase with colon):
+1. **Automatic (Recommended)**: When version files are updated in a commit
+   - The workflow detects changes to `library.properties`, `library.json`, or `package.json`
+   - Automatically creates tag, release, and publishes packages when these files are modified
+   - Works seamlessly with PR merges and direct commits
+
+2. **Manual trigger**: Commit message starts with `release:` (lowercase with colon):
+
 ```bash
-# ✅ Correct - Will trigger NPM/GitHub Packages publishing
+# ✅ Correct - Will trigger full release
 git commit -m "release: v1.7.7 - Complete mqtt-schema implementation"
 
-# ❌ Wrong - Will create tag/release but skip NPM publishing  
-git commit -m "Release v1.7.7 - Complete mqtt-schema implementation"
+# ✅ Also works - Version file changes detected automatically
+# (No special commit message needed when library.properties/json/package.json are modified)
+git commit -m "Bump version to 1.7.8"
 ```
+
+**Note**: If version files weren't modified and commit message doesn't start with "release:", the workflow will skip publishing.
 
 **Solution: Use Manual Publishing Workflow**
 
