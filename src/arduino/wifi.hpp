@@ -63,6 +63,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     _meshSSID = ssid;
     _meshPassword = password;
     _meshChannel = channel;
+    Log(STARTUP, "init(): Mesh channel set to %d\n", _meshChannel);
     _meshHidden = hidden;
     _meshMaxConn = maxconn;
     _meshPort = port;
@@ -128,8 +129,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    */
   void stationManual(TSTRING ssid, TSTRING password, uint16_t port = 0,
                      IPAddress remote_ip = IPAddress(0, 0, 0, 0)) {
+    using namespace logger;
     // Set station config
     stationScan.manualIP = remote_ip;
+
+    Log(STARTUP, "stationManual(): Ensure your router is on channel %d to match mesh network\n", _meshChannel);
 
     // Start scan
     stationScan.init(this, ssid, password, port, _meshChannel,

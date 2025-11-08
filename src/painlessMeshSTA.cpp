@@ -145,6 +145,11 @@ void ICACHE_FLASH_ATTR StationScan::requestIP(WiFi_AP_Record_t &ap) {
   using namespace painlessmesh::logger;
   Log(CONNECTION, "connectToAP(): Best AP is %u<---\n",
       painlessmesh::tcp::encodeNodeId(ap.bssid));
+  Log(CONNECTION, "requestIP(): Connecting to %s (channel: %d, BSSID: %02X:%02X:%02X:%02X:%02X:%02X)\n", 
+      ap.ssid.c_str(), 
+      mesh->_meshChannel,
+      ap.bssid[0], ap.bssid[1], ap.bssid[2], 
+      ap.bssid[3], ap.bssid[4], ap.bssid[5]);
   WiFi.begin(ap.ssid.c_str(), password.c_str(), mesh->_meshChannel, ap.bssid);
   return;
 }
