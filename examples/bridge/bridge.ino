@@ -10,6 +10,10 @@
 // - Creates mesh network on the same channel as router
 // - No manual channel configuration required
 // - Automatically sets itself as root node
+// - Broadcasts bridge status to mesh (Type 610 - BRIDGE_STATUS)
+//   - Reports Internet connectivity status
+//   - Updates every 30 seconds by default
+//   - Enables nodes to implement failover and queueing logic
 //
 // For more details, see BRIDGE_TO_INTERNET.md
 //************************************************************
@@ -42,9 +46,14 @@ void setup() {
   // 2. Initialize mesh on the detected channel
   // 3. Set this node as root
   // 4. Maintain router connection
+  // 5. Start broadcasting bridge status (Type 610) every 30 seconds
   mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
                     ROUTER_SSID, ROUTER_PASSWORD,
                     &userScheduler, MESH_PORT);
+
+  // Optional: Configure bridge status broadcasting
+  // mesh.setBridgeStatusInterval(60000);  // Change to 60 seconds
+  // mesh.enableBridgeStatusBroadcast(false);  // Disable if not needed
 
   // Setup over the air update support
   mesh.initOTAReceive("bridge");
@@ -53,6 +62,7 @@ void setup() {
   mesh.onReceive(&receivedCallback);
   
   Serial.println("Bridge node initialized and ready!");
+  Serial.println("Broadcasting bridge status to mesh every 30 seconds");
 }
 
 void loop() { mesh.update(); }
