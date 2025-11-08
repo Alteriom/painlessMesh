@@ -134,7 +134,7 @@ The MQTT bridge enables bidirectional communication between MQTT brokers and mes
 **Examples:**
 
 - 🌉 [MQTT Command Bridge](examples/mqttCommandBridge/mqttCommandBridge.ino) - Gateway bridge with bidirectional MQTT-mesh routing
-- 📡 [Mesh Command Node](examples/alteriom/mesh_command_node.ino) - Node that receives and handles MQTT commands
+- 📡 [Alteriom Sensor Node](examples/alteriom/alteriom.ino) - Example node using SensorPackage, CommandPackage, and StatusPackage
 
 ### 🌐 Core Features
 

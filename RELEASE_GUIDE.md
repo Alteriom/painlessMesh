@@ -13,9 +13,12 @@ This document provides comprehensive instructions for releasing new versions of 
 # 2. Update CHANGELOG.md with your changes
 # Add your changes under the new version section
 
-# 3. Commit and trigger release
+# 3. Run the Release Agent to validate readiness
+./scripts/release-agent.sh
+
+# 4. If all checks pass, commit and trigger release
 git add library.properties library.json package.json CHANGELOG.md
-git commit -m "release: v1.6.1"
+git commit -m "release: v1.7.9 - Brief description"
 git push origin main
 ```
 
@@ -276,6 +279,43 @@ git clone https://github.com/Alteriom/painlessMesh.wiki.git
 Note: Manual changes may be overwritten by automatic synchronization.
 
 ## 🔧 Scripts Reference
+
+### `./scripts/release-agent.sh` ⭐ NEW
+
+**Comprehensive release validation and quality assurance.**
+
+The Release Agent performs 21+ automated checks to ensure release readiness:
+
+- ✅ Version consistency across all package files
+- ✅ CHANGELOG completeness and format validation
+- ✅ Build system configuration
+- ✅ Dependency validation
+- ✅ Git tag existence check
+- ✅ Release workflow configuration
+- ✅ Documentation link validation
+- ✅ Test suite status (when available)
+
+**Usage:**
+```bash
+./scripts/release-agent.sh           # Full validation
+./scripts/release-agent.sh --help    # Show help
+./scripts/release-agent.sh --version # Show version
+```
+
+**Benefits:**
+- 🎯 Catches issues before they reach CI/CD
+- 📊 Clear, color-coded output for easy scanning
+- 🔧 Specific solutions for each type of issue
+- 🚀 Comprehensive validation in under 5 seconds
+- ✨ Professional release summary with next steps
+
+**When to Use:**
+- Before every release commit
+- After making version changes
+- When troubleshooting release issues
+- As part of your local release workflow
+
+**See Also:** `.github/agents/release-agent.md` for complete documentation
 
 ### `./scripts/bump-version.sh`
 Updates version in all library files with consistency checks.
