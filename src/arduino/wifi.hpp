@@ -120,6 +120,91 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
+   * Initialize mesh as a bridge node with automatic channel detection
+   * 
+   * This method connects to a router first, detects its channel, then
+   * initializes the mesh on the same channel. This ensures the bridge
+   * can maintain both router and mesh connections on the same channel.
+   * 
+   * The bridge node will automatically:
+   * - Connect to the specified router in STA mode
+   * - Detect the router's WiFi channel
+   * - Initialize the mesh AP on the detected channel
+   * - Set itself as root node
+   * - Maintain the router connection
+   * 
+   * @param meshSSID The name of your mesh network
+   * @param meshPassword WiFi password for the mesh
+   * @param routerSSID SSID of the router to connect to
+   * @param routerPassword Password for the router
+   * @param baseScheduler Task scheduler for mesh operations
+   * @param port TCP port for mesh communication (default: 5555)
+   */
+  void initAsBridge(TSTRING meshSSID, TSTRING meshPassword,
+                    TSTRING routerSSID, TSTRING routerPassword,
+                    Scheduler *baseScheduler, uint16_t port = 5555) {
+    using namespace logger;
+    
+    Log(STARTUP, "=== Bridge Mode Initialization ===\n");
+    Log(STARTUP, "Step 1: Connecting to router %s...\n", routerSSID.c_str());
+    
+    // Step 1: Connect to router first to detect its channel
+    // Shut Wifi down and start with a blank slate
+    if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
+    
+    Log(STARTUP, "initAsBridge(): %d\n",
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+        WiFi.setAutoReconnect(false));
+#else
+        WiFi.setAutoConnect(false));
+#endif
+    WiFi.persistent(false);
+    WiFi.mode(WIFI_STA);
+    
+    // Connect to router and wait for connection
+    WiFi.begin(routerSSID.c_str(), routerPassword.c_str());
+    
+    // Wait for connection (with timeout)
+    int timeout = 30;  // 30 seconds timeout
+    while (WiFi.status() != WL_CONNECTED && timeout > 0) {
+      delay(1000);
+      timeout--;
+      Log(STARTUP, ".");
+    }
+    
+    uint8_t detectedChannel = 1;  // Default fallback
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      detectedChannel = WiFi.channel();
+      Log(STARTUP, "\n✓ Router connected on channel %d\n", detectedChannel);
+      Log(STARTUP, "✓ Router IP: %s\n", WiFi.localIP().toString().c_str());
+    } else {
+      Log(ERROR, "\n✗ Failed to connect to router, using default channel 1\n");
+    }
+    
+    Log(STARTUP, "Step 2: Initializing mesh on channel %d...\n", detectedChannel);
+    
+    // Step 2: Initialize mesh on detected channel
+    init(meshSSID, meshPassword, baseScheduler, port, WIFI_AP_STA, 
+         detectedChannel, 0, MAX_CONN);
+    
+    Log(STARTUP, "Step 3: Establishing bridge connection...\n");
+    
+    // Step 3: Re-establish router connection using stationManual
+    stationManual(routerSSID, routerPassword, 0);
+    
+    // Step 4: Configure as root/bridge node
+    this->setRoot(true);
+    this->setContainsRoot(true);
+    
+    Log(STARTUP, "=== Bridge Mode Active ===\n");
+    Log(STARTUP, "  Mesh SSID: %s\n", meshSSID.c_str());
+    Log(STARTUP, "  Mesh Channel: %d (matches router)\n", detectedChannel);
+    Log(STARTUP, "  Router: %s\n", routerSSID.c_str());
+    Log(STARTUP, "  Port: %d\n", port);
+  }
+
+  /**
    * Connect (as a station) to a specified network and ip
    *
    * You can pass {0,0,0,0} as IP to have it connect to the gateway

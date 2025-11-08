@@ -40,6 +40,22 @@ void ICACHE_FLASH_ATTR StationScan::init(painlessmesh::wifi::Mesh *pMesh,
 void ICACHE_FLASH_ATTR StationScan::stationScan() {
   using namespace painlessmesh::logger;
   Log(CONNECTION, "stationScan(): %s\n", ssid.c_str());
+  
+  // If channel is 0, auto-detect the mesh channel first
+  if (channel == 0 && mesh->_meshChannel == 0) {
+    Log(STARTUP, "stationScan(): Auto-detecting mesh channel...\n");
+    uint8_t detectedChannel = scanForMeshChannel(ssid, hidden);
+    if (detectedChannel > 0) {
+      mesh->_meshChannel = detectedChannel;
+      channel = detectedChannel;
+      Log(STARTUP, "stationScan(): Mesh channel auto-detected: %d\n", detectedChannel);
+    } else {
+      // Mesh not found, fall back to channel 1
+      mesh->_meshChannel = 1;
+      channel = 1;
+      Log(CONNECTION, "stationScan(): Mesh not found, falling back to channel 1\n");
+    }
+  }
 
 #ifdef ESP32
   WiFi.scanNetworks(true, hidden, false, 300U, channel);
@@ -238,4 +254,45 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
     }
   }
 }
+
+// Helper function to scan all channels for a specific mesh SSID
+// Returns the channel number if found, or 0 if not found
+uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool meshHidden) {
+  using namespace painlessmesh::logger;
+  Log(CONNECTION, "scanForMeshChannel(): Scanning all channels for mesh '%s'...\n", meshSSID.c_str());
+  
+  // Scan all channels (0 means scan all)
+#ifdef ESP32
+  int16_t numNetworks = WiFi.scanNetworks(false, meshHidden, false, 300U, 0);
+#elif defined(ESP8266)
+  int16_t numNetworks = WiFi.scanNetworks(false, meshHidden, 0);
+#endif
+  
+  if (numNetworks == WIFI_SCAN_FAILED) {
+    Log(ERROR, "scanForMeshChannel(): WiFi scan failed\n");
+    return 0;
+  }
+  
+  Log(CONNECTION, "scanForMeshChannel(): Found %d networks\n", numNetworks);
+  
+  // Search for the mesh SSID in scan results
+  for (int16_t i = 0; i < numNetworks; ++i) {
+    TSTRING foundSSID = WiFi.SSID(i);
+    uint8_t foundChannel = WiFi.channel(i);
+    int32_t rssi = WiFi.RSSI(i);
+    
+    // Check if this is our mesh network
+    if (foundSSID == meshSSID || (foundSSID == "" && meshHidden)) {
+      Log(CONNECTION, "scanForMeshChannel(): Found mesh on channel %d (RSSI: %d)\n", 
+          foundChannel, rssi);
+      WiFi.scanDelete();
+      return foundChannel;
+    }
+  }
+  
+  Log(CONNECTION, "scanForMeshChannel(): Mesh '%s' not found on any channel\n", meshSSID.c_str());
+  WiFi.scanDelete();
+  return 0;  // Not found
+}
+
 #endif

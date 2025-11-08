@@ -33,6 +33,9 @@ class StationScan {
   void yieldConnectToAP() {
     task.yield([this]() { connectToAP(); });
   }
+  
+  // Helper to scan all channels for a specific mesh SSID
+  static uint8_t scanForMeshChannel(TSTRING meshSSID, bool meshHidden);
 
   /// Valid APs found during the last scan
   std::list<WiFi_AP_Record_t> lastAPs;
