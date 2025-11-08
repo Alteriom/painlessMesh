@@ -278,3 +278,103 @@ When adding new test files, they're automatically included by the glob pattern:
 FILE(GLOB TESTFILES test/**/catch_*.cpp)
 # Your catch_*.cpp files will be auto-discovered
 ```
+
+## Linting and Code Quality
+
+### Code Formatting
+The repository uses `.clang-format` for consistent code style:
+```bash
+# Format a single file
+clang-format -i src/your_file.cpp
+
+# Format all C++ files (be careful with this)
+find src examples -name "*.cpp" -o -name "*.hpp" | xargs clang-format -i
+```
+
+### Code Quality Checks
+- Follow C++14 standard
+- Avoid memory leaks (especially important for ESP8266)
+- Use RAII patterns for resource management
+- Prefer const correctness
+- Check for potential buffer overflows
+
+## Security Considerations
+
+### Important Security Rules
+1. **Never commit secrets**: No passwords, API keys, or credentials in code
+2. **Validate all inputs**: Especially data received from mesh network
+3. **Buffer sizes**: Always check buffer bounds, especially with strings
+4. **Memory safety**: Be careful with pointers and dynamic allocation
+5. **Network security**: Mesh passwords should be strong in production
+
+### Security Scanning
+The repository uses GitHub's CodeQL for security analysis:
+- Runs automatically on pull requests
+- Checks for common vulnerabilities
+- Review and address any security alerts
+
+### Secure Coding Patterns
+```cpp
+// Good: Check buffer sizes
+if (msg.length() < MAX_MESSAGE_SIZE) {
+    processMessage(msg);
+}
+
+// Good: Validate JSON parsing
+DeserializationError error = deserializeJson(doc, msg);
+if (error) {
+    Log(ERROR, "Invalid JSON: %s\n", error.c_str());
+    return;
+}
+
+// Good: Check memory availability
+if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
+    Log(ERROR, "Low memory, skipping operation\n");
+    return;
+}
+
+// Bad: Trusting unvalidated input
+// processCommand(obj["cmd"]); // No validation!
+```
+
+## Contributing Workflow
+
+### Making Changes
+1. Create a feature branch from `develop`
+2. Make your changes following the conventions in this guide
+3. Build and test locally: `cmake -G Ninja . && ninja && run-parts --regex catch_ bin/`
+4. Run security scans if modifying core code
+5. Create a pull request to `develop` (not `main`)
+6. Address review comments and ensure CI passes
+7. Once approved, reviewer will merge the PR
+
+### Pull Request Checklist
+- [ ] Code follows style guidelines (check with clang-format)
+- [ ] All tests pass locally
+- [ ] New tests added for new functionality
+- [ ] Documentation updated if needed
+- [ ] No security vulnerabilities introduced
+- [ ] Memory usage considered (especially for ESP8266)
+- [ ] Backward compatibility maintained
+
+### Git Flow
+This project follows [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow):
+- `main` - Stable releases only
+- `develop` - Integration branch for features
+- `feature/*` - Feature branches (merge to `develop`)
+- `hotfix/*` - Urgent fixes (merge to both `main` and `develop`)
+
+## Additional Resources
+
+### File-Specific Instructions
+Check `.github/instructions/` for detailed guidance on:
+- Testing (`testing.instructions.md`)
+- Alteriom packages (`alteriom-packages.instructions.md`)
+- Workflows (`workflows.instructions.md`)
+
+### Documentation
+- Repository root: `.instructions.md` - Quick start guide
+- Quick reference: `.github/copilot-quick-reference.md`
+- Troubleshooting: `.github/copilot-troubleshooting.md`
+- Development guide: `.github/README-DEVELOPMENT.md`
+- Online docs: https://alteriom.github.io/painlessMesh/
