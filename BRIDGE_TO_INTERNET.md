@@ -53,52 +53,29 @@ void receivedCallback(uint32_t from, String& msg) {
 
 ## Important Requirements
 
-### ⚠️ Critical: WiFi Channel Matching
+### WiFi Channel Behavior
 
-**The mesh network and your router MUST use the same WiFi channel.** This is a hardware limitation of ESP32/ESP8266 - the WiFi radio can only operate on one channel at a time in AP+STA mode.
+When using `stationManual()` to connect to your router, the library will automatically handle channel switching. The ESP32/ESP8266 will:
 
-**Why Channel Matching is Required:**
+1. Initially operate the mesh AP on your specified channel (e.g., channel 6)
+2. Automatically switch to the router's channel when connecting via `stationManual()`
+3. The mesh AP channel will adjust to match the router's channel
 
-When operating in `WIFI_AP_STA` mode (bridge mode):
+**This means you don't need to manually configure channel matching** - the library handles it automatically. Simply specify your desired mesh channel and call `stationManual()` with your router credentials.
 
-- **AP Mode (Mesh)**: Creates mesh network on specified channel
-- **STA Mode (Router)**: Connects to router on the **same** channel
-
-ESP32/ESP8266 cannot listen to two different channels simultaneously. If your router uses channel 1 but your code specifies channel 6, the station connection will fail.
-
-**How to Fix Channel Mismatch:**
-
-**Option 1 - Configure Router (Recommended):**
-
-1. Log into your router's admin interface
-2. Find WiFi settings (2.4GHz band)
-3. Change channel from "Auto" to match your mesh (e.g., channel 6)
-4. Save and reboot router
-
-**Option 2 - Change Mesh Channel:**
-
+**Example:**
 ```cpp
-// Change mesh channel to match your router's channel
-mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 1);
-//                                                      Router channel ↑
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6);
+mesh.stationManual(STATION_SSID, STATION_PASSWORD);  // Works regardless of router channel
 ```
 
-**Finding Your Router's Channel:**
-
-```cpp
-void setup() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin("YourRouterSSID", "YourPassword");
-  while (WiFi.status() != WL_CONNECTED) delay(500);
-  Serial.printf("Router channel: %d\n", WiFi.channel());
-}
-```
+**Note:** While ESP32/ESP8266 hardware can only operate on one channel at a time in AP+STA mode, the WiFi stack automatically coordinates this. When connected to a router on a different channel, the mesh AP will operate on that channel instead.
 
 **Best Practices:**
 
-- Use channels 1, 6, or 11 (non-overlapping 2.4GHz channels)
-- Avoid "Auto" channel selection on routers - use fixed channel
-- Use WiFi analyzer apps to find least congested channels
+- Use channels 1, 6, or 11 (non-overlapping 2.4GHz channels) for your mesh if not using a router
+- If connecting to a router, the mesh will automatically adopt the router's channel
+- For optimal performance, you may choose to configure your router to use your preferred mesh channel
 
 ### Other Requirements
 

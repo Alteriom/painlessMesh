@@ -26,8 +26,8 @@ void setup() {
       ERROR | STARTUP |
       CONNECTION);  // set before init() so that you can see startup messages
 
-  // Channel set to 6. Make sure to use the same channel for your mesh and for
-  // you other network (STATION_SSID)
+  // Initialize mesh network in AP+STA mode on channel 1
+  // stationManual() will automatically handle channel switching if needed
   mesh.init(MESH_PREFIX, MESH_PASSWORD, MESH_PORT, WIFI_AP_STA, 1);
   // Setup over the air update support
   mesh.initOTAReceive("bridge");
