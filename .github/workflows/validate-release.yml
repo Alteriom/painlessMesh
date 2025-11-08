@@ -1,7 +1,7 @@
 name: Validate Release
 
 on:
-  # Run after CI pipeline completes successfully
+  # Run after CI pipeline completes successfully, but only for main/develop branches
   workflow_run:
     workflows: ["CI/CD Pipeline"]
     types: [completed]
@@ -10,8 +10,9 @@ on:
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
+# Use head_branch from workflow_run event to properly track branch-specific runs
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: true
 
 permissions:
