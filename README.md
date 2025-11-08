@@ -242,6 +242,61 @@ void receivedCallback(uint32_t from, String& msg) {
 }
 ```
 
+### Bridge to Internet (Auto Channel Detection)
+
+The new bridge-centric architecture makes it easy to connect your mesh to the Internet via a router. The bridge node automatically detects the router's channel and configures the mesh accordingly.
+
+#### Bridge Node
+
+```cpp
+#include "painlessMesh.h"
+
+#define MESH_PREFIX     "MyMeshNetwork"
+#define MESH_PASSWORD   "somethingSneaky"
+#define ROUTER_SSID     "YourRouterSSID"
+#define ROUTER_PASSWORD "YourRouterPassword"
+
+Scheduler userScheduler;
+painlessMesh mesh;
+
+void setup() {
+  Serial.begin(115200);
+  mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
+  
+  // Single call does everything:
+  // 1. Connects to router and detects its channel
+  // 2. Initializes mesh on detected channel
+  // 3. Sets node as root/bridge
+  mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                    ROUTER_SSID, ROUTER_PASSWORD,
+                    &userScheduler, 5555);
+  
+  mesh.onReceive(&receivedCallback);
+}
+
+void loop() { mesh.update(); }
+
+void receivedCallback(uint32_t from, String& msg) {
+  // Forward mesh data to Internet services (MQTT, HTTP, etc.)
+}
+```
+
+#### Regular Nodes (Auto Channel Detection)
+
+```cpp
+void setup() {
+  Serial.begin(115200);
+  
+  // channel=0 means auto-detect the mesh channel
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, 5555, 
+            WIFI_AP_STA, 0);
+  
+  mesh.onReceive(&receivedCallback);
+}
+```
+
+See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for complete documentation.
+
 ### Package Types
 
 | Type | Class | Purpose | Fields |

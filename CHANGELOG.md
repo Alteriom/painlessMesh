@@ -9,15 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- TBD
+- **Bridge-Centric Architecture** - New `initAsBridge()` method for automatic channel detection
+  - Bridge nodes now connect to router first and auto-detect its channel
+  - Mesh network automatically configured on router's channel
+  - Eliminates need for manual channel configuration
+  - Automatically sets root node flags
+  - Graceful fallback to channel 1 if router connection fails
+  
+- **Auto Channel Detection for Regular Nodes** - Support for `channel=0` in `init()`
+  - Regular nodes can now auto-detect mesh channel by scanning all channels
+  - Falls back to channel 1 if mesh not found
+  - Simplifies multi-node deployments
+  
+- **Helper Function** - New `scanForMeshChannel()` static method
+  - Scans all 13 WiFi channels to find mesh SSID
+  - Supports hidden networks
+  - Returns detected channel or 0 if not found
+  - Detailed logging for troubleshooting
 
 ### Changed
 
-- TBD
+- **Enhanced Documentation** - Updated bridge and basic examples
+  - `examples/bridge/bridge.ino` now uses `initAsBridge()` API
+  - `examples/basic/basic.ino` demonstrates auto channel detection
+  - `BRIDGE_TO_INTERNET.md` rewritten with bridge-centric approach
+  - `README.md` includes bridge quick start guide
+  
+- **StationScan Enhancement** - Modified `stationScan()` to support all-channel scanning
+  - When `channel=0`, automatically scans all channels before connecting
+  - Auto-updates mesh channel based on detected network
 
 ### Fixed
 
 - TBD
+
+### Backward Compatibility
+
+- All existing code continues to work without changes
+- Manual channel configuration (`mesh.init(..., channel)`) still supported
+- Legacy `stationManual()` approach still available
+- No breaking API changes
 
 ## [1.7.9] - 2025-11-08
 
