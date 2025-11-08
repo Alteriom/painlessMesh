@@ -116,7 +116,8 @@ void sendMetrics() {
   // CPU and Processing
   metrics.loopIterations = ((loopCount - lastLoopCount) * 1000) / timeDelta;
   metrics.cpuUsage = calculateCPUUsage();
-  metrics.taskQueueSize = userScheduler.size();
+  // Note: TaskScheduler doesn't provide a size() method, so we'll use 0 or estimate
+  metrics.taskQueueSize = 0;  // TaskScheduler API doesn't expose queue size
   
   // Memory Metrics
   metrics.freeHeap = ESP.getFreeHeap();
@@ -155,8 +156,13 @@ void sendMetrics() {
   metrics.collectionTimestamp = mesh.getNodeTime();
   metrics.collectionInterval = METRICS_INTERVAL;
   
-  // Send the metrics
-  String msg = metrics.toJsonString();
+  // Serialize and send the metrics
+  JsonDocument doc;
+  JsonObject obj = doc.to<JsonObject>();
+  metrics.addTo(std::move(obj));
+  
+  String msg;
+  serializeJson(doc, msg);
   bool sent = mesh.sendBroadcast(msg);
   
   if (sent) {
@@ -266,8 +272,13 @@ void sendHealthCheck() {
   health.checkTimestamp = mesh.getNodeTime();
   health.nextCheckDue = health.checkTimestamp + (HEALTH_INTERVAL * 1000);
   
-  // Send the health check
-  String msg = health.toJsonString();
+  // Serialize and send the health check
+  JsonDocument doc;
+  JsonObject obj = doc.to<JsonObject>();
+  health.addTo(std::move(obj));
+  
+  String msg;
+  serializeJson(doc, msg);
   bool sent = mesh.sendBroadcast(msg);
   
   if (sent) {
@@ -372,10 +383,10 @@ void receivedCallback(uint32_t from, String& msg) {
   totalPacketsRx++;
   
   // Parse message type
-  DynamicJsonDocument doc(1024);
+  JsonDocument doc;
   deserializeJson(doc, msg);
   JsonObject obj = doc.as<JsonObject>();
-  uint8_t msgType = obj["type"];
+  uint16_t msgType = obj["type"];
   
   Serial.printf("\nReceived Type %d from %u\n", msgType, from);
   

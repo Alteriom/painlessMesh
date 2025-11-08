@@ -30,12 +30,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixes build failures where submodules were not available during CI runs
   - Affects all workflows: ci.yml, release.yml, docs.yml
 
+- **Workflow Triggers** - Fixed duplicate CI runs on PR branches
+  - Removed unnecessary `copilot/**` pattern from validate-release workflow
+  - Prevents double CI execution on pull requests
+
+- **Example Code** - Fixed compilation errors in alteriomMetricsHealth example
+  - Removed incorrect `userScheduler.size()` call (TaskScheduler API doesn't expose queue size)
+  - Replaced non-existent `toJsonString()` methods with proper JSON serialization pattern
+  - Updated deprecated `DynamicJsonDocument` to `JsonDocument` for ArduinoJson v7 compatibility
+  - Changed `msgType` from `uint8_t` to `uint16_t` to support message types > 255 (400, 604, 605)
+
 ### Technical Details
 
 - GitHub Actions now properly initializes git submodules before build steps
 - Both automated checkout with `submodules: recursive` and manual initialization step included
 - Prevents "No such file or directory" errors for test/ArduinoJson and test/TaskScheduler
 - Critical fix for maintaining CI/CD reliability across all build and test workflows
+- Example code now uses proper serialization: `JsonDocument doc; JsonObject obj = doc.to<JsonObject>(); package.addTo(std::move(obj)); serializeJson(doc, msg);`
 
 ## [1.7.8] - 2025-11-05
 
