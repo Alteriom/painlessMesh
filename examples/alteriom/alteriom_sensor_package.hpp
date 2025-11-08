@@ -1165,6 +1165,61 @@ class MeshBridgePackage : public painlessmesh::plugin::BroadcastPackage {
 #endif
 };
 
+/**
+ * @brief Bridge status package for monitoring Internet connectivity (Type 610 - BRIDGE_STATUS)
+ *
+ * This package is broadcast by bridge nodes to inform the mesh about their Internet connectivity status.
+ * Regular nodes can use this information to decide whether to send data, queue messages, or failover to backup bridges.
+ * 
+ * Broadcast interval: Configurable, default 30 seconds
+ * Timeout threshold: 60 seconds (nodes consider bridge offline if no heartbeat)
+ * 
+ * Type ID 610 for BRIDGE_STATUS per mqtt-schema v0.7.3+.
+ */
+class BridgeStatusPackage : public painlessmesh::plugin::BroadcastPackage {
+public:
+  // Bridge connectivity status
+  bool internetConnected = false;  // Is the bridge connected to Internet?
+  int8_t routerRSSI = 0;          // Router WiFi signal strength in dBm
+  uint8_t routerChannel = 0;      // Router WiFi channel
+  uint32_t uptime = 0;            // Bridge uptime in milliseconds
+  TSTRING gatewayIP = "";         // Router gateway IP address
+  uint32_t timestamp = 0;         // Timestamp of status check
+  
+  // MQTT Schema v0.7.3+ message_type
+  uint16_t messageType = 610;  // BRIDGE_STATUS
+  
+  BridgeStatusPackage() : BroadcastPackage(610) {}
+  
+  BridgeStatusPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    internetConnected = jsonObj["internetConnected"] | false;
+    routerRSSI = jsonObj["routerRSSI"] | 0;
+    routerChannel = jsonObj["routerChannel"] | 0;
+    uptime = jsonObj["uptime"] | 0;
+    gatewayIP = jsonObj["gatewayIP"].as<TSTRING>();
+    timestamp = jsonObj["timestamp"] | 0;
+    messageType = jsonObj["message_type"] | 610;
+  }
+  
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    jsonObj["internetConnected"] = internetConnected;
+    jsonObj["routerRSSI"] = routerRSSI;
+    jsonObj["routerChannel"] = routerChannel;
+    jsonObj["uptime"] = uptime;
+    jsonObj["gatewayIP"] = gatewayIP;
+    jsonObj["timestamp"] = timestamp;
+    jsonObj["message_type"] = messageType;
+    return jsonObj;
+  }
+  
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    return JSON_OBJECT_SIZE(noJsonFields + 7) + gatewayIP.length();
+  }
+#endif
+};
+
 }  // namespace alteriom
 
 #endif  // ALTERIOM_SENSOR_PACKAGE_HPP

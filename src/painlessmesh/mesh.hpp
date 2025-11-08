@@ -23,6 +23,32 @@ typedef std::function<void(uint32_t from, TSTRING &msg)> receivedCallback_t;
 typedef std::function<void()> changedConnectionsCallback_t;
 typedef std::function<void(int32_t offset)> nodeTimeAdjustedCallback_t;
 typedef std::function<void(uint32_t nodeId, int32_t delay)> nodeDelayCallback_t;
+typedef std::function<void(uint32_t bridgeNodeId, bool internetAvailable)> bridgeStatusChangedCallback_t;
+
+/**
+ * Bridge information structure
+ * 
+ * Tracks the status and health of bridge nodes in the mesh network
+ */
+class BridgeInfo {
+public:
+  uint32_t nodeId = 0;              // Bridge node ID
+  bool internetConnected = false;   // Is bridge connected to Internet?
+  int8_t routerRSSI = 0;           // Router WiFi signal strength in dBm
+  uint8_t routerChannel = 0;       // Router WiFi channel
+  uint32_t lastSeen = 0;           // Timestamp when last status received (millis)
+  uint32_t uptime = 0;             // Bridge uptime in milliseconds
+  TSTRING gatewayIP = "";          // Router gateway IP address
+  uint32_t timestamp = 0;          // Timestamp from bridge status message
+  
+  /**
+   * Check if this bridge is considered healthy
+   * A bridge is healthy if we've received a status update within the timeout period
+   */
+  bool isHealthy(uint32_t timeoutMs = 60000) const {
+    return (millis() - lastSeen) < timeoutMs;
+  }
+};
 
 /**
  * Main api class for the mesh
@@ -48,6 +74,38 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         std::move(this->callbackList), (*this));
     this->callbackList = painlessmesh::router::addPackageCallback(
         std::move(this->callbackList), (*this));
+
+    // Add bridge status package handler (Type 610)
+    // This will be called when any node receives a bridge status broadcast
+    this->callbackList.onPackage(
+        610,  // BRIDGE_STATUS type
+        [this](protocol::Variant& variant, std::shared_ptr<T>, uint32_t) {
+          // We need to manually parse the JSON since BridgeStatusPackage is in alteriom namespace
+          // and may not be available in all contexts. We'll parse the critical fields directly.
+          DynamicJsonDocument doc(256);
+          TSTRING str;
+          variant.printTo(str);
+          deserializeJson(doc, str);
+          JsonObject obj = doc.as<JsonObject>();
+          
+          if (obj.containsKey("internetConnected")) {
+            uint32_t bridgeNodeId = obj["from"];
+            bool internetConnected = obj["internetConnected"];
+            int8_t routerRSSI = obj["routerRSSI"] | 0;
+            uint8_t routerChannel = obj["routerChannel"] | 0;
+            uint32_t uptime = obj["uptime"] | 0;
+            TSTRING gatewayIP = obj["gatewayIP"].as<TSTRING>();
+            uint32_t timestamp = obj["timestamp"] | 0;
+            
+            // Update bridge status
+            this->updateBridgeStatus(bridgeNodeId, internetConnected, routerRSSI, 
+                                    routerChannel, uptime, gatewayIP, timestamp);
+            
+            Log(GENERAL, "Bridge status received from %u: Internet %s\n",
+                bridgeNodeId, internetConnected ? "Connected" : "Disconnected");
+          }
+          return false;  // Don't consume the package, allow other handlers
+        });
 
     this->changedConnectionCallbacks.push_back([this](uint32_t nodeId) {
       Log(MESH_STATUS, "Changed connections in neighbour %u\n", nodeId);
@@ -340,6 +398,161 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     nodeDelayReceivedCallback = onDelayReceived;
   }
 
+  /** Callback that gets called when bridge status changes.
+   *
+   * This fires when a bridge node reports a change in Internet connectivity status.
+   * Useful for implementing failover logic or message queueing.
+   *
+   * \code
+   * mesh.onBridgeStatusChanged([](auto bridgeNodeId, auto hasInternet) {
+   *    if (hasInternet) {
+   *      Serial.println("Internet available - sending queued data");
+   *    } else {
+   *      Serial.println("Internet offline - queueing messages");
+   *    }
+   * });
+   * \endcode
+   */
+  void onBridgeStatusChanged(bridgeStatusChangedCallback_t onBridgeStatusChanged) {
+    Log(logger::GENERAL, "onBridgeStatusChanged():\n");
+    bridgeStatusChangedCallback = onBridgeStatusChanged;
+  }
+
+  /**
+   * Check if any bridge in the mesh has Internet connectivity
+   * 
+   * @return true if at least one healthy bridge reports Internet connection
+   */
+  bool hasInternetConnection() {
+    for (const auto& bridge : knownBridges) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get list of all known bridges in the mesh
+   * 
+   * @return vector of BridgeInfo objects for all tracked bridges
+   */
+  std::vector<BridgeInfo> getBridges() {
+    return knownBridges;
+  }
+
+  /**
+   * Get the primary (best) bridge node
+   * 
+   * Primary bridge is selected based on:
+   * 1. Must be healthy (seen within timeout)
+   * 2. Must have Internet connection
+   * 3. Best WiFi RSSI to router
+   * 
+   * @return pointer to BridgeInfo of primary bridge, or nullptr if no suitable bridge
+   */
+  BridgeInfo* getPrimaryBridge() {
+    BridgeInfo* primary = nullptr;
+    int8_t bestRSSI = -127;  // Worst possible RSSI
+    
+    for (auto& bridge : knownBridges) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
+        if (bridge.routerRSSI > bestRSSI) {
+          bestRSSI = bridge.routerRSSI;
+          primary = &bridge;
+        }
+      }
+    }
+    
+    return primary;
+  }
+
+  /**
+   * Check if this node is acting as a bridge
+   * 
+   * @return true if this node is configured as a root node (typically bridges)
+   */
+  bool isBridge() {
+    return this->root;
+  }
+
+  /**
+   * Set the interval for bridge status broadcasts (bridge nodes only)
+   * 
+   * @param intervalMs Broadcast interval in milliseconds (default: 30000 = 30 seconds)
+   */
+  void setBridgeStatusInterval(uint32_t intervalMs) {
+    bridgeStatusIntervalMs = intervalMs;
+  }
+
+  /**
+   * Set the timeout for considering a bridge offline
+   * 
+   * @param timeoutMs Timeout in milliseconds (default: 60000 = 60 seconds)
+   */
+  void setBridgeTimeout(uint32_t timeoutMs) {
+    bridgeTimeoutMs = timeoutMs;
+  }
+
+  /**
+   * Enable or disable bridge status broadcasting (bridge nodes only)
+   * 
+   * @param enabled true to enable broadcasting (default), false to disable
+   */
+  void enableBridgeStatusBroadcast(bool enabled) {
+    bridgeStatusBroadcastEnabled = enabled;
+  }
+
+  /**
+   * Update bridge information from received status package
+   * Internal method called when bridge status is received
+   * 
+   * @param bridgeNodeId ID of the bridge node
+   * @param internetConnected Internet connectivity status
+   * @param routerRSSI Router signal strength
+   * @param routerChannel Router WiFi channel
+   * @param uptime Bridge uptime
+   * @param gatewayIP Router gateway IP
+   * @param timestamp Status timestamp
+   */
+  void updateBridgeStatus(uint32_t bridgeNodeId, bool internetConnected, 
+                         int8_t routerRSSI, uint8_t routerChannel,
+                         uint32_t uptime, TSTRING gatewayIP, uint32_t timestamp) {
+    // Find existing bridge or add new one
+    BridgeInfo* bridge = nullptr;
+    for (auto& b : knownBridges) {
+      if (b.nodeId == bridgeNodeId) {
+        bridge = &b;
+        break;
+      }
+    }
+    
+    bool wasConnected = false;
+    if (bridge == nullptr) {
+      // New bridge - add to list
+      BridgeInfo newBridge;
+      newBridge.nodeId = bridgeNodeId;
+      knownBridges.push_back(newBridge);
+      bridge = &knownBridges.back();
+    } else {
+      wasConnected = bridge->internetConnected;
+    }
+    
+    // Update bridge info
+    bridge->internetConnected = internetConnected;
+    bridge->routerRSSI = routerRSSI;
+    bridge->routerChannel = routerChannel;
+    bridge->lastSeen = millis();
+    bridge->uptime = uptime;
+    bridge->gatewayIP = gatewayIP;
+    bridge->timestamp = timestamp;
+    
+    // Trigger callback if status changed
+    if (wasConnected != internetConnected && bridgeStatusChangedCallback) {
+      bridgeStatusChangedCallback(bridgeNodeId, internetConnected);
+    }
+  }
+
   /**
    * Are we connected/know a route to the given node?
    *
@@ -521,6 +734,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   callback::List<uint32_t> changedConnectionCallbacks;
   nodeTimeAdjustedCallback_t nodeTimeAdjustedCallback;
   nodeDelayCallback_t nodeDelayReceivedCallback;
+  bridgeStatusChangedCallback_t bridgeStatusChangedCallback;
 #ifdef ESP32
   SemaphoreHandle_t xSemaphore = NULL;
 #endif
@@ -557,6 +771,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     xSemaphoreGive(xSemaphore);
 #endif
   }
+
+  // Bridge status tracking
+  std::vector<BridgeInfo> knownBridges;
+  uint32_t bridgeStatusIntervalMs = 30000;  // Default 30 seconds
+  uint32_t bridgeTimeoutMs = 60000;         // Default 60 seconds
+  bool bridgeStatusBroadcastEnabled = true;
 
   friend T;
   friend void onDataCb(void *, AsyncClient *, void *, size_t);

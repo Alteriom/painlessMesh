@@ -1430,3 +1430,82 @@ SCENARIO("StatusPackage always serializes all sections for predictable structure
         }
     }
 }
+
+SCENARIO("Alteriom BridgeStatusPackage serialization works correctly") {
+    GIVEN("A BridgeStatusPackage with test data") {
+        auto pkg = BridgeStatusPackage();
+        pkg.from = 98765;
+        pkg.internetConnected = true;
+        pkg.routerRSSI = -45;
+        pkg.routerChannel = 6;
+        pkg.uptime = 3600000;  // 1 hour in milliseconds
+        pkg.gatewayIP = "192.168.1.1";
+        pkg.timestamp = 1609459200;
+        
+        REQUIRE(pkg.routing == router::BROADCAST);
+        REQUIRE(pkg.type == 610);
+        REQUIRE(pkg.messageType == 610);
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<BridgeStatusPackage>();
+            
+            THEN("Should result in the same values") {
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.internetConnected == pkg.internetConnected);
+                REQUIRE(pkg2.routerRSSI == pkg.routerRSSI);
+                REQUIRE(pkg2.routerChannel == pkg.routerChannel);
+                REQUIRE(pkg2.uptime == pkg.uptime);
+                REQUIRE(pkg2.gatewayIP == pkg.gatewayIP);
+                REQUIRE(pkg2.timestamp == pkg.timestamp);
+                REQUIRE(pkg2.routing == pkg.routing);
+                REQUIRE(pkg2.type == pkg.type);
+                REQUIRE(pkg2.messageType == pkg.messageType);
+            }
+        }
+        
+        WHEN("Serializing to JSON") {
+            auto var = protocol::Variant(&pkg);
+            DynamicJsonDocument doc(512);
+            TSTRING str;
+            var.printTo(str);
+            deserializeJson(doc, str);
+            JsonObject obj = doc.as<JsonObject>();
+            
+            THEN("Should contain all required fields") {
+                REQUIRE(obj["type"] == 610);
+                REQUIRE(obj["from"] == 98765);
+                REQUIRE(obj["routing"] == 2);  // BROADCAST
+                REQUIRE(obj["internetConnected"] == true);
+                REQUIRE(obj["routerRSSI"] == -45);
+                REQUIRE(obj["routerChannel"] == 6);
+                REQUIRE(obj["uptime"] == 3600000);
+                REQUIRE(obj["gatewayIP"] == "192.168.1.1");
+                REQUIRE(obj["timestamp"] == 1609459200);
+                REQUIRE(obj["message_type"] == 610);
+            }
+        }
+    }
+    
+    GIVEN("A BridgeStatusPackage with Internet disconnected") {
+        auto pkg = BridgeStatusPackage();
+        pkg.from = 12345;
+        pkg.internetConnected = false;
+        pkg.routerRSSI = 0;
+        pkg.routerChannel = 1;
+        pkg.uptime = 7200000;  // 2 hours
+        pkg.gatewayIP = "";
+        pkg.timestamp = 1609462800;
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<BridgeStatusPackage>();
+            
+            THEN("Should preserve disconnected status") {
+                REQUIRE(pkg2.internetConnected == false);
+                REQUIRE(pkg2.routerRSSI == 0);
+                REQUIRE(pkg2.gatewayIP == "");
+            }
+        }
+    }
+}

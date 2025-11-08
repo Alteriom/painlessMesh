@@ -203,6 +203,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     this->setRoot(true);
     this->setContainsRoot(true);
     
+    // Step 5: Setup bridge status broadcasting
+    initBridgeStatusBroadcast();
+    
     Log(STARTUP, "=== Bridge Mode Active ===\n");
     Log(STARTUP, "  Mesh SSID: %s\n", meshSSID.c_str());
     Log(STARTUP, "  Mesh Channel: %d (matches router)\n", detectedChannel);
@@ -356,6 +359,69 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     WiFi.softAP(_meshSSID.c_str(), _meshPassword.c_str(), _meshChannel,
                 _meshHidden, _meshMaxConn);
   }
+
+  /**
+   * Initialize bridge status broadcasting
+   * Sets up a periodic task to broadcast bridge status to the mesh
+   */
+  void initBridgeStatusBroadcast() {
+    using namespace logger;
+    
+    if (!this->isBridge() || !this->bridgeStatusBroadcastEnabled) {
+      return;
+    }
+    
+    Log(STARTUP, "initBridgeStatusBroadcast(): Setting up bridge status broadcast\n");
+    
+    // Create periodic task to broadcast bridge status
+    bridgeStatusTask = this->addTask(
+      this->bridgeStatusIntervalMs,
+      TASK_FOREVER,
+      [this]() {
+        this->sendBridgeStatus();
+      }
+    );
+    
+    Log(STARTUP, "Bridge status broadcast enabled (interval: %d ms)\n", 
+        this->bridgeStatusIntervalMs);
+  }
+
+  /**
+   * Send bridge status broadcast
+   * Called periodically by bridge nodes to report connectivity status
+   */
+  void sendBridgeStatus() {
+    using namespace logger;
+    
+    if (!this->bridgeStatusBroadcastEnabled) {
+      return;
+    }
+    
+    // Create bridge status package
+    // We need to include the package header here since we're in wifi namespace
+    // The package will be sent as a JSON string
+    DynamicJsonDocument doc(256);
+    JsonObject obj = doc.to<JsonObject>();
+    
+    obj["type"] = 610;  // BRIDGE_STATUS type
+    obj["from"] = this->nodeId;
+    obj["routing"] = 2;  // BROADCAST routing
+    obj["timestamp"] = this->getNodeTime();
+    obj["internetConnected"] = (WiFi.status() == WL_CONNECTED);
+    obj["routerRSSI"] = WiFi.RSSI();
+    obj["routerChannel"] = WiFi.channel();
+    obj["uptime"] = millis();
+    obj["gatewayIP"] = WiFi.gatewayIP().toString();
+    obj["message_type"] = 610;
+    
+    String msg;
+    serializeJson(doc, msg);
+    
+    Log(GENERAL, "sendBridgeStatus(): Broadcasting status (Internet: %s)\n",
+        (WiFi.status() == WL_CONNECTED) ? "Connected" : "Disconnected");
+    
+    this->sendBroadcast(msg);
+  }
   void eventHandleInit() {
     using namespace logger;
 #ifdef ESP32
@@ -456,6 +522,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   WiFiEventHandler eventSTAGotIPHandler;
 #endif  // ESP8266
   AsyncServer *_tcpListener;
+  std::shared_ptr<Task> bridgeStatusTask;
 };
 }  // namespace wifi
 };  // namespace painlessmesh
