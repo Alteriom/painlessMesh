@@ -24,6 +24,9 @@ jobs:
   tag-and-release:
     name: Tag & Release if version changed
     runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.release_decision.outputs.should_release }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +38,13 @@ jobs:
         run: |
           MSG="$(git log -1 --pretty=%B | head -n1)"
           echo "message=${MSG}" >> $GITHUB_OUTPUT
+          
+          # Check if this commit modifies version files (indicates version bump)
+          if git diff-tree --no-commit-id --name-only -r HEAD | grep -qE '(library\.properties|library\.json|package\.json)'; then
+            echo "is_version_bump=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_version_bump=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Read current version from library.properties
         id: version
@@ -120,7 +130,7 @@ jobs:
           git push origin "v${{ steps.version.outputs.version }}"
 
       - name: Create GitHub Release
-        if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
+        if: steps.tagcheck.outputs.exists == 'false' && (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true')
         run: |
           gh release create "v${{ steps.version.outputs.version }}" \
             --title "painlessMesh v${{ steps.version.outputs.version }}" \
@@ -130,7 +140,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare library package
-        if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
+        if: steps.tagcheck.outputs.exists == 'false' && (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true')
         run: |
           # Create a clean package for Arduino Library Manager
           mkdir -p package/painlessMesh
@@ -144,7 +154,7 @@ jobs:
           cd ..
 
       - name: Upload library package
-        if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
+        if: steps.tagcheck.outputs.exists == 'false' && (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true')
         run: |
           gh release upload "v${{ steps.version.outputs.version }}" \
             "./painlessMesh-v${{ steps.version.outputs.version }}.zip" \
@@ -153,7 +163,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: PlatformIO Library Registry
-        if: steps.tagcheck.outputs.exists == 'false' && startsWith(steps.commit.outputs.message, 'release:')
+        if: steps.tagcheck.outputs.exists == 'false' && (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true')
         run: |
           echo "📦 PlatformIO Library Registry publication"
           echo "✅ PlatformIO publication workflow will be triggered automatically"
@@ -161,11 +171,22 @@ jobs:
           echo "📋 Manual trigger: GitHub Actions → PlatformIO Library Publishing → Run workflow"
           echo "📊 Monitor: https://registry.platformio.org/libraries"
 
-      - name: Skip notice (no release conditions)
-        if: steps.tagcheck.outputs.exists == 'false' && !startsWith(steps.commit.outputs.message, 'release:')
+      - name: Set release decision
+        id: release_decision
         run: |
-          echo "📋 Version changed but commit message not prefixed with 'release:' -> skipping auto-release."
-          echo "To trigger a release, commit with message starting with 'release:'"
+          if [ "${{ steps.tagcheck.outputs.exists }}" == "false" ] && ([ "${{ startsWith(steps.commit.outputs.message, 'release:') }}" == "true" ] || [ "${{ steps.commit.outputs.is_version_bump }}" == "true" ]); then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip notice (no release conditions)
+        if: steps.tagcheck.outputs.exists == 'false' && !startsWith(steps.commit.outputs.message, 'release:') && steps.commit.outputs.is_version_bump != 'true'
+        run: |
+          echo "📋 Version changed but commit message not prefixed with 'release:' and no version files modified -> skipping auto-release."
+          echo "To trigger a release, either:"
+          echo "  1. Commit with message starting with 'release:', or"
+          echo "  2. Commit changes to version files (library.properties, library.json, package.json)"
 
       - name: Summary
         run: |
@@ -173,14 +194,15 @@ jobs:
           echo "- Version: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- Tag existed: ${{ steps.tagcheck.outputs.exists }}" >> $GITHUB_STEP_SUMMARY  
           echo "- Commit message: ${{ steps.commit.outputs.message }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Auto-release: ${{ steps.commit.outputs.message && startsWith(steps.commit.outputs.message, 'release:') && steps.tagcheck.outputs.exists == 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Version bump detected: ${{ steps.commit.outputs.is_version_bump }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Auto-release: ${{ (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true') && steps.tagcheck.outputs.exists == 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Changelog found: ${{ steps.changelog.outputs.has_changelog }}" >> $GITHUB_STEP_SUMMARY
 
   # Publish to NPM (public registry)
   npm-publish:
     needs: [tag-and-release]
     runs-on: ubuntu-latest
-    if: startsWith(github.event.head_commit.message, 'release:')
+    if: needs.tag-and-release.outputs.should_release == 'true'
     
     steps:
     - name: Checkout code
@@ -263,7 +285,7 @@ jobs:
   github-packages-publish:
     needs: [tag-and-release]
     runs-on: ubuntu-latest
-    if: startsWith(github.event.head_commit.message, 'release:')
+    if: needs.tag-and-release.outputs.should_release == 'true'
     continue-on-error: true  # Don't fail the release if GitHub Packages fails
     
     permissions:
@@ -343,7 +365,7 @@ jobs:
   wiki-publish:
     needs: [tag-and-release]
     runs-on: ubuntu-latest
-    if: startsWith(github.event.head_commit.message, 'release:')
+    if: needs.tag-and-release.outputs.should_release == 'true'
     continue-on-error: true  # Don't fail the release if wiki update fails
     
     steps:
