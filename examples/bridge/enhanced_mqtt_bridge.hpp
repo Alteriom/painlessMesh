@@ -29,7 +29,7 @@
 #include <Arduino.h>
 #include <painlessMesh.h>
 #include <PubSubClient.h>
-#include "alteriom/alteriom_sensor_package.hpp"
+#include "examples/alteriom/alteriom_sensor_package.hpp"
 
 using namespace alteriom;
 
