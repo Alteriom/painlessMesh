@@ -194,20 +194,6 @@ jobs:
     needs: [build-test-desktop, build-arduino, build-platformio, code-quality]
     if: always()
     steps:
-      - name: Check all jobs
-        run: |
-          if [[ "${{ needs.build-test-desktop.result }}" == "success" && \
-                "${{ needs.build-arduino.result }}" == "success" && \
-                "${{ needs.build-platformio.result }}" == "success" && \
-                "${{ needs.code-quality.result }}" == "success" ]]; then
-            echo "✅ All builds and tests passed!"
-            echo "BUILD_STATUS=success" >> $GITHUB_ENV
-          else
-            echo "❌ Some builds or tests failed!"
-            echo "BUILD_STATUS=failure" >> $GITHUB_ENV
-            exit 1
-          fi
-
       - name: Summary
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
@@ -215,3 +201,15 @@ jobs:
           echo "- Arduino Build Test: ${{ needs.build-arduino.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- PlatformIO Build Test: ${{ needs.build-platformio.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.build-test-desktop.result }}" == "success" && \
+                "${{ needs.build-arduino.result }}" == "success" && \
+                "${{ needs.build-platformio.result }}" == "success" && \
+                "${{ needs.code-quality.result }}" == "success" ]]; then
+            echo "✅ **All builds and tests passed!**" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          else
+            echo "❌ **Some builds or tests failed**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
