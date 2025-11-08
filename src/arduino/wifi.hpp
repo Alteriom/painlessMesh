@@ -133,12 +133,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Set station config
     stationScan.manualIP = remote_ip;
 
-    Log(STARTUP, "stationManual(): Ensure your router is on channel %d to match mesh network\n", _meshChannel);
+    Log(STARTUP, "stationManual(): Connecting to %s\n", ssid.c_str());
 
     // Start scan
     stationScan.init(this, ssid, password, port, _meshChannel,
                      static_cast<bool>(_meshHidden));
     stationScan.manual = true;
+
+    // Directly initiate connection - ESP will auto-detect router's channel
+    WiFi.begin(ssid.c_str(), password.c_str());
+
+    Log(STARTUP, "stationManual(): Connection initiated\n");
   }
 
   void initStation() {
