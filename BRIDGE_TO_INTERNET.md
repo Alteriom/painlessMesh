@@ -2,12 +2,9 @@
 
 You can bridge your mesh network to the Internet by creating a **gateway node** that connects to both the mesh network and your WiFi router simultaneously.
 
-## Quick Start
+## Quick Start (Recommended: Auto Channel Detection)
 
-The gateway node operates in **AP+STA mode** (Access Point + Station), allowing it to:
-
-- Act as an Access Point for the mesh network
-- Connect as a Station to your router for Internet access
+The **new bridge-centric approach** automatically detects your router's channel and configures the mesh accordingly. No manual channel configuration required!
 
 ```cpp
 #include "painlessMesh.h"
@@ -17,26 +14,24 @@ The gateway node operates in **AP+STA mode** (Access Point + Station), allowing 
 #define MESH_PORT       5555
 
 // Your router credentials
-#define STATION_SSID     "YourRouterSSID"
-#define STATION_PASSWORD "YourRouterPassword"
+#define ROUTER_SSID     "YourRouterSSID"
+#define ROUTER_PASSWORD "YourRouterPassword"
 
 Scheduler userScheduler;
 painlessMesh mesh;
 
 void setup() {
   Serial.begin(115200);
-  
-  // Initialize mesh with AP+STA mode
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6);
   
-  // Connect to your router
-  mesh.stationManual(STATION_SSID, STATION_PASSWORD);
-  mesh.setHostname("MESH_BRIDGE");
-  
-  // Configure as root/bridge node
-  mesh.setRoot(true);
-  mesh.setContainsRoot(true);
+  // Single call does everything:
+  // 1. Connects to router and detects its channel
+  // 2. Initializes mesh on detected channel
+  // 3. Sets node as root/bridge
+  // 4. Maintains router connection
+  mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                    ROUTER_SSID, ROUTER_PASSWORD,
+                    &userScheduler, MESH_PORT);
   
   mesh.onReceive(&receivedCallback);
 }
@@ -51,30 +46,101 @@ void receivedCallback(uint32_t from, String& msg) {
 }
 ```
 
+**Expected Output:**
+```
+=== Bridge Mode Initialization ===
+Step 1: Connecting to router YourRouterSSID...
+✓ Router connected on channel 6
+✓ Router IP: 192.168.1.100
+Step 2: Initializing mesh on channel 6...
+STARTUP: init(): Mesh channel set to 6
+Step 3: Establishing bridge connection...
+=== Bridge Mode Active ===
+  Mesh SSID: MyMeshNetwork
+  Mesh Channel: 6 (matches router)
+  Router: YourRouterSSID
+  Port: 5555
+```
+
+### Regular Nodes with Auto-Detection
+
+Regular mesh nodes can also auto-detect the mesh channel:
+
+```cpp
+void setup() {
+  Serial.begin(115200);
+  mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
+  
+  // channel=0 means auto-detect
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, 
+            WIFI_AP_STA, 0);
+  
+  mesh.onReceive(&receivedCallback);
+}
+```
+
+**Expected Output:**
+```
+STARTUP: Auto-detecting mesh channel...
+CONNECTION: Scanning all channels for mesh 'MyMeshNetwork'...
+CONNECTION: Found mesh on channel 6 (RSSI: -45)
+STARTUP: Mesh channel auto-detected: 6
+```
+
+## Manual Configuration (Legacy Approach)
+
+If you prefer the traditional approach or need more control, you can still manually configure the channel:
+
+```cpp
+void setup() {
+  Serial.begin(115200);
+  mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
+  
+  // Initialize mesh with AP+STA mode on specific channel
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6);
+  
+  // Connect to your router
+  mesh.stationManual(ROUTER_SSID, ROUTER_PASSWORD);
+  mesh.setHostname("MESH_BRIDGE");
+  
+  // Configure as root/bridge node
+  mesh.setRoot(true);
+  mesh.setContainsRoot(true);
+  
+  mesh.onReceive(&receivedCallback);
+}
+```
+
 ## Important Requirements
 
 ### WiFi Channel Behavior
 
-When using `stationManual()` to connect to your router, the library will automatically handle channel switching. The ESP32/ESP8266 will:
+#### With initAsBridge() (Recommended)
+
+The new `initAsBridge()` method automatically handles all channel detection and configuration:
+
+1. Connects to your router first in STA mode
+2. Detects the router's actual channel
+3. Initializes the mesh AP on the detected channel
+4. Maintains both connections on the same channel
+
+**No manual channel configuration needed!** Just provide your router and mesh credentials.
+
+#### With Manual Configuration
+
+When using the legacy `stationManual()` approach, the library will automatically handle channel switching. The ESP32/ESP8266 will:
 
 1. Initially operate the mesh AP on your specified channel (e.g., channel 6)
 2. Automatically switch to the router's channel when connecting via `stationManual()`
 3. The mesh AP channel will adjust to match the router's channel
 
-**This means you don't need to manually configure channel matching** - the library handles it automatically. Simply specify your desired mesh channel and call `stationManual()` with your router credentials.
-
-**Example:**
-```cpp
-mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 6);
-mesh.stationManual(STATION_SSID, STATION_PASSWORD);  // Works regardless of router channel
-```
-
 **Note:** While ESP32/ESP8266 hardware can only operate on one channel at a time in AP+STA mode, the WiFi stack automatically coordinates this. When connected to a router on a different channel, the mesh AP will operate on that channel instead.
 
 **Best Practices:**
 
-- Use channels 1, 6, or 11 (non-overlapping 2.4GHz channels) for your mesh if not using a router
-- If connecting to a router, the mesh will automatically adopt the router's channel
+- Use `initAsBridge()` for new projects - it handles everything automatically
+- Use channels 1, 6, or 11 (non-overlapping 2.4GHz channels) if not using a router
+- Regular nodes should use `channel=0` to auto-detect the mesh
 - For optimal performance, you may choose to configure your router to use your preferred mesh channel
 
 ### Other Requirements

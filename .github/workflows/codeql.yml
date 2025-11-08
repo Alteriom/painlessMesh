@@ -1,0 +1,56 @@
+name: CodeQL Security Analysis
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - '.github/workflows/codeql.yml'
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+
+# Prevent duplicate runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze Code
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'c-cpp' ]
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # Focus on security queries for Arduino/embedded code
+          queries: security-extended
+      
+      # For Arduino libraries, we analyze source without building
+      # since the build requires Arduino framework and platform-specific setup
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+          # Upload results even if there are no vulnerabilities found
+          upload: true
