@@ -176,8 +176,14 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     if (WiFi.status() == WL_CONNECTED) {
       detectedChannel = WiFi.channel();
-      Log(STARTUP, "\n✓ Router connected on channel %d\n", detectedChannel);
-      Log(STARTUP, "✓ Router IP: %s\n", WiFi.localIP().toString().c_str());
+      // Validate channel is in valid range (1-13 for 2.4GHz)
+      if (detectedChannel < 1 || detectedChannel > 13) {
+        Log(ERROR, "\n✗ Invalid channel detected: %d, using default channel 1\n", detectedChannel);
+        detectedChannel = 1;
+      } else {
+        Log(STARTUP, "\n✓ Router connected on channel %d\n", detectedChannel);
+        Log(STARTUP, "✓ Router IP: %s\n", WiFi.localIP().toString().c_str());
+      }
     } else {
       Log(ERROR, "\n✗ Failed to connect to router, using default channel 1\n");
     }

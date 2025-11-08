@@ -283,10 +283,16 @@ uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool
     
     // Check if this is our mesh network
     if (foundSSID == meshSSID || (foundSSID == "" && meshHidden)) {
-      Log(CONNECTION, "scanForMeshChannel(): Found mesh on channel %d (RSSI: %d)\n", 
-          foundChannel, rssi);
-      WiFi.scanDelete();
-      return foundChannel;
+      // Validate channel is in valid range (1-13 for 2.4GHz)
+      if (foundChannel >= 1 && foundChannel <= 13) {
+        Log(CONNECTION, "scanForMeshChannel(): Found mesh on channel %d (RSSI: %d)\n", 
+            foundChannel, rssi);
+        WiFi.scanDelete();
+        return foundChannel;
+      } else {
+        Log(ERROR, "scanForMeshChannel(): Found mesh on invalid channel %d, ignoring\n", 
+            foundChannel);
+      }
     }
   }
   
