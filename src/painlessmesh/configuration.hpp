@@ -48,9 +48,7 @@
 // Define TSTRING - use std::string in test environment, Arduino String
 // otherwise
 #if defined(PAINLESSMESH_BOOST)
-// Test environment - use std::string
-#include <string>
-typedef std::string TSTRING;
+// Test environment - TSTRING already defined in test Arduino.h as std::string
 #else
 typedef String TSTRING;
 #endif

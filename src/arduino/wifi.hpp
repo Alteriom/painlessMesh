@@ -11,7 +11,6 @@
 #include "painlessmesh/mesh.hpp"
 #include "painlessmesh/router.hpp"
 #include "painlessmesh/tcp.hpp"
-#include "painlessmesh/message_queue.hpp"
 
 extern painlessmesh::logger::LogClass Log;
 
@@ -417,143 +416,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    */
   void onBridgeRoleChanged(std::function<void(bool isBridge, TSTRING reason)> callback) {
     bridgeRoleChangedCallback = callback;
-  }
-
-  // ========== Message Queue API ==========
-  
-  /**
-   * Enable message queuing for offline mode
-   * 
-   * When enabled, messages can be queued during Internet outages and automatically
-   * sent when connectivity is restored.
-   * 
-   * @param maxSize Maximum number of messages to queue (default: 500)
-   * @param enablePersistence Enable SPIFFS/LittleFS persistence (default: false)
-   * @param storagePath Path to queue storage file (default: "/painlessmesh/queue.dat")
-   */
-  void enableMessageQueue(uint32_t maxSize = 500, bool enablePersistence = false,
-                         const TSTRING& storagePath = "/painlessmesh/queue.dat") {
-    messageQueue.init(maxSize, enablePersistence, storagePath);
-    messageQueueEnabled = true;
-  }
-  
-  /**
-   * Queue a message for later delivery
-   * 
-   * @param payload Message content
-   * @param destination Where to send the message (e.g., MQTT topic, HTTP endpoint)
-   * @param priority Message priority level (CRITICAL, HIGH, NORMAL, LOW)
-   * @return Message ID if queued successfully, 0 if failed
-   */
-  uint32_t queueMessage(const TSTRING& payload, const TSTRING& destination,
-                       painlessmesh::queue::MessagePriority priority = 
-                           painlessmesh::queue::PRIORITY_NORMAL) {
-    if (!messageQueueEnabled) {
-      Log(logger::ERROR, "queueMessage(): Message queue not enabled\n");
-      return 0;
-    }
-    return messageQueue.queueMessage(payload, destination, priority);
-  }
-  
-  /**
-   * Manually flush the message queue
-   * 
-   * Attempts to send all queued messages using the provided send callback.
-   * This is automatically called when Internet connectivity is restored.
-   * 
-   * @param sendCallback Function to actually send the message
-   * @return Number of messages successfully sent
-   */
-  uint32_t flushMessageQueue(painlessmesh::queue::MessageQueue::sendCallback_t sendCallback) {
-    if (!messageQueueEnabled) {
-      return 0;
-    }
-    return messageQueue.flushQueue(sendCallback);
-  }
-  
-  /**
-   * Get number of queued messages
-   * 
-   * @param priority If specified, count only messages of this priority
-   * @return Number of messages
-   */
-  uint32_t getQueuedMessageCount(painlessmesh::queue::MessagePriority priority) const {
-    if (!messageQueueEnabled) {
-      return 0;
-    }
-    return messageQueue.getQueuedMessageCount(priority);
-  }
-  
-  uint32_t getQueuedMessageCount() const {
-    if (!messageQueueEnabled) {
-      return 0;
-    }
-    return messageQueue.getQueuedMessageCount();
-  }
-  
-  /**
-   * Remove messages older than specified age
-   * 
-   * @param maxAgeHours Maximum age in hours
-   * @return Number of messages removed
-   */
-  uint32_t pruneMessageQueue(uint32_t maxAgeHours) {
-    if (!messageQueueEnabled) {
-      return 0;
-    }
-    return messageQueue.pruneQueue(maxAgeHours);
-  }
-  
-  /**
-   * Clear all messages from queue
-   */
-  void clearMessageQueue() {
-    if (messageQueueEnabled) {
-      messageQueue.clear();
-    }
-  }
-  
-  /**
-   * Get message queue statistics
-   */
-  painlessmesh::queue::QueueStats getQueueStats() const {
-    return messageQueue.getStats();
-  }
-  
-  /**
-   * Set callback for queue state changes
-   */
-  void onQueueStateChanged(painlessmesh::queue::MessageQueue::queueStateCallback_t callback) {
-    messageQueue.onQueueStateChanged(callback);
-  }
-  
-  /**
-   * Set maximum retry attempts for queued messages
-   */
-  void setMaxQueueRetryAttempts(uint32_t attempts) {
-    messageQueue.setMaxRetryAttempts(attempts);
-  }
-  
-  /**
-   * Save queue to persistent storage
-   */
-  bool saveQueueToStorage() {
-    if (!messageQueueEnabled) {
-      return false;
-    }
-    return messageQueue.saveToStorage();
-  }
-  
-  /**
-   * Load queue from persistent storage
-   * 
-   * @return Number of messages loaded
-   */
-  uint32_t loadQueueFromStorage() {
-    if (!messageQueueEnabled) {
-      return 0;
-    }
-    return messageQueue.loadFromStorage();
   }
 
   void stop() {
@@ -1056,10 +918,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   uint32_t electionDeadline = 0;
   std::vector<BridgeCandidate> electionCandidates;
   std::function<void(bool isBridge, TSTRING reason)> bridgeRoleChangedCallback;
-  
-  // Message queue for offline mode
-  bool messageQueueEnabled = false;
-  painlessmesh::queue::MessageQueue messageQueue;
 };
 }  // namespace wifi
 };  // namespace painlessmesh
