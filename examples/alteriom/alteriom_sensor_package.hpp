@@ -1223,12 +1223,13 @@ class BridgeStatusPackage : public painlessmesh::plugin::BroadcastPackage {
 };
 
 /**
- * @brief Bridge election package for automatic failover (Type 611 - BRIDGE_ELECTION)
+ * @brief Bridge election package for automatic failover (Type 611 -
+ * BRIDGE_ELECTION)
  *
  * When a bridge node goes offline, regular nodes with router credentials can
- * participate in an election to become the new bridge. Each candidate broadcasts
- * its RSSI to the router, uptime, and available memory. The node with the best
- * RSSI wins the election.
+ * participate in an election to become the new bridge. Each candidate
+ * broadcasts its RSSI to the router, uptime, and available memory. The node
+ * with the best RSSI wins the election.
  *
  * Election process:
  * 1. Bridge failure detected (no heartbeat for 60+ seconds)
@@ -1241,12 +1242,12 @@ class BridgeStatusPackage : public painlessmesh::plugin::BroadcastPackage {
  */
 class BridgeElectionPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  int8_t routerRSSI = 0;      // Router WiFi signal strength in dBm (-127 to 0)
-  uint32_t uptime = 0;        // Node uptime in milliseconds
-  uint32_t freeMemory = 0;    // Free memory in bytes
-  uint32_t timestamp = 0;     // Election timestamp
-  TSTRING routerSSID = "";    // Router SSID (for verification)
-  
+  int8_t routerRSSI = 0;    // Router WiFi signal strength in dBm (-127 to 0)
+  uint32_t uptime = 0;      // Node uptime in milliseconds
+  uint32_t freeMemory = 0;  // Free memory in bytes
+  uint32_t timestamp = 0;   // Election timestamp
+  TSTRING routerSSID = "";  // Router SSID (for verification)
+
   // MQTT Schema v0.7.3+ message_type
   uint16_t messageType = 611;  // BRIDGE_ELECTION
 
@@ -1291,10 +1292,11 @@ class BridgeElectionPackage : public painlessmesh::plugin::BroadcastPackage {
 class BridgeTakeoverPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
   uint32_t previousBridge = 0;  // Previous bridge node ID (0 if none)
-  TSTRING reason = "";          // Reason for takeover (e.g., "Election winner - best router signal")
-  int8_t routerRSSI = 0;        // New bridge's router signal strength
-  uint32_t timestamp = 0;       // Takeover timestamp
-  
+  TSTRING reason =
+      "";  // Reason for takeover (e.g., "Election winner - best router signal")
+  int8_t routerRSSI = 0;   // New bridge's router signal strength
+  uint32_t timestamp = 0;  // Takeover timestamp
+
   // MQTT Schema v0.7.3+ message_type
   uint16_t messageType = 612;  // BRIDGE_TAKEOVER
 
