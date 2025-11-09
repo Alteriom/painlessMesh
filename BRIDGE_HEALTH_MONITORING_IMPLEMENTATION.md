@@ -2,13 +2,13 @@
 
 ## Overview
 
-This document summarizes the implementation of the Bridge Health Monitoring & Metrics Collection feature for painlessMesh v1.8.1.
+This document summarizes the implementation of the Bridge Health Monitoring & Metrics Collection feature for painlessMesh v1.8.0.
 
 ## Issue Reference
 
 **Issue:** Feature: Bridge Health Monitoring & Metrics Collection  
 **Priority:** P3-LOW  
-**Timeline:** v1.8.1 release
+**Timeline:** v1.8.0 release
 
 ## Implementation Complete ✅
 
@@ -187,7 +187,7 @@ docs/BRIDGE_HEALTH_MONITORING.md                     | 293 lines added
 
 ## Version Information
 
-- **Target Release:** v1.8.1
+- **Target Release:** v1.8.0
 - **Feature Priority:** P3-LOW
 - **Implementation Status:** COMPLETE ✅
 - **Testing Status:** ALL PASS ✅
@@ -197,7 +197,7 @@ docs/BRIDGE_HEALTH_MONITORING.md                     | 293 lines added
 
 1. Code review by maintainers
 2. Merge into develop branch
-3. Include in v1.8.1 release notes
+3. Include in v1.8.0 release notes
 4. Update library version number
 
 ## Notes
