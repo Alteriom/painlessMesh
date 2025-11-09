@@ -7,8 +7,8 @@
 #include <algorithm>  // for std::remove_if
 #include <cstdio>     // for printf
 
-// Only include logger in Arduino environment
-#if defined(ARDUINO) || defined(PAINLESSMESH_ENABLE_ARDUINO_WIFI)
+// Only include logger in Arduino environment (not in test environment)
+#if defined(ARDUINO) && defined(PAINLESSMESH_ENABLE_ARDUINO_WIFI)
 #include "painlessmesh/logger.hpp"
 extern painlessmesh::logger::LogClass Log;
 #define USE_PAINLESS_LOG
@@ -60,7 +60,9 @@ MessageQueue::~MessageQueue() {
 
 void MessageQueue::init(uint32_t maxSize, bool enablePersistence, 
                        const TSTRING& path) {
+#ifdef USE_PAINLESS_LOG
   using namespace logger;
+#endif
   
   maxQueueSize = maxSize;
   persistentStorageEnabled = enablePersistence;
@@ -92,7 +94,9 @@ void MessageQueue::init(uint32_t maxSize, bool enablePersistence,
 
 uint32_t MessageQueue::queueMessage(const TSTRING& payload, const TSTRING& destination,
                                    MessagePriority priority) {
+#ifdef USE_PAINLESS_LOG
   using namespace logger;
+#endif
   
   // Check if we need to make space
   if (isFull()) {
@@ -141,7 +145,9 @@ uint32_t MessageQueue::queueMessage(const TSTRING& payload, const TSTRING& desti
 }
 
 uint32_t MessageQueue::flushQueue(sendCallback_t sendCallback) {
+#ifdef USE_PAINLESS_LOG
   using namespace logger;
+#endif
   
   if (!sendCallback) {
     LOG_ERROR( "MessageQueue::flushQueue(): No send callback provided\n");
@@ -217,7 +223,9 @@ uint32_t MessageQueue::getQueuedMessageCount() const {
 }
 
 uint32_t MessageQueue::pruneQueue(uint32_t maxAgeHours) {
+#ifdef USE_PAINLESS_LOG
   using namespace logger;
+#endif
   
   uint32_t maxAgeMs = maxAgeHours * 3600000UL;  // Convert to milliseconds
   uint32_t now = millis();
@@ -250,7 +258,9 @@ uint32_t MessageQueue::pruneQueue(uint32_t maxAgeHours) {
 }
 
 void MessageQueue::clear() {
+#ifdef USE_PAINLESS_LOG
   using namespace logger;
+#endif
   
   uint32_t count = queue.size();
   queue.clear();
@@ -267,7 +277,9 @@ void MessageQueue::clear() {
 
 bool MessageQueue::saveToStorage() {
 #ifdef FILESYSTEM_AVAILABLE
+#ifdef USE_PAINLESS_LOG
   using namespace logger;
+#endif
   
   if (!persistentStorageEnabled) {
     return false;
@@ -327,7 +339,9 @@ bool MessageQueue::saveToStorage() {
 
 uint32_t MessageQueue::loadFromStorage() {
 #ifdef FILESYSTEM_AVAILABLE
+#ifdef USE_PAINLESS_LOG
   using namespace logger;
+#endif
   
   if (!persistentStorageEnabled) {
     return 0;
@@ -417,7 +431,9 @@ uint32_t MessageQueue::generateMessageId() {
 }
 
 bool MessageQueue::makeSpace() {
+#ifdef USE_PAINLESS_LOG
   using namespace logger;
+#endif
   
   // First, try to remove LOW priority messages
   auto it = queue.begin();

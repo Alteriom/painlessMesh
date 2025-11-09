@@ -5,24 +5,10 @@
 #include <functional>
 #include <cstdint>
 
-// Forward declare TSTRING based on environment
-#if defined(PAINLESSMESH_BOOST) || defined(ARDUINO_ARCH_ESP8266) || defined(ARDUINO_ARCH_ESP32)
-#include <string>
-typedef std::string TSTRING;
-#else
-#ifndef TSTRING
-// If TSTRING not defined, use std::string as fallback
-#include <string>
-typedef std::string TSTRING;
-#endif
-#endif
-
-// Forward declare logger namespace
-namespace painlessmesh {
-namespace logger {
-class LogClass;
-}
-}
+// Include configuration to get TSTRING definition
+// Note: In test environment, configuration will be overridden by test/catch/Arduino.h
+// which defines the configuration guard and TSTRING as std::string
+#include "painlessmesh/configuration.hpp"
 
 namespace painlessmesh {
 namespace queue {
