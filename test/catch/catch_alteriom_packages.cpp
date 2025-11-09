@@ -1466,7 +1466,7 @@ SCENARIO("Alteriom BridgeStatusPackage serialization works correctly") {
         
         WHEN("Serializing to JSON") {
             auto var = protocol::Variant(&pkg);
-            DynamicJsonDocument doc(512);
+            JsonDocument doc;
             TSTRING str;
             var.printTo(str);
             deserializeJson(doc, str);
