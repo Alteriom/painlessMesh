@@ -1349,35 +1349,35 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     dot += "  node [shape=box];\n\n";
     
     // Add this node
-    dot += "  \"" + std::to_string(this->nodeId) + "\" ";
+    dot += "  \"" + TSTRING(std::to_string(this->nodeId).c_str()) + "\" ";
     if (this->isBridge()) {
-      dot += "[style=filled,fillcolor=lightblue,label=\"" + std::to_string(this->nodeId) + "\\nBridge\"];\n";
+      dot += "[style=filled,fillcolor=lightblue,label=\"" + TSTRING(std::to_string(this->nodeId).c_str()) + "\\nBridge\"];\n";
     } else {
-      dot += "[label=\"" + std::to_string(this->nodeId) + "\"];\n";
+      dot += "[label=\"" + TSTRING(std::to_string(this->nodeId).c_str()) + "\"];\n";
     }
     
     // Add Internet node if bridge exists
     auto primaryBridge = this->getPrimaryBridge();
     if (primaryBridge != nullptr && primaryBridge->internetConnected) {
       dot += "  \"Internet\" [shape=cloud,style=filled,fillcolor=lightgreen];\n";
-      dot += "  \"" + std::to_string(primaryBridge->nodeId) + "\" -> \"Internet\" [style=dashed,color=green];\n";
+      dot += "  \"" + TSTRING(std::to_string(primaryBridge->nodeId).c_str()) + "\" -> \"Internet\" [style=dashed,color=green];\n";
     }
     
     // Add all known nodes and connections
     auto nodeList = this->getNodeList(false);
     for (auto node : nodeList) {
-      dot += "  \"" + std::to_string(node) + "\";\n";
+      dot += "  \"" + TSTRING(std::to_string(node).c_str()) + "\";\n";
     }
     
     // Add edges for direct connections
     for (auto conn : this->subs) {
       if (conn->connected()) {
-        dot += "  \"" + std::to_string(this->nodeId) + "\" -> \"" + std::to_string(conn->nodeId) + "\"";
+        dot += "  \"" + TSTRING(std::to_string(this->nodeId).c_str()) + "\" -> \"" + TSTRING(std::to_string(conn->nodeId).c_str()) + "\"";
         
         // Add edge labels with latency
         int latency = conn->getLatency();
         if (latency >= 0) {
-          dot += " [label=\"" + std::to_string(latency) + "ms\"]";
+          dot += " [label=\"" + TSTRING(std::to_string(latency).c_str()) + "ms\"]";
         }
         dot += ";\n";
       }
@@ -1491,21 +1491,21 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     
     // Node info
     auto status = this->getBridgeStatus();
-    report += "Node ID: " + std::to_string(this->nodeId) + "\n";
+    report += "Node ID: " + TSTRING(std::to_string(this->nodeId).c_str()) + "\n";
     report += "Mode: " + status.role + "\n";
     
     // Mesh info
     auto nodeList = this->getNodeList(true);
-    report += "Mesh Nodes: " + std::to_string(nodeList.size()) + "\n";
+    report += "Mesh Nodes: " + TSTRING(std::to_string(nodeList.size()).c_str()) + "\n";
     
     // Bridge info
     if (status.isBridge) {
-      report += "Bridge: " + std::to_string(this->nodeId) + " (this node)\n";
+      report += "Bridge: " + TSTRING(std::to_string(this->nodeId).c_str()) + " (this node)\n";
     } else {
       auto primaryBridge = this->getPrimaryBridge();
       if (primaryBridge != nullptr) {
-        report += "Bridge: " + std::to_string(primaryBridge->nodeId);
-        report += " (RSSI: " + std::to_string(primaryBridge->routerRSSI) + " dBm";
+        report += "Bridge: " + TSTRING(std::to_string(primaryBridge->nodeId).c_str());
+        report += " (RSSI: " + TSTRING(std::to_string(primaryBridge->routerRSSI).c_str()) + " dBm";
         report += ", Internet: " + TSTRING(primaryBridge->internetConnected ? "✓" : "✗") + ")\n";
       } else {
         report += "Bridge: None available\n";
@@ -1513,16 +1513,16 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     }
     
     // Connection info
-    report += "Direct Connections: " + std::to_string(this->subs.size()) + "\n";
+    report += "Direct Connections: " + TSTRING(std::to_string(this->subs.size()).c_str()) + "\n";
     
     // Health metrics
     auto metrics = this->getBridgeHealthMetrics();
-    report += "Messages RX: " + std::to_string(metrics.messagesRx) + "\n";
-    report += "Messages TX: " + std::to_string(metrics.messagesTx) + "\n";
-    report += "Messages Dropped: " + std::to_string(metrics.messagesDropped) + "\n";
+    report += "Messages RX: " + TSTRING(std::to_string(metrics.messagesRx).c_str()) + "\n";
+    report += "Messages TX: " + TSTRING(std::to_string(metrics.messagesTx).c_str()) + "\n";
+    report += "Messages Dropped: " + TSTRING(std::to_string(metrics.messagesDropped).c_str()) + "\n";
     
     if (metrics.avgLatencyMs > 0) {
-      report += "Avg Latency: " + std::to_string(metrics.avgLatencyMs) + " ms\n";
+      report += "Avg Latency: " + TSTRING(std::to_string(metrics.avgLatencyMs).c_str()) + " ms\n";
     }
     
     // Uptime
@@ -1546,8 +1546,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       snprintf(electionTimeStr, sizeof(electionTimeStr), "%02u:%02u", electionMinutes, electionSeconds);
       
       report += "Last Election: " + TSTRING(electionTimeStr) + " ago";
-      report += " (Winner: " + std::to_string(lastElection.winnerNodeId);
-      report += ", " + std::to_string(lastElection.candidateCount) + " candidates)\n";
+      report += " (Winner: " + TSTRING(std::to_string(lastElection.winnerNodeId).c_str());
+      report += ", " + TSTRING(std::to_string(lastElection.candidateCount).c_str()) + " candidates)\n";
     }
     
     report += "================================\n";
