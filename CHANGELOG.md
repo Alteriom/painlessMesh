@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **NTP Time Synchronization (Type 614)** - Bridge-to-mesh NTP time distribution
+  - New `NTPTimeSyncPackage` for broadcasting NTP time from bridge nodes
+  - Bridge nodes with Internet distribute authoritative time to entire mesh
+  - Eliminates per-node NTP queries (saves bandwidth and power)
+  - Supports RTC synchronization for offline operation
+  - Includes accuracy field for time uncertainty tracking
+  - Comprehensive unit tests (5 scenarios, 38 assertions)
+  - Example sketches: `ntpTimeSyncBridge.ino` and `ntpTimeSyncNode.ino`
+  - Documentation: `NTP_TIME_SYNC_FEATURE.md`
+
 - **Bridge-Centric Architecture** - New `initAsBridge()` method for automatic channel detection
   - Bridge nodes now connect to router first and auto-detect its channel
   - Mesh network automatically configured on router's channel
