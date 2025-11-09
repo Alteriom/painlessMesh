@@ -8,12 +8,18 @@ on:
       - 'LICENSE'
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
-# Use github.head_ref for PRs (branch name) and github.ref for push events
+# For PRs, use PR number to ensure uniqueness
+# For pushes, use the full ref
+# This ensures only one workflow runs per PR or push
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
