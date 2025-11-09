@@ -1655,3 +1655,148 @@ SCENARIO("BridgeTakeoverPackage serialization works correctly") {
         }
     }
 }
+
+SCENARIO("NTPTimeSyncPackage serialization works correctly") {
+    GIVEN("An NTPTimeSyncPackage with test data") {
+        auto pkg = NTPTimeSyncPackage();
+        pkg.from = 98765;  // Bridge node ID
+        pkg.ntpTime = 1699564800;  // Unix timestamp
+        pkg.accuracy = 50;  // 50ms uncertainty
+        pkg.source = "pool.ntp.org";
+        pkg.timestamp = 12345678;
+        
+        REQUIRE(pkg.routing == router::BROADCAST);
+        REQUIRE(pkg.type == 614);
+        REQUIRE(pkg.messageType == 614);
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<NTPTimeSyncPackage>();
+            
+            THEN("Should result in the same values") {
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.ntpTime == pkg.ntpTime);
+                REQUIRE(pkg2.accuracy == pkg.accuracy);
+                REQUIRE(pkg2.source == pkg.source);
+                REQUIRE(pkg2.timestamp == pkg.timestamp);
+                REQUIRE(pkg2.routing == pkg.routing);
+                REQUIRE(pkg2.type == pkg.type);
+                REQUIRE(pkg2.messageType == pkg.messageType);
+            }
+        }
+        
+        WHEN("Serializing to JSON") {
+            auto var = protocol::Variant(&pkg);
+            JsonDocument doc;
+            TSTRING str;
+            var.printTo(str);
+            deserializeJson(doc, str);
+            JsonObject obj = doc.as<JsonObject>();
+            
+            THEN("Should contain all required fields") {
+                REQUIRE(obj["type"] == 614);
+                REQUIRE(obj["from"] == 98765);
+                REQUIRE(obj["routing"] == 2);  // BROADCAST
+                REQUIRE(obj["ntpTime"] == 1699564800);
+                REQUIRE(obj["accuracy"] == 50);
+                REQUIRE(obj["source"] == "pool.ntp.org");
+                REQUIRE(obj["timestamp"] == 12345678);
+                REQUIRE(obj["message_type"] == 614);
+            }
+        }
+    }
+    
+    GIVEN("An NTPTimeSyncPackage with different NTP sources") {
+        auto pkg1 = NTPTimeSyncPackage();
+        pkg1.from = 11111;
+        pkg1.ntpTime = 1699564800;
+        pkg1.accuracy = 25;
+        pkg1.source = "time.google.com";
+        pkg1.timestamp = 11111111;
+        
+        auto pkg2 = NTPTimeSyncPackage();
+        pkg2.from = 22222;
+        pkg2.ntpTime = 1699564850;
+        pkg2.accuracy = 100;
+        pkg2.source = "time.nist.gov";
+        pkg2.timestamp = 22222222;
+        
+        WHEN("Converting both to and from Variant") {
+            auto var1 = protocol::Variant(&pkg1);
+            auto var2 = protocol::Variant(&pkg2);
+            
+            auto result1 = var1.to<NTPTimeSyncPackage>();
+            auto result2 = var2.to<NTPTimeSyncPackage>();
+            
+            THEN("Should preserve different sources correctly") {
+                REQUIRE(result1.source == "time.google.com");
+                REQUIRE(result2.source == "time.nist.gov");
+                REQUIRE(result1.accuracy == 25);
+                REQUIRE(result2.accuracy == 100);
+                REQUIRE(result1.ntpTime == 1699564800);
+                REQUIRE(result2.ntpTime == 1699564850);
+            }
+        }
+    }
+    
+    GIVEN("An NTPTimeSyncPackage with edge case values") {
+        auto pkg = NTPTimeSyncPackage();
+        pkg.from = 99999;
+        pkg.ntpTime = 0;  // Epoch time
+        pkg.accuracy = 0;  // Perfect accuracy (unrealistic but valid)
+        pkg.source = "";  // Empty source
+        pkg.timestamp = 0xFFFFFFFF;  // Maximum timestamp
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<NTPTimeSyncPackage>();
+            
+            THEN("Should handle edge cases correctly") {
+                REQUIRE(pkg2.ntpTime == 0);
+                REQUIRE(pkg2.accuracy == 0);
+                REQUIRE(pkg2.source == "");
+                REQUIRE(pkg2.timestamp == 0xFFFFFFFF);
+            }
+        }
+    }
+    
+    GIVEN("An NTPTimeSyncPackage with high accuracy uncertainty") {
+        auto pkg = NTPTimeSyncPackage();
+        pkg.from = 55555;
+        pkg.ntpTime = 1699564900;
+        pkg.accuracy = 5000;  // 5 seconds uncertainty
+        pkg.source = "192.168.1.1";  // Local NTP server
+        pkg.timestamp = 87654321;
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<NTPTimeSyncPackage>();
+            
+            THEN("Should preserve high accuracy values") {
+                REQUIRE(pkg2.accuracy == 5000);
+                REQUIRE(pkg2.source == "192.168.1.1");
+                REQUIRE(pkg2.ntpTime == 1699564900);
+            }
+        }
+    }
+    
+    GIVEN("An NTPTimeSyncPackage with long source string") {
+        auto pkg = NTPTimeSyncPackage();
+        pkg.from = 77777;
+        pkg.ntpTime = 1699565000;
+        pkg.accuracy = 75;
+        pkg.source = "very-long-ntp-server-hostname.example.com";
+        pkg.timestamp = 99999999;
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<NTPTimeSyncPackage>();
+            
+            THEN("Should preserve long source hostname") {
+                REQUIRE(pkg2.source == pkg.source);
+                REQUIRE(pkg2.source.length() > 30);
+                REQUIRE(pkg2.ntpTime == pkg.ntpTime);
+            }
+        }
+    }
+}

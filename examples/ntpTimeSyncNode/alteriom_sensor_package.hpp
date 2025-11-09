@@ -1343,10 +1343,10 @@ class BridgeTakeoverPackage : public painlessmesh::plugin::BroadcastPackage {
  */
 class NTPTimeSyncPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  uint32_t ntpTime = 0;    // Unix timestamp from NTP server
-  uint16_t accuracy = 0;   // Milliseconds uncertainty/precision
-  TSTRING source = "";     // NTP server source (e.g., "pool.ntp.org")
-  uint32_t timestamp = 0;  // Collection timestamp
+  uint32_t ntpTime = 0;     // Unix timestamp from NTP server
+  uint16_t accuracy = 0;    // Milliseconds uncertainty/precision
+  TSTRING source = "";      // NTP server source (e.g., "pool.ntp.org")
+  uint32_t timestamp = 0;   // Collection timestamp
 
   // MQTT Schema message_type
   uint16_t messageType = 614;  // TIME_SYNC_NTP
