@@ -82,13 +82,13 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         [this](protocol::Variant& variant, std::shared_ptr<T>, uint32_t) {
           // We need to manually parse the JSON since BridgeStatusPackage is in alteriom namespace
           // and may not be available in all contexts. We'll parse the critical fields directly.
-          DynamicJsonDocument doc(256);
+          JsonDocument doc;
           TSTRING str;
           variant.printTo(str);
           deserializeJson(doc, str);
           JsonObject obj = doc.as<JsonObject>();
           
-          if (obj.containsKey("internetConnected")) {
+          if (obj["internetConnected"].is<bool>()) {
             uint32_t bridgeNodeId = obj["from"];
             bool internetConnected = obj["internetConnected"];
             int8_t routerRSSI = obj["routerRSSI"] | 0;
