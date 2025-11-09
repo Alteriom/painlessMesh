@@ -74,7 +74,12 @@ void MessageQueue::init(uint32_t maxSize, bool enablePersistence,
   if (persistentStorageEnabled) {
 #ifdef FILESYSTEM_AVAILABLE
     // Initialize filesystem if not already mounted
+    // Note: ESP32 supports format-on-fail parameter, ESP8266 doesn't
+#ifdef ESP32
     if (!FILESYSTEM.begin(true)) {
+#else
+    if (!FILESYSTEM.begin()) {
+#endif
       LOG_ERROR( "MessageQueue::init(): Failed to mount filesystem\n");
       persistentStorageEnabled = false;
     } else {
