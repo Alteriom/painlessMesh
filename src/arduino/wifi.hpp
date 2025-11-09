@@ -661,6 +661,25 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(CONNECTION, "  Uptime: %u ms\n", winner->uptime);
     Log(CONNECTION, "  Free Memory: %u bytes\n", winner->freeMemory);
     
+    // Record election in diagnostics history
+    if (this->diagnosticsEnabled) {
+      ElectionRecord record;
+      record.timestamp = millis();
+      record.winnerNodeId = winner->nodeId;
+      record.winnerRSSI = winner->routerRSSI;
+      record.candidateCount = electionCandidates.size();
+      record.reason = "Bridge failure detected";
+      
+      this->electionHistory.push_back(record);
+      
+      // Keep history limited to MAX_ELECTION_HISTORY
+      if (this->electionHistory.size() > this->MAX_ELECTION_HISTORY) {
+        this->electionHistory.erase(this->electionHistory.begin());
+      }
+      
+      Log(CONNECTION, "evaluateElection(): Election recorded in history\n");
+    }
+    
     if (winner->nodeId == this->nodeId) {
       Log(CONNECTION, "🎯 I WON! Promoting to bridge...\n");
       promoteToBridge();

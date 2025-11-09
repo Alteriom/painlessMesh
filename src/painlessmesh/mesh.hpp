@@ -86,6 +86,59 @@ struct BridgeHealthMetrics {
 };
 
 /**
+ * Bridge Status structure
+ * 
+ * Current status of this node's bridge role and connectivity
+ */
+struct BridgeStatus {
+  bool isBridge = false;              // Is this node acting as a bridge?
+  bool internetConnected = false;     // Is Internet connection available?
+  TSTRING role = "regular";           // Role: "regular", "bridge", "root"
+  uint32_t bridgeNodeId = 0;          // Current bridge node ID (0 if none)
+  int8_t bridgeRSSI = 0;             // Signal strength to bridge/router (dBm)
+  uint32_t timeSinceBridgeChange = 0; // Time since last bridge change (ms)
+};
+
+/**
+ * Election Record structure
+ * 
+ * Records information about bridge election events
+ */
+struct ElectionRecord {
+  uint32_t timestamp = 0;          // When election occurred (millis)
+  uint32_t winnerNodeId = 0;       // Node that won election
+  int8_t winnerRSSI = 0;          // Winner's router RSSI
+  uint32_t candidateCount = 0;    // Number of candidates
+  TSTRING reason = "";             // Why election was triggered
+};
+
+/**
+ * Bridge Change Event structure
+ * 
+ * Records the last bridge change event
+ */
+struct BridgeChangeEvent {
+  uint32_t timestamp = 0;            // When change occurred (millis)
+  uint32_t oldBridgeId = 0;         // Previous bridge node ID
+  uint32_t newBridgeId = 0;         // New bridge node ID
+  TSTRING reason = "";               // Reason for change
+  bool internetAvailable = false;    // Internet available after change
+};
+
+/**
+ * Bridge Connectivity Test Result
+ * 
+ * Results from bridge connectivity testing
+ */
+struct BridgeTestResult {
+  bool success = false;              // Overall test success
+  bool bridgeReachable = false;      // Can reach bridge node
+  bool internetReachable = false;    // Can reach Internet (if bridge available)
+  uint32_t latencyMs = 0;           // Round-trip latency to bridge
+  TSTRING message = "";              // Detailed test message
+};
+
+/**
  * Main api class for the mesh
  *
  * Brings all the functions together except for the WiFi functions
@@ -556,6 +609,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
                          uint32_t uptime, TSTRING gatewayIP, uint32_t timestamp) {
     // Find existing bridge or add new one
     BridgeInfo* bridge = nullptr;
+    uint32_t oldPrimaryBridgeId = 0;
+    auto oldPrimary = this->getPrimaryBridge();
+    if (oldPrimary != nullptr) {
+      oldPrimaryBridgeId = oldPrimary->nodeId;
+    }
+    
     for (auto& b : knownBridges) {
       if (b.nodeId == bridgeNodeId) {
         bridge = &b;
@@ -564,12 +623,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     }
     
     bool wasConnected = false;
+    bool isNewBridge = false;
     if (bridge == nullptr) {
       // New bridge - add to list
       BridgeInfo newBridge;
       newBridge.nodeId = bridgeNodeId;
       knownBridges.push_back(newBridge);
       bridge = &knownBridges.back();
+      isNewBridge = true;
     } else {
       wasConnected = bridge->internetConnected;
     }
@@ -582,6 +643,30 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     bridge->uptime = uptime;
     bridge->gatewayIP = gatewayIP;
     bridge->timestamp = timestamp;
+    
+    // Check if primary bridge changed
+    auto newPrimary = this->getPrimaryBridge();
+    uint32_t newPrimaryBridgeId = (newPrimary != nullptr) ? newPrimary->nodeId : 0;
+    
+    if (diagnosticsEnabled && oldPrimaryBridgeId != newPrimaryBridgeId) {
+      // Record bridge change
+      lastBridgeChange.timestamp = millis();
+      lastBridgeChange.oldBridgeId = oldPrimaryBridgeId;
+      lastBridgeChange.newBridgeId = newPrimaryBridgeId;
+      lastBridgeChange.internetAvailable = internetConnected;
+      if (isNewBridge) {
+        lastBridgeChange.reason = "New bridge discovered";
+      } else if (internetConnected && !wasConnected) {
+        lastBridgeChange.reason = "Bridge Internet restored";
+      } else if (!internetConnected && wasConnected) {
+        lastBridgeChange.reason = "Bridge Internet lost";
+      } else {
+        lastBridgeChange.reason = "Primary bridge changed";
+      }
+      
+      lastBridgeChangeTime = millis();
+      Log(logger::GENERAL, "updateBridgeStatus(): Bridge change recorded\n");
+    }
     
     // Trigger callback if status changed
     if (wasConnected != internetConnected && bridgeStatusChangedCallback) {
@@ -1069,6 +1154,406 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     metricsTask->enable();
   }
 
+  // ==================== Enhanced Diagnostics API ====================
+
+  /**
+   * Enable or disable diagnostics collection
+   * 
+   * When enabled, the mesh will track election history, bridge changes,
+   * and other diagnostic information. This has minimal overhead.
+   * 
+   * @param enabled true to enable diagnostics (default), false to disable
+   */
+  void enableDiagnostics(bool enabled = true) {
+    diagnosticsEnabled = enabled;
+    if (enabled) {
+      Log(logger::GENERAL, "enableDiagnostics(): Diagnostics enabled\n");
+    } else {
+      Log(logger::GENERAL, "enableDiagnostics(): Diagnostics disabled\n");
+    }
+  }
+
+  /**
+   * Get current bridge status
+   * 
+   * Returns information about this node's bridge role and connectivity status
+   * 
+   * \code
+   * auto status = mesh.getBridgeStatus();
+   * if (status.isBridge && status.internetConnected) {
+   *   Serial.println("I am bridge with Internet");
+   * }
+   * \endcode
+   * 
+   * @return BridgeStatus structure with current status
+   */
+  BridgeStatus getBridgeStatus() {
+    BridgeStatus status;
+    
+    status.isBridge = this->isBridge();
+    status.internetConnected = this->hasInternetConnection();
+    
+    if (status.isBridge) {
+      status.role = "bridge";
+    } else if (this->root) {
+      status.role = "root";
+    } else {
+      status.role = "regular";
+    }
+    
+    // Get primary bridge info
+    auto primaryBridge = this->getPrimaryBridge();
+    if (primaryBridge != nullptr) {
+      status.bridgeNodeId = primaryBridge->nodeId;
+      status.bridgeRSSI = primaryBridge->routerRSSI;
+    }
+    
+    // Calculate time since last bridge change
+    if (lastBridgeChangeTime > 0) {
+      status.timeSinceBridgeChange = millis() - lastBridgeChangeTime;
+    }
+    
+    return status;
+  }
+
+  /**
+   * Get election history
+   * 
+   * Returns list of recent bridge elections if diagnostics are enabled.
+   * History is limited to last 10 elections.
+   * 
+   * \code
+   * auto history = mesh.getElectionHistory();
+   * for (const auto& record : history) {
+   *   Serial.printf("Election: winner=%u, RSSI=%d, candidates=%u\n",
+   *                 record.winnerNodeId, record.winnerRSSI, record.candidateCount);
+   * }
+   * \endcode
+   * 
+   * @return Vector of ElectionRecord structures
+   */
+  std::vector<ElectionRecord> getElectionHistory() {
+    if (!diagnosticsEnabled) {
+      Log(logger::GENERAL, "getElectionHistory(): Diagnostics not enabled\n");
+      return std::vector<ElectionRecord>();
+    }
+    return electionHistory;
+  }
+
+  /**
+   * Get last bridge change event
+   * 
+   * Returns information about the most recent bridge change
+   * 
+   * \code
+   * auto event = mesh.getLastBridgeChange();
+   * if (event.timestamp > 0) {
+   *   Serial.printf("Bridge changed from %u to %u: %s\n",
+   *                 event.oldBridgeId, event.newBridgeId, event.reason.c_str());
+   * }
+   * \endcode
+   * 
+   * @return BridgeChangeEvent structure
+   */
+  BridgeChangeEvent getLastBridgeChange() {
+    return lastBridgeChange;
+  }
+
+  /**
+   * Get Internet path to specific node
+   * 
+   * Returns the routing path from the specified node to the Internet bridge.
+   * Path includes all intermediate nodes from source to bridge.
+   * 
+   * \code
+   * auto path = mesh.getInternetPath(targetNodeId);
+   * Serial.print("Path to Internet: ");
+   * for (auto nodeId : path) {
+   *   Serial.printf("%u -> ", nodeId);
+   * }
+   * Serial.println("Internet");
+   * \endcode
+   * 
+   * @param nodeId Node to find path from
+   * @return Vector of node IDs representing the path (empty if no path)
+   */
+  std::vector<uint32_t> getInternetPath(uint32_t nodeId) {
+    std::vector<uint32_t> path;
+    
+    // Get primary bridge
+    auto primaryBridge = this->getPrimaryBridge();
+    if (primaryBridge == nullptr) {
+      Log(logger::GENERAL, "getInternetPath(): No bridge available\n");
+      return path;
+    }
+    
+    // If requesting path for the bridge itself
+    if (nodeId == primaryBridge->nodeId) {
+      path.push_back(nodeId);
+      return path;
+    }
+    
+    // Start with the target node
+    path.push_back(nodeId);
+    
+    // For now, simplified routing: if direct connection, add bridge
+    // TODO: Implement proper multi-hop path discovery
+    if (this->isConnected(primaryBridge->nodeId)) {
+      path.push_back(primaryBridge->nodeId);
+    }
+    
+    return path;
+  }
+
+  /**
+   * Get bridge node ID for specific node
+   * 
+   * Returns the bridge node ID that the specified node should use to reach Internet.
+   * For most cases, this is the primary bridge.
+   * 
+   * \code
+   * uint32_t bridgeId = mesh.getBridgeForNodeId(targetNodeId);
+   * if (bridgeId != 0) {
+   *   Serial.printf("Node %u uses bridge %u\n", targetNodeId, bridgeId);
+   * }
+   * \endcode
+   * 
+   * @param nodeId Node to find bridge for
+   * @return Bridge node ID, or 0 if no bridge available
+   */
+  uint32_t getBridgeForNodeId(uint32_t nodeId) {
+    auto primaryBridge = this->getPrimaryBridge();
+    if (primaryBridge != nullptr) {
+      return primaryBridge->nodeId;
+    }
+    return 0;
+  }
+
+  /**
+   * Export topology as DOT format (Graphviz)
+   * 
+   * Generates a GraphViz DOT format representation of the mesh topology.
+   * Can be visualized using Graphviz tools.
+   * 
+   * \code
+   * String dot = mesh.exportTopologyDOT();
+   * Serial.println(dot);
+   * // Save to file or send to visualization tool
+   * \endcode
+   * 
+   * @return String containing DOT format graph
+   */
+  TSTRING exportTopologyDOT() {
+    TSTRING dot = "digraph mesh {\n";
+    dot += "  rankdir=TB;\n";
+    dot += "  node [shape=box];\n\n";
+    
+    // Add this node
+    dot += "  \"" + TSTRING(std::to_string(this->nodeId).c_str()) + "\" ";
+    if (this->isBridge()) {
+      dot += "[style=filled,fillcolor=lightblue,label=\"" + TSTRING(std::to_string(this->nodeId).c_str()) + "\\nBridge\"];\n";
+    } else {
+      dot += "[label=\"" + TSTRING(std::to_string(this->nodeId).c_str()) + "\"];\n";
+    }
+    
+    // Add Internet node if bridge exists
+    auto primaryBridge = this->getPrimaryBridge();
+    if (primaryBridge != nullptr && primaryBridge->internetConnected) {
+      dot += "  \"Internet\" [shape=cloud,style=filled,fillcolor=lightgreen];\n";
+      dot += "  \"" + TSTRING(std::to_string(primaryBridge->nodeId).c_str()) + "\" -> \"Internet\" [style=dashed,color=green];\n";
+    }
+    
+    // Add all known nodes and connections
+    auto nodeList = this->getNodeList(false);
+    for (auto node : nodeList) {
+      dot += "  \"" + TSTRING(std::to_string(node).c_str()) + "\";\n";
+    }
+    
+    // Add edges for direct connections
+    for (auto conn : this->subs) {
+      if (conn->connected()) {
+        dot += "  \"" + TSTRING(std::to_string(this->nodeId).c_str()) + "\" -> \"" + TSTRING(std::to_string(conn->nodeId).c_str()) + "\"";
+        
+        // Add edge labels with latency
+        int latency = conn->getLatency();
+        if (latency >= 0) {
+          dot += " [label=\"" + TSTRING(std::to_string(latency).c_str()) + "ms\"]";
+        }
+        dot += ";\n";
+      }
+    }
+    
+    dot += "}\n";
+    return dot;
+  }
+
+  /**
+   * Test bridge connectivity
+   * 
+   * Runs a connectivity test to the primary bridge and optionally to Internet.
+   * Measures latency and reachability.
+   * 
+   * \code
+   * auto result = mesh.testBridgeConnectivity();
+   * if (result.success) {
+   *   Serial.printf("Bridge test passed: %s (latency: %u ms)\n", 
+   *                 result.message.c_str(), result.latencyMs);
+   * } else {
+   *   Serial.printf("Bridge test failed: %s\n", result.message.c_str());
+   * }
+   * \endcode
+   * 
+   * @return BridgeTestResult with test results
+   */
+  BridgeTestResult testBridgeConnectivity() {
+    BridgeTestResult result;
+    
+    // Check if we have a bridge
+    auto primaryBridge = this->getPrimaryBridge();
+    if (primaryBridge == nullptr) {
+      result.success = false;
+      result.message = "No bridge available";
+      return result;
+    }
+    
+    // Check if bridge is reachable
+    result.bridgeReachable = this->isConnected(primaryBridge->nodeId);
+    if (!result.bridgeReachable) {
+      result.success = false;
+      result.message = "Bridge not reachable";
+      return result;
+    }
+    
+    // Estimate latency from connection info
+    for (auto conn : this->subs) {
+      if (conn->nodeId == primaryBridge->nodeId && conn->connected()) {
+        int latency = conn->getLatency();
+        if (latency >= 0) {
+          result.latencyMs = latency;
+        }
+        break;
+      }
+    }
+    
+    // Check Internet connectivity through bridge
+    result.internetReachable = primaryBridge->internetConnected;
+    
+    result.success = result.bridgeReachable;
+    if (result.internetReachable) {
+      result.message = "Bridge reachable with Internet";
+    } else {
+      result.message = "Bridge reachable, no Internet";
+    }
+    
+    return result;
+  }
+
+  /**
+   * Check if specific bridge is reachable
+   * 
+   * Tests if the specified bridge node can be reached from this node.
+   * 
+   * \code
+   * if (mesh.isBridgeReachable(bridgeNodeId)) {
+   *   Serial.println("Bridge is reachable");
+   * }
+   * \endcode
+   * 
+   * @param bridgeNodeId Bridge node ID to test
+   * @return true if bridge is reachable, false otherwise
+   */
+  bool isBridgeReachable(uint32_t bridgeNodeId) {
+    return this->isConnected(bridgeNodeId);
+  }
+
+  /**
+   * Get comprehensive diagnostic report
+   * 
+   * Generates a human-readable diagnostic report with mesh status, bridge info,
+   * connectivity, and performance metrics. Useful for debugging and monitoring.
+   * 
+   * \code
+   * Serial.println(mesh.getDiagnosticReport());
+   * // Example output:
+   * // === painlessMesh Diagnostics ===
+   * // Mode: Regular Node
+   * // Mesh: ProductionMesh (25 nodes)
+   * // Bridge: 123456789 (RSSI: -42 dBm, Internet: ✓)
+   * // Queue: 3 messages (2 CRITICAL, 1 NORMAL)
+   * // Uptime: 02:15:33
+   * // Last Election: 00:45:12 ago (Winner: 123456789)
+   * \endcode
+   * 
+   * @return String containing formatted diagnostic report
+   */
+  TSTRING getDiagnosticReport() {
+    TSTRING report = "=== painlessMesh Diagnostics ===\n";
+    
+    // Node info
+    auto status = this->getBridgeStatus();
+    report += "Node ID: " + TSTRING(std::to_string(this->nodeId).c_str()) + "\n";
+    report += "Mode: " + status.role + "\n";
+    
+    // Mesh info
+    auto nodeList = this->getNodeList(true);
+    report += "Mesh Nodes: " + TSTRING(std::to_string(nodeList.size()).c_str()) + "\n";
+    
+    // Bridge info
+    if (status.isBridge) {
+      report += "Bridge: " + TSTRING(std::to_string(this->nodeId).c_str()) + " (this node)\n";
+    } else {
+      auto primaryBridge = this->getPrimaryBridge();
+      if (primaryBridge != nullptr) {
+        report += "Bridge: " + TSTRING(std::to_string(primaryBridge->nodeId).c_str());
+        report += " (RSSI: " + TSTRING(std::to_string(primaryBridge->routerRSSI).c_str()) + " dBm";
+        report += ", Internet: " + TSTRING(primaryBridge->internetConnected ? "✓" : "✗") + ")\n";
+      } else {
+        report += "Bridge: None available\n";
+      }
+    }
+    
+    // Connection info
+    report += "Direct Connections: " + TSTRING(std::to_string(this->subs.size()).c_str()) + "\n";
+    
+    // Health metrics
+    auto metrics = this->getBridgeHealthMetrics();
+    report += "Messages RX: " + TSTRING(std::to_string(metrics.messagesRx).c_str()) + "\n";
+    report += "Messages TX: " + TSTRING(std::to_string(metrics.messagesTx).c_str()) + "\n";
+    report += "Messages Dropped: " + TSTRING(std::to_string(metrics.messagesDropped).c_str()) + "\n";
+    
+    if (metrics.avgLatencyMs > 0) {
+      report += "Avg Latency: " + TSTRING(std::to_string(metrics.avgLatencyMs).c_str()) + " ms\n";
+    }
+    
+    // Uptime
+    uint32_t uptimeSeconds = millis() / 1000;
+    uint32_t hours = uptimeSeconds / 3600;
+    uint32_t minutes = (uptimeSeconds % 3600) / 60;
+    uint32_t seconds = uptimeSeconds % 60;
+    
+    char uptimeStr[32];
+    snprintf(uptimeStr, sizeof(uptimeStr), "%02u:%02u:%02u", hours, minutes, seconds);
+    report += "Uptime: " + TSTRING(uptimeStr) + "\n";
+    
+    // Election info
+    if (diagnosticsEnabled && !electionHistory.empty()) {
+      auto& lastElection = electionHistory.back();
+      uint32_t timeSinceElection = millis() - lastElection.timestamp;
+      uint32_t electionMinutes = (timeSinceElection / 1000) / 60;
+      uint32_t electionSeconds = (timeSinceElection / 1000) % 60;
+      
+      char electionTimeStr[32];
+      snprintf(electionTimeStr, sizeof(electionTimeStr), "%02u:%02u", electionMinutes, electionSeconds);
+      
+      report += "Last Election: " + TSTRING(electionTimeStr) + " ago";
+      report += " (Winner: " + TSTRING(std::to_string(lastElection.winnerNodeId).c_str());
+      report += ", " + TSTRING(std::to_string(lastElection.candidateCount).c_str()) + " candidates)\n";
+    }
+    
+    report += "================================\n";
+    return report;
+  }
+
   inline std::shared_ptr<Task> addTask(unsigned long aInterval,
                                        long aIterations,
                                        std::function<void()> aCallback) {
@@ -1184,6 +1669,13 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
   // RTC management
   rtc::RTCManager rtcManager;
+
+  // Diagnostics tracking
+  bool diagnosticsEnabled = false;
+  std::vector<ElectionRecord> electionHistory;
+  static const size_t MAX_ELECTION_HISTORY = 10;
+  BridgeChangeEvent lastBridgeChange;
+  uint32_t lastBridgeChangeTime = 0;
 
   friend T;
   friend void onDataCb(void *, AsyncClient *, void *, size_t);
