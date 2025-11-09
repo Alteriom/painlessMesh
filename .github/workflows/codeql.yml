@@ -45,6 +45,8 @@ jobs:
           languages: ${{ matrix.language }}
           # Focus on security queries for Arduino/embedded code
           queries: security-extended
+          # Use build-mode: none for Arduino libraries (no build required)
+          build-mode: none
       
       # For Arduino libraries, we analyze source without building
       # since the build requires Arduino framework and platform-specific setup
