@@ -1327,6 +1327,57 @@ class BridgeTakeoverPackage : public painlessmesh::plugin::BroadcastPackage {
 #endif
 };
 
+/**
+ * @brief NTP time synchronization package (Type 614 - TIME_SYNC_NTP)
+ *
+ * Broadcast by bridge nodes to distribute authoritative NTP time to the mesh.
+ * When a bridge has Internet connectivity, it can provide NTP time to improve
+ * accuracy across the entire mesh network.
+ *
+ * Regular nodes should:
+ * 1. Accept time from bridge nodes (verify sender is bridge)
+ * 2. Update local time with mesh.setTimeFromNTP(ntpTime)
+ * 3. Optionally sync RTC modules if available
+ *
+ * Type ID 614 for TIME_SYNC_NTP.
+ */
+class NTPTimeSyncPackage : public painlessmesh::plugin::BroadcastPackage {
+ public:
+  uint32_t ntpTime = 0;     // Unix timestamp from NTP server
+  uint16_t accuracy = 0;    // Milliseconds uncertainty/precision
+  TSTRING source = "";      // NTP server source (e.g., "pool.ntp.org")
+  uint32_t timestamp = 0;   // Collection timestamp
+
+  // MQTT Schema message_type
+  uint16_t messageType = 614;  // TIME_SYNC_NTP
+
+  NTPTimeSyncPackage() : BroadcastPackage(614) {}
+
+  NTPTimeSyncPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    ntpTime = jsonObj["ntpTime"];
+    accuracy = jsonObj["accuracy"];
+    source = jsonObj["source"].as<TSTRING>();
+    timestamp = jsonObj["timestamp"];
+    messageType = jsonObj["message_type"] | 614;
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    jsonObj["ntpTime"] = ntpTime;
+    jsonObj["accuracy"] = accuracy;
+    jsonObj["source"] = source;
+    jsonObj["timestamp"] = timestamp;
+    jsonObj["message_type"] = messageType;
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    return JSON_OBJECT_SIZE(noJsonFields + 5) + source.length();
+  }
+#endif
+};
+
 }  // namespace alteriom
 
 #endif  // ALTERIOM_SENSOR_PACKAGE_HPP
