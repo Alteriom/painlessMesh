@@ -1374,8 +1374,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       if (conn->connected()) {
         dot += "  \"" + std::to_string(this->nodeId) + "\" -> \"" + std::to_string(conn->nodeId) + "\"";
         
-        // Add edge labels with connection quality
-        int quality = conn->getQuality();
+        // Add edge labels with latency
         int latency = conn->getLatency();
         if (latency >= 0) {
           dot += " [label=\"" + std::to_string(latency) + "ms\"]";
