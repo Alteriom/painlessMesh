@@ -8,12 +8,18 @@ on:
       - 'LICENSE'
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
-# Use github.head_ref for PRs (branch name) and github.ref for push events
+# For PRs, use PR number to ensure uniqueness
+# For pushes, use the full ref
+# This ensures only one workflow runs per PR or push
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -195,7 +201,7 @@ jobs:
     needs: [build-test-desktop, build-arduino, build-platformio, code-quality]
     if: always()
     steps:
-      - name: Summary
+      - name: Check job results
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- Desktop Build & Test: ${{ needs.build-test-desktop.result }}" >> $GITHUB_STEP_SUMMARY
@@ -204,13 +210,14 @@ jobs:
           echo "- Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [[ "${{ needs.build-test-desktop.result }}" == "success" && \
-                "${{ needs.build-arduino.result }}" == "success" && \
-                "${{ needs.build-platformio.result }}" == "success" && \
-                "${{ needs.code-quality.result }}" == "success" ]]; then
-            echo "✅ **All builds and tests passed!**" >> $GITHUB_STEP_SUMMARY
-            exit 0
-          else
+          # Check if any job failed or was cancelled
+          if [[ "${{ needs.build-test-desktop.result }}" != "success" ]] || \
+             [[ "${{ needs.build-arduino.result }}" != "success" ]] || \
+             [[ "${{ needs.build-platformio.result }}" != "success" ]] || \
+             [[ "${{ needs.code-quality.result }}" != "success" ]]; then
             echo "❌ **Some builds or tests failed**" >> $GITHUB_STEP_SUMMARY
+            echo "::error::One or more CI jobs failed. Check the individual job logs for details."
             exit 1
           fi
+          
+          echo "✅ **All builds and tests passed!**" >> $GITHUB_STEP_SUMMARY

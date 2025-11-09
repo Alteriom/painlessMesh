@@ -53,6 +53,39 @@ public:
 };
 
 /**
+ * Bridge Health Metrics structure
+ * 
+ * Comprehensive metrics for monitoring bridge health, connectivity quality,
+ * and performance. Useful for troubleshooting and capacity planning.
+ */
+struct BridgeHealthMetrics {
+  // Connectivity
+  uint32_t uptimeSeconds = 0;
+  uint32_t internetUptimeSeconds = 0;
+  uint32_t totalDisconnects = 0;
+  uint32_t currentUptime = 0;
+  
+  // Signal Quality
+  int8_t currentRSSI = 0;
+  int8_t avgRSSI = 0;
+  int8_t minRSSI = 0;
+  int8_t maxRSSI = -127;
+  
+  // Traffic
+  uint64_t bytesRx = 0;
+  uint64_t bytesTx = 0;
+  uint32_t messagesRx = 0;
+  uint32_t messagesTx = 0;
+  uint32_t messagesQueued = 0;
+  uint32_t messagesDropped = 0;
+  
+  // Performance
+  uint32_t avgLatencyMs = 0;
+  uint8_t packetLossPercent = 0;
+  uint32_t meshNodeCount = 0;
+};
+
+/**
  * Main api class for the mesh
  *
  * Brings all the functions together except for the WiFi functions
@@ -116,6 +149,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     this->droppedConnectionCallbacks.push_back([this](uint32_t nodeId,
                                                       bool station) {
       Log(MESH_STATUS, "Dropped connection %u, station %d\n", nodeId, station);
+      this->metricsDisconnectCount++;
       this->eraseClosedConnections();
     });
     this->newConnectionCallbacks.push_back([](uint32_t nodeId) {
@@ -807,6 +841,234 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return table;
   }
 
+  /**
+   * Get bridge health metrics
+   * 
+   * Collects comprehensive health metrics including connectivity, signal quality,
+   * traffic, and performance data. Useful for monitoring and troubleshooting.
+   * 
+   * \code
+   * auto metrics = mesh.getBridgeHealthMetrics();
+   * Serial.printf("Uptime: %u s, Messages RX: %u, Avg Latency: %u ms\n",
+   *               metrics.uptimeSeconds, metrics.messagesRx, metrics.avgLatencyMs);
+   * \endcode
+   * 
+   * @return BridgeHealthMetrics structure with current metrics
+   */
+  BridgeHealthMetrics getBridgeHealthMetrics() {
+    BridgeHealthMetrics metrics;
+    
+    // Connectivity metrics
+    metrics.uptimeSeconds = millis() / 1000;
+    metrics.currentUptime = millis();
+    
+    // Check for primary bridge with Internet connection
+    auto primaryBridge = getPrimaryBridge();
+    if (primaryBridge != nullptr) {
+      metrics.internetUptimeSeconds = (millis() - primaryBridge->lastSeen) / 1000;
+      metrics.currentRSSI = primaryBridge->routerRSSI;
+    }
+    
+    // Aggregate traffic and performance from all connections
+    uint64_t totalBytesRx = 0;
+    uint64_t totalBytesTx = 0;
+    uint32_t totalMessagesRx = 0;
+    uint32_t totalMessagesTx = 0;
+    uint32_t totalMessagesDropped = 0;
+    uint32_t totalLatency = 0;
+    uint32_t latencySampleCount = 0;
+    int8_t sumRSSI = 0;
+    int8_t minRSSI = 0;
+    int8_t maxRSSI = -127;
+    uint32_t rssiCount = 0;
+    
+    for (auto conn : this->subs) {
+      if (conn->connected()) {
+        totalBytesRx += conn->bytesRx;
+        totalBytesTx += conn->bytesTx;
+        totalMessagesRx += conn->messagesRx;
+        totalMessagesTx += conn->messagesTx;
+        totalMessagesDropped += conn->messagesDropped;
+        
+        // Latency
+        int latency = conn->getLatency();
+        if (latency >= 0) {
+          totalLatency += latency;
+          latencySampleCount++;
+        }
+        
+        // RSSI
+        int rssi = conn->getRSSI();
+        if (rssi != 0) {
+          sumRSSI += rssi;
+          rssiCount++;
+          if (rssi < minRSSI || minRSSI == 0) minRSSI = rssi;
+          if (rssi > maxRSSI) maxRSSI = rssi;
+        }
+      }
+    }
+    
+    // Set traffic metrics
+    metrics.bytesRx = totalBytesRx;
+    metrics.bytesTx = totalBytesTx;
+    metrics.messagesRx = totalMessagesRx;
+    metrics.messagesTx = totalMessagesTx;
+    metrics.messagesDropped = totalMessagesDropped;
+    
+    // Calculate averages
+    if (latencySampleCount > 0) {
+      metrics.avgLatencyMs = totalLatency / latencySampleCount;
+    }
+    
+    if (rssiCount > 0) {
+      metrics.avgRSSI = sumRSSI / rssiCount;
+      metrics.minRSSI = minRSSI;
+      metrics.maxRSSI = maxRSSI;
+    }
+    
+    // Calculate packet loss percentage
+    uint32_t totalAttempted = totalMessagesTx + totalMessagesDropped;
+    if (totalAttempted > 0) {
+      metrics.packetLossPercent = (totalMessagesDropped * 100) / totalAttempted;
+    }
+    
+    // Mesh node count
+    metrics.meshNodeCount = this->getNodeList(true).size();
+    
+    // Track disconnects (stored in protected member)
+    metrics.totalDisconnects = metricsDisconnectCount;
+    
+    return metrics;
+  }
+
+  /**
+   * Reset health metrics counters
+   * 
+   * Resets all counters to zero but keeps current state metrics (RSSI, node count, etc.)
+   * Useful for periodic monitoring windows.
+   * 
+   * \code
+   * // Reset metrics at the start of each monitoring period
+   * mesh.resetHealthMetrics();
+   * \endcode
+   */
+  void resetHealthMetrics() {
+    using namespace logger;
+    Log(GENERAL, "resetHealthMetrics(): Resetting all metric counters\n");
+    
+    // Reset connection metrics
+    for (auto conn : this->subs) {
+      if (conn->connected()) {
+        conn->messagesRx = 0;
+        conn->messagesTx = 0;
+        conn->messagesDropped = 0;
+        conn->bytesRx = 0;
+        conn->bytesTx = 0;
+        conn->latencySamples.clear();
+      }
+    }
+    
+    // Reset disconnect counter
+    metricsDisconnectCount = 0;
+  }
+
+  /**
+   * Export health metrics as JSON string
+   * 
+   * Generates a JSON representation of current health metrics for easy integration
+   * with monitoring tools, MQTT publishing, or logging.
+   * 
+   * \code
+   * String json = mesh.getHealthMetricsJSON();
+   * mqttClient.publish("bridge/metrics", json.c_str());
+   * \endcode
+   * 
+   * @return JSON string containing all health metrics
+   */
+  TSTRING getHealthMetricsJSON() {
+    auto metrics = getBridgeHealthMetrics();
+    
+    TSTRING json = "{";
+    json += "\"connectivity\":{";
+    json += "\"uptimeSeconds\":";
+    json += std::to_string(metrics.uptimeSeconds);
+    json += ",\"internetUptimeSeconds\":";
+    json += std::to_string(metrics.internetUptimeSeconds);
+    json += ",\"totalDisconnects\":";
+    json += std::to_string(metrics.totalDisconnects);
+    json += ",\"currentUptime\":";
+    json += std::to_string(metrics.currentUptime);
+    json += "},";
+    
+    json += "\"signalQuality\":{";
+    json += "\"currentRSSI\":";
+    json += std::to_string(metrics.currentRSSI);
+    json += ",\"avgRSSI\":";
+    json += std::to_string(metrics.avgRSSI);
+    json += ",\"minRSSI\":";
+    json += std::to_string(metrics.minRSSI);
+    json += ",\"maxRSSI\":";
+    json += std::to_string(metrics.maxRSSI);
+    json += "},";
+    
+    json += "\"traffic\":{";
+    json += "\"bytesRx\":";
+    json += std::to_string(metrics.bytesRx);
+    json += ",\"bytesTx\":";
+    json += std::to_string(metrics.bytesTx);
+    json += ",\"messagesRx\":";
+    json += std::to_string(metrics.messagesRx);
+    json += ",\"messagesTx\":";
+    json += std::to_string(metrics.messagesTx);
+    json += ",\"messagesQueued\":";
+    json += std::to_string(metrics.messagesQueued);
+    json += ",\"messagesDropped\":";
+    json += std::to_string(metrics.messagesDropped);
+    json += "},";
+    
+    json += "\"performance\":{";
+    json += "\"avgLatencyMs\":";
+    json += std::to_string(metrics.avgLatencyMs);
+    json += ",\"packetLossPercent\":";
+    json += std::to_string(metrics.packetLossPercent);
+    json += ",\"meshNodeCount\":";
+    json += std::to_string(metrics.meshNodeCount);
+    json += "}";
+    
+    json += "}";
+    return json;
+  }
+
+  /**
+   * Set periodic health metrics callback
+   * 
+   * Registers a callback that will be invoked periodically with current health metrics.
+   * Useful for automated monitoring, MQTT publishing, or Prometheus export.
+   * 
+   * \code
+   * mesh.onHealthMetricsUpdate([](BridgeHealthMetrics metrics) {
+   *   String json = mesh.getHealthMetricsJSON();
+   *   mqttClient.publish("bridge/metrics", json.c_str());
+   * }, 60000);  // Every 60 seconds
+   * \endcode
+   * 
+   * @param callback Function to call with metrics
+   * @param intervalMs Callback interval in milliseconds (default: 60000 = 60 seconds)
+   */
+  void onHealthMetricsUpdate(std::function<void(BridgeHealthMetrics)> callback, 
+                             uint32_t intervalMs = 60000) {
+    using namespace logger;
+    Log(GENERAL, "onHealthMetricsUpdate(): Setting up periodic callback every %u ms\n", intervalMs);
+    
+    // Create a task that periodically collects and reports metrics
+    auto metricsTask = this->addTask(intervalMs, TASK_FOREVER, [this, callback]() {
+      auto metrics = this->getBridgeHealthMetrics();
+      callback(metrics);
+    });
+    
+    metricsTask->enable();
+  }
+
   inline std::shared_ptr<Task> addTask(unsigned long aInterval,
                                        long aIterations,
                                        std::function<void()> aCallback) {
@@ -917,6 +1179,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   uint32_t bridgeTimeoutMs = 60000;         // Default 60 seconds
   bool bridgeStatusBroadcastEnabled = true;
 
+  // Health metrics tracking
+  uint32_t metricsDisconnectCount = 0;
+
   // RTC management
   rtc::RTCManager rtcManager;
 
@@ -951,6 +1216,8 @@ class Connection : public painlessmesh::layout::Neighbour,
   uint32_t messagesTx = 0;
   uint32_t messagesDropped = 0;
   uint32_t timeLastReceived = 0;
+  uint64_t bytesRx = 0;
+  uint64_t bytesTx = 0;
   
   // Latency tracking (rolling window)
   std::vector<uint32_t> latencySamples;
@@ -1022,19 +1289,21 @@ class Connection : public painlessmesh::layout::Neighbour,
   }
 
   /**
-   * Record message received timestamp
+   * Record message received timestamp and bytes
    */
-  void onMessageReceived() {
+  void onMessageReceived(size_t bytes = 0) {
     messagesRx++;
+    bytesRx += bytes;
     timeLastReceived = millis();
   }
 
   /**
-   * Record message sent
+   * Record message sent and bytes
    */
-  void onMessageSent(bool success) {
+  void onMessageSent(bool success, size_t bytes = 0) {
     if (success) {
       messagesTx++;
+      bytesTx += bytes;
     } else {
       messagesDropped++;
     }
