@@ -7,7 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2025-11-09
+
 ### Added
+
+- **Diagnostics API for Bridge Operations** - Comprehensive monitoring and debugging tools
+  - New diagnostic methods for bridge state, topology, and connectivity
+  - Election history tracking with detailed event logging
+  - Network topology visualization with neighbor information
+  - Connectivity testing and validation tools
+  - Comprehensive diagnostic report generation
+  - Minimal overhead when diagnostics enabled
+  - Examples: `examples/diagnostics/` directory
+  - Documentation: `DIAGNOSTICS_API.md`
+
+- **Bridge Health Monitoring & Metrics Collection** - Real-time bridge performance metrics
+  - New `BridgeHealthMetrics` struct with connectivity, signal, traffic, and performance data
+  - Four API methods: `getBridgeHealthMetrics()`, `resetHealthMetrics()`, `getHealthMetricsJSON()`, `onHealthMetricsUpdate()`
+  - Automatic tracking of uptime, disconnects, RSSI, traffic bytes, latency, and packet loss
+  - JSON export for integration with MQTT, Prometheus, Grafana, CloudWatch
+  - Periodic callback support for automated monitoring
+  - Zero overhead when not used
+  - Comprehensive unit tests (63 assertions)
+  - Example: `examples/bridge/bridge_health_monitoring_example.ino`
+  - Documentation: `docs/BRIDGE_HEALTH_MONITORING.md`
+
+- **RTC (Real-Time Clock) Integration** - Hardware RTC support for offline timekeeping
+  - Support for DS3231, DS1307, and PCF8523 RTC modules
+  - Automatic time persistence across reboots and power failures
+  - Seamless integration with NTP time sync
+  - Comprehensive unit tests for RTC functionality
+  - Example sketches demonstrating RTC usage
+
+- **Bridge Status Broadcast & Callback (Type 610)** - Real-time Internet connectivity monitoring
+  - Bridge nodes automatically broadcast connectivity status every 30 seconds
+  - New `onBridgeStatusChanged()` callback for connectivity state changes
+  - API methods: `hasInternetConnection()`, `getPrimaryBridge()`, `getBridges()`, `isBridge()`
+  - Status includes Internet connectivity, router RSSI, channel, uptime, gateway IP
+  - Enable offline mode and message queueing when Internet unavailable
+  - Support for bridge failover scenarios
+  - Documentation: `BRIDGE_STATUS_FEATURE.md`
+
+- **Automatic Bridge Failover with RSSI-Based Election (Types 611, 612)** - High-availability bridge management
+  - Distributed bridge election protocol when primary bridge fails
+  - RSSI-based node selection for optimal bridge placement
+  - New `BridgeElectionPackage` (Type 611) for election coordination
+  - New `BridgeTakeoverPackage` (Type 612) for bridge transition announcements
+  - API methods: `enableBridgeFailover()`, `setRouterCredentials()`, `onBridgeRoleChanged()`
+  - Automatic promotion of best-positioned node to bridge role
+  - Tiebreaker rules: uptime, free memory, node ID
+  - Split-brain prevention and oscillation protection
+  - Graceful handling of multiple sequential failures
+  - Critical for production high-availability systems (Issue #64)
 
 - **NTP Time Synchronization (Type 614)** - Bridge-to-mesh NTP time distribution
   - New `NTPTimeSyncPackage` for broadcasting NTP time from bridge nodes

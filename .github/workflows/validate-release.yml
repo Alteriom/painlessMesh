@@ -1,18 +1,21 @@
 name: Validate Release
 
 on:
-  # Run after CI pipeline completes successfully, but only for main/develop branches
-  workflow_run:
-    workflows: ["CI/CD Pipeline"]
-    types: [completed]
+  # Run after CI pipeline completes successfully on push to main/develop only
+  # Note: Do NOT trigger on pull_request events
+  push:
     branches: [ main, develop ]
-  # Allow manual trigger
-  workflow_dispatch: {}
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to validate'
+        required: false
+        default: 'main'
 
 # Prevent duplicate runs for the same workflow
-# Use head_branch from workflow_run event to properly track branch-specific runs
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -22,14 +25,11 @@ jobs:
   validate:
     name: Release Validation
     runs-on: ubuntu-latest
-    # Only run if CI passed or on manual trigger, and only on main/develop branches
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'develop')) }}
+    # Runs on push to main/develop or manual trigger
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # When triggered by workflow_run, checkout the PR head
-          ref: ${{ github.event.workflow_run.head_branch || github.ref }}
           fetch-depth: 0
           submodules: recursive
 
