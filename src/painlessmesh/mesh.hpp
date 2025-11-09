@@ -10,6 +10,7 @@
 #include "painlessmesh/ntp.hpp"
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
+#include "painlessmesh/rtc.hpp"
 #include "painlessmesh/tcp.hpp"
 
 #ifdef PAINLESSMESH_ENABLE_OTA
@@ -24,6 +25,7 @@ typedef std::function<void()> changedConnectionsCallback_t;
 typedef std::function<void(int32_t offset)> nodeTimeAdjustedCallback_t;
 typedef std::function<void(uint32_t nodeId, int32_t delay)> nodeDelayCallback_t;
 typedef std::function<void(uint32_t bridgeNodeId, bool internetAvailable)> bridgeStatusChangedCallback_t;
+typedef std::function<void(uint32_t timestamp)> rtcSyncCompleteCallback_t;
 
 /**
  * Bridge information structure
@@ -554,6 +556,142 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
   /**
+   * Enable RTC integration for offline timekeeping
+   * 
+   * Allows nodes to maintain accurate timestamps even when Internet/bridge
+   * is unavailable. User must provide an implementation of RTCInterface
+   * for their specific RTC hardware.
+   * 
+   * \code
+   * // Example with DS3231 RTC
+   * class MyRTC : public painlessmesh::rtc::RTCInterface {
+   *   // ... implement interface methods ...
+   * };
+   * MyRTC myRTC;
+   * mesh.enableRTC(&myRTC);
+   * \endcode
+   * 
+   * @param rtcInterface Pointer to user's RTC implementation
+   * @return true if RTC enabled successfully, false otherwise
+   */
+  bool enableRTC(rtc::RTCInterface* rtcInterface) {
+    using namespace logger;
+    Log(GENERAL, "enableRTC(): Initializing RTC\n");
+    return rtcManager.enable(rtcInterface);
+  }
+
+  /**
+   * Disable RTC integration
+   */
+  void disableRTC() {
+    using namespace logger;
+    Log(GENERAL, "disableRTC(): Disabling RTC\n");
+    rtcManager.disable();
+  }
+
+  /**
+   * Sync RTC from NTP/Internet time source
+   * 
+   * Should be called when Internet connection is available to update
+   * the RTC with accurate time. Typically called in onBridgeStatusChanged
+   * callback when Internet becomes available.
+   * 
+   * \code
+   * mesh.onBridgeStatusChanged([](auto bridgeNodeId, auto hasInternet) {
+   *   if (hasInternet) {
+   *     // Get NTP time and sync RTC
+   *     uint32_t ntpTime = getNTPTime();  // User implements this
+   *     if (mesh.syncRTCFromNTP(ntpTime)) {
+   *       Serial.println("RTC synced successfully");
+   *     }
+   *   }
+   * });
+   * \endcode
+   * 
+   * @param ntpTimestamp Unix timestamp from NTP source
+   * @return true if sync successful, false otherwise
+   */
+  bool syncRTCFromNTP(uint32_t ntpTimestamp) {
+    using namespace logger;
+    Log(GENERAL, "syncRTCFromNTP(): Syncing RTC to timestamp %u\n", ntpTimestamp);
+    
+    if (!rtcManager.isEnabled()) {
+      Log(ERROR, "syncRTCFromNTP(): RTC not enabled\n");
+      return false;
+    }
+    
+    bool success = rtcManager.syncFromNTP(ntpTimestamp);
+    
+    if (success && rtcSyncCompleteCallback) {
+      rtcSyncCompleteCallback(ntpTimestamp);
+    }
+    
+    return success;
+  }
+
+  /**
+   * Get accurate time with RTC fallback
+   * 
+   * Returns time from RTC if available, otherwise falls back to mesh time.
+   * This provides the most accurate timestamp available to the node.
+   * 
+   * @return Unix timestamp in seconds, or mesh time in microseconds if RTC unavailable
+   */
+  uint32_t getAccurateTime() {
+    if (rtcManager.isEnabled()) {
+      uint32_t rtcTime = rtcManager.getTime();
+      if (rtcTime > 0) {
+        return rtcTime;
+      }
+    }
+    // Fallback to mesh time (microseconds)
+    return this->getNodeTime();
+  }
+
+  /**
+   * Check if RTC is enabled and available
+   * 
+   * @return true if RTC can be used, false otherwise
+   */
+  bool hasRTC() const {
+    return rtcManager.isEnabled();
+  }
+
+  /**
+   * Get RTC type
+   * 
+   * @return RTCType enum value, or RTC_NONE if no RTC enabled
+   */
+  rtc::RTCType getRTCType() const {
+    return rtcManager.getType();
+  }
+
+  /**
+   * Get time since last RTC sync
+   * 
+   * @return Milliseconds since last RTC sync, or 0 if never synced
+   */
+  uint32_t getTimeSinceRTCSync() const {
+    return rtcManager.getTimeSinceLastSync();
+  }
+
+  /**
+   * Callback when RTC sync completes
+   * 
+   * This fires when syncRTCFromNTP() successfully updates the RTC.
+   * 
+   * \code
+   * mesh.onRTCSyncComplete([](auto timestamp) {
+   *   Serial.printf("RTC synced to: %u\n", timestamp);
+   * });
+   * \endcode
+   */
+  void onRTCSyncComplete(rtcSyncCompleteCallback_t onRTCSyncComplete) {
+    Log(logger::GENERAL, "onRTCSyncComplete():\n");
+    rtcSyncCompleteCallback = onRTCSyncComplete;
+  }
+
+  /**
    * Are we connected/know a route to the given node?
    *
    * @param nodeId The nodeId we are looking for
@@ -735,6 +873,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   nodeTimeAdjustedCallback_t nodeTimeAdjustedCallback;
   nodeDelayCallback_t nodeDelayReceivedCallback;
   bridgeStatusChangedCallback_t bridgeStatusChangedCallback;
+  rtcSyncCompleteCallback_t rtcSyncCompleteCallback;
 #ifdef ESP32
   SemaphoreHandle_t xSemaphore = NULL;
 #endif
@@ -777,6 +916,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   uint32_t bridgeStatusIntervalMs = 30000;  // Default 30 seconds
   uint32_t bridgeTimeoutMs = 60000;         // Default 60 seconds
   bool bridgeStatusBroadcastEnabled = true;
+
+  // RTC management
+  rtc::RTCManager rtcManager;
 
   friend T;
   friend void onDataCb(void *, AsyncClient *, void *, size_t);
