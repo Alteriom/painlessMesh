@@ -81,6 +81,72 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->init(nodeId);
 
+    // Add bridge election package handler (Type 611)
+    this->callbackList.onPackage(
+        611,  // BRIDGE_ELECTION type
+        [this](protocol::Variant& variant, std::shared_ptr<Connection>, uint32_t) {
+          JsonDocument doc;
+          TSTRING str;
+          variant.printTo(str);
+          deserializeJson(doc, str);
+          JsonObject obj = doc.as<JsonObject>();
+          
+          if (obj["routerRSSI"].is<int>()) {
+            uint32_t fromNode = obj["from"];
+            int8_t routerRSSI = obj["routerRSSI"];
+            uint32_t uptime = obj["uptime"] | 0;
+            uint32_t freeMemory = obj["freeMemory"] | 0;
+            
+            this->handleBridgeElection(fromNode, routerRSSI, uptime, freeMemory);
+            
+            Log(CONNECTION, "Bridge election candidate from %u: RSSI %d dBm\n",
+                fromNode, routerRSSI);
+          }
+          return false;  // Don't consume the package
+        });
+
+    // Add bridge takeover package handler (Type 612)
+    this->callbackList.onPackage(
+        612,  // BRIDGE_TAKEOVER type
+        [this](protocol::Variant& variant, std::shared_ptr<Connection>, uint32_t) {
+          JsonDocument doc;
+          TSTRING str;
+          variant.printTo(str);
+          deserializeJson(doc, str);
+          JsonObject obj = doc.as<JsonObject>();
+          
+          if (obj["previousBridge"].is<unsigned int>()) {
+            uint32_t newBridge = obj["from"];
+            uint32_t previousBridge = obj["previousBridge"];
+            TSTRING reason = obj["reason"].as<TSTRING>();
+            
+            Log(CONNECTION, "Bridge takeover: Node %u replaced %u (%s)\n",
+                newBridge, previousBridge, reason.c_str());
+                
+            // Notify callback if this node was not the winner
+            if (newBridge != this->nodeId && bridgeRoleChangedCallback) {
+              bridgeRoleChangedCallback(false, "Another node won election");
+            }
+          }
+          return false;  // Don't consume the package
+        });
+
+    // Add callback to detect bridge failures and trigger elections
+    this->onBridgeStatusChanged([this](uint32_t bridgeNodeId, bool hasInternet) {
+      if (!hasInternet && bridgeFailoverEnabled && routerCredentialsConfigured) {
+        Log(CONNECTION, "Bridge %u lost Internet, considering election...\n", bridgeNodeId);
+        
+        // Check if we still have any healthy bridges
+        if (!this->hasInternetConnection()) {
+          Log(CONNECTION, "No healthy bridges, starting election\n");
+          // Small delay to let all nodes detect the failure
+          this->addTask(2000, TASK_ONCE, [this]() {
+            this->startBridgeElection();
+          });
+        }
+      }
+    });
+
     tcpServerInit();
     eventHandleInit();
 
@@ -306,6 +372,52 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   IPAddress getStationIP() { return WiFi.localIP(); }
   IPAddress getAPIP() { return _apIp; }
 
+  /**
+   * Enable or disable automatic bridge failover
+   * 
+   * When enabled, nodes will participate in bridge elections if the primary
+   * bridge goes offline and they have router credentials configured.
+   * 
+   * @param enabled true to enable automatic failover (default), false to disable
+   */
+  void enableBridgeFailover(bool enabled) {
+    bridgeFailoverEnabled = enabled;
+  }
+
+  /**
+   * Set router credentials for bridge election participation
+   * 
+   * Nodes must have router credentials configured to participate in bridge
+   * elections. When a bridge fails, only nodes with credentials can become
+   * the new bridge.
+   * 
+   * @param ssid Router SSID
+   * @param password Router password
+   */
+  void setRouterCredentials(TSTRING ssid, TSTRING password) {
+    routerSSID = ssid;
+    routerPassword = password;
+    routerCredentialsConfigured = true;
+  }
+
+  /**
+   * Set the election timeout (how long to collect candidates)
+   * 
+   * @param timeoutMs Timeout in milliseconds (default: 5000 = 5 seconds)
+   */
+  void setElectionTimeout(uint32_t timeoutMs) {
+    electionTimeoutMs = timeoutMs;
+  }
+
+  /**
+   * Set callback for when this node's bridge role changes
+   * 
+   * @param callback Function to call when role changes
+   */
+  void onBridgeRoleChanged(std::function<void(bool isBridge, TSTRING reason)> callback) {
+    bridgeRoleChangedCallback = callback;
+  }
+
   void stop() {
     // remove all WiFi events
 #ifdef ESP32
@@ -384,6 +496,264 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     Log(STARTUP, "Bridge status broadcast enabled (interval: %d ms)\n", 
         this->bridgeStatusIntervalMs);
+  }
+
+  /**
+   * Scan for router and return its signal strength
+   * 
+   * @param routerSSID SSID of router to scan for
+   * @return RSSI in dBm (negative number, -127 to 0), or 0 if not found
+   */
+  int8_t scanRouterSignalStrength(TSTRING routerSSID) {
+    using namespace logger;
+    Log(CONNECTION, "scanRouterSignalStrength(): Scanning for %s...\n", routerSSID.c_str());
+    
+    int n = WiFi.scanNetworks(false, false);
+    Log(CONNECTION, "scanRouterSignalStrength(): Found %d networks\n", n);
+    
+    for (int i = 0; i < n; i++) {
+      if (WiFi.SSID(i) == routerSSID) {
+        int8_t rssi = WiFi.RSSI(i);
+        Log(CONNECTION, "scanRouterSignalStrength(): Found %s with RSSI %d dBm\n", 
+            routerSSID.c_str(), rssi);
+        return rssi;
+      }
+    }
+    
+    Log(CONNECTION, "scanRouterSignalStrength(): Router %s not found\n", routerSSID.c_str());
+    return 0;  // Router not found
+  }
+
+  /**
+   * Start bridge election process
+   * Called when primary bridge failure is detected
+   */
+  void startBridgeElection() {
+    using namespace logger;
+    
+    if (!bridgeFailoverEnabled) {
+      Log(CONNECTION, "startBridgeElection(): Failover disabled\n");
+      return;
+    }
+    
+    if (!routerCredentialsConfigured) {
+      Log(CONNECTION, "startBridgeElection(): No router credentials, cannot participate\n");
+      return;
+    }
+    
+    if (electionState != ELECTION_IDLE) {
+      Log(CONNECTION, "startBridgeElection(): Election already in progress\n");
+      return;
+    }
+    
+    // Prevent rapid role changes
+    if (millis() - lastRoleChangeTime < 60000) {
+      Log(CONNECTION, "startBridgeElection(): Too soon after last role change\n");
+      return;
+    }
+    
+    Log(CONNECTION, "=== Bridge Election Started ===\n");
+    electionState = ELECTION_SCANNING;
+    
+    // Scan for router to get RSSI
+    int8_t routerRSSI = scanRouterSignalStrength(routerSSID);
+    
+    if (routerRSSI == 0) {
+      Log(CONNECTION, "startBridgeElection(): Router not visible, cannot participate\n");
+      electionState = ELECTION_IDLE;
+      return;
+    }
+    
+    Log(CONNECTION, "startBridgeElection(): My router RSSI: %d dBm\n", routerRSSI);
+    
+    // Clear previous candidates
+    electionCandidates.clear();
+    
+    // Add self as candidate
+    BridgeCandidate selfCandidate;
+    selfCandidate.nodeId = this->nodeId;
+    selfCandidate.routerRSSI = routerRSSI;
+    selfCandidate.uptime = millis();
+    selfCandidate.freeMemory = ESP.getFreeHeap();
+    electionCandidates.push_back(selfCandidate);
+    
+    // Broadcast candidacy using JSON directly (avoiding dependency on alteriom package)
+    DynamicJsonDocument doc(256);
+    JsonObject obj = doc.to<JsonObject>();
+    obj["type"] = 611;  // BRIDGE_ELECTION
+    obj["from"] = this->nodeId;
+    obj["routing"] = 2;  // BROADCAST
+    obj["routerRSSI"] = routerRSSI;
+    obj["uptime"] = millis();
+    obj["freeMemory"] = ESP.getFreeHeap();
+    obj["timestamp"] = this->getNodeTime();
+    obj["routerSSID"] = routerSSID;
+    obj["message_type"] = 611;
+    
+    String msg;
+    serializeJson(doc, msg);
+    this->sendBroadcast(msg);
+    
+    Log(CONNECTION, "startBridgeElection(): Candidacy broadcast sent\n");
+    
+    // Set election timeout
+    electionDeadline = millis() + electionTimeoutMs;
+    electionState = ELECTION_COLLECTING;
+    
+    // Schedule election evaluation
+    this->addTask(electionTimeoutMs + 100, TASK_ONCE, [this]() {
+      this->evaluateElection();
+    });
+  }
+
+  /**
+   * Evaluate election and determine winner
+   * Called after election timeout expires
+   */
+  void evaluateElection() {
+    using namespace logger;
+    
+    if (electionState != ELECTION_COLLECTING) {
+      Log(CONNECTION, "evaluateElection(): Not in collecting state\n");
+      return;
+    }
+    
+    Log(CONNECTION, "=== Evaluating Election ===\n");
+    Log(CONNECTION, "evaluateElection(): %d candidates\n", electionCandidates.size());
+    
+    // Find best candidate
+    BridgeCandidate* winner = nullptr;
+    int8_t bestRSSI = -127;  // Worst possible RSSI
+    
+    for (auto& candidate : electionCandidates) {
+      Log(CONNECTION, "evaluateElection(): Candidate %u: RSSI=%d, uptime=%u, mem=%u\n",
+          candidate.nodeId, candidate.routerRSSI, candidate.uptime, candidate.freeMemory);
+      
+      if (candidate.routerRSSI > bestRSSI) {
+        bestRSSI = candidate.routerRSSI;
+        winner = &candidate;
+      } else if (candidate.routerRSSI == bestRSSI && winner != nullptr) {
+        // Tiebreaker 1: Higher uptime
+        if (candidate.uptime > winner->uptime) {
+          winner = &candidate;
+        } else if (candidate.uptime == winner->uptime) {
+          // Tiebreaker 2: More free memory
+          if (candidate.freeMemory > winner->freeMemory) {
+            winner = &candidate;
+          } else if (candidate.freeMemory == winner->freeMemory) {
+            // Tiebreaker 3: Lower node ID (deterministic)
+            if (candidate.nodeId < winner->nodeId) {
+              winner = &candidate;
+            }
+          }
+        }
+      }
+    }
+    
+    if (winner == nullptr) {
+      Log(ERROR, "evaluateElection(): No winner found!\n");
+      electionState = ELECTION_IDLE;
+      return;
+    }
+    
+    Log(CONNECTION, "=== Election Winner: Node %u ===\n", winner->nodeId);
+    Log(CONNECTION, "  Router RSSI: %d dBm\n", winner->routerRSSI);
+    Log(CONNECTION, "  Uptime: %u ms\n", winner->uptime);
+    Log(CONNECTION, "  Free Memory: %u bytes\n", winner->freeMemory);
+    
+    if (winner->nodeId == this->nodeId) {
+      Log(CONNECTION, "🎯 I WON! Promoting to bridge...\n");
+      promoteToBridge();
+    } else {
+      Log(CONNECTION, "Winner is node %u, remaining as regular node\n", winner->nodeId);
+    }
+    
+    electionState = ELECTION_IDLE;
+    electionCandidates.clear();
+  }
+
+  /**
+   * Promote this node to bridge role
+   * Called when node wins election
+   */
+  void promoteToBridge() {
+    using namespace logger;
+    
+    Log(STARTUP, "=== Becoming Bridge Node ===\n");
+    
+    // Store previous bridge (if any)
+    auto primaryBridge = this->getPrimaryBridge();
+    uint32_t previousBridgeId = primaryBridge ? primaryBridge->nodeId : 0;
+    
+    // Reconfigure as bridge
+    this->stop();
+    delay(1000);
+    
+    this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                       mScheduler, _meshPort);
+    
+    lastRoleChangeTime = millis();
+    
+    Log(STARTUP, "✓ Bridge promotion complete\n");
+    
+    // Notify via callback
+    if (bridgeRoleChangedCallback) {
+      bridgeRoleChangedCallback(true, "Election winner - best router signal");
+    }
+    
+    // Broadcast takeover announcement
+    DynamicJsonDocument doc(256);
+    JsonObject obj = doc.to<JsonObject>();
+    obj["type"] = 612;  // BRIDGE_TAKEOVER
+    obj["from"] = this->nodeId;
+    obj["routing"] = 2;  // BROADCAST
+    obj["previousBridge"] = previousBridgeId;
+    obj["reason"] = "Election winner - best router signal";
+    obj["routerRSSI"] = WiFi.RSSI();
+    obj["timestamp"] = this->getNodeTime();
+    obj["message_type"] = 612;
+    
+    String msg;
+    serializeJson(doc, msg);
+    
+    // Small delay to ensure mesh is ready
+    delay(2000);
+    this->sendBroadcast(msg);
+    
+    Log(STARTUP, "✓ Takeover announcement sent\n");
+  }
+
+  /**
+   * Handle received bridge election package
+   * Called by package handler when election message arrives
+   */
+  void handleBridgeElection(uint32_t fromNode, int8_t routerRSSI, uint32_t uptime, 
+                            uint32_t freeMemory) {
+    using namespace logger;
+    
+    if (electionState != ELECTION_COLLECTING) {
+      Log(CONNECTION, "handleBridgeElection(): Not collecting candidates, ignoring\n");
+      return;
+    }
+    
+    // Check if candidate already exists
+    for (auto& candidate : electionCandidates) {
+      if (candidate.nodeId == fromNode) {
+        Log(CONNECTION, "handleBridgeElection(): Duplicate candidate from %u, ignoring\n", fromNode);
+        return;
+      }
+    }
+    
+    BridgeCandidate candidate;
+    candidate.nodeId = fromNode;
+    candidate.routerRSSI = routerRSSI;
+    candidate.uptime = uptime;
+    candidate.freeMemory = freeMemory;
+    
+    electionCandidates.push_back(candidate);
+    
+    Log(CONNECTION, "handleBridgeElection(): Added candidate %u (RSSI: %d dBm)\n",
+        fromNode, routerRSSI);
   }
 
   /**
@@ -523,6 +893,31 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 #endif  // ESP8266
   AsyncServer *_tcpListener;
   std::shared_ptr<Task> bridgeStatusTask;
+
+  // Bridge failover state and configuration
+  enum ElectionState {
+    ELECTION_IDLE,
+    ELECTION_SCANNING,
+    ELECTION_COLLECTING
+  };
+
+  struct BridgeCandidate {
+    uint32_t nodeId;
+    int8_t routerRSSI;
+    uint32_t uptime;
+    uint32_t freeMemory;
+  };
+
+  bool bridgeFailoverEnabled = true;
+  bool routerCredentialsConfigured = false;
+  TSTRING routerSSID = "";
+  TSTRING routerPassword = "";
+  uint32_t electionTimeoutMs = 5000;  // Default 5 seconds
+  uint32_t lastRoleChangeTime = 0;
+  ElectionState electionState = ELECTION_IDLE;
+  uint32_t electionDeadline = 0;
+  std::vector<BridgeCandidate> electionCandidates;
+  std::function<void(bool isBridge, TSTRING reason)> bridgeRoleChangedCallback;
 };
 }  // namespace wifi
 };  // namespace painlessmesh

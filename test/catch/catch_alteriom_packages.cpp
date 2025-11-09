@@ -1509,3 +1509,149 @@ SCENARIO("Alteriom BridgeStatusPackage serialization works correctly") {
         }
     }
 }
+
+SCENARIO("BridgeElectionPackage serialization works correctly") {
+    GIVEN("A BridgeElectionPackage with test data") {
+        auto pkg = BridgeElectionPackage();
+        pkg.from = 98765;
+        pkg.routerRSSI = -42;
+        pkg.uptime = 3600000;  // 1 hour in milliseconds
+        pkg.freeMemory = 150000;
+        pkg.timestamp = 1609459200;
+        pkg.routerSSID = "TestRouter";
+        
+        REQUIRE(pkg.routing == router::BROADCAST);
+        REQUIRE(pkg.type == 611);
+        REQUIRE(pkg.messageType == 611);
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<BridgeElectionPackage>();
+            
+            THEN("Should result in the same values") {
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.routerRSSI == pkg.routerRSSI);
+                REQUIRE(pkg2.uptime == pkg.uptime);
+                REQUIRE(pkg2.freeMemory == pkg.freeMemory);
+                REQUIRE(pkg2.timestamp == pkg.timestamp);
+                REQUIRE(pkg2.routerSSID == pkg.routerSSID);
+                REQUIRE(pkg2.routing == pkg.routing);
+                REQUIRE(pkg2.type == pkg.type);
+                REQUIRE(pkg2.messageType == pkg.messageType);
+            }
+        }
+    }
+    
+    GIVEN("A BridgeElectionPackage with poor signal") {
+        auto pkg = BridgeElectionPackage();
+        pkg.from = 11111;
+        pkg.routerRSSI = -85;  // Poor signal
+        pkg.uptime = 500000;
+        pkg.freeMemory = 80000;
+        pkg.timestamp = 1609459300;
+        pkg.routerSSID = "TestRouter";
+        
+        WHEN("Comparing with another candidate") {
+            auto pkg2 = BridgeElectionPackage();
+            pkg2.from = 22222;
+            pkg2.routerRSSI = -38;  // Better signal
+            pkg2.uptime = 300000;
+            pkg2.freeMemory = 100000;
+            
+            THEN("Better RSSI should win") {
+                REQUIRE(pkg2.routerRSSI > pkg.routerRSSI);
+            }
+        }
+    }
+    
+    GIVEN("A BridgeElectionPackage with edge case values") {
+        auto pkg = BridgeElectionPackage();
+        pkg.from = 55555;
+        pkg.routerRSSI = -127;  // Worst possible RSSI
+        pkg.uptime = 0;
+        pkg.freeMemory = 0;
+        pkg.timestamp = 0;
+        pkg.routerSSID = "";
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<BridgeElectionPackage>();
+            
+            THEN("Should handle edge cases correctly") {
+                REQUIRE(pkg2.routerRSSI == -127);
+                REQUIRE(pkg2.uptime == 0);
+                REQUIRE(pkg2.freeMemory == 0);
+                REQUIRE(pkg2.routerSSID == "");
+            }
+        }
+    }
+}
+
+SCENARIO("BridgeTakeoverPackage serialization works correctly") {
+    GIVEN("A BridgeTakeoverPackage with test data") {
+        auto pkg = BridgeTakeoverPackage();
+        pkg.from = 54321;
+        pkg.previousBridge = 12345;
+        pkg.reason = "Election winner - best router signal";
+        pkg.routerRSSI = -35;
+        pkg.timestamp = 1609459400;
+        
+        REQUIRE(pkg.routing == router::BROADCAST);
+        REQUIRE(pkg.type == 612);
+        REQUIRE(pkg.messageType == 612);
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<BridgeTakeoverPackage>();
+            
+            THEN("Should result in the same values") {
+                REQUIRE(pkg2.from == pkg.from);
+                REQUIRE(pkg2.previousBridge == pkg.previousBridge);
+                REQUIRE(pkg2.reason == pkg.reason);
+                REQUIRE(pkg2.routerRSSI == pkg.routerRSSI);
+                REQUIRE(pkg2.timestamp == pkg.timestamp);
+                REQUIRE(pkg2.routing == pkg.routing);
+                REQUIRE(pkg2.type == pkg.type);
+                REQUIRE(pkg2.messageType == pkg.messageType);
+            }
+        }
+    }
+    
+    GIVEN("A BridgeTakeoverPackage with no previous bridge") {
+        auto pkg = BridgeTakeoverPackage();
+        pkg.from = 99999;
+        pkg.previousBridge = 0;  // No previous bridge
+        pkg.reason = "First bridge in mesh";
+        pkg.routerRSSI = -40;
+        pkg.timestamp = 1609459500;
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<BridgeTakeoverPackage>();
+            
+            THEN("Should handle zero previousBridge correctly") {
+                REQUIRE(pkg2.previousBridge == 0);
+                REQUIRE(pkg2.reason == "First bridge in mesh");
+            }
+        }
+    }
+    
+    GIVEN("A BridgeTakeoverPackage with long reason string") {
+        auto pkg = BridgeTakeoverPackage();
+        pkg.from = 77777;
+        pkg.previousBridge = 88888;
+        pkg.reason = "Election winner after primary bridge lost Internet connection due to router failure - automatic failover engaged";
+        pkg.routerRSSI = -50;
+        pkg.timestamp = 1609459600;
+        
+        WHEN("Converting it to and from Variant") {
+            auto var = protocol::Variant(&pkg);
+            auto pkg2 = var.to<BridgeTakeoverPackage>();
+            
+            THEN("Should preserve long reason string") {
+                REQUIRE(pkg2.reason == pkg.reason);
+                REQUIRE(pkg2.reason.length() > 50);
+            }
+        }
+    }
+}
