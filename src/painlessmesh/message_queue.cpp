@@ -152,7 +152,7 @@ uint32_t MessageQueue::flushQueue(sendCallback_t sendCallback) {
   std::vector<uint32_t> toRemove;
   
   LOG_COMMUNICATION( "MessageQueue::flushQueue(): Attempting to send %u messages\n", 
-      queue.size());
+      (unsigned int)queue.size());
   
   for (auto& msg : queue) {
     msg.attempts++;
@@ -228,7 +228,7 @@ uint32_t MessageQueue::pruneQueue(uint32_t maxAgeHours) {
     uint32_t age = now - it->timestamp;
     if (age > maxAgeMs) {
       LOG_GENERAL( "MessageQueue::pruneQueue(): Removing old message #%u (age %u hours)\n",
-          it->id, age / 3600000UL);
+          it->id, (unsigned int)(age / 3600000UL));
       it = queue.erase(it);
       removed++;
     } else {
@@ -274,7 +274,7 @@ bool MessageQueue::saveToStorage() {
   }
   
   LOG_GENERAL( "MessageQueue::saveToStorage(): Saving %u messages to %s\n",
-      queue.size(), storagePath.c_str());
+      (unsigned int)queue.size(), storagePath.c_str());
   
   // Create directory if it doesn't exist
   String dirPath = storagePath.substring(0, storagePath.lastIndexOf('/'));
@@ -317,7 +317,7 @@ bool MessageQueue::saveToStorage() {
   file.close();
   
   LOG_GENERAL( "MessageQueue::saveToStorage(): Successfully saved %u messages\n",
-      queue.size());
+      (unsigned int)queue.size());
   
   return true;
 #else

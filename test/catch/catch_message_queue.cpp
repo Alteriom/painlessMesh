@@ -219,6 +219,9 @@ SCENARIO("MessageQueue pruning works correctly") {
     delay(100);
     uint32_t id2 = queue.queueMessage("recent msg", "dest", PRIORITY_NORMAL);
     
+    (void)id1; // Suppress unused variable warning
+    (void)id2; // Suppress unused variable warning
+    
     REQUIRE(queue.getQueuedMessageCount() == 2);
     
     WHEN("Pruning with a very short age limit") {
