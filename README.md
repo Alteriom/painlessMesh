@@ -97,7 +97,27 @@ This fork includes specialized packages for structured IoT communication:
   - Gateway node identification
   - Enables heterogeneous mesh networks
 
-All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging. They align with mqtt-schema v0.7.2+ for enterprise IoT integration.
+**Bridge Failover & High Availability (v1.8.0):**
+
+- **`BridgeStatusPackage`** (Type 610) - Bridge health monitoring (BRIDGE_STATUS per mqtt-schema v0.7.3+)
+  - Internet connectivity status
+  - Router signal strength (RSSI)
+  - Gateway IP and router channel
+  - Heartbeat for failure detection
+
+- **`BridgeElectionPackage`** (Type 611) - Automatic failover election (BRIDGE_ELECTION per mqtt-schema v0.7.3+)
+  - Router RSSI measurement
+  - Node uptime and free memory
+  - Distributed consensus protocol
+  - RSSI-based winner selection
+
+- **`BridgeTakeoverPackage`** (Type 612) - Bridge role announcement (BRIDGE_TAKEOVER per mqtt-schema v0.7.3+)
+  - New bridge identification
+  - Previous bridge tracking
+  - Takeover reason and timestamp
+  - Seamless failover notification
+
+All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging. They align with mqtt-schema v0.7.3+ for enterprise IoT integration.
 
 #### 🚀 Phase 2 Features (v1.7.0+)
 
@@ -116,6 +136,38 @@ All packages provide type-safe serialization, automatic JSON conversion, and mes
 - ⚙️ **Fully Configurable** - Adjustable intervals and feature toggles
 
 See [Phase 2 Guide](docs/PHASE2_GUIDE.md) for complete documentation.
+
+#### 🔄 Automatic Bridge Failover (v1.8.0)
+
+**High Availability for Critical Systems**
+
+- 🎯 **RSSI-Based Election** - Best signal strength wins bridge role
+- 🔍 **Automatic Detection** - 60-second failure detection via heartbeats
+- ⚡ **Fast Failover** - 60-70 second typical recovery time
+- 🌐 **Distributed Consensus** - No single coordinator, deterministic winner selection
+- 🛡️ **Split-Brain Prevention** - State machine prevents concurrent elections
+- 📊 **Tiebreaker Rules** - RSSI → Uptime → Memory → Node ID
+
+**Use Cases:**
+- Fish farm alarm systems requiring 24/7 Internet connectivity
+- Industrial IoT networks with critical sensor monitoring
+- Smart building systems needing continuous cloud connectivity
+
+**Example:**
+```cpp
+// Enable automatic bridge failover
+mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);
+mesh.enableBridgeFailover(true);
+mesh.onBridgeRoleChanged(&bridgeRoleCallback);
+
+void bridgeRoleCallback(bool isBridge, String reason) {
+  if (isBridge) {
+    Serial.printf("🎯 Promoted to bridge: %s\n", reason.c_str());
+  }
+}
+```
+
+See [Bridge Failover Guide](docs/BRIDGE_FAILOVER.md) and [bridge_failover example](examples/bridge_failover/) for complete documentation.
 
 #### MQTT Bridge Commands
 
