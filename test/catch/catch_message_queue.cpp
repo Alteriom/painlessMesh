@@ -7,8 +7,8 @@
 
 using namespace painlessmesh::queue;
 
-// Declare logger for test environment
-painlessmesh::logger::LogClass Log;
+// Declare logger for test environment (not needed as we use printf)
+// painlessmesh::logger::LogClass Log;
 
 SCENARIO("MessageQueue initialization works correctly") {
   GIVEN("A new MessageQueue") {
@@ -151,7 +151,7 @@ SCENARIO("MessageQueue flushing works correctly") {
     
     WHEN("Flushing with a callback that always succeeds") {
       int sendCount = 0;
-      auto sendCallback = [&sendCount](const String& payload, const String& dest) {
+      auto sendCallback = [&sendCount](const TSTRING& payload, const TSTRING& dest) {
         sendCount++;
         return true;  // Success
       };
@@ -170,7 +170,7 @@ SCENARIO("MessageQueue flushing works correctly") {
       int sendCount = 0;
       queue.setMaxRetryAttempts(2);
       
-      auto sendCallback = [&sendCount](const String& payload, const String& dest) {
+      auto sendCallback = [&sendCount](const TSTRING& payload, const TSTRING& dest) {
         sendCount++;
         return false;  // Always fail
       };
@@ -192,7 +192,7 @@ SCENARIO("MessageQueue flushing works correctly") {
     
     WHEN("Flushing with a callback that succeeds for some messages") {
       int sendCount = 0;
-      auto sendCallback = [&sendCount](const String& payload, const String& dest) {
+      auto sendCallback = [&sendCount](const TSTRING& payload, const TSTRING& dest) {
         sendCount++;
         // Succeed only for msg1 and msg3
         return (payload == "msg1" || payload == "msg3");
@@ -298,7 +298,7 @@ SCENARIO("MessageQueue statistics work correctly") {
       queue.queueMessage("msg1", "dest", PRIORITY_NORMAL);
       queue.queueMessage("msg2", "dest", PRIORITY_NORMAL);
       
-      auto sendCallback = [](const String& payload, const String& dest) {
+      auto sendCallback = [](const TSTRING& payload, const TSTRING& dest) {
         return true;
       };
       
@@ -370,7 +370,7 @@ SCENARIO("MessageQueue retry logic works correctly") {
       queue.queueMessage("test", "dest", PRIORITY_NORMAL);
       
       int attempts = 0;
-      auto sendCallback = [&attempts](const String& payload, const String& dest) {
+      auto sendCallback = [&attempts](const TSTRING& payload, const TSTRING& dest) {
         attempts++;
         return false;  // Always fail
       };

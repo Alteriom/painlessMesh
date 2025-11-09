@@ -1,6 +1,18 @@
 #include "painlessmesh/message_queue.hpp"
-#include "painlessmesh/logger.hpp"
+
+// Include Arduino.h first to get millis(), delay(), etc.
+// This is needed in both test and real Arduino environments
+#include "Arduino.h"
+
 #include <algorithm>  // for std::remove_if
+#include <cstdio>     // for printf
+
+// Only include logger in Arduino environment
+#if defined(ARDUINO) || defined(PAINLESSMESH_ENABLE_ARDUINO_WIFI)
+#include "painlessmesh/logger.hpp"
+extern painlessmesh::logger::LogClass Log;
+#define USE_PAINLESS_LOG
+#endif
 
 // Only include filesystem headers in Arduino environment
 #if defined(ARDUINO) && defined(PAINLESSMESH_ENABLE_ARDUINO_WIFI)
@@ -16,7 +28,19 @@
 #define FILESYSTEM_AVAILABLE
 #endif
 
-extern painlessmesh::logger::LogClass Log;
+// Helper macros for logging that work in both environments
+#ifdef USE_PAINLESS_LOG
+#define LOG_STARTUP(fmt, ...) Log(painlessmesh::logger::STARTUP, fmt, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) Log(painlessmesh::logger::ERROR, fmt, ##__VA_ARGS__)
+#define LOG_GENERAL(fmt, ...) Log(painlessmesh::logger::GENERAL, fmt, ##__VA_ARGS__)
+#define LOG_COMMUNICATION(fmt, ...) Log(painlessmesh::logger::COMMUNICATION, fmt, ##__VA_ARGS__)
+#else
+// Test environment - use printf
+#define LOG_STARTUP(fmt, ...) printf("[STARTUP] " fmt, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) printf("[ERROR] " fmt, ##__VA_ARGS__)
+#define LOG_GENERAL(fmt, ...) printf("[GENERAL] " fmt, ##__VA_ARGS__)
+#define LOG_COMMUNICATION(fmt, ...) printf("[COMMUNICATION] " fmt, ##__VA_ARGS__)
+#endif
 
 namespace painlessmesh {
 namespace queue {
@@ -42,25 +66,25 @@ void MessageQueue::init(uint32_t maxSize, bool enablePersistence,
   persistentStorageEnabled = enablePersistence;
   storagePath = path;
   
-  Log(STARTUP, "MessageQueue::init(): maxSize=%u, persistence=%s, path=%s\n",
+  LOG_STARTUP( "MessageQueue::init(): maxSize=%u, persistence=%s, path=%s\n",
       maxSize, enablePersistence ? "enabled" : "disabled", path.c_str());
   
   if (persistentStorageEnabled) {
 #ifdef FILESYSTEM_AVAILABLE
     // Initialize filesystem if not already mounted
     if (!FILESYSTEM.begin(true)) {
-      Log(ERROR, "MessageQueue::init(): Failed to mount filesystem\n");
+      LOG_ERROR( "MessageQueue::init(): Failed to mount filesystem\n");
       persistentStorageEnabled = false;
     } else {
-      Log(STARTUP, "MessageQueue::init(): Filesystem mounted successfully\n");
+      LOG_STARTUP( "MessageQueue::init(): Filesystem mounted successfully\n");
       // Try to load existing queue
       uint32_t loaded = loadFromStorage();
       if (loaded > 0) {
-        Log(STARTUP, "MessageQueue::init(): Loaded %u messages from storage\n", loaded);
+        LOG_STARTUP( "MessageQueue::init(): Loaded %u messages from storage\n", loaded);
       }
     }
 #else
-    Log(ERROR, "MessageQueue::init(): Persistence not available (not Arduino platform)\n");
+    LOG_ERROR( "MessageQueue::init(): Persistence not available (not Arduino platform)\n");
     persistentStorageEnabled = false;
 #endif
   }
@@ -75,12 +99,12 @@ uint32_t MessageQueue::queueMessage(const TSTRING& payload, const TSTRING& desti
     // Try to make space by removing low priority messages
     if (priority == PRIORITY_CRITICAL || priority == PRIORITY_HIGH) {
       if (!makeSpace()) {
-        Log(ERROR, "MessageQueue::queueMessage(): Queue full, cannot make space\n");
+        LOG_ERROR( "MessageQueue::queueMessage(): Queue full, cannot make space\n");
         stats.totalDropped++;
         return 0;
       }
     } else {
-      Log(ERROR, "MessageQueue::queueMessage(): Queue full, dropping message (priority %d)\n", 
+      LOG_ERROR( "MessageQueue::queueMessage(): Queue full, dropping message (priority %d)\n", 
           priority);
       stats.totalDropped++;
       return 0;
@@ -103,7 +127,7 @@ uint32_t MessageQueue::queueMessage(const TSTRING& payload, const TSTRING& desti
     stats.peakSize = stats.currentSize;
   }
   
-  Log(COMMUNICATION, "MessageQueue::queueMessage(): Queued message #%u (priority %d, size %u/%u)\n",
+  LOG_COMMUNICATION( "MessageQueue::queueMessage(): Queued message #%u (priority %d, size %u/%u)\n",
       msg.id, priority, stats.currentSize, maxQueueSize);
   
   notifyStateChange();
@@ -120,14 +144,14 @@ uint32_t MessageQueue::flushQueue(sendCallback_t sendCallback) {
   using namespace logger;
   
   if (!sendCallback) {
-    Log(ERROR, "MessageQueue::flushQueue(): No send callback provided\n");
+    LOG_ERROR( "MessageQueue::flushQueue(): No send callback provided\n");
     return 0;
   }
   
   uint32_t sentCount = 0;
   std::vector<uint32_t> toRemove;
   
-  Log(COMMUNICATION, "MessageQueue::flushQueue(): Attempting to send %u messages\n", 
+  LOG_COMMUNICATION( "MessageQueue::flushQueue(): Attempting to send %u messages\n", 
       queue.size());
   
   for (auto& msg : queue) {
@@ -136,17 +160,17 @@ uint32_t MessageQueue::flushQueue(sendCallback_t sendCallback) {
     bool sent = sendCallback(msg.payload, msg.destination);
     
     if (sent) {
-      Log(COMMUNICATION, "MessageQueue::flushQueue(): Message #%u sent successfully\n", 
+      LOG_COMMUNICATION( "MessageQueue::flushQueue(): Message #%u sent successfully\n", 
           msg.id);
       toRemove.push_back(msg.id);
       stats.totalSent++;
       sentCount++;
     } else {
-      Log(ERROR, "MessageQueue::flushQueue(): Message #%u failed (attempt %u/%u)\n",
+      LOG_ERROR( "MessageQueue::flushQueue(): Message #%u failed (attempt %u/%u)\n",
           msg.id, msg.attempts, maxRetryAttempts);
       
       if (msg.attempts >= maxRetryAttempts) {
-        Log(ERROR, "MessageQueue::flushQueue(): Message #%u exceeded retry limit, removing\n",
+        LOG_ERROR( "MessageQueue::flushQueue(): Message #%u exceeded retry limit, removing\n",
             msg.id);
         toRemove.push_back(msg.id);
         stats.totalFailed++;
@@ -165,7 +189,7 @@ uint32_t MessageQueue::flushQueue(sendCallback_t sendCallback) {
   
   stats.currentSize = queue.size();
   
-  Log(COMMUNICATION, "MessageQueue::flushQueue(): Sent %u messages, %u remaining\n",
+  LOG_COMMUNICATION( "MessageQueue::flushQueue(): Sent %u messages, %u remaining\n",
       sentCount, stats.currentSize);
   
   notifyStateChange();
@@ -203,7 +227,7 @@ uint32_t MessageQueue::pruneQueue(uint32_t maxAgeHours) {
   while (it != queue.end()) {
     uint32_t age = now - it->timestamp;
     if (age > maxAgeMs) {
-      Log(GENERAL, "MessageQueue::pruneQueue(): Removing old message #%u (age %u hours)\n",
+      LOG_GENERAL( "MessageQueue::pruneQueue(): Removing old message #%u (age %u hours)\n",
           it->id, age / 3600000UL);
       it = queue.erase(it);
       removed++;
@@ -214,7 +238,7 @@ uint32_t MessageQueue::pruneQueue(uint32_t maxAgeHours) {
   
   if (removed > 0) {
     stats.currentSize = queue.size();
-    Log(GENERAL, "MessageQueue::pruneQueue(): Removed %u old messages\n", removed);
+    LOG_GENERAL( "MessageQueue::pruneQueue(): Removed %u old messages\n", removed);
     notifyStateChange();
     
     if (persistentStorageEnabled) {
@@ -232,7 +256,7 @@ void MessageQueue::clear() {
   queue.clear();
   stats.currentSize = 0;
   
-  Log(GENERAL, "MessageQueue::clear(): Cleared %u messages\n", count);
+  LOG_GENERAL( "MessageQueue::clear(): Cleared %u messages\n", count);
   
   notifyStateChange();
   
@@ -249,14 +273,14 @@ bool MessageQueue::saveToStorage() {
     return false;
   }
   
-  Log(GENERAL, "MessageQueue::saveToStorage(): Saving %u messages to %s\n",
+  LOG_GENERAL( "MessageQueue::saveToStorage(): Saving %u messages to %s\n",
       queue.size(), storagePath.c_str());
   
   // Create directory if it doesn't exist
   String dirPath = storagePath.substring(0, storagePath.lastIndexOf('/'));
   if (!FILESYSTEM.exists(dirPath.c_str())) {
     if (!FILESYSTEM.mkdir(dirPath.c_str())) {
-      Log(ERROR, "MessageQueue::saveToStorage(): Failed to create directory %s\n",
+      LOG_ERROR( "MessageQueue::saveToStorage(): Failed to create directory %s\n",
           dirPath.c_str());
       return false;
     }
@@ -264,7 +288,7 @@ bool MessageQueue::saveToStorage() {
   
   File file = FILESYSTEM.open(storagePath.c_str(), "w");
   if (!file) {
-    Log(ERROR, "MessageQueue::saveToStorage(): Failed to open file for writing\n");
+    LOG_ERROR( "MessageQueue::saveToStorage(): Failed to open file for writing\n");
     return false;
   }
   
@@ -292,7 +316,7 @@ bool MessageQueue::saveToStorage() {
   
   file.close();
   
-  Log(GENERAL, "MessageQueue::saveToStorage(): Successfully saved %u messages\n",
+  LOG_GENERAL( "MessageQueue::saveToStorage(): Successfully saved %u messages\n",
       queue.size());
   
   return true;
@@ -310,13 +334,13 @@ uint32_t MessageQueue::loadFromStorage() {
   }
   
   if (!FILESYSTEM.exists(storagePath.c_str())) {
-    Log(GENERAL, "MessageQueue::loadFromStorage(): No existing queue file found\n");
+    LOG_GENERAL( "MessageQueue::loadFromStorage(): No existing queue file found\n");
     return 0;
   }
   
   File file = FILESYSTEM.open(storagePath.c_str(), "r");
   if (!file) {
-    Log(ERROR, "MessageQueue::loadFromStorage(): Failed to open file for reading\n");
+    LOG_ERROR( "MessageQueue::loadFromStorage(): Failed to open file for reading\n");
     return 0;
   }
   
@@ -379,7 +403,7 @@ uint32_t MessageQueue::loadFromStorage() {
   
   stats.currentSize = queue.size();
   
-  Log(GENERAL, "MessageQueue::loadFromStorage(): Loaded %u messages from storage\n",
+  LOG_GENERAL( "MessageQueue::loadFromStorage(): Loaded %u messages from storage\n",
       loaded);
   
   return loaded;
@@ -399,7 +423,7 @@ bool MessageQueue::makeSpace() {
   auto it = queue.begin();
   while (it != queue.end()) {
     if (it->priority == PRIORITY_LOW) {
-      Log(GENERAL, "MessageQueue::makeSpace(): Removing LOW priority message #%u\n",
+      LOG_GENERAL( "MessageQueue::makeSpace(): Removing LOW priority message #%u\n",
           it->id);
       it = queue.erase(it);
       stats.totalDropped++;
@@ -417,7 +441,7 @@ bool MessageQueue::makeSpace() {
       // Only remove old NORMAL messages (older than 1 hour)
       uint32_t age = millis() - it->timestamp;
       if (age > 3600000UL) {  // 1 hour
-        Log(GENERAL, "MessageQueue::makeSpace(): Removing old NORMAL priority message #%u\n",
+        LOG_GENERAL( "MessageQueue::makeSpace(): Removing old NORMAL priority message #%u\n",
             it->id);
         it = queue.erase(it);
         stats.totalDropped++;
@@ -428,7 +452,7 @@ bool MessageQueue::makeSpace() {
     ++it;
   }
   
-  Log(ERROR, "MessageQueue::makeSpace(): Could not free space (only CRITICAL/HIGH messages)\n");
+  LOG_ERROR( "MessageQueue::makeSpace(): Could not free space (only CRITICAL/HIGH messages)\n");
   return false;
 }
 
