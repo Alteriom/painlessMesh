@@ -1222,6 +1222,109 @@ class BridgeStatusPackage : public painlessmesh::plugin::BroadcastPackage {
 #endif
 };
 
+/**
+ * @brief Bridge election package for automatic failover (Type 611 - BRIDGE_ELECTION)
+ *
+ * When a bridge node goes offline, regular nodes with router credentials can
+ * participate in an election to become the new bridge. Each candidate broadcasts
+ * its RSSI to the router, uptime, and available memory. The node with the best
+ * RSSI wins the election.
+ *
+ * Election process:
+ * 1. Bridge failure detected (no heartbeat for 60+ seconds)
+ * 2. Nodes broadcast BridgeElectionPackage with their router RSSI
+ * 3. 5-second collection window for all candidates
+ * 4. Each node evaluates all candidates locally (deterministic)
+ * 5. Winner promotes itself to bridge, others remain as regular nodes
+ *
+ * Type ID 611 for BRIDGE_ELECTION per mqtt-schema v0.7.3+.
+ */
+class BridgeElectionPackage : public painlessmesh::plugin::BroadcastPackage {
+ public:
+  int8_t routerRSSI = 0;      // Router WiFi signal strength in dBm (-127 to 0)
+  uint32_t uptime = 0;        // Node uptime in milliseconds
+  uint32_t freeMemory = 0;    // Free memory in bytes
+  uint32_t timestamp = 0;     // Election timestamp
+  TSTRING routerSSID = "";    // Router SSID (for verification)
+  
+  // MQTT Schema v0.7.3+ message_type
+  uint16_t messageType = 611;  // BRIDGE_ELECTION
+
+  BridgeElectionPackage() : BroadcastPackage(611) {}
+
+  BridgeElectionPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    routerRSSI = jsonObj["routerRSSI"] | 0;
+    uptime = jsonObj["uptime"] | 0;
+    freeMemory = jsonObj["freeMemory"] | 0;
+    timestamp = jsonObj["timestamp"] | 0;
+    routerSSID = jsonObj["routerSSID"].as<TSTRING>();
+    messageType = jsonObj["message_type"] | 611;
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    jsonObj["routerRSSI"] = routerRSSI;
+    jsonObj["uptime"] = uptime;
+    jsonObj["freeMemory"] = freeMemory;
+    jsonObj["timestamp"] = timestamp;
+    jsonObj["routerSSID"] = routerSSID;
+    jsonObj["message_type"] = messageType;
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    return JSON_OBJECT_SIZE(noJsonFields + 6) + routerSSID.length();
+  }
+#endif
+};
+
+/**
+ * @brief Bridge takeover announcement package (Type 612 - BRIDGE_TAKEOVER)
+ *
+ * After winning the bridge election, the new bridge node broadcasts this
+ * package to inform all mesh nodes that it is now the primary bridge.
+ * This allows nodes to update their bridge tracking and routing tables.
+ *
+ * Type ID 612 for BRIDGE_TAKEOVER per mqtt-schema v0.7.3+.
+ */
+class BridgeTakeoverPackage : public painlessmesh::plugin::BroadcastPackage {
+ public:
+  uint32_t previousBridge = 0;  // Previous bridge node ID (0 if none)
+  TSTRING reason = "";          // Reason for takeover (e.g., "Election winner - best router signal")
+  int8_t routerRSSI = 0;        // New bridge's router signal strength
+  uint32_t timestamp = 0;       // Takeover timestamp
+  
+  // MQTT Schema v0.7.3+ message_type
+  uint16_t messageType = 612;  // BRIDGE_TAKEOVER
+
+  BridgeTakeoverPackage() : BroadcastPackage(612) {}
+
+  BridgeTakeoverPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    previousBridge = jsonObj["previousBridge"] | 0;
+    reason = jsonObj["reason"].as<TSTRING>();
+    routerRSSI = jsonObj["routerRSSI"] | 0;
+    timestamp = jsonObj["timestamp"] | 0;
+    messageType = jsonObj["message_type"] | 612;
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    jsonObj["previousBridge"] = previousBridge;
+    jsonObj["reason"] = reason;
+    jsonObj["routerRSSI"] = routerRSSI;
+    jsonObj["timestamp"] = timestamp;
+    jsonObj["message_type"] = messageType;
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    return JSON_OBJECT_SIZE(noJsonFields + 5) + reason.length();
+  }
+#endif
+};
+
 }  // namespace alteriom
 
 #endif  // ALTERIOM_SENSOR_PACKAGE_HPP
