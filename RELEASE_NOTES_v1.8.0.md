@@ -9,7 +9,7 @@
 
 ## 🎯 Executive Summary
 
-Version 1.8.0 is a major feature release that transforms painlessMesh into a production-ready solution for bridged mesh networks with comprehensive monitoring, diagnostics, and time synchronization capabilities. This release focuses on bridge operations, adding seven major features that enable robust Internet connectivity, real-time monitoring, and offline operation.
+Version 1.8.0 is a major feature release that transforms painlessMesh into a production-ready solution for bridged mesh networks with comprehensive monitoring, diagnostics, and time synchronization capabilities. This release focuses on bridge operations, adding eight major features that enable robust Internet connectivity, real-time monitoring, automatic failover, and offline operation.
 
 ### Key Highlights
 
@@ -137,7 +137,52 @@ mesh.resetHealthMetrics();
 
 ---
 
-### 4. Bridge Status Broadcast & Callback
+### 4. Automatic Bridge Failover with RSSI-Based Election
+
+Production-ready high-availability bridge management with automatic failover when primary bridge fails.
+
+**Architecture:**
+When the primary bridge loses Internet connectivity, mesh nodes automatically:
+1. Detect bridge failure through missing heartbeats
+2. Initiate distributed election protocol
+3. Scan router signal strength (RSSI)
+4. Elect node with best signal as new bridge
+5. Winner promotes itself to bridge role
+
+**New API:**
+```cpp
+// Enable automatic failover
+mesh.enableBridgeFailover(true);
+mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);
+
+// Callback when this node's role changes
+mesh.onBridgeRoleChanged([](bool isBridge, String reason) {
+  if (isBridge) {
+    Serial.printf("🎯 Promoted to bridge: %s\n", reason.c_str());
+  }
+});
+```
+
+**Election Process:**
+1. Nodes broadcast `BridgeElectionPackage` (Type 611) with RSSI
+2. All nodes collect candidates for 5 seconds
+3. Node with best RSSI wins (tiebreaker: uptime → memory → node ID)
+4. Winner broadcasts `BridgeTakeoverPackage` (Type 612)
+5. Winner promotes to bridge using `initAsBridge()`
+
+**Features:**
+- Distributed consensus (no single coordinator)
+- Optimal bridge selection (best signal strength)
+- Split-brain prevention
+- Oscillation protection (60s minimum between changes)
+- Handles multiple sequential failures
+- Critical for life-safety systems (fish farm O2 monitoring)
+
+**PR:** #64 (Issue #64) | **Message Types:** 611 (Election), 612 (Takeover)
+
+---
+
+### 5. Bridge Status Broadcast & Callback
 
 Real-time Internet connectivity monitoring for intelligent node behavior.
 
@@ -186,7 +231,7 @@ bool isBridge = mesh.isBridge();
 
 ---
 
-### 5. NTP Time Synchronization (Type 614)
+### 6. NTP Time Synchronization (Type 614)
 
 Bridge-to-mesh NTP time distribution, eliminating the need for per-node NTP queries.
 
@@ -221,7 +266,7 @@ mesh.sendBroadcast(pkg.toJson());
 
 ---
 
-### 6. RTC (Real-Time Clock) Integration
+### 7. RTC (Real-Time Clock) Integration
 
 Hardware RTC support for time persistence across reboots and offline operation.
 
@@ -247,7 +292,7 @@ Hardware RTC support for time persistence across reboots and offline operation.
 
 ---
 
-### 7. Enhanced Documentation & Examples
+### 8. Enhanced Documentation & Examples
 
 **New Documentation Files:**
 - `DIAGNOSTICS_API.md` - Comprehensive diagnostics guide

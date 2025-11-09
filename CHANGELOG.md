@@ -48,6 +48,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for bridge failover scenarios
   - Documentation: `BRIDGE_STATUS_FEATURE.md`
 
+- **Automatic Bridge Failover with RSSI-Based Election (Types 611, 612)** - High-availability bridge management
+  - Distributed bridge election protocol when primary bridge fails
+  - RSSI-based node selection for optimal bridge placement
+  - New `BridgeElectionPackage` (Type 611) for election coordination
+  - New `BridgeTakeoverPackage` (Type 612) for bridge transition announcements
+  - API methods: `enableBridgeFailover()`, `setRouterCredentials()`, `onBridgeRoleChanged()`
+  - Automatic promotion of best-positioned node to bridge role
+  - Tiebreaker rules: uptime, free memory, node ID
+  - Split-brain prevention and oscillation protection
+  - Graceful handling of multiple sequential failures
+  - Critical for production high-availability systems (Issue #64)
+
 - **NTP Time Synchronization (Type 614)** - Bridge-to-mesh NTP time distribution
   - New `NTPTimeSyncPackage` for broadcasting NTP time from bridge nodes
   - Bridge nodes with Internet distribute authoritative time to entire mesh
