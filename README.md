@@ -391,23 +391,29 @@ See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for complete documentation.
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Development Version: v1.7.8
+## Latest Release: v1.8.1 (November 10, 2025)
 
-**In Development** - Next release after v1.7.7
+**GitHub Copilot Integration & Developer Experience**:
 
-See [CHANGELOG](CHANGELOG.md) for upcoming changes.
+- 🤖 **GitHub Copilot Custom Agent** - AI-assisted release management with `@release-agent`
+- 📚 **Enhanced Developer Context** - Improved repository context for all Copilot users
+- ✅ **Release Automation** - 21+ automated validation checks for quality assurance
+- 🔧 **Zero Breaking Changes** - Purely additive developer experience improvements
+- 📖 **Complete Documentation** - Agent setup guides and knowledge sources
 
-## Latest Release: v1.7.7 (November 5, 2025)
+**[📋 Full Release Notes](RELEASE_NOTES_v1.8.1.md)** | **[🔖 CHANGELOG](CHANGELOG.md)**
 
-**MQTT Schema v0.7.2 Compliance with Enhanced Monitoring**:
+## Previous Release: v1.8.0 (November 9, 2025)
 
-- ✅ **MetricsPackage (Type 204)** - Comprehensive performance metrics for real-time monitoring
-- ✅ **HealthCheckPackage (Type 605)** - Proactive health monitoring with problem detection
-- ✅ **Mesh Topology Packages** - Complete network visualization (Types 600-603)
-- ✅ **Enhanced MQTT Bridge** - On-demand metrics, health checks, and aggregated statistics
-- ✅ **100% Backward Compatible** - All existing code continues to work
+**Bridge-Centric Architecture & Comprehensive Monitoring**:
 
-**[📋 Full Release Notes](docs/releases/RELEASE_SUMMARY_v1.7.7.md)** | **[🔖 CHANGELOG](CHANGELOG.md)**
+- ✅ **Bridge Auto-Detection** - One-line bridge setup with automatic channel detection
+- 📊 **Diagnostics API** - Comprehensive monitoring and debugging tools
+- 🕐 **RTC Integration** - Hardware RTC support for offline timekeeping
+- 🔄 **Bridge Failover** - Automatic bridge election and high availability
+- ⚡ **Production Ready** - All features tested, documented, and backward compatible
+
+**[📋 Full Release Notes](RELEASE_NOTES_v1.8.0.md)**
 
 ## Getting Help
 
@@ -417,6 +423,25 @@ See [CHANGELOG](CHANGELOG.md) for upcoming changes.
 - **[API Documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)** - Generated API docs
 
 ## Development
+
+### GitHub Copilot Integration (v1.8.1+)
+
+AlteriomPainlessMesh includes GitHub Copilot custom agent support for AI-assisted development:
+
+- **🤖 Release Agent** - AI assistant for release management and quality assurance
+- **📚 Enhanced Context** - Repository knowledge available to all Copilot users
+- **🎯 Enterprise Features** - Use `@release-agent` in Copilot Chat (Enterprise)
+
+**For GitHub Copilot Enterprise Users:**
+```
+@release-agent How do I prepare a release?
+@release-agent Check version consistency
+@release-agent Validate release readiness
+```
+
+**Configuration:** The custom agent is defined in `copilot-agents.json` at the repository root.
+
+**Documentation:** [Copilot Agent Setup](.github/COPILOT_AGENT_SETUP.md) | [Agent Index](.github/AGENTS_INDEX.md)
 
 ### Release Agent & Automation
 
