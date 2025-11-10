@@ -178,3 +178,116 @@ SCENARIO("We can add anonymous tasks to the taskscheduler") {
     }
   }
 }
+
+SCENARIO("BridgeCoordinationPackage serialization works correctly") {
+  GIVEN("A BridgeCoordinationPackage with test data") {
+    auto pkg = plugin::BridgeCoordinationPackage();
+    pkg.from = 123456;
+    pkg.priority = 10;
+    pkg.role = "primary";
+    pkg.load = 45;
+    pkg.timestamp = 987654321;
+    pkg.peerBridges.push_back(111111);
+    pkg.peerBridges.push_back(222222);
+    pkg.peerBridges.push_back(333333);
+    
+    REQUIRE(pkg.type == 613);
+    REQUIRE(pkg.routing == router::BROADCAST);
+    REQUIRE(pkg.priority == 10);
+    REQUIRE(pkg.role == "primary");
+    REQUIRE(pkg.load == 45);
+    REQUIRE(pkg.peerBridges.size() == 3);
+    
+    WHEN("Converting it to and from Variant") {
+      auto var = protocol::Variant(&pkg);
+      auto pkg2 = var.to<plugin::BridgeCoordinationPackage>();
+      
+      THEN("Should result in the same values") {
+        REQUIRE(pkg2.from == pkg.from);
+        REQUIRE(pkg2.priority == pkg.priority);
+        REQUIRE(pkg2.role == pkg.role);
+        REQUIRE(pkg2.load == pkg.load);
+        REQUIRE(pkg2.timestamp == pkg.timestamp);
+        REQUIRE(pkg2.type == pkg.type);
+        REQUIRE(pkg2.routing == pkg.routing);
+        REQUIRE(pkg2.peerBridges.size() == pkg.peerBridges.size());
+        
+        // Check peer bridge values
+        for (size_t i = 0; i < pkg.peerBridges.size(); i++) {
+          REQUIRE(pkg2.peerBridges[i] == pkg.peerBridges[i]);
+        }
+      }
+    }
+    
+    WHEN("Serializing to JSON") {
+      JsonDocument doc;
+      JsonObject obj = doc.to<JsonObject>();
+      obj = pkg.addTo(std::move(obj));
+      
+      THEN("Should contain all expected fields") {
+        REQUIRE(obj["type"] == 613);
+        REQUIRE(obj["from"] == 123456);
+        REQUIRE(obj["priority"] == 10);
+        REQUIRE(obj["role"] == "primary");
+        REQUIRE(obj["load"] == 45);
+        REQUIRE(obj["timestamp"] == 987654321);
+        REQUIRE(obj["routing"] == static_cast<int>(router::BROADCAST));
+        
+        AND_THEN("Should have peerBridges array") {
+          REQUIRE(obj["peerBridges"].is<JsonArray>());
+          JsonArray peers = obj["peerBridges"];
+          REQUIRE(peers.size() == 3);
+          REQUIRE(peers[0] == 111111);
+          REQUIRE(peers[1] == 222222);
+          REQUIRE(peers[2] == 333333);
+        }
+      }
+    }
+  }
+  
+  GIVEN("A BridgeCoordinationPackage with empty peer list") {
+    auto pkg = plugin::BridgeCoordinationPackage();
+    pkg.from = 999999;
+    pkg.priority = 5;
+    pkg.role = "secondary";
+    pkg.load = 0;
+    
+    WHEN("Converting to JSON and back") {
+      JsonDocument doc;
+      JsonObject obj = doc.to<JsonObject>();
+      obj = pkg.addTo(std::move(obj));
+      
+      auto pkg2 = plugin::BridgeCoordinationPackage(obj);
+      
+      THEN("Empty peer list should be preserved") {
+        REQUIRE(pkg2.peerBridges.size() == 0);
+        REQUIRE(pkg2.priority == 5);
+        REQUIRE(pkg2.role == "secondary");
+      }
+    }
+  }
+  
+  GIVEN("A BridgeCoordinationPackage with maximum values") {
+    auto pkg = plugin::BridgeCoordinationPackage();
+    pkg.from = 4294967295;  // Max uint32_t
+    pkg.priority = 10;
+    pkg.load = 100;
+    
+    // Add maximum expected peer bridges (5)
+    for (uint32_t i = 1; i <= 5; i++) {
+      pkg.peerBridges.push_back(i * 1000000);
+    }
+    
+    WHEN("Serializing and deserializing") {
+      auto var = protocol::Variant(&pkg);
+      auto pkg2 = var.to<plugin::BridgeCoordinationPackage>();
+      
+      THEN("All values should be preserved correctly") {
+        REQUIRE(pkg2.from == pkg.from);
+        REQUIRE(pkg2.priority == pkg.priority);
+        REQUIRE(pkg2.load == pkg.load);
+        REQUIRE(pkg2.peerBridges.size() == 5);
+      }
+    }
+  }
+}
