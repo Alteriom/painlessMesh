@@ -117,6 +117,12 @@ This fork includes specialized packages for structured IoT communication:
   - Takeover reason and timestamp
   - Seamless failover notification
 
+- **`NTPTimeSyncPackage`** (Type 614) - NTP time synchronization (TIME_SYNC_NTP per mqtt-schema v0.7.3+)
+  - Unix timestamp from NTP server
+  - Accuracy/precision in milliseconds
+  - NTP server source identification
+  - Mesh-wide time distribution from bridge
+
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging. They align with mqtt-schema v0.7.3+ for enterprise IoT integration.
 
 #### 🚀 Phase 2 Features (v1.7.0+)
