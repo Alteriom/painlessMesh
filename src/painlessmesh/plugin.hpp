@@ -94,6 +94,74 @@ class NeighbourPackage : public plugin::SinglePackage {
 };
 
 /**
+ * Bridge Coordination Package (Type 613)
+ * 
+ * Used for multi-bridge coordination in advanced deployments.
+ * Bridges use this to:
+ * - Announce their presence and role (primary/secondary)
+ * - Exchange peer bridge lists
+ * - Report current load for load balancing decisions
+ * - Coordinate conflict resolution
+ * 
+ * This enables features like:
+ * - Multiple simultaneous bridges (hot standby)
+ * - Load balancing across bridges
+ * - Geographic distribution
+ * - Traffic shaping
+ */
+class BridgeCoordinationPackage : public plugin::BroadcastPackage {
+ public:
+  uint8_t priority = 5;           // Bridge priority (10=highest, 1=lowest)
+  TSTRING role = "secondary";     // Role: "primary", "secondary", "standby"
+  std::vector<uint32_t> peerBridges;  // List of known bridge node IDs
+  uint8_t load = 0;               // Current load percentage (0-100)
+  uint32_t timestamp = 0;         // Coordination timestamp
+  int noJsonFields = 8;           // Base fields (3) + new fields (5)
+
+  BridgeCoordinationPackage() : BroadcastPackage(613) {}
+
+  BridgeCoordinationPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    priority = jsonObj["priority"] | 5;
+    role = jsonObj["role"].as<TSTRING>();
+    load = jsonObj["load"] | 0;
+    timestamp = jsonObj["timestamp"] | 0;
+    
+    // Parse peer bridge array
+    if (jsonObj["peerBridges"].is<JsonArray>()) {
+      JsonArray peers = jsonObj["peerBridges"];
+      for (JsonVariant peer : peers) {
+        peerBridges.push_back(peer.as<uint32_t>());
+      }
+    }
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    jsonObj["priority"] = priority;
+    jsonObj["role"] = role;
+    jsonObj["load"] = load;
+    jsonObj["timestamp"] = timestamp;
+    
+    // Add peer bridge array
+    JsonArray peers = jsonObj["peerBridges"].to<JsonArray>();
+    for (uint32_t peerId : peerBridges) {
+      peers.add(peerId);
+    }
+    
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  size_t jsonObjectSize() const {
+    // Base fields + string length + array overhead
+    size_t peerArraySize = JSON_ARRAY_SIZE(peerBridges.size()) + 
+                          (peerBridges.size() * sizeof(uint32_t));
+    return JSON_OBJECT_SIZE(noJsonFields) + role.length() + peerArraySize;
+  }
+#endif
+};
+
+/**
  * Handle different plugins
  *
  * Responsible for

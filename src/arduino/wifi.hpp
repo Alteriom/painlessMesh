@@ -280,6 +280,51 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
+   * Initialize mesh as a bridge node with priority (for multi-bridge mode)
+   * 
+   * This overload adds bridge priority configuration for multi-bridge deployments.
+   * Priority determines which bridge is preferred when multiple bridges are available.
+   * 
+   * @param meshSSID The name of your mesh network
+   * @param meshPassword WiFi password for the mesh
+   * @param routerSSID SSID of the router to connect to
+   * @param routerPassword Password for the router
+   * @param baseScheduler Task scheduler for mesh operations
+   * @param port TCP port for mesh communication (default: 5555)
+   * @param priority Bridge priority: 10=highest (primary), 5=medium (secondary), 1=lowest (default: 5)
+   */
+  void initAsBridge(TSTRING meshSSID, TSTRING meshPassword,
+                    TSTRING routerSSID, TSTRING routerPassword,
+                    Scheduler *baseScheduler, uint16_t port, uint8_t priority) {
+    using namespace logger;
+    
+    // Validate and store priority
+    if (priority < 1) priority = 1;
+    if (priority > 10) priority = 10;
+    bridgePriority = priority;
+    
+    // Store role based on priority
+    if (priority >= 8) {
+      bridgeRole = "primary";
+    } else if (priority >= 5) {
+      bridgeRole = "secondary";
+    } else {
+      bridgeRole = "standby";
+    }
+    
+    Log(STARTUP, "=== Bridge Mode Initialization (Priority: %d, Role: %s) ===\n", 
+        priority, bridgeRole.c_str());
+    
+    // Call the base initAsBridge method
+    initAsBridge(meshSSID, meshPassword, routerSSID, routerPassword, baseScheduler, port);
+    
+    // Setup multi-bridge coordination if enabled
+    if (multiBridgeEnabled) {
+      initBridgeCoordination();
+    }
+  }
+
+  /**
    * Connect (as a station) to a specified network and ip
    *
    * You can pass {0,0,0,0} as IP to have it connect to the gateway
@@ -418,6 +463,148 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     bridgeRoleChangedCallback = callback;
   }
 
+  /**
+   * Enable or disable multi-bridge coordination mode
+   * 
+   * When enabled, multiple bridges can operate simultaneously for:
+   * - Load balancing across multiple Internet connections
+   * - Geographic distribution
+   * - Hot standby redundancy without failover delays
+   * 
+   * @param enabled true to enable multi-bridge mode, false for single-bridge (default)
+   */
+  void enableMultiBridge(bool enabled) {
+    multiBridgeEnabled = enabled;
+    if (enabled) {
+      Log(logger::GENERAL, "enableMultiBridge(): Multi-bridge coordination enabled\n");
+    }
+  }
+
+  /**
+   * Set bridge selection strategy for multi-bridge mode
+   * 
+   * @param strategy Selection strategy:
+   *   - PRIORITY_BASED: Always use highest priority bridge (default)
+   *   - ROUND_ROBIN: Distribute load evenly across bridges
+   *   - BEST_SIGNAL: Always use bridge with best RSSI
+   */
+  void setBridgeSelectionStrategy(BridgeSelectionStrategy strategy) {
+    bridgeSelectionStrategy = strategy;
+    Log(logger::GENERAL, "setBridgeSelectionStrategy(): Strategy set to %d\n", (int)strategy);
+  }
+
+  /**
+   * Set maximum number of concurrent bridges in multi-bridge mode
+   * 
+   * @param maxBridges Maximum bridges to track (default: 2, max: 5)
+   */
+  void setMaxBridges(uint8_t maxBridges) {
+    if (maxBridges < 1) maxBridges = 1;
+    if (maxBridges > 5) maxBridges = 5;
+    maxConcurrentBridges = maxBridges;
+    Log(logger::GENERAL, "setMaxBridges(): Max concurrent bridges set to %d\n", maxBridges);
+  }
+
+  /**
+   * Get list of all active bridges (with Internet connection)
+   * 
+   * @return vector of node IDs for active bridges
+   */
+  std::vector<uint32_t> getActiveBridges() {
+    std::vector<uint32_t> activeBridges;
+    auto bridges = this->getBridges();
+    
+    for (const auto& bridge : bridges) {
+      if (bridge.internetConnected && bridge.isHealthy()) {
+        activeBridges.push_back(bridge.nodeId);
+      }
+    }
+    
+    return activeBridges;
+  }
+
+  /**
+   * Get recommended bridge for message transmission
+   * 
+   * Uses the configured bridge selection strategy to pick the best bridge.
+   * Returns 0 if no suitable bridge is available.
+   * 
+   * @return node ID of recommended bridge, or 0 if none available
+   */
+  uint32_t getRecommendedBridge() {
+    auto activeBridges = getActiveBridges();
+    
+    if (activeBridges.empty()) {
+      return 0;
+    }
+    
+    // Single bridge - return it
+    if (activeBridges.size() == 1) {
+      return activeBridges[0];
+    }
+    
+    // Multi-bridge mode: apply selection strategy
+    switch (bridgeSelectionStrategy) {
+      case ROUND_ROBIN: {
+        // Simple round-robin: cycle through bridges
+        lastSelectedBridgeIndex = (lastSelectedBridgeIndex + 1) % activeBridges.size();
+        return activeBridges[lastSelectedBridgeIndex];
+      }
+      
+      case BEST_SIGNAL: {
+        // Find bridge with best RSSI
+        uint32_t bestBridge = 0;
+        int8_t bestRSSI = -127;
+        
+        for (const auto& bridge : this->getBridges()) {
+          if (bridge.internetConnected && bridge.isHealthy() && bridge.routerRSSI > bestRSSI) {
+            bestRSSI = bridge.routerRSSI;
+            bestBridge = bridge.nodeId;
+          }
+        }
+        return bestBridge;
+      }
+      
+      case PRIORITY_BASED:
+      default: {
+        // Use highest priority bridge (stored in bridgePriorities map)
+        uint32_t bestBridge = 0;
+        uint8_t highestPriority = 0;
+        
+        for (uint32_t bridgeId : activeBridges) {
+          uint8_t priority = bridgePriorities[bridgeId];
+          if (priority > highestPriority) {
+            highestPriority = priority;
+            bestBridge = bridgeId;
+          }
+        }
+        
+        // If no priority info, use first active bridge
+        return bestBridge ? bestBridge : activeBridges[0];
+      }
+    }
+  }
+
+  /**
+   * Select a specific bridge for next transmission
+   * 
+   * This overrides the automatic bridge selection for one message.
+   * 
+   * @param bridgeNodeId Node ID of bridge to use
+   */
+  void selectBridge(uint32_t bridgeNodeId) {
+    selectedBridgeOverride = bridgeNodeId;
+  }
+
+  /**
+   * Check if multi-bridge mode is enabled
+   * 
+   * @return true if multi-bridge coordination is enabled
+   */
+  bool isMultiBridgeEnabled() const {
+    return multiBridgeEnabled;
+  }
+
   void stop() {
     // remove all WiFi events
 #ifdef ESP32
@@ -496,6 +683,114 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     Log(STARTUP, "Bridge status broadcast enabled (interval: %d ms)\n", 
         this->bridgeStatusIntervalMs);
+  }
+
+  /**
+   * Initialize bridge coordination broadcasting
+   * Sets up periodic coordination messages between bridges
+   */
+  void initBridgeCoordination() {
+    using namespace logger;
+    
+    if (!this->isBridge() || !multiBridgeEnabled) {
+      return;
+    }
+    
+    Log(STARTUP, "initBridgeCoordination(): Setting up multi-bridge coordination\n");
+    
+    // Register handler for incoming coordination messages (Type 613)
+    this->callbackList.onPackage(
+        613,  // BRIDGE_COORDINATION type
+        [this](protocol::Variant& variant, std::shared_ptr<Connection>, uint32_t) {
+          JsonDocument doc;
+          TSTRING str;
+          variant.printTo(str);
+          deserializeJson(doc, str);
+          JsonObject obj = doc.as<JsonObject>();
+          
+          if (obj["priority"].is<unsigned int>()) {
+            uint32_t fromNode = obj["from"];
+            uint8_t priority = obj["priority"];
+            TSTRING role = obj["role"].as<TSTRING>();
+            uint8_t load = obj["load"] | 0;
+            
+            // Store bridge priority for selection decisions
+            bridgePriorities[fromNode] = priority;
+            
+            // Update peer bridges list
+            if (obj["peerBridges"].is<JsonArray>()) {
+              JsonArray peers = obj["peerBridges"];
+              for (JsonVariant peer : peers) {
+                uint32_t peerId = peer.as<uint32_t>();
+                if (peerId != this->nodeId && 
+                    std::find(knownBridgePeers.begin(), knownBridgePeers.end(), peerId) == knownBridgePeers.end()) {
+                  knownBridgePeers.push_back(peerId);
+                }
+              }
+            }
+            
+            Log(CONNECTION, "Bridge coordination from %u: priority=%d, role=%s, load=%d%%\n",
+                fromNode, priority, role.c_str(), load);
+          }
+          return false;  // Don't consume the package
+        });
+    
+    // Create periodic task to send coordination messages
+    bridgeCoordinationTask = this->addTask(
+      30000,  // 30 seconds interval
+      TASK_FOREVER,
+      [this]() {
+        this->sendBridgeCoordination();
+      }
+    );
+    
+    Log(STARTUP, "Bridge coordination enabled (priority: %d, role: %s)\n", 
+        bridgePriority, bridgeRole.c_str());
+  }
+
+  /**
+   * Send bridge coordination message to other bridges
+   * Called periodically in multi-bridge mode
+   */
+  void sendBridgeCoordination() {
+    using namespace logger;
+    
+    if (!this->isBridge() || !multiBridgeEnabled) {
+      return;
+    }
+    
+    // Calculate current load (simplified: based on connection count)
+    uint8_t currentLoad = 0;
+    if (this->_connections.size() > 0) {
+      currentLoad = (this->_connections.size() * 100) / MAX_CONN;
+      if (currentLoad > 100) currentLoad = 100;
+    }
+    
+    // Create coordination message
+    DynamicJsonDocument doc(512);
+    JsonObject obj = doc.to<JsonObject>();
+    
+    obj["type"] = 613;  // BRIDGE_COORDINATION
+    obj["from"] = this->nodeId;
+    obj["routing"] = 2;  // BROADCAST
+    obj["priority"] = bridgePriority;
+    obj["role"] = bridgeRole;
+    obj["load"] = currentLoad;
+    obj["timestamp"] = this->getNodeTime();
+    obj["message_type"] = 613;
+    
+    // Add peer bridges list
+    JsonArray peers = obj["peerBridges"].to<JsonArray>();
+    for (uint32_t peerId : knownBridgePeers) {
+      peers.add(peerId);
+    }
+    
+    String msg;
+    serializeJson(doc, msg);
+    this->sendBroadcast(msg);
+    
+    Log(CONNECTION, "Bridge coordination sent: priority=%d, role=%s, load=%d%%\n",
+        bridgePriority, bridgeRole.c_str(), currentLoad);
   }
 
   /**
@@ -937,6 +1232,26 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   uint32_t electionDeadline = 0;
   std::vector<BridgeCandidate> electionCandidates;
   std::function<void(bool isBridge, TSTRING reason)> bridgeRoleChangedCallback;
+
+  // Multi-bridge coordination state and configuration
+ public:
+  enum BridgeSelectionStrategy {
+    PRIORITY_BASED = 0,  // Use highest priority bridge (default)
+    ROUND_ROBIN = 1,     // Distribute load evenly
+    BEST_SIGNAL = 2      // Use bridge with best RSSI
+  };
+
+ protected:
+  bool multiBridgeEnabled = false;
+  BridgeSelectionStrategy bridgeSelectionStrategy = PRIORITY_BASED;
+  uint8_t maxConcurrentBridges = 2;
+  uint8_t bridgePriority = 5;  // Default medium priority
+  TSTRING bridgeRole = "secondary";  // Default role
+  std::shared_ptr<Task> bridgeCoordinationTask;
+  std::map<uint32_t, uint8_t> bridgePriorities;  // nodeId -> priority mapping
+  std::vector<uint32_t> knownBridgePeers;  // List of peer bridge node IDs
+  uint32_t selectedBridgeOverride = 0;  // Manual bridge selection override
+  size_t lastSelectedBridgeIndex = 0;  // For round-robin selection
 };
 }  // namespace wifi
 };  // namespace painlessmesh
