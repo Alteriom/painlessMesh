@@ -34,10 +34,10 @@ SCENARIO("MessageQueue basic operations work correctly") {
     }
     
     WHEN("Enqueueing multiple messages") {
-      uint32_t id1 = queue.enqueue(PRIORITY_CRITICAL, "critical");
-      uint32_t id2 = queue.enqueue(PRIORITY_HIGH, "high");
-      uint32_t id3 = queue.enqueue(PRIORITY_NORMAL, "normal");
-      uint32_t id4 = queue.enqueue(PRIORITY_LOW, "low");
+      (void)queue.enqueue(PRIORITY_CRITICAL, "critical");
+      (void)queue.enqueue(PRIORITY_HIGH, "high");
+      (void)queue.enqueue(PRIORITY_NORMAL, "normal");
+      (void)queue.enqueue(PRIORITY_LOW, "low");
       
       THEN("All messages should be queued") {
         REQUIRE(queue.size() == 4);
