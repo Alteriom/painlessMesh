@@ -1763,6 +1763,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   ~Mesh() {
     this->stop();
     if (!isExternalScheduler) delete mScheduler;
+    if (messageQueue) delete messageQueue;
   }
 
  protected:
