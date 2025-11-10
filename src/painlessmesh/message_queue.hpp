@@ -6,10 +6,10 @@
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
 
-namespace painlessmesh {
-
 // External logger instance
-extern logger::LogClass Log;
+extern painlessmesh::logger::LogClass Log;
+
+namespace painlessmesh {
 
 /**
  * Message priority levels for queue management

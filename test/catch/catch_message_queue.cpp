@@ -3,10 +3,8 @@
 #include "Arduino.h"
 #include "painlessmesh/message_queue.hpp"
 
-// Define logger for test environment in correct namespace
-namespace painlessmesh {
-  logger::LogClass Log;
-}
+// Define logger for test environment at global scope
+painlessmesh::logger::LogClass Log;
 
 using namespace painlessmesh;
 

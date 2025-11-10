@@ -7,6 +7,7 @@
 
 #include "painlessmesh/connection.hpp"
 #include "painlessmesh/logger.hpp"
+#include "painlessmesh/message_queue.hpp"
 #include "painlessmesh/ntp.hpp"
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
@@ -808,6 +809,200 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   void onRTCSyncComplete(rtcSyncCompleteCallback_t onRTCSyncComplete) {
     Log(logger::GENERAL, "onRTCSyncComplete():\n");
     rtcSyncCompleteCallback = onRTCSyncComplete;
+  }
+
+  //
+  // Message Queue API
+  //
+  
+  /**
+   * Enable or disable message queueing for offline mode
+   * 
+   * When enabled, messages can be queued when Internet is unavailable
+   * and automatically flushed when connection is restored.
+   * 
+   * @param enabled True to enable queueing, false to disable
+   * @param maxSize Maximum number of messages in queue (default 1000)
+   * 
+   * \code
+   * mesh.enableMessageQueue(true, 500);  // Enable with 500 message capacity
+   * \endcode
+   */
+  void enableMessageQueue(bool enabled, uint32_t maxSize = 1000) {
+    if (enabled && !messageQueue) {
+      messageQueue = new MessageQueue(maxSize);
+      Log(logger::GENERAL, "enableMessageQueue(): Queue enabled with capacity %u\n", maxSize);
+    } else if (!enabled && messageQueue) {
+      delete messageQueue;
+      messageQueue = nullptr;
+      Log(logger::GENERAL, "enableMessageQueue(): Queue disabled\n");
+    }
+  }
+  
+  /**
+   * Queue a message with priority for later delivery
+   * 
+   * Use this to queue critical messages when Internet is unavailable.
+   * Messages are automatically delivered when connection is restored.
+   * 
+   * @param payload Message content to queue
+   * @param destination Optional destination metadata (e.g., MQTT topic, HTTP endpoint)
+   * @param priority Message priority (default: PRIORITY_NORMAL)
+   * @return Message ID if successfully queued, 0 if failed
+   * 
+   * \code
+   * // Queue critical alarm
+   * uint32_t msgId = mesh.queueMessage(
+   *   alarmData.toJSON(),
+   *   "mqtt://cloud.example.com/alarms",
+   *   PRIORITY_CRITICAL
+   * );
+   * \endcode
+   */
+  uint32_t queueMessage(const TSTRING& payload, 
+                       const TSTRING& destination = "",
+                       MessagePriority priority = PRIORITY_NORMAL) {
+    if (!messageQueue) {
+      Log(logger::ERROR, "queueMessage(): Message queue not enabled\n");
+      return 0;
+    }
+    
+    return messageQueue->enqueue(priority, payload, destination);
+  }
+  
+  /**
+   * Flush all queued messages
+   * 
+   * Attempts to send all queued messages. This is typically called
+   * automatically when Internet connection is restored, but can be
+   * called manually.
+   * 
+   * Note: This returns the messages for the application to send.
+   * The application is responsible for actually transmitting them
+   * and calling removeQueuedMessage() when successful.
+   * 
+   * @return Vector of queued messages to send
+   * 
+   * \code
+   * auto messages = mesh.flushMessageQueue();
+   * for (auto& msg : messages) {
+   *   if (sendToCloud(msg.payload, msg.destination)) {
+   *     mesh.removeQueuedMessage(msg.id);
+   *   }
+   * }
+   * \endcode
+   */
+  std::vector<QueuedMessage> flushMessageQueue() {
+    if (!messageQueue) {
+      return std::vector<QueuedMessage>();
+    }
+    
+    return messageQueue->getMessages();
+  }
+  
+  /**
+   * Remove a successfully sent message from the queue
+   * 
+   * @param messageId ID of message to remove
+   * @return true if message was found and removed
+   */
+  bool removeQueuedMessage(uint32_t messageId) {
+    if (!messageQueue) {
+      return false;
+    }
+    
+    return messageQueue->remove(messageId);
+  }
+  
+  /**
+   * Increment send attempt counter for a message
+   * 
+   * @param messageId ID of message
+   * @return New attempt count, or 0 if message not found
+   */
+  uint32_t incrementQueuedMessageAttempts(uint32_t messageId) {
+    if (!messageQueue) {
+      return 0;
+    }
+    
+    return messageQueue->incrementAttempts(messageId);
+  }
+  
+  /**
+   * Get number of queued messages
+   * 
+   * @param priority Optional priority level to count (counts all if not specified)
+   * @return Number of queued messages
+   */
+  uint32_t getQueuedMessageCount(MessagePriority priority) {
+    if (!messageQueue) {
+      return 0;
+    }
+    
+    return messageQueue->size(priority);
+  }
+  
+  uint32_t getQueuedMessageCount() {
+    if (!messageQueue) {
+      return 0;
+    }
+    
+    return messageQueue->size();
+  }
+  
+  /**
+   * Get queue statistics
+   * 
+   * @return QueueStats structure with detailed statistics
+   */
+  QueueStats getQueueStats() {
+    if (!messageQueue) {
+      return QueueStats();
+    }
+    
+    return messageQueue->getStats();
+  }
+  
+  /**
+   * Set callback for queue state changes
+   * 
+   * Fires when queue state changes (EMPTY, NORMAL, 75%, FULL)
+   * 
+   * \code
+   * mesh.onQueueStateChanged([](QueueState state, uint32_t count) {
+   *   if (state == QUEUE_75_PERCENT) {
+   *     Serial.printf("Warning: Queue 75%% full (%u messages)\n", count);
+   *   }
+   * });
+   * \endcode
+   */
+  void onQueueStateChanged(queueStateChangedCallback_t callback) {
+    if (messageQueue) {
+      messageQueue->onStateChanged(callback);
+    }
+  }
+  
+  /**
+   * Prune old messages from the queue
+   * 
+   * @param maxAgeMs Maximum age in milliseconds
+   * @return Number of messages removed
+   */
+  uint32_t pruneQueue(uint32_t maxAgeMs) {
+    if (!messageQueue) {
+      return 0;
+    }
+    
+    return messageQueue->pruneOldMessages(maxAgeMs);
+  }
+  
+  /**
+   * Clear all messages from the queue
+   */
+  void clearQueue() {
+    if (messageQueue) {
+      messageQueue->clear();
+    }
   }
 
   /**
@@ -1621,6 +1816,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   nodeDelayCallback_t nodeDelayReceivedCallback;
   bridgeStatusChangedCallback_t bridgeStatusChangedCallback;
   rtcSyncCompleteCallback_t rtcSyncCompleteCallback;
+  
+  // Message queue for offline mode
+  MessageQueue* messageQueue = nullptr;
+  
 #ifdef ESP32
   SemaphoreHandle_t xSemaphore = NULL;
 #endif
