@@ -33,9 +33,9 @@ mesh.sendPackage(&sensor);
 - `timestamp` (uint32_t) - Measurement timestamp
 - `batteryLevel` (uint8_t) - Battery level percentage
 
-### CommandPackage (Type 201)
+### CommandPackage (Type 400)
 
-For sending control commands to specific devices in the mesh.
+For sending control commands to specific devices in the mesh. (Type moved from 201 to 400 in v1.7.7+)
 
 ```cpp
 CommandPackage cmd;
@@ -88,7 +88,7 @@ void setup() {
     
     // Register package handlers
     mesh.onPackage(200, handleSensorData);
-    mesh.onPackage(201, handleCommand);
+    mesh.onPackage(400, handleCommand);  // Updated to 400 in v1.7.7+
     mesh.onPackage(202, handleStatus);
 }
 
@@ -495,7 +495,145 @@ void handleSensorData(protocol::Variant& variant) {
 }
 ```
 
+## Bridge Failover Packages (v1.8.0+)
+
+### BridgeStatusPackage (Type 610)
+
+For monitoring bridge health and Internet connectivity.
+
+```cpp
+#include "examples/alteriom/alteriom_sensor_package.hpp"
+
+using namespace alteriom;
+
+BridgeStatusPackage bridgeStatus;
+bridgeStatus.internetConnected = true;
+bridgeStatus.routerRSSI = -45;         // dBm
+bridgeStatus.routerChannel = 6;
+bridgeStatus.uptime = millis();
+bridgeStatus.gatewayIP = "192.168.1.1";
+bridgeStatus.timestamp = mesh.getNodeTime();
+
+// Broadcast to all nodes
+mesh.sendPackage(&bridgeStatus);
+```
+
+**Fields:**
+- `internetConnected` (bool) - Bridge Internet connectivity status
+- `routerRSSI` (int8_t) - Router WiFi signal strength in dBm
+- `routerChannel` (uint8_t) - Router WiFi channel
+- `uptime` (uint32_t) - Bridge uptime in milliseconds
+- `gatewayIP` (TSTRING) - Router gateway IP address
+- `timestamp` (uint32_t) - Status check timestamp
+
+**Use Cases:**
+- Bridge health monitoring
+- Internet connectivity tracking
+- Automatic failover detection
+- Network diagnostics
+
+### BridgeElectionPackage (Type 611)
+
+For coordinating automatic bridge failover elections.
+
+```cpp
+BridgeElectionPackage election;
+election.routerRSSI = WiFi.RSSI();    // -127 to 0 dBm
+election.uptime = millis();
+election.freeMemory = ESP.getFreeHeap();
+election.timestamp = mesh.getNodeTime();
+election.routerSSID = "MyRouter";
+
+// Broadcast election candidacy
+mesh.sendPackage(&election);
+```
+
+**Fields:**
+- `routerRSSI` (int8_t) - Router WiFi signal strength (-127 to 0 dBm)
+- `uptime` (uint32_t) - Node uptime in milliseconds
+- `freeMemory` (uint32_t) - Free memory in bytes
+- `timestamp` (uint32_t) - Election timestamp
+- `routerSSID` (TSTRING) - Router SSID for verification
+
+**Use Cases:**
+- Automatic bridge election
+- Failover coordination
+- RSSI-based selection
+- Distributed consensus
+
+### BridgeTakeoverPackage (Type 612)
+
+For announcing bridge role transitions.
+
+```cpp
+BridgeTakeoverPackage takeover;
+takeover.previousBridge = oldBridgeNodeId;  // 0 if none
+takeover.reason = "Internet connectivity lost";
+takeover.timestamp = mesh.getNodeTime();
+
+// Announce new bridge role
+mesh.sendPackage(&takeover);
+```
+
+**Fields:**
+- `previousBridge` (uint32_t) - Previous bridge node ID (0 if none)
+- `reason` (TSTRING) - Takeover reason description
+- `timestamp` (uint32_t) - Takeover timestamp
+
+**Use Cases:**
+- Bridge transition announcements
+- Failover notifications
+- Network event logging
+- Topology tracking
+
+### NTPTimeSyncPackage (Type 614)
+
+For distributing NTP time synchronization from bridge to mesh.
+
+```cpp
+NTPTimeSyncPackage ntpSync;
+ntpSync.ntpTime = 1699564800;        // Unix timestamp
+ntpSync.accuracy = 50;               // ±50ms uncertainty
+ntpSync.source = "pool.ntp.org";
+ntpSync.timestamp = mesh.getNodeTime();
+
+// Broadcast NTP time to mesh
+mesh.sendPackage(&ntpSync);
+```
+
+**Fields:**
+- `ntpTime` (uint32_t) - Unix timestamp from NTP server
+- `accuracy` (uint16_t) - Milliseconds uncertainty/precision
+- `source` (TSTRING) - NTP server source
+- `timestamp` (uint32_t) - Collection timestamp
+
+**Use Cases:**
+- Time synchronization from Internet
+- RTC backup coordination
+- Mesh-wide time distribution
+- Offline timekeeping
+
+## Complete Package Type Reference
+
+| Type | Class | Version | Purpose |
+|------|-------|---------|---------|
+| 200 | `SensorPackage` | v1.0.0+ | Environmental sensor data |
+| 202 | `StatusPackage` | v1.0.0+ | Device health monitoring |
+| 204 | `MetricsPackage` | v1.7.7+ | Performance metrics |
+| 400 | `CommandPackage` | v1.7.7+ | Device control (moved from 201) |
+| 600 | `MeshNodeListPackage` | v1.7.7+ | Node inventory |
+| 601 | `MeshTopologyPackage` | v1.7.7+ | Network topology |
+| 602 | `MeshAlertPackage` | v1.7.7+ | Network alerts |
+| 603 | `MeshBridgePackage` | v1.7.7+ | Protocol bridging |
+| 604 | `EnhancedStatusPackage` | v1.7.7+ | Mesh-wide status |
+| 605 | `HealthCheckPackage` | v1.7.7+ | Proactive health monitoring |
+| 610 | `BridgeStatusPackage` | v1.8.0+ | Bridge health monitoring |
+| 611 | `BridgeElectionPackage` | v1.8.0+ | Failover election |
+| 612 | `BridgeTakeoverPackage` | v1.8.0+ | Bridge transition |
+| 614 | `NTPTimeSyncPackage` | v1.8.0+ | NTP time distribution |
+
 See also:
 - [Sensor Networks Tutorial](sensor-networks.md) - Real-world applications
 - [Examples](examples.md) - Complete working examples
 - [Custom Packages Tutorial](../tutorials/custom-packages.md) - Creating your own packages
+- [Bridge Failover Guide](../../BRIDGE_TO_INTERNET.md) - Bridge setup and failover
