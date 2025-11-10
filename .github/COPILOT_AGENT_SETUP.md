@@ -44,7 +44,7 @@ If you see these options, proceed to Step 2. If not, use Option 2 or 3 instead.
    - **Description**: Assists with release management, version validation, and quality assurance for AlteriomPainlessMesh releases
 
    **Instructions:**
-   Copy the instructions from `.github/copilot-agents.json` or use the following condensed version:
+   Copy the instructions from `copilot-agents.json` (in repository root) or use the following condensed version:
 
    ```
    You are the AlteriomPainlessMesh Release Agent. Help developers prepare releases by:
@@ -102,6 +102,7 @@ This option is automatically available to all GitHub Copilot users working in th
 ### How It Works
 
 GitHub Copilot automatically reads:
+- `copilot-agents.json` - Custom agent configuration (repository root)
 - `.github/copilot-instructions.md` - Complete agent instructions
 - `.github/agents/release-agent.md` - Detailed specifications
 - `.github/AGENTS_INDEX.md` - Agent index
@@ -279,7 +280,7 @@ Add team-specific information to `.github/copilot-instructions.md`:
 
 ### Creating Additional Agents
 
-Follow the pattern in `.github/copilot-agents.json` to create:
+Follow the pattern in `copilot-agents.json` (repository root) to create:
 
 - Test Agent
 - Documentation Agent

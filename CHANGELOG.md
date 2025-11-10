@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2025-11-10
+
+### Added
+
+- **GitHub Copilot Custom Agent Support** - Custom agent configuration now discoverable by GitHub
+  - Moved `copilot-agents.json` to repository root for automatic GitHub Copilot integration
+  - Release Agent now available as `@release-agent` in GitHub Copilot Chat (Enterprise)
+  - Enhanced repository context for all GitHub Copilot users
+  - Complete agent documentation in `.github/agents/` directory
+
+### Changed
+
+- **Documentation Updates** - Improved clarity for custom agent setup
+  - Updated `COPILOT_AGENT_SETUP.md` with root file location
+  - Enhanced `AGENTS_INDEX.md` with discovery information
+  - Added examples for using custom agents in development workflow
+
+### Fixed
+
+- **Custom Agent Visibility** - Resolved issue where custom agent tasks were not showing in GitHub
+  - GitHub Copilot now automatically discovers the release agent configuration
+  - Agent appears in Copilot Chat suggestions when available
+  - Knowledge sources properly linked for enhanced context
+
 ## [1.8.0] - 2025-11-09
 
 ### Added

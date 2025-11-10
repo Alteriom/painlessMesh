@@ -8,6 +8,7 @@ This document provides an index of all automation agents, scripts, and tools ava
 
 **Purpose:** Comprehensive release management and quality assurance
 
+**Configuration:** `copilot-agents.json` (repository root)  
 **Documentation:** [release-agent.md](agents/release-agent.md)  
 **Script:** `../scripts/release-agent.sh`  
 **Workflows:** `.github/workflows/validate-release.yml`, `.github/workflows/release.yml`
