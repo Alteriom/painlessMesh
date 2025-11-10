@@ -104,7 +104,7 @@ Regular nodes track all bridges and automatically select the best one based on t
 #### Load Balancing Test (Round-Robin)
 1. On regular nodes, change strategy:
    ```cpp
-   mesh.setBridgeSelectionStrategy(mesh.ROUND_ROBIN);
+   mesh.setBridgeSelectionStrategy(painlessMesh::ROUND_ROBIN);
    ```
 2. Messages should alternate between bridges
 
@@ -115,7 +115,7 @@ Regular nodes track all bridges and automatically select the best one based on t
 Best for most deployments. Uses highest priority bridge available.
 
 ```cpp
-mesh.setBridgeSelectionStrategy(mesh.PRIORITY_BASED);
+mesh.setBridgeSelectionStrategy(painlessMesh::PRIORITY_BASED);
 ```
 
 **When to use:**
@@ -128,7 +128,7 @@ mesh.setBridgeSelectionStrategy(mesh.PRIORITY_BASED);
 Distributes traffic evenly across all bridges.
 
 ```cpp
-mesh.setBridgeSelectionStrategy(mesh.ROUND_ROBIN);
+mesh.setBridgeSelectionStrategy(painlessMesh::ROUND_ROBIN);
 ```
 
 **When to use:**
@@ -141,7 +141,7 @@ mesh.setBridgeSelectionStrategy(mesh.ROUND_ROBIN);
 Always uses bridge with strongest WiFi signal.
 
 ```cpp
-mesh.setBridgeSelectionStrategy(mesh.BEST_SIGNAL);
+mesh.setBridgeSelectionStrategy(painlessMesh::BEST_SIGNAL);
 ```
 
 **When to use:**
@@ -158,9 +158,9 @@ mesh.setBridgeSelectionStrategy(mesh.BEST_SIGNAL);
 mesh.enableMultiBridge(true);
 
 // Set selection strategy
-mesh.setBridgeSelectionStrategy(mesh.PRIORITY_BASED);
-mesh.setBridgeSelectionStrategy(mesh.ROUND_ROBIN);
-mesh.setBridgeSelectionStrategy(mesh.BEST_SIGNAL);
+mesh.setBridgeSelectionStrategy(painlessMesh::PRIORITY_BASED);
+mesh.setBridgeSelectionStrategy(painlessMesh::ROUND_ROBIN);
+mesh.setBridgeSelectionStrategy(painlessMesh::BEST_SIGNAL);
 
 // Set max concurrent bridges (default: 2, max: 5)
 mesh.setMaxBridges(3);

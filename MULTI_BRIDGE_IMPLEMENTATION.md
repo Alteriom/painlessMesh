@@ -218,9 +218,9 @@ If all bridges fail:
 mesh.enableMultiBridge(true);
 
 // Set selection strategy
-mesh.setBridgeSelectionStrategy(mesh.PRIORITY_BASED);  // Default
-mesh.setBridgeSelectionStrategy(mesh.ROUND_ROBIN);
-mesh.setBridgeSelectionStrategy(mesh.BEST_SIGNAL);
+mesh.setBridgeSelectionStrategy(painlessMesh::PRIORITY_BASED);  // Default
+mesh.setBridgeSelectionStrategy(painlessMesh::ROUND_ROBIN);
+mesh.setBridgeSelectionStrategy(painlessMesh::BEST_SIGNAL);
 
 // Set maximum concurrent bridges (default: 2, max: 5)
 mesh.setMaxBridges(3);
@@ -291,7 +291,7 @@ void setup() {
   
   // Enable multi-bridge mode
   mesh.enableMultiBridge(true);
-  mesh.setBridgeSelectionStrategy(mesh.PRIORITY_BASED);
+  mesh.setBridgeSelectionStrategy(painlessMesh::PRIORITY_BASED);
   
   // Initialize as primary bridge (priority 10)
   mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,

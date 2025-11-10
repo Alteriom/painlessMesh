@@ -84,7 +84,7 @@ void setup() {
   mesh.enableMultiBridge(true);
   
   // Set bridge selection strategy (PRIORITY_BASED is default)
-  mesh.setBridgeSelectionStrategy(mesh.PRIORITY_BASED);
+  mesh.setBridgeSelectionStrategy(painlessMesh::PRIORITY_BASED);
   
   // Initialize as bridge with priority 5 (secondary)
   mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
