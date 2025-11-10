@@ -18,6 +18,13 @@ namespace painlessmesh {
 namespace wifi {
 class Mesh : public painlessmesh::Mesh<Connection> {
  public:
+  // Multi-bridge selection strategy enum (must be declared early)
+  enum BridgeSelectionStrategy {
+    PRIORITY_BASED = 0,  // Use highest priority bridge (default)
+    ROUND_ROBIN = 1,     // Distribute load evenly
+    BEST_SIGNAL = 2      // Use bridge with best RSSI
+  };
+
   /** Initialize the mesh network
    *
    * Add this to your setup() function. This routine does the following things:
@@ -759,15 +766,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       return;
     }
     
-    // Calculate current load (simplified: based on connection count)
+    // Calculate current load (simplified: based on node count)
     uint8_t currentLoad = 0;
-    if (this->_connections.size() > 0) {
-      currentLoad = (this->_connections.size() * 100) / MAX_CONN;
+    auto nodeCount = this->getNodeList(false).size();
+    if (nodeCount > 0) {
+      currentLoad = (nodeCount * 100) / MAX_CONN;
       if (currentLoad > 100) currentLoad = 100;
     }
     
     // Create coordination message
-    DynamicJsonDocument doc(512);
+    JsonDocument doc;
     JsonObject obj = doc.to<JsonObject>();
     
     obj["type"] = 613;  // BRIDGE_COORDINATION
@@ -873,7 +881,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     electionCandidates.push_back(selfCandidate);
     
     // Broadcast candidacy using JSON directly (avoiding dependency on alteriom package)
-    DynamicJsonDocument doc(256);
+    JsonDocument doc;
     JsonObject obj = doc.to<JsonObject>();
     obj["type"] = 611;  // BRIDGE_ELECTION
     obj["from"] = this->nodeId;
@@ -1016,7 +1024,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
     
     // Broadcast takeover announcement
-    DynamicJsonDocument doc(256);
+    JsonDocument doc;
     JsonObject obj = doc.to<JsonObject>();
     obj["type"] = 612;  // BRIDGE_TAKEOVER
     obj["from"] = this->nodeId;
@@ -1084,7 +1092,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Create bridge status package
     // We need to include the package header here since we're in wifi namespace
     // The package will be sent as a JSON string
-    DynamicJsonDocument doc(256);
+    JsonDocument doc;
     JsonObject obj = doc.to<JsonObject>();
     
     obj["type"] = 610;  // BRIDGE_STATUS type
@@ -1234,13 +1242,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   std::function<void(bool isBridge, TSTRING reason)> bridgeRoleChangedCallback;
 
   // Multi-bridge coordination state and configuration
- public:
-  enum BridgeSelectionStrategy {
-    PRIORITY_BASED = 0,  // Use highest priority bridge (default)
-    ROUND_ROBIN = 1,     // Distribute load evenly
-    BEST_SIGNAL = 2      // Use bridge with best RSSI
-  };
-
  protected:
   bool multiBridgeEnabled = false;
   BridgeSelectionStrategy bridgeSelectionStrategy = PRIORITY_BASED;
