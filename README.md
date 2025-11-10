@@ -418,6 +418,21 @@ See [CHANGELOG](CHANGELOG.md) for upcoming changes.
 
 ## Development
 
+### Release Agent & Automation
+
+AlteriomPainlessMesh includes a comprehensive release automation system:
+
+- **📋 [Release Agent Documentation](.github/agents/release-agent.md)** - Complete release process specification
+- **🤖 Release Validation Script**: `./scripts/release-agent.sh` - Automated pre-release checks
+- **⚙️ CI/CD Integration**: Workflows validate every release automatically
+
+**Quick Release Validation:**
+```bash
+./scripts/release-agent.sh  # Run all pre-release checks
+```
+
+See [Release Agent Guide](.github/agents/README.md) for complete documentation.
+
 ### Building from Source
 
 ```bash

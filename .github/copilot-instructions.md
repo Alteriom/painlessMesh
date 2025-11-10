@@ -364,7 +364,89 @@ This project follows [git flow](https://www.atlassian.com/git/tutorials/comparin
 - `feature/*` - Feature branches (merge to `develop`)
 - `hotfix/*` - Urgent fixes (merge to both `main` and `develop`)
 
+## Release Process & Automation
+
+### Release Agent
+
+AlteriomPainlessMesh uses an automated Release Agent for quality assurance:
+
+**When asked about releases or preparing a release:**
+
+1. **Run Release Validation**
+   ```bash
+   ./scripts/release-agent.sh
+   ```
+
+2. **Check Version Consistency**
+   - Verify `library.properties`, `library.json`, and `package.json` match
+   - Use `./scripts/bump-version.sh patch X.Y.Z` to synchronize
+
+3. **Validate CHANGELOG**
+   - Ensure CHANGELOG.md has entry for version
+   - Format: `## [X.Y.Z] - YYYY-MM-DD`
+   - Must include Added/Changed/Fixed sections
+
+4. **Verify Tests Pass**
+   ```bash
+   cmake -G Ninja . && ninja && run-parts --regex catch_ bin/
+   ```
+
+5. **Check Git Status**
+   - No uncommitted changes
+   - Version tag doesn't exist yet
+
+6. **Follow Release Checklist**
+   - Complete checklist in `.github/agents/release-agent.md`
+   - All 21+ validation checks must pass
+
+**Release Agent Documentation:**
+- Complete spec: `.github/agents/release-agent.md`
+- Agent index: `.github/AGENTS_INDEX.md`
+- Release guide: `RELEASE_GUIDE.md`
+
+**Common Release Commands:**
+```bash
+# Validate release readiness
+./scripts/release-agent.sh
+
+# Bump version
+./scripts/bump-version.sh patch 1.8.1
+
+# Commit release
+git commit -m "release: v1.8.1 - Brief description"
+```
+
+### Release Workflow
+
+**Automated Release Pipeline:**
+1. Push commit with `release:` prefix to main branch
+2. GitHub Actions runs release workflow
+3. Creates git tag automatically
+4. Publishes to NPM, GitHub Packages, PlatformIO
+5. Updates documentation and wiki
+
+**Manual Release Trigger:**
+```bash
+gh workflow run manual-publish.yml
+```
+
+### Release Best Practices
+
+When helping with releases:
+- Always run `./scripts/release-agent.sh` first
+- Check that all tests pass before release
+- Verify CHANGELOG is up to date
+- Ensure version numbers are consistent
+- Validate no uncommitted changes exist
+- Confirm git tag doesn't already exist
+- Follow semantic versioning (X.Y.Z)
+
 ## Additional Resources
+
+### Automation & Agents
+- Agent index: `.github/AGENTS_INDEX.md`
+- Release agent: `.github/agents/release-agent.md`
+- Release guide: `RELEASE_GUIDE.md`
 
 ### File-Specific Instructions
 Check `.github/instructions/` for detailed guidance on:
