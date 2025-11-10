@@ -5,6 +5,7 @@
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/router.hpp"
+#include <vector>
 
 namespace painlessmesh {
 
