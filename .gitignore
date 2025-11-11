@@ -62,3 +62,4 @@ cmake-*/
 *.tar.gz
 test-output.log
 test-results.txt
+_codeql_detected_source_root

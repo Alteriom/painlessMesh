@@ -7,14 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.3] - 2025-11-11
+
 ### Fixed
 
+- **Arduino ZIP File Integrity (Issue #89)** - Resolved ZIP file installation issues reported by @woodlist
+  - Removed problematic symlink `_codeql_detected_source_root` that caused ZIP file corruption
+  - Added comprehensive `.gitattributes export-ignore` rules to exclude development files from releases
+  - Improved ZIP file structure for Arduino IDE compatibility
+  - Added version timestamp and metadata to main header file `painlessMesh.h`
+  - Excluded test files, scripts, and development artifacts from Arduino ZIP packages
+  
 - **Station Reconnection After Mesh Init (Issue #21)** - Automatic reconnection for bridge mode station connections
   - Fixed bug where manual station connections failed to reconnect after mesh initialization
   - `connectToAP()` now calls `WiFi.begin()` directly for manual connections instead of relying on scan results
   - Added logging for reconnection attempts
   - Resolves ESP32-C6 and all ESP platforms bridge connectivity issues
   - Documentation: `docs/troubleshooting/station-reconnection-issues.md`
+
+### Changed
+
+- **Library Header Documentation** - Added version timestamp and metadata to `painlessMesh.h`
+  - Header now includes version number, release date, and repository URL
+  - Improved documentation for library users
+  - Addresses @woodlist's request for version timestamp tracking
+
+### Improved
+
+- **Release Process** - Enhanced ZIP file creation for Arduino IDE
+  - Better exclusion of development files from distribution packages
+  - Cleaner package structure with only essential library files
+  - Improved compatibility with Arduino IDE's "Add .ZIP Library" feature
 
 ## [1.8.2] - 2025-11-11
 
