@@ -654,15 +654,9 @@ We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparin
 
 If you like the library please consider supporting its development. Your contributions help me spend more time improving painlessMesh.
 
-### Support Options
+[![PayPal Donation](paypal/qrcode.png)](https://www.paypal.com/paypalme/domlavoie)
 
-**Ko-fi** (One-time or monthly):
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U21LWO6I)
-
-**PayPal** (Scan QR code):
-
-![PayPal Donation QR Code](paypal/qrcode.png)
+**[Donate via PayPal](https://www.paypal.com/paypalme/domlavoie)** • [dominic.lavoie@gmail.com](mailto:dominic.lavoie@gmail.com)
 
 ## 📚 Complete Documentation
 
