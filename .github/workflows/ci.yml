@@ -195,10 +195,31 @@ jobs:
             echo "ℹ️ No Alteriom files to check for TODO/FIXME comments"
           fi
 
+  arduino-library-validation:
+    name: Arduino Library Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for tags
+
+      - name: Fetch tags
+        run: git fetch --tags
+
+      - name: Run Arduino Library Compliance Check
+        run: |
+          chmod +x scripts/validate-arduino-compliance.sh
+          bash scripts/validate-arduino-compliance.sh
+
+      - name: Run PlatformIO Library Structure Validation
+        run: |
+          python3 scripts/validate_library_structure.py
+
   summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [build-test-desktop, build-arduino, build-platformio, code-quality]
+    needs: [build-test-desktop, build-arduino, build-platformio, code-quality, arduino-library-validation]
     if: always()
     steps:
       - name: Check job results
@@ -208,13 +229,15 @@ jobs:
           echo "- Arduino Build Test: ${{ needs.build-arduino.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- PlatformIO Build Test: ${{ needs.build-platformio.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Arduino Library Validation: ${{ needs.arduino-library-validation.result }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Check if any job failed or was cancelled
           if [[ "${{ needs.build-test-desktop.result }}" != "success" ]] || \
              [[ "${{ needs.build-arduino.result }}" != "success" ]] || \
              [[ "${{ needs.build-platformio.result }}" != "success" ]] || \
-             [[ "${{ needs.code-quality.result }}" != "success" ]]; then
+             [[ "${{ needs.code-quality.result }}" != "success" ]] || \
+             [[ "${{ needs.arduino-library-validation.result }}" != "success" ]]; then
             echo "❌ **Some builds or tests failed**" >> $GITHUB_STEP_SUMMARY
             echo "::error::One or more CI jobs failed. Check the individual job logs for details."
             exit 1

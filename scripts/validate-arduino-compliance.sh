@@ -124,6 +124,26 @@ if [ -f library.properties ]; then
     fi
 fi
 
+# 13. Check includes field lists all main headers
+if [ -f library.properties ]; then
+    echo -n "Checking includes field... "
+    INCLUDES=$(grep '^includes=' library.properties | cut -d'=' -f2)
+    
+    if [[ "$INCLUDES" == *"painlessMesh.h"* ]] && [[ "$INCLUDES" == *"AlteriomPainlessMesh.h"* ]]; then
+        echo -e "${GREEN}✓ CORRECT${NC} (includes both main headers)"
+    elif [[ "$INCLUDES" == "painlessMesh.h" ]]; then
+        echo -e "${RED}✗ INCOMPLETE${NC}"
+        echo "  Current: includes=$INCLUDES"
+        echo "  Expected: includes=painlessMesh.h,AlteriomPainlessMesh.h"
+        echo "  Issue: Missing AlteriomPainlessMesh.h in includes field"
+        echo "  This prevents users from discovering the Alteriom header"
+        ((FAILURES++))
+    else
+        echo -e "${YELLOW}○ WARNING${NC} (includes=$INCLUDES)"
+        echo "  Note: Should include both painlessMesh.h and AlteriomPainlessMesh.h"
+    fi
+fi
+
 # Summary
 echo ""
 echo "=================================================="
