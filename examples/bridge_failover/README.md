@@ -14,10 +14,15 @@ This example implements a distributed consensus protocol where regular nodes can
 
 ### 1. Bridge Status Monitoring
 
-All bridge nodes periodically broadcast their status (Type 610 - BRIDGE_STATUS):
+Bridge nodes broadcast their status (Type 610 - BRIDGE_STATUS):
 - Internet connectivity state
 - Router RSSI
 - Uptime and other health metrics
+
+Broadcasts occur:
+- Immediately on bridge initialization
+- When new nodes connect to the mesh
+- Periodically (default: every 30 seconds)
 
 Regular nodes track these broadcasts and detect failures when:
 - No status received within 60 seconds (configurable timeout)
@@ -270,6 +275,17 @@ bool amBridge = mesh.isBridge();
 - Automatic failover ensures service continuity
 
 ## Troubleshooting
+
+### Bridge Not Discovered
+
+**Symptoms**: Regular nodes show "No primary bridge available!" and "Known bridges: 0"
+
+**Solutions**:
+- Verify bridge node successfully connected to router (check serial output)
+- Ensure mesh network name and password match on all nodes
+- Check that nodes are on the same WiFi channel as the router/bridge
+- Wait a few seconds after startup for initial discovery
+- Bridge now broadcasts immediately on startup and when nodes connect (fixed in v1.8.4+)
 
 ### Election Doesn't Start
 
