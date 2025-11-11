@@ -2,28 +2,43 @@
 
 ## Overview
 
-This document provides instructions for submitting AlteriomPainlessMesh to the Arduino Library Manager registry, which will enable users to install and update the library directly from the Arduino IDE's Library Manager.
+This document explains the Arduino Library Manager indexing issue and provides the solution to restore automatic version updates.
 
 ## Current Status
 
-**Status**: ❌ Not yet registered  
-**Latest Version**: 1.8.2  
+**Status**: ✅ **Already registered** in Arduino Library Manager  
+**Issue**: New releases (v1.7.0 - v1.8.2) not being indexed  
+**Last Indexed Version**: 1.6.1  
 **Repository**: https://github.com/Alteriom/painlessMesh
 
 ## Problem Statement
 
 Users report that the Arduino IDE:
-- Does not show the current version (1.8.2)
-- Shows an old version (1.6.1) or no version at all
-- Cannot install the library via Library Manager
+- Shows old version (1.6.1) instead of current version (1.8.2)
+- Does not detect new releases (v1.7.0 through v1.8.2)
+- Cannot update to newer versions via Library Manager
 - Has issues when trying to add the library as a ZIP file
 
-## Root Cause
+## Root Cause **[RESOLVED]**
 
-The library is not registered in the Arduino Library Manager's official registry at:
-https://github.com/arduino/library-registry
+The library name in `library.properties` was changed between v1.6.1 and v1.7.0:
 
-Without registration, the library cannot be discovered or installed via Arduino IDE's Library Manager.
+- **v1.6.1**: `name=Alteriom PainlessMesh` (with space)
+- **v1.7.0+**: `name=AlteriomPainlessMesh` (no space)
+
+**Arduino Library Manager requires the library name to remain consistent.** When the name changed, the indexer treated it as a completely different library and stopped indexing new releases under the original name.
+
+The library IS registered at: https://github.com/arduino/library-registry (entry: `https://github.com/Alteriom/painlessMesh`)
+
+## Solution **[IMPLEMENTED]**
+
+Revert the library name in `library.properties` back to the original format with a space:
+
+```properties
+name=Alteriom PainlessMesh
+```
+
+This will allow Arduino Library Manager to resume indexing new releases as updates to the existing library entry.
 
 ## Solution: Submit to Arduino Library Registry
 

@@ -105,22 +105,40 @@ else
     echo -e "${YELLOW}○ MISSING (optional)${NC}"
 fi
 
+# 12. Check library name consistency (critical for Arduino Library Manager)
+if [ -f library.properties ]; then
+    LIBRARY_NAME=$(grep '^name=' library.properties | cut -d'=' -f2)
+    echo -n "Checking library name format... "
+    if [ "$LIBRARY_NAME" = "Alteriom PainlessMesh" ]; then
+        echo -e "${GREEN}✓ CORRECT${NC} (name='$LIBRARY_NAME')"
+    elif [ "$LIBRARY_NAME" = "AlteriomPainlessMesh" ]; then
+        echo -e "${RED}✗ INCORRECT${NC}"
+        echo "  Current: '$LIBRARY_NAME'"
+        echo "  Expected: 'Alteriom PainlessMesh' (with space)"
+        echo "  Issue: Library was registered with space in name."
+        echo "  Arduino Library Manager requires consistent naming."
+        ((FAILURES++))
+    else
+        echo -e "${YELLOW}○ WARNING${NC} (name='$LIBRARY_NAME')"
+        echo "  Note: Library registered as 'Alteriom PainlessMesh'"
+    fi
+fi
+
 # Summary
 echo ""
 echo "=================================================="
 if [ $FAILURES -eq 0 ]; then
     echo -e "${GREEN}✓ ALL CHECKS PASSED${NC}"
     echo ""
-    echo "Library is ready for Arduino Library Manager submission!"
+    echo "Library is ready for Arduino Library Manager indexing!"
     echo ""
-    echo "Next steps:"
-    echo "1. Review: docs/ARDUINO_LIBRARY_MANAGER_SUBMISSION.md"
-    echo "2. Submit: https://github.com/arduino/library-registry"
-    echo "3. Use template: .github/ARDUINO_LIBRARY_REGISTRY_SUBMISSION.md"
+    echo "Note: Library is already registered in Arduino Library Manager."
+    echo "New releases with correct library name will be automatically indexed"
+    echo "within 24-48 hours after creating a GitHub release."
     exit 0
 else
     echo -e "${RED}✗ $FAILURES CHECK(S) FAILED${NC}"
     echo ""
-    echo "Please fix the failures above before submitting to Arduino Library Manager."
+    echo "Please fix the failures above before creating a new release."
     exit 1
 fi

@@ -217,15 +217,15 @@ pio pkg publish .
 
 ## 🛠️ Arduino Library Manager
 
-### ⚠️ IMPORTANT: Registration Required
+### ✅ IMPORTANT: Library Name Fixed
 
-**Current Status**: ❌ **NOT YET REGISTERED**
+**Current Status**: ✅ **REGISTERED AND FIXED**
 
-The library is **not currently registered** in the Arduino Library Manager. Users cannot install via Arduino IDE until registration is complete.
+The library IS registered in the Arduino Library Manager. The issue was a library name change that prevented new versions from being indexed.
 
-**Issue**: Users report seeing old version (1.6.1) or unable to find library in Arduino IDE.
+**Issue Resolved**: Library name in `library.properties` has been restored to match the original registration.
 
-**Solution**: Complete the one-time submission process below.
+**Result**: New releases will now be automatically indexed by Arduino Library Manager within 24-48 hours.
 
 ### One-Time Submission Process
 

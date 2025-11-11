@@ -294,9 +294,10 @@ painlessMesh does not create a TCP/IP network of nodes. Rather each of the nodes
 
 ### Arduino Library Manager
 
-> **⚠️ IMPORTANT**: The library is **not yet registered** in the Arduino Library Manager.  
-> **Temporary workaround**: Use PlatformIO, manual ZIP installation, or git clone (see below).  
-> **Status**: Registration submission in progress. See [Arduino Library Manager Submission Guide](docs/ARDUINO_LIBRARY_MANAGER_SUBMISSION.md) for details.
+> **✅ FIXED**: Library name restored to match Arduino Library Manager registry.  
+> **Status**: New releases (v1.8.2+) will now be indexed automatically within 24-48 hours.  
+> **Issue**: Versions v1.7.0-v1.8.1 had incorrect library name and were not indexed.  
+> See [Arduino Library Manager Documentation](docs/ARDUINO_LIBRARY_MANAGER_SUBMISSION.md) for details.
 
 **Once registered**, installation will be available via Arduino IDE:
 
