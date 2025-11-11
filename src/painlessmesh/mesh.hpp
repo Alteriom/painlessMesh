@@ -339,6 +339,23 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
     return painlessmesh::router::send<T>(single, (*this));
   }
+  
+  /** Send message to a specific node with priority
+   *
+   * @param destId The nodeId of the node to send it to.
+   * @param msg The message to send
+   * @param priorityLevel Priority level: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
+   *
+   * @return true if everything works, false if not.
+   */
+  bool sendSingle(uint32_t destId, TSTRING msg, uint8_t priorityLevel) {
+    Log(logger::COMMUNICATION, "sendSingle(): dest=%u msg=%s priority=%u\n", destId,
+        msg.c_str(), priorityLevel);
+    auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
+    auto conn = painlessmesh::router::findRoute<T>((*this), destId);
+    if (!conn) return false;
+    return painlessmesh::router::sendWithPriority<painlessmesh::protocol::Single, T>(single, conn, priorityLevel);
+  }
 
   /** Broadcast a message to every node on the mesh network.
    *
@@ -351,6 +368,39 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     Log(COMMUNICATION, "sendBroadcast(): msg=%s\n", msg.c_str());
     painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
+    if (includeSelf) {
+      protocol::Variant var(pkg);
+      this->callbackList.execute(var.type(), var, NULL, 0);
+    }
+    if (success > 0) return true;
+    return false;
+  }
+  
+  /** Broadcast a message with priority to every node on the mesh network.
+   *
+   * @param msg The message to broadcast
+   * @param priorityLevel Priority level: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
+   * @param includeSelf Send message to myself as well. Default is false.
+   *
+   * @return true if everything works, false if not
+   */
+  bool sendBroadcast(TSTRING msg, uint8_t priorityLevel, bool includeSelf = false) {
+    using namespace logger;
+    Log(COMMUNICATION, "sendBroadcast(): msg=%s priority=%u\n", msg.c_str(), priorityLevel);
+    painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
+    
+    // Broadcast to all connections with priority
+    size_t success = 0;
+    for (auto&& conn : this->subs) {
+      if (conn->nodeId != 0) {
+        painlessmesh::protocol::Variant variant(pkg);
+        TSTRING msgStr;
+        variant.printTo(msgStr);
+        auto sent = conn->addMessageWithPriority(msgStr, priorityLevel);
+        if (sent) ++success;
+      }
+    }
+    
     if (includeSelf) {
       protocol::Variant var(pkg);
       this->callbackList.execute(var.type(), var, NULL, 0);
@@ -2152,6 +2202,16 @@ class Connection : public painlessmesh::layout::Neighbour,
 
   bool addMessage(const TSTRING &msg, bool priority = false) {
     return this->write(msg, priority);
+  }
+  
+  /**
+   * Add message with explicit priority level (0-3)
+   * 
+   * \param msg The message to send
+   * \param priorityLevel Priority level: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
+   */
+  bool addMessageWithPriority(const TSTRING &msg, uint8_t priorityLevel) {
+    return this->writeWithPriority(msg, priorityLevel);
   }
 
   /**
