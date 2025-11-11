@@ -46,6 +46,9 @@ release_notes.txt
 test_results/
 coverage/
 
+# Distribution artifacts (created by scripts/create-arduino-zip.sh)
+dist/
+
 # Build test directories
 build-test/
 build-*/

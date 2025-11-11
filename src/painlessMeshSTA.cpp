@@ -189,7 +189,13 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
         mesh->closeConnectionSTA();
         task.enableDelayed(10 * SCAN_INTERVAL);
         return;
-      } else if (aps.empty() || !ssid.equals(aps.begin()->ssid)) {
+      } else {
+        // For manual router connections, reconnect directly using WiFi.begin()
+        // Don't rely on scan results since router may be on different channel
+        Log(CONNECTION, 
+            "connectToAP(): Manual connection - attempting to reconnect to %s\n",
+            ssid.c_str());
+        WiFi.begin(ssid.c_str(), password.c_str());
         task.enableDelayed(SCAN_INTERVAL);
         return;
       }

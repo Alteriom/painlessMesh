@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Station Reconnection After Mesh Init (Issue #21)** - Automatic reconnection for bridge mode station connections
+  - Fixed bug where manual station connections failed to reconnect after mesh initialization
+  - `connectToAP()` now calls `WiFi.begin()` directly for manual connections instead of relying on scan results
+  - Added logging for reconnection attempts
+  - Resolves ESP32-C6 and all ESP platforms bridge connectivity issues
+  - Documentation: `docs/troubleshooting/station-reconnection-issues.md`
+
 ## [1.8.2] - 2025-11-11
 
 ### Added
