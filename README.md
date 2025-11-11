@@ -318,13 +318,29 @@ The library includes the header file `AlteriomPainlessMesh.h` which provides acc
 4. Select the downloaded ZIP file
 5. Restart Arduino IDE
 
-**Option 2: Git Clone**
+**Option 2: Create ZIP from Repository**
+
+If you need to create a ZIP file from source (e.g., for testing unreleased versions):
+
+```bash
+# Clone and create ZIP
+git clone https://github.com/Alteriom/painlessMesh.git
+cd painlessMesh
+./scripts/create-arduino-zip.sh
+
+# Output: dist/painlessMesh-vX.X.X.zip
+# Import this ZIP in Arduino IDE
+```
+
+**Option 3: Git Clone**
 
 ```bash
 cd ~/Arduino/libraries/
 git clone https://github.com/Alteriom/painlessMesh.git AlteriomPainlessMesh
 # Restart Arduino IDE
 ```
+
+📖 **Detailed Guide**: See [Manual Arduino IDE Installation](docs/getting-started/arduino-manual-install.md) for complete instructions, troubleshooting, and ZIP creation details.
 
 ### PlatformIO
 
