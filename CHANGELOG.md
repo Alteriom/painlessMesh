@@ -184,7 +184,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- TBD
+- No bug fixes in this release - purely additive features
 
 ### Backward Compatibility
 

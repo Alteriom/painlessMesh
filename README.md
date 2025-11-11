@@ -463,7 +463,7 @@ These are the message types used by applications built on painlessMesh:
 | 610 | `BridgeStatusPackage` | Bridge health monitoring (v1.8.0+, BRIDGE_STATUS per schema v0.7.3+) | `internetConnected`, `routerRSSI`, `routerChannel`, `uptime`, `gatewayIP`, `timestamp` |
 | 611 | `BridgeElectionPackage` | Bridge failover election (v1.8.0+, BRIDGE_ELECTION per schema v0.7.3+) | `routerRSSI`, `uptime`, `freeMemory`, `timestamp`, `routerSSID` |
 | 612 | `BridgeTakeoverPackage` | Bridge role announcement (v1.8.0+, BRIDGE_TAKEOVER per schema v0.7.3+) | `previousBridge`, `reason`, `timestamp` |
-| 613 | `BridgeCoordinationPackage` | Multi-bridge coordination (v1.8.0+, BRIDGE_COORDINATION) | `priority`, `role`, `peerBridges[]`, `load`, `timestamp` |
+| 613 | `BridgeCoordinationPackage` | Multi-bridge coordination (v1.8.2+, BRIDGE_COORDINATION) | `priority`, `role`, `peerBridges[]`, `load`, `timestamp` |
 | 614 | `NTPTimeSyncPackage` | NTP time synchronization (v1.8.0+, TIME_SYNC_NTP per schema v0.7.3+) | `ntpTime`, `accuracy`, `source`, `timestamp` |
 
 ## Key Features
