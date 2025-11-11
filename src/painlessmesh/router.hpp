@@ -64,6 +64,37 @@ bool send(protocol::Variant&& variant, std::shared_ptr<U> conn,
   return conn->addMessage(msg, priority);
 }
 
+// New priority-level send functions (0-3 priority levels)
+template <class T, class U>
+bool sendWithPriority(T& package, std::shared_ptr<U> conn, uint8_t priorityLevel) {
+  painlessmesh::protocol::Variant variant(package);
+  TSTRING msg;
+  variant.printTo(msg);
+  return conn->addMessageWithPriority(msg, priorityLevel);
+}
+
+template <class T, class U>
+bool sendWithPriority(T&& package, std::shared_ptr<U> conn, uint8_t priorityLevel) {
+  painlessmesh::protocol::Variant variant(package);
+  TSTRING msg;
+  variant.printTo(msg);
+  return conn->addMessageWithPriority(msg, priorityLevel);
+}
+
+template <class U>
+bool sendWithPriority(protocol::Variant& variant, std::shared_ptr<U> conn, uint8_t priorityLevel) {
+  TSTRING msg;
+  variant.printTo(msg);
+  return conn->addMessageWithPriority(msg, priorityLevel);
+}
+
+template <class U>
+bool sendWithPriority(protocol::Variant&& variant, std::shared_ptr<U> conn, uint8_t priorityLevel) {
+  TSTRING msg;
+  variant.printTo(msg);
+  return conn->addMessageWithPriority(msg, priorityLevel);
+}
+
 template <class T, class U>
 bool send(T& package, layout::Layout<U> layout) {
   painlessmesh::protocol::Variant variant(package);

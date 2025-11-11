@@ -129,6 +129,18 @@ class BufferedConnection
     sentBufferTask.forceNextIteration();
     return true;
   }
+  
+  /**
+   * Write data with explicit priority level (0-3)
+   * 
+   * \param data The data to send
+   * \param priorityLevel Priority level: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
+   */
+  bool writeWithPriority(const TSTRING &data, uint8_t priorityLevel) {
+    sentBuffer.pushWithPriority(data, priorityLevel);
+    sentBufferTask.forceNextIteration();
+    return true;
+  }
 
   void onDisconnect(std::function<void()> callback) {
     disconnectCallback = callback;
@@ -164,7 +176,15 @@ class BufferedConnection
       auto data_ptr = sentBuffer.readPtr(len);
       auto written = client->write(data_ptr, len, 1);
       if (written == len) {
-        client->send();  // TODO only do this for priority messages
+        // Get priority before freeing the read buffer
+        uint8_t msgPriority = sentBuffer.getLastReadPriority();
+        
+        // Call send() for high priority messages (CRITICAL=0, HIGH=1)
+        // This ensures they are transmitted immediately
+        if (msgPriority <= 1) {
+          client->send();
+        }
+        
         sentBuffer.freeRead();
         sentBufferTask.forceNextIteration();
         return true;
