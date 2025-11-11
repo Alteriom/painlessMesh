@@ -295,7 +295,7 @@ painlessMesh does not create a TCP/IP network of nodes. Rather each of the nodes
 ### Arduino Library Manager
 
 > **✅ FIXED**: Library name restored to match Arduino Library Manager registry.  
-> **Status**: New releases (v1.8.2+) will now be indexed automatically within 24-48 hours.  
+> **Status**: New releases (v1.8.3+) will now be indexed automatically within 24-48 hours.  
 > **Issue**: Versions v1.7.0-v1.8.1 had incorrect library name and were not indexed.  
 > See [Arduino Library Manager Documentation](docs/ARDUINO_LIBRARY_MANAGER_SUBMISSION.md) for details.
 
@@ -313,7 +313,7 @@ The library includes the header file `AlteriomPainlessMesh.h` which provides acc
 **Option 1: Download ZIP from GitHub Release**
 
 1. Go to [Releases](https://github.com/Alteriom/painlessMesh/releases/latest)
-2. Download `painlessMesh-v1.8.2.zip` (or latest version)
+2. Download `painlessMesh-v1.8.3.zip` (or latest version)
 3. In Arduino IDE: **Sketch** → **Include Library** → **Add .ZIP Library...**
 4. Select the downloaded ZIP file
 5. Restart Arduino IDE
@@ -532,7 +532,19 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.8.2 (November 11, 2025)
+## Latest Release: v1.8.3 (November 11, 2025)
+
+**ZIP File Integrity Fix for Arduino IDE Installation**:
+
+- 🐛 **Critical Bug Fix** - Resolved Arduino IDE installation crashes caused by symlink in release archives
+- 📦 **Clean ZIP Packages** - 50% smaller packages (420K) with only essential files
+- 📝 **Version Documentation** - Added version timestamp to main header file
+- ✅ **Verified Installation** - Tested and working in Arduino IDE "Add .ZIP Library"
+- 🔧 **100% Backward Compatible** - No code changes, packaging fix only
+
+**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.3.md)** | **[📋 Full CHANGELOG](CHANGELOG.md)**
+
+## Previous Release: v1.8.2 (November 11, 2025)
 
 **Multi-Bridge Coordination & Message Queue for Critical Systems**:
 
@@ -541,9 +553,8 @@ These are the message types used by applications built on painlessMesh:
 - ⚖️ **Three Load Balancing Strategies** - Priority-Based, Round-Robin, Best Signal (RSSI)
 - 🛡️ **Production Ready** - Battle-tested features for critical deployments (Issues #65 & #66)
 - 📊 **230+ New Test Assertions** - Comprehensive test coverage for both features
-- 🔧 **100% Backward Compatible** - Optional features, no breaking changes
 
-**[📋 Full CHANGELOG](CHANGELOG.md)**
+**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.2.md)**
 
 ## Previous Release: v1.8.1 (November 10, 2025)
 
