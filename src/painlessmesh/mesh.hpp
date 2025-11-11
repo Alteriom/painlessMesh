@@ -2,6 +2,9 @@
 #define _PAINLESS_MESH_MESH_HPP_
 
 #include <vector>
+#include <map>
+#include <set>
+#include <queue>
 
 #include "painlessmesh/configuration.hpp"
 
@@ -1076,6 +1079,11 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * Returns -1 if node is unreachable
    */
   int getHopCount(uint32_t nodeId) {
+    // Check if requesting hop count to self
+    if (nodeId == this->getNodeId()) {
+      return 0;
+    }
+    
     // Check if it's a direct connection (1 hop)
     for (auto conn : this->subs) {
       if (conn->nodeId == nodeId && conn->connected()) {
@@ -1083,42 +1091,172 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       }
     }
     
-    // For indirect connections, traverse the node tree
+    // For indirect connections, use BFS to find shortest path
     auto tree = this->asNodeTree();
-    // Simple BFS to find hop count
-    // For now, return 2 for any node in the mesh but not directly connected
-    auto nodeList = this->getNodeList(false);
-    for (auto node : nodeList) {
-      if (node == nodeId) {
-        return 2;  // TODO: Implement proper hop count calculation
+    
+    // BFS to find hop count
+    std::queue<std::pair<uint32_t, uint8_t>> queue;  // (nodeId, hops)
+    std::set<uint32_t> visited;
+    
+    // Start from this node
+    queue.push({this->getNodeId(), 0});
+    visited.insert(this->getNodeId());
+    
+    while (!queue.empty()) {
+      auto current = queue.front();
+      queue.pop();
+      
+      uint32_t currentNode = current.first;
+      uint8_t hops = current.second;
+      
+      // Found the target
+      if (currentNode == nodeId) {
+        return hops;
+      }
+      
+      // Get neighbors of current node
+      std::list<uint32_t> neighbors;
+      if (getNodeNeighbors(tree, currentNode, neighbors)) {
+        // Add unvisited neighbors to queue
+        for (auto neighbor : neighbors) {
+          if (visited.find(neighbor) == visited.end()) {
+            visited.insert(neighbor);
+            queue.push({neighbor, static_cast<uint8_t>(hops + 1)});
+          }
+        }
       }
     }
     
-    return -1;  // Node not found
+    return -1;  // Node not found or unreachable
   }
 
   /**
    * Get routing table as map (destination -> next hop)
+   * 
+   * Uses BFS to build a complete routing table with next-hop information
+   * for all reachable nodes in the mesh. For direct connections, the next
+   * hop is the node itself. For multi-hop paths, the next hop is the first
+   * node on the shortest path to the destination.
    */
   std::map<uint32_t, uint32_t> getRoutingTable() {
     std::map<uint32_t, uint32_t> table;
-    auto nodeList = this->getNodeList(false);
+    auto tree = this->asNodeTree();
     
-    // For each destination, find the next hop
-    for (auto destNode : nodeList) {
-      // Check direct connections first
-      for (auto conn : this->subs) {
-        if (conn->nodeId == destNode && conn->connected()) {
-          table[destNode] = destNode;  // Direct connection
-          break;
+    // BFS from this node to build routing table
+    std::queue<uint32_t> queue;
+    std::set<uint32_t> visited;
+    std::map<uint32_t, uint32_t> nextHop;  // dest -> next hop from source
+    
+    // Start from this node
+    queue.push(this->getNodeId());
+    visited.insert(this->getNodeId());
+    
+    while (!queue.empty()) {
+      uint32_t current = queue.front();
+      queue.pop();
+      
+      // Get neighbors of current node
+      std::list<uint32_t> neighbors;
+      if (getNodeNeighbors(tree, current, neighbors)) {
+        for (auto neighbor : neighbors) {
+          if (visited.find(neighbor) == visited.end()) {
+            visited.insert(neighbor);
+            queue.push(neighbor);
+            
+            // Determine next hop for this neighbor
+            if (current == this->getNodeId()) {
+              // Direct connection - next hop is the neighbor itself
+              nextHop[neighbor] = neighbor;
+            } else {
+              // Multi-hop - inherit parent's next hop
+              nextHop[neighbor] = nextHop[current];
+            }
+            
+            // Add to routing table
+            table[neighbor] = nextHop[neighbor];
+          }
         }
       }
-      
-      // TODO: Implement proper routing table lookup for multi-hop paths
-      // For now, just mark direct connections
     }
     
     return table;
+  }
+
+  /**
+   * Get complete path from this node to target node
+   * 
+   * Returns a vector containing the complete path of node IDs from this node
+   * to the target node, including both endpoints. Uses BFS to find the shortest
+   * path. Returns an empty vector if the target is unreachable.
+   * 
+   * \param nodeId The target node ID
+   * \return Vector of node IDs representing the path (empty if unreachable)
+   * 
+   * \code
+   * auto path = mesh.getPathToNode(targetNodeId);
+   * if (!path.empty()) {
+   *   Serial.printf("Path length: %d hops\n", path.size() - 1);
+   *   for (auto node : path) {
+   *     Serial.printf("%u -> ", node);
+   *   }
+   * }
+   * \endcode
+   */
+  std::vector<uint32_t> getPathToNode(uint32_t nodeId) {
+    std::vector<uint32_t> path;
+    
+    // Check if requesting path to self
+    if (nodeId == this->getNodeId()) {
+      path.push_back(this->getNodeId());
+      return path;
+    }
+    
+    auto tree = this->asNodeTree();
+    
+    // BFS to find path
+    std::queue<uint32_t> queue;
+    std::set<uint32_t> visited;
+    std::map<uint32_t, uint32_t> parent;  // child -> parent mapping
+    
+    // Start from this node
+    queue.push(this->getNodeId());
+    visited.insert(this->getNodeId());
+    parent[this->getNodeId()] = 0;  // Root has no parent
+    
+    bool found = false;
+    while (!queue.empty() && !found) {
+      uint32_t current = queue.front();
+      queue.pop();
+      
+      // Check if we reached the target
+      if (current == nodeId) {
+        found = true;
+        break;
+      }
+      
+      // Get neighbors of current node
+      std::list<uint32_t> neighbors;
+      if (getNodeNeighbors(tree, current, neighbors)) {
+        for (auto neighbor : neighbors) {
+          if (visited.find(neighbor) == visited.end()) {
+            visited.insert(neighbor);
+            parent[neighbor] = current;
+            queue.push(neighbor);
+          }
+        }
+      }
+    }
+    
+    // Reconstruct path from parent map
+    if (found) {
+      uint32_t current = nodeId;
+      while (current != 0) {
+        path.insert(path.begin(), current);
+        current = parent[current];
+      }
+    }
+    
+    return path;
   }
 
   /**
@@ -1787,6 +1925,42 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
           conn->nodeId);
     }
     router::send<protocol::TimeSync, T>(timeSync, conn, true);
+  }
+
+  /**
+   * Helper function to get direct neighbors of a node from the mesh topology tree
+   * 
+   * \param tree The node tree to search
+   * \param nodeId The node whose neighbors we want to find
+   * \param neighbors Output list of neighbor node IDs
+   * \param parent The parent node ID (used during recursion, 0 means no parent)
+   * \return true if the node was found in the tree
+   */
+  bool getNodeNeighbors(const protocol::NodeTree& tree, uint32_t nodeId,
+                       std::list<uint32_t>& neighbors, uint32_t parent = 0) const {
+    if (tree.nodeId == nodeId) {
+      // Found the target node - collect its neighbors
+      // Add parent if it exists
+      if (parent != 0) {
+        neighbors.push_back(parent);
+      }
+      // Add all direct children
+      for (auto& sub : tree.subs) {
+        if (sub.nodeId != 0) {
+          neighbors.push_back(sub.nodeId);
+        }
+      }
+      return true;
+    }
+    
+    // Recursively search in children
+    for (auto& sub : tree.subs) {
+      if (getNodeNeighbors(sub, nodeId, neighbors, tree.nodeId)) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   bool closeConnectionSTA() {
