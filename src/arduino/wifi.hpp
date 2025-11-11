@@ -367,14 +367,31 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     this->droppedConnectionCallbacks.push_back(
         [this](uint32_t nodeId, bool station) {
           if (station) {
-            if (WiFi.status() == WL_CONNECTED) WiFi.disconnect();
-            // TODO: Can we do this when we get signalled that wifi disconnect
-            // is complete
-            this->stationScan.yieldConnectToAP();
-            // Re-enable it if it was disabled
-            this->stationScan.task.enableIfNot();
+            if (WiFi.status() == WL_CONNECTED) {
+              WiFi.disconnect();
+              // Schedule reconnection after disconnect completes
+              // The WiFi event handler will signal when disconnect is complete
+              _pendingStationReconnect = true;
+            } else {
+              // Already disconnected, reconnect immediately
+              handleStationDisconnectComplete();
+            }
           }
         });
+  }
+
+  /**
+   * Handle station disconnect completion
+   * Called after WiFi disconnect event is fully processed
+   * This ensures proper sequencing: disconnect -> event -> reconnect
+   */
+  void handleStationDisconnectComplete() {
+    if (_pendingStationReconnect) {
+      _pendingStationReconnect = false;
+      this->stationScan.yieldConnectToAP();
+      // Re-enable scanning if it was disabled
+      this->stationScan.task.enableIfNot();
+    }
   }
 
   void tcpServerInit() {
@@ -387,26 +404,35 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     return;
   }
 
+  /**
+   * Establish TCP connection to mesh network
+   * 
+   * This method is called by WiFi event handlers when station gets IP address.
+   * It creates a TCP client connection to the mesh network gateway.
+   * 
+   * Architecture Note: This is intentionally kept in the Mesh class rather than
+   * extracted to a separate StationConnection class because:
+   * - It's tightly coupled with WiFi event lifecycle
+   * - Needs access to mesh state and callbacks
+   * - Moving it would increase complexity without clear benefits
+   * - The existing design keeps connection logic cohesive with WiFi management
+   */
   void tcpConnect() {
     using namespace logger;
-    // TODO: move to Connection or StationConnection?
     Log(GENERAL, "tcpConnect():\n");
     if (stationScan.manual && stationScan.port == 0)
       return;  // We have been configured not to connect to the mesh
 
-    // TODO: We could pass this to tcpConnect instead of loading it here
     if (WiFi.status() == WL_CONNECTED && WiFi.localIP()) {
+      // Determine target IP and port for connection
+      IPAddress targetIP = stationScan.manualIP ? stationScan.manualIP : WiFi.gatewayIP();
+      uint16_t targetPort = stationScan.port;
+      
       AsyncClient *pConn = new AsyncClient();
-
-      IPAddress ip = WiFi.gatewayIP();
-      if (stationScan.manualIP) {
-        ip = stationScan.manualIP;
-      }
-
       painlessmesh::tcp::connect<Connection, painlessmesh::Mesh<Connection>>(
-          (*pConn), ip, stationScan.port, (*this));
+          (*pConn), targetIP, targetPort, (*this));
     } else {
-      Log(ERROR, "tcpConnect(): err Something un expected in tcpConnect()\n");
+      Log(ERROR, "tcpConnect(): err Something unexpected in tcpConnect()\n");
     }
   }
 
@@ -1153,6 +1179,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                 "eventSTADisconnectedHandler: "
                 "ARDUINO_EVENT_WIFI_STA_DISCONNECTED\n");
             this->droppedConnectionCallbacks.execute(0, true);
+            // Handle station disconnect completion after callbacks
+            this->handleStationDisconnectComplete();
             this->semaphoreGive();
           }
         },
@@ -1189,6 +1217,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         [&](const WiFiEventStationModeDisconnected &event) {
           Log(CONNECTION, "Event: Station Mode Disconnected\n");
           this->droppedConnectionCallbacks.execute(0, true);
+          // Handle station disconnect completion after callbacks
+          this->handleStationDisconnectComplete();
         });
 
     eventSTAGotIPHandler =
@@ -1215,6 +1245,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 #endif  // ESP8266
   AsyncServer *_tcpListener;
   std::shared_ptr<Task> bridgeStatusTask;
+  
+  // Station disconnect handling state
+  bool _pendingStationReconnect = false;
 
   // Bridge failover state and configuration
   enum ElectionState {
