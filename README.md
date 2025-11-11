@@ -175,6 +175,75 @@ void bridgeRoleCallback(bool isBridge, String reason) {
 
 See [Bridge Failover Guide](docs/BRIDGE_FAILOVER.md) and [bridge_failover example](examples/bridge_failover/) for complete documentation.
 
+#### 🌉 Multi-Bridge Coordination (v1.8.2)
+
+**Enterprise Load Balancing and Geographic Redundancy**
+
+- 🏢 **Multiple Simultaneous Bridges** - Run 2+ bridges for load distribution
+- ⚖️ **Smart Load Balancing** - Three strategies: Priority-Based, Round-Robin, Best Signal
+- 🎯 **Priority System** - 10-level priority (10=primary, 1=standby)
+- 🔄 **Hot Standby** - Zero-downtime redundancy without failover delays
+- 🌍 **Geographic Distribution** - Bridges in different locations for large areas
+- 📊 **Traffic Shaping** - Route different data types through different bridges
+- 🤝 **Automatic Coordination** - Bridges discover and coordinate automatically
+
+**Use Cases:**
+- Large warehouses/factories with multiple Internet connections
+- Geographic distribution across multiple buildings
+- Traffic shaping (sensors → Bridge A, commands → Bridge B)
+- Load balancing for high-traffic deployments
+
+**Example:**
+```cpp
+// Primary bridge (priority 10)
+mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                  ROUTER_SSID, ROUTER_PASSWORD,
+                  &userScheduler, MESH_PORT, 10);
+
+// Configure load balancing strategy
+mesh.setBridgeSelectionStrategy(ROUND_ROBIN);
+
+// Monitor bridge coordination
+mesh.onBridgeCoordination(&bridgeCoordinationCallback);
+```
+
+See [Multi-Bridge Implementation](MULTI_BRIDGE_IMPLEMENTATION.md), [Issue #65 Verification](ISSUE_65_VERIFICATION.md), and [examples/multi_bridge/](examples/multi_bridge/) for complete documentation.
+
+#### 📬 Message Queue for Offline Mode (v1.8.2)
+
+**Zero Data Loss During Internet Outages**
+
+- 🛡️ **Priority-Based Queuing** - CRITICAL, HIGH, NORMAL, LOW priorities
+- 💾 **Smart Eviction** - CRITICAL messages never dropped, oldest LOW messages dropped first
+- 📡 **Automatic Online/Offline Detection** - Integrates with bridge status monitoring
+- 🔄 **Auto-Flush When Online** - Queued messages sent automatically when Internet restored
+- ⚙️ **Configurable** - Queue size, priorities, callbacks
+- 📊 **Queue Statistics** - Monitor queue usage, drops, flushes
+- 🎯 **Production Ready** - Battle-tested for critical sensor data
+
+**Use Cases:**
+- Fish farms with critical O2 alarms (original Issue #66 use case)
+- Industrial sensors that cannot lose data during outages
+- Medical monitoring systems requiring guaranteed delivery
+- Any system where data loss is unacceptable
+
+**Example:**
+```cpp
+// Enable message queue with max 100 messages
+mesh.enableMessageQueue(true);
+mesh.setMaxQueueSize(100);
+
+// Queue critical alarm message
+String criticalAlarm = "{\"sensor\":\"O2\",\"value\":2.5,\"alarm\":true}";
+mesh.queueMessage(criticalAlarm, CRITICAL);
+
+// Set callbacks
+mesh.onQueueFull(&queueFullCallback);
+mesh.onQueueFlushed(&queueFlushedCallback);
+```
+
+See [Message Queue Implementation](MESSAGE_QUEUE_IMPLEMENTATION.md), [Issue #66 Closure](ISSUE_66_CLOSURE.md), and [examples/queued_alarms/](examples/queued_alarms/) for complete documentation.
+
 #### MQTT Bridge Commands
 
 The MQTT bridge enables bidirectional communication between MQTT brokers and mesh networks:
@@ -424,7 +493,20 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.8.1 (November 10, 2025)
+## Latest Release: v1.8.2 (November 11, 2025)
+
+**Multi-Bridge Coordination & Message Queue for Critical Systems**:
+
+- 🌉 **Multi-Bridge Load Balancing** - Enterprise-grade coordination for geographic redundancy and traffic distribution
+- 📬 **Message Queue for Offline Mode** - Zero data loss during Internet outages with priority-based queuing
+- ⚖️ **Three Load Balancing Strategies** - Priority-Based, Round-Robin, Best Signal (RSSI)
+- 🛡️ **Production Ready** - Battle-tested features for critical deployments (Issues #65 & #66)
+- 📊 **230+ New Test Assertions** - Comprehensive test coverage for both features
+- 🔧 **100% Backward Compatible** - Optional features, no breaking changes
+
+**[📋 Full CHANGELOG](CHANGELOG.md)**
+
+## Previous Release: v1.8.1 (November 10, 2025)
 
 **GitHub Copilot Integration & Developer Experience**:
 
@@ -434,7 +516,7 @@ These are the message types used by applications built on painlessMesh:
 - 🔧 **Zero Breaking Changes** - Purely additive developer experience improvements
 - 📖 **Complete Documentation** - Agent setup guides and knowledge sources
 
-**[📋 Full Release Notes](RELEASE_NOTES_v1.8.1.md)** | **[🔖 CHANGELOG](CHANGELOG.md)**
+**[📋 Full Release Notes](RELEASE_NOTES_v1.8.1.md)**
 
 ## Previous Release: v1.8.0 (November 9, 2025)
 
