@@ -217,38 +217,79 @@ pio pkg publish .
 
 ## 🛠️ Arduino Library Manager
 
+### ⚠️ IMPORTANT: Registration Required
+
+**Current Status**: ❌ **NOT YET REGISTERED**
+
+The library is **not currently registered** in the Arduino Library Manager. Users cannot install via Arduino IDE until registration is complete.
+
+**Issue**: Users report seeing old version (1.6.1) or unable to find library in Arduino IDE.
+
+**Solution**: Complete the one-time submission process below.
+
 ### One-Time Submission Process
 
-After your first release, submit to Arduino Library Manager:
+**This must be done once** to enable Arduino IDE installation:
 
 1. **Go to**: https://github.com/arduino/library-registry
-2. **Create issue** with this template:
+2. **Click**: "Issues" → "New Issue"
+3. **Create issue** with this template:
 
-```
-Title: Add painlessMesh library
+```markdown
+Title: Add AlteriomPainlessMesh library
 
 Repository URL: https://github.com/Alteriom/painlessMesh
-Release tag: v1.6.1
-Library name: painlessMesh
-Version: 1.6.1
+Library Name: AlteriomPainlessMesh
+Current Version: 1.8.2
+Release Tag: v1.8.2
 
-This is the Alteriom fork of the painlessMesh library with enhanced 
-CI/CD, automated releases, and improved Arduino Library Manager compatibility.
-Includes SensorPackage, CommandPackage, and StatusPackage extensions.
+Description:
+AlteriomPainlessMesh is a user-friendly library for creating mesh networks 
+with ESP8266 and ESP32 devices. Enhanced fork of painlessMesh with:
+
+- SensorPackage (Type 200): Environmental data collection
+- StatusPackage (Type 202): Device health monitoring
+- CommandPackage (Type 400): Remote device control
+- MetricsPackage (Type 204): Performance metrics
+- HealthCheckPackage (Type 605): Proactive monitoring
+- Bridge Coordination: Multi-bridge high availability
+- Message Queue: Offline message queueing
+
+Category: Communication
+Architectures: esp8266, esp32
+Dependencies: ArduinoJson (^7.4.2), TaskScheduler (^4.0.0)
+License: LGPL-3.0
+Documentation: https://alteriom.github.io/painlessMesh/
+
+All Arduino requirements met. Ready for indexing.
 ```
 
-3. **Monitor** the issue for Arduino team approval
-4. **Future releases** are automatically indexed
+4. **Monitor** the issue for Arduino team approval (1-2 weeks typical)
+5. **Verify** registration via Arduino IDE Library Manager search
+6. **Future releases** automatically indexed (24-48 hour delay)
+
+### Detailed Submission Guide
+
+For complete instructions, see: [docs/ARDUINO_LIBRARY_MANAGER_SUBMISSION.md](docs/ARDUINO_LIBRARY_MANAGER_SUBMISSION.md)
+
+The guide includes:
+- Pre-submission checklist
+- Detailed submission template
+- Testing procedures
+- Troubleshooting common issues
+- Post-registration maintenance
 
 ### Arduino Library Compliance
 
 The library meets all Arduino Library Manager requirements:
 - ✅ Correct directory structure
-- ✅ Valid `library.properties` file
+- ✅ Valid `library.properties` file (version=1.8.2)
 - ✅ Source files in `src/` directory
-- ✅ Examples compile successfully
-- ✅ Consistent version numbering
+- ✅ Examples compile successfully (19+ examples)
+- ✅ Consistent version numbering across files
 - ✅ Open source license (LGPL-3.0)
+- ✅ Git tags match library versions
+- ✅ Comprehensive documentation
 
 ## 📚 GitHub Wiki Management
 
