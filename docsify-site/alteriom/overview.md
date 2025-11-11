@@ -528,6 +528,15 @@ Announces bridge role transitions. New bridge broadcasts this package to inform 
 - `reason` - Human-readable takeover reason
 - `timestamp` - Transition timestamp
 
+### BridgeCoordinationPackage (Type 613)
+Coordinates multiple simultaneous bridges for load balancing and geographic distribution. Bridges exchange coordination messages for conflict resolution.
+
+**Key Fields:**
+- `priority` - Bridge priority (10=highest, 1=lowest)
+- `role` - Current role: "primary", "secondary", "standby"
+- `peerBridges` - List of known bridge node IDs
+- `load` - Current load percentage (0-100)
+
 ### NTPTimeSyncPackage (Type 614)
 Distributes NTP time synchronization from bridge to mesh nodes. Enables mesh-wide time coordination with Internet time sources.
 
@@ -539,6 +548,7 @@ Distributes NTP time synchronization from bridge to mesh nodes. Enables mesh-wid
 
 **Use Cases:**
 - Automatic bridge failover for high availability
+- Multi-bridge coordination and load balancing
 - Internet connectivity monitoring
 - Mesh-wide time synchronization
 - Offline operation with RTC backup
@@ -562,6 +572,7 @@ See [Bridge Failover Guide](../../BRIDGE_TO_INTERNET.md) for implementation deta
 | 610 | BridgeStatusPackage | v1.8.0+ | Bridge health |
 | 611 | BridgeElectionPackage | v1.8.0+ | Failover election |
 | 612 | BridgeTakeoverPackage | v1.8.0+ | Bridge transition |
+| 613 | BridgeCoordinationPackage | v1.8.0+ | Multi-bridge coordination |
 | 614 | NTPTimeSyncPackage | v1.8.0+ | Time sync |
 
 ## Next Steps

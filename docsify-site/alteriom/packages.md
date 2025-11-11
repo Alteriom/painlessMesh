@@ -613,6 +613,37 @@ mesh.sendPackage(&ntpSync);
 - Mesh-wide time distribution
 - Offline timekeeping
 
+### BridgeCoordinationPackage (Type 613)
+
+For coordinating multiple simultaneous bridges in advanced deployments.
+
+```cpp
+BridgeCoordinationPackage coordination;
+coordination.priority = 10;              // Highest priority
+coordination.role = "primary";           // "primary", "secondary", "standby"
+coordination.peerBridges.push_back(bridge2NodeId);
+coordination.peerBridges.push_back(bridge3NodeId);
+coordination.load = 35;                  // 35% load
+coordination.timestamp = mesh.getNodeTime();
+
+// Broadcast to coordinate with other bridges
+mesh.sendPackage(&coordination);
+```
+
+**Fields:**
+- `priority` (uint8_t) - Bridge priority (10=highest, 1=lowest)
+- `role` (TSTRING) - Current role: "primary", "secondary", "standby"
+- `peerBridges` (vector<uint32_t>) - List of known bridge node IDs
+- `load` (uint8_t) - Current load percentage (0-100)
+- `timestamp` (uint32_t) - Coordination timestamp
+
+**Use Cases:**
+- Multiple simultaneous bridges (hot standby)
+- Load balancing across bridges
+- Geographic distribution
+- Automatic traffic shaping
+- Conflict resolution
+
 ## Complete Package Type Reference
 
 | Type | Class | Version | Purpose |
@@ -630,6 +661,7 @@ mesh.sendPackage(&ntpSync);
 | 610 | `BridgeStatusPackage` | v1.8.0+ | Bridge health monitoring |
 | 611 | `BridgeElectionPackage` | v1.8.0+ | Failover election |
 | 612 | `BridgeTakeoverPackage` | v1.8.0+ | Bridge transition |
+| 613 | `BridgeCoordinationPackage` | v1.8.0+ | Multi-bridge coordination |
 | 614 | `NTPTimeSyncPackage` | v1.8.0+ | NTP time distribution |
 
 See also:
