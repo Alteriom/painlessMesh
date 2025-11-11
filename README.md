@@ -117,6 +117,12 @@ This fork includes specialized packages for structured IoT communication:
   - Takeover reason and timestamp
   - Seamless failover notification
 
+- **`NTPTimeSyncPackage`** (Type 614) - NTP time synchronization (TIME_SYNC_NTP per mqtt-schema v0.7.3+)
+  - Unix timestamp from NTP server
+  - Accuracy/precision in milliseconds
+  - NTP server source identification
+  - Mesh-wide time distribution from bridge
+
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging. They align with mqtt-schema v0.7.3+ for enterprise IoT integration.
 
 #### 🚀 Phase 2 Features (v1.7.0+)
@@ -349,7 +355,29 @@ void setup() {
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for complete documentation.
 
-### Package Types
+### Message Types
+
+painlessMesh uses two categories of message types:
+
+#### Protocol-Level Types (Internal Mesh Operations)
+
+These types are used internally by painlessMesh for mesh management and are handled automatically:
+
+| Type | Name | Purpose |
+|------|------|---------|
+| 3 | `TIME_DELAY` | Network latency measurement between nodes |
+| 4 | `TIME_SYNC` | Time synchronization protocol messages |
+| 5 | `NODE_SYNC_REQUEST` | Node discovery and topology requests |
+| 6 | `NODE_SYNC_REPLY` | Node discovery and topology responses |
+| 7 | `CONTROL` | Deprecated control messages |
+| 8 | `BROADCAST` | Internal broadcast routing indicator |
+| 9 | `SINGLE` | Internal single-node routing indicator |
+
+**Note**: These protocol types are managed automatically by painlessMesh and are not typically used in application code.
+
+#### Application-Level Package Types
+
+These are the message types used by applications built on painlessMesh:
 
 | Type | Class | Purpose | Fields |
 |------|-------|---------|--------|
@@ -363,6 +391,11 @@ See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for complete documentation.
 | 603 | `MeshBridgePackage` | Mesh bridge (v1.7.7+, MESH_BRIDGE) | `meshProtocol`, `fromNodeId`, `toNodeId`, `meshType`, `rawPayload`, `rssi`, `hopCount` |
 | 604 | `EnhancedStatusPackage` | Mesh status (MESH_STATUS per schema v0.7.2+) | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate` |
 | 605 | `HealthCheckPackage` | Mesh metrics (v1.7.7+, MESH_METRICS per schema v0.7.2+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
+| 610 | `BridgeStatusPackage` | Bridge health monitoring (v1.8.0+, BRIDGE_STATUS per schema v0.7.3+) | `internetConnected`, `routerRSSI`, `routerChannel`, `uptime`, `gatewayIP`, `timestamp` |
+| 611 | `BridgeElectionPackage` | Bridge failover election (v1.8.0+, BRIDGE_ELECTION per schema v0.7.3+) | `routerRSSI`, `uptime`, `freeMemory`, `timestamp`, `routerSSID` |
+| 612 | `BridgeTakeoverPackage` | Bridge role announcement (v1.8.0+, BRIDGE_TAKEOVER per schema v0.7.3+) | `previousBridge`, `reason`, `timestamp` |
+| 613 | `BridgeCoordinationPackage` | Multi-bridge coordination (v1.8.0+, BRIDGE_COORDINATION) | `priority`, `role`, `peerBridges[]`, `load`, `timestamp` |
+| 614 | `NTPTimeSyncPackage` | NTP time synchronization (v1.8.0+, TIME_SYNC_NTP per schema v0.7.3+) | `ntpTime`, `accuracy`, `source`, `timestamp` |
 
 ## Key Features
 

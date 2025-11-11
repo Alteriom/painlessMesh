@@ -36,8 +36,8 @@ mesh.sendPackage(&sensor);
 - Greenhouse automation
 - Industrial sensor networks
 
-### CommandPackage (Type 201)
-For sending control commands to specific devices.
+### CommandPackage (Type 400)
+For sending control commands to specific devices. (Type moved from 201 to 400 in v1.7.7+)
 
 ```cpp
 alteriom::CommandPackage cmd;
@@ -498,11 +498,89 @@ public:
 3. **Validate under memory pressure**
 4. **Test with maximum expected node count**
 
+## Bridge Failover Packages (v1.8.0+)
+
+The v1.8.0 release introduced specialized packages for automatic bridge failover and high availability:
+
+### BridgeStatusPackage (Type 610)
+Monitors bridge health and Internet connectivity status. Bridges periodically broadcast their status to enable failover detection.
+
+**Key Fields:**
+- `internetConnected` - Boolean connectivity status
+- `routerRSSI` - WiFi signal strength in dBm
+- `routerChannel` - WiFi channel number
+- `uptime` - Bridge uptime for stability tracking
+
+### BridgeElectionPackage (Type 611)
+Coordinates automatic bridge failover elections. Nodes broadcast their candidacy with router RSSI for distributed consensus.
+
+**Key Fields:**
+- `routerRSSI` - Signal strength for election tiebreaker
+- `uptime` - Node stability indicator
+- `freeMemory` - Resource availability
+- `routerSSID` - Router verification
+
+### BridgeTakeoverPackage (Type 612)
+Announces bridge role transitions. New bridge broadcasts this package to inform mesh nodes of leadership change.
+
+**Key Fields:**
+- `previousBridge` - Previous bridge node ID
+- `reason` - Human-readable takeover reason
+- `timestamp` - Transition timestamp
+
+### BridgeCoordinationPackage (Type 613)
+Coordinates multiple simultaneous bridges for load balancing and geographic distribution. Bridges exchange coordination messages for conflict resolution.
+
+**Key Fields:**
+- `priority` - Bridge priority (10=highest, 1=lowest)
+- `role` - Current role: "primary", "secondary", "standby"
+- `peerBridges` - List of known bridge node IDs
+- `load` - Current load percentage (0-100)
+
+### NTPTimeSyncPackage (Type 614)
+Distributes NTP time synchronization from bridge to mesh nodes. Enables mesh-wide time coordination with Internet time sources.
+
+**Key Fields:**
+- `ntpTime` - Unix timestamp from NTP server
+- `accuracy` - Timing precision in milliseconds
+- `source` - NTP server hostname
+- `timestamp` - Collection timestamp
+
+**Use Cases:**
+- Automatic bridge failover for high availability
+- Multi-bridge coordination and load balancing
+- Internet connectivity monitoring
+- Mesh-wide time synchronization
+- Offline operation with RTC backup
+
+See [Bridge Failover Guide](../../BRIDGE_TO_INTERNET.md) for implementation details.
+
+## Complete Package Type Reference
+
+| Type | Package | Version | Purpose |
+|------|---------|---------|---------|
+| 200 | SensorPackage | v1.0.0+ | Environmental data |
+| 202 | StatusPackage | v1.0.0+ | Health monitoring |
+| 204 | MetricsPackage | v1.7.7+ | Performance metrics |
+| 400 | CommandPackage | v1.7.7+ | Device control |
+| 600 | MeshNodeListPackage | v1.7.7+ | Node inventory |
+| 601 | MeshTopologyPackage | v1.7.7+ | Network topology |
+| 602 | MeshAlertPackage | v1.7.7+ | Network alerts |
+| 603 | MeshBridgePackage | v1.7.7+ | Protocol bridging |
+| 604 | EnhancedStatusPackage | v1.7.7+ | Mesh status |
+| 605 | HealthCheckPackage | v1.7.7+ | Health monitoring |
+| 610 | BridgeStatusPackage | v1.8.0+ | Bridge health |
+| 611 | BridgeElectionPackage | v1.8.0+ | Failover election |
+| 612 | BridgeTakeoverPackage | v1.8.0+ | Bridge transition |
+| 613 | BridgeCoordinationPackage | v1.8.0+ | Multi-bridge coordination |
+| 614 | NTPTimeSyncPackage | v1.8.0+ | Time sync |
+
 ## Next Steps
 
 - Learn about [Sensor Packages](sensor-packages.md) in detail
 - Explore [Command System](command-system.md) implementation
 - Study [Status Monitoring](status-monitoring.md) patterns
 - See [Tutorial Examples](../tutorials/sensor-networks.md) for hands-on practice
+- Review [Complete Package Reference](packages.md) for all package types
 
 The Alteriom extensions provide a solid foundation for building robust IoT applications with painlessMesh. They demonstrate production-ready patterns while remaining flexible enough to adapt to your specific needs.

@@ -52,6 +52,26 @@ painlessMesh creates a self-organizing, self-healing wireless mesh network using
 - Package type identification
 - Connection lifecycle management
 
+### Protocol Message Types
+
+The protocol layer uses several internal message types for mesh management:
+
+| Type | Name | Purpose |
+|------|------|---------|
+| 3 | TIME_DELAY | Measures network latency between nodes for routing optimization |
+| 4 | TIME_SYNC | Synchronizes clocks across all mesh nodes |
+| 5 | NODE_SYNC_REQUEST | Requests node list and topology information |
+| 6 | NODE_SYNC_REPLY | Responds with node list and topology data |
+| 7 | CONTROL | Deprecated control messages (no longer used) |
+| 8 | BROADCAST | Routes application messages to all mesh nodes |
+| 9 | SINGLE | Routes application messages to a specific node |
+
+These protocol types are handled automatically by the mesh layer and enable:
+- **Automatic time synchronization** across all nodes
+- **Dynamic routing** based on measured network latency
+- **Topology discovery** when nodes join or leave
+- **Efficient message delivery** through the mesh network
+
 **Network Layer**
 - TCP connection handling
 - Message queuing and transmission
