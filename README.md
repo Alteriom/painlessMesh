@@ -207,7 +207,7 @@ mesh.setBridgeSelectionStrategy(ROUND_ROBIN);
 mesh.onBridgeCoordination(&bridgeCoordinationCallback);
 ```
 
-See [Multi-Bridge Implementation](MULTI_BRIDGE_IMPLEMENTATION.md), [Issue #65 Verification](ISSUE_65_VERIFICATION.md), and [examples/multi_bridge/](examples/multi_bridge/) for complete documentation.
+See [Multi-Bridge Implementation](docs/implementation/MULTI_BRIDGE_IMPLEMENTATION.md), [Issue #65 Verification](docs/internal/ISSUE_65_VERIFICATION.md), and [examples/multi_bridge/](examples/multi_bridge/) for complete documentation.
 
 #### 📬 Message Queue for Offline Mode (v1.8.2)
 
@@ -242,7 +242,7 @@ mesh.onQueueFull(&queueFullCallback);
 mesh.onQueueFlushed(&queueFlushedCallback);
 ```
 
-See [Message Queue Implementation](MESSAGE_QUEUE_IMPLEMENTATION.md), [Issue #66 Closure](ISSUE_66_CLOSURE.md), and [examples/queued_alarms/](examples/queued_alarms/) for complete documentation.
+See [Message Queue Implementation](docs/implementation/MESSAGE_QUEUE_IMPLEMENTATION.md), [Issue #66 Closure](docs/internal/ISSUE_66_CLOSURE.md), and [examples/queued_alarms/](examples/queued_alarms/) for complete documentation.
 
 #### MQTT Bridge Commands
 
@@ -539,7 +539,7 @@ These are the message types used by applications built on painlessMesh:
 - 🔧 **Zero Breaking Changes** - Purely additive developer experience improvements
 - 📖 **Complete Documentation** - Agent setup guides and knowledge sources
 
-**[📋 Full Release Notes](RELEASE_NOTES_v1.8.1.md)**
+**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.1.md)**
 
 ## Previous Release: v1.8.0 (November 9, 2025)
 
@@ -551,7 +551,7 @@ These are the message types used by applications built on painlessMesh:
 - 🔄 **Bridge Failover** - Automatic bridge election and high availability
 - ⚡ **Production Ready** - All features tested, documented, and backward compatible
 
-**[📋 Full Release Notes](RELEASE_NOTES_v1.8.0.md)**
+**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.0.md)**
 
 ## Getting Help
 
