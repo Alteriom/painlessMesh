@@ -714,6 +714,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       }
     );
     
+    // Send immediate broadcast so nodes can discover this bridge right away
+    // This ensures bridge is discoverable before the first periodic broadcast
+    this->addTask([this]() {
+      Log(STARTUP, "Sending initial bridge status broadcast\n");
+      this->sendBridgeStatus();
+    });
+    
+    // Also broadcast when new nodes connect so they can discover the bridge immediately
+    this->newConnectionCallbacks.push_back([this](uint32_t nodeId) {
+      Log(CONNECTION, "New node %u connected, sending bridge status\n", nodeId);
+      this->sendBridgeStatus();
+    });
+    
     Log(STARTUP, "Bridge status broadcast enabled (interval: %d ms)\n", 
         this->bridgeStatusIntervalMs);
   }
