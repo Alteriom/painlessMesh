@@ -652,10 +652,17 @@ We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparin
 
 ## Funding
 
-If you like the library please consider giving me a tip. This means I will be able to spend more time on developing it.
-You can tip me using ko-fi:
+If you like the library please consider supporting its development. Your contributions help me spend more time improving painlessMesh.
+
+### Support Options
+
+**Ko-fi** (One-time or monthly):
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U21LWO6I)
+
+**PayPal** (Scan QR code):
+
+![PayPal Donation QR Code](paypal/qrcode.png)
 
 ## 📚 Complete Documentation
 
