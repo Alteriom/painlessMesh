@@ -355,7 +355,29 @@ void setup() {
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for complete documentation.
 
-### Package Types
+### Message Types
+
+painlessMesh uses two categories of message types:
+
+#### Protocol-Level Types (Internal Mesh Operations)
+
+These types are used internally by painlessMesh for mesh management and are handled automatically:
+
+| Type | Name | Purpose |
+|------|------|---------|
+| 3 | `TIME_DELAY` | Network latency measurement between nodes |
+| 4 | `TIME_SYNC` | Time synchronization protocol messages |
+| 5 | `NODE_SYNC_REQUEST` | Node discovery and topology requests |
+| 6 | `NODE_SYNC_REPLY` | Node discovery and topology responses |
+| 7 | `CONTROL` | Deprecated control messages |
+| 8 | `BROADCAST` | Internal broadcast routing indicator |
+| 9 | `SINGLE` | Internal single-node routing indicator |
+
+**Note**: These protocol types are managed automatically by painlessMesh and are not typically used in application code.
+
+#### Application-Level Package Types
+
+These are the message types used by applications built on painlessMesh:
 
 | Type | Class | Purpose | Fields |
 |------|-------|---------|--------|
