@@ -196,11 +196,24 @@ Mesh Network
 Node1 Node2 Node3...
 ```
 
+## Frequently Asked Questions
+
+### Why does `mesh.init()` require a separate `mesh.stationManual()` call?
+
+Great question! The library now offers **three ways** to connect a bridge:
+
+1. **Original**: `init()` + `stationManual()` (most flexible)
+2. **Convenience**: Pass credentials directly to `init()` (new feature)
+3. **Modern**: Use `initAsBridge()` with auto-detection (recommended)
+
+See [Station Credentials Design Rationale](docs/design/STATION_CREDENTIALS_DESIGN.md) for detailed explanations and comparisons.
+
 ## Additional Resources
 
 - [painlessMesh Wiki](https://github.com/Alteriom/painlessMesh/wiki)
 - [Bridge Examples](https://github.com/Alteriom/painlessMesh/tree/main/examples/bridge)
 - [MQTT Bridge Example](https://github.com/Alteriom/painlessMesh/tree/main/examples/mqttBridge)
 - [Configuration API Reference](https://github.com/Alteriom/painlessMesh/wiki)
+- [Station Credentials Design](docs/design/STATION_CREDENTIALS_DESIGN.md) - Why three approaches exist
 
 Feel free to ask if you need help with specific use cases like MQTT integration, web servers, or custom data forwarding!
