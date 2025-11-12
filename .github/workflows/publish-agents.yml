@@ -1,0 +1,100 @@
+name: Publish Copilot Agents
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'copilot-agents.json'
+      - '.github/agents/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-agents:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate agent configuration
+        run: |
+          # Validate JSON syntax
+          if ! jq empty copilot-agents.json 2>/dev/null; then
+            echo "❌ Invalid JSON in copilot-agents.json"
+            exit 1
+          fi
+          
+          # Check required fields
+          if ! jq -e '.publisher' copilot-agents.json >/dev/null; then
+            echo "❌ Missing publisher information"
+            exit 1
+          fi
+          
+          if ! jq -e '.agents | length > 0' copilot-agents.json >/dev/null; then
+            echo "❌ No agents defined"
+            exit 1
+          fi
+          
+          echo "✅ Agent configuration is valid"
+          
+          # List agents
+          echo ""
+          echo "📋 Agents to publish:"
+          jq -r '.agents[] | "  - \(.name) (\(.id))"' copilot-agents.json
+
+      - name: Publish to GitHub Copilot Agents
+        run: |
+          echo "🚀 Publishing agents to GitHub Copilot marketplace..."
+          echo "Note: This requires GitHub Enterprise/Organization setup"
+          echo ""
+          echo "To complete publication:"
+          echo "1. Go to your GitHub Organization settings"
+          echo "2. Navigate to Copilot > Agents"
+          echo "3. Link this repository"
+          echo "4. Agents will appear in github.com/copilot/agents"
+          
+      - name: Generate agent documentation
+        run: |
+          echo "📚 Generating agent documentation..."
+          
+          # Create a summary
+          cat > agent-summary.md << 'EOF'
+          # AlteriomPainlessMesh Copilot Agents
+          
+          Published agents from this repository:
+          
+          EOF
+          
+          jq -r '.agents[] | "## \(.name)\n\n**ID:** `\(.id)`\n**Category:** \(.category)\n**Description:** \(.description)\n\n**Capabilities:**\n\(.capabilities | map("- " + .) | join("\n"))\n\n---\n"' copilot-agents.json >> agent-summary.md
+          
+          cat agent-summary.md
+
+      - name: Create GitHub App manifest (if needed)
+        run: |
+          cat > github-app-manifest.json << 'EOF'
+          {
+            "name": "AlteriomPainlessMesh Agents",
+            "url": "https://github.com/Alteriom/painlessMesh",
+            "hook_attributes": {
+              "url": "https://github.com/Alteriom/painlessMesh"
+            },
+            "redirect_url": "https://github.com/Alteriom/painlessMesh",
+            "description": "Specialized Copilot agents for ESP8266/ESP32 mesh network development",
+            "public": true,
+            "default_permissions": {
+              "contents": "read",
+              "issues": "write",
+              "pull_requests": "write",
+              "metadata": "read"
+            },
+            "default_events": []
+          }
+          EOF
+          
+          echo "GitHub App manifest created. To create the app:"
+          echo "Visit: https://github.com/settings/apps/new"
+          echo "Or for organization: https://github.com/organizations/Alteriom/settings/apps/new"
