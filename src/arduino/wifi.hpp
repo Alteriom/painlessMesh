@@ -1186,9 +1186,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["routing"] = 2;  // BROADCAST routing
     obj["timestamp"] = this->getNodeTime();
     
-    // Check Internet connectivity: WiFi connected AND valid gateway IP
+    // Check Internet connectivity: WiFi connected AND valid IP address
+    // We check for valid local IP instead of gateway IP because:
+    // 1. Gateway IP might not be immediately available after connection
+    // 2. Some networks (mobile hotspots) may not provide gateway IP via DHCP
+    // 3. Having a valid local IP + being connected is sufficient for internet access
     bool hasInternet = (WiFi.status() == WL_CONNECTED) && 
-                       (WiFi.gatewayIP() != IPAddress(0, 0, 0, 0));
+                       (WiFi.localIP() != IPAddress(0, 0, 0, 0));
     obj["internetConnected"] = hasInternet;
     
     obj["routerRSSI"] = WiFi.RSSI();
@@ -1202,6 +1206,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     Log(GENERAL, "sendBridgeStatus(): Broadcasting status (Internet: %s)\n",
         hasInternet ? "Connected" : "Disconnected");
+    Log(GENERAL, "sendBridgeStatus(): WiFi status=%d, localIP=%s, gatewayIP=%s\n",
+        WiFi.status(), WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str());
     
     this->sendBroadcast(msg);
   }
