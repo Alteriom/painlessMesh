@@ -30,9 +30,19 @@ Regular nodes track these broadcasts and detect failures when:
 
 ### 2. Election Trigger
 
-When the primary bridge fails:
+An election is triggered when:
+
+**Scenario 1: No Bridge Exists (Auto-Election Mode)**
+- After 60-second startup period
+- Periodic monitoring (every 30s) detects no healthy bridge
 - Nodes with router credentials configured start an election
 - Nodes without credentials remain passive
+
+**Scenario 2: Bridge Failure**
+- Primary bridge fails or loses Internet connectivity
+- No status received within 60 seconds (configurable timeout)
+- Bridge reports `internetConnected: false`
+- Nodes detect failure and start election
 
 ### 3. Election Protocol
 
@@ -97,34 +107,77 @@ To prevent oscillation:
 
 ## Setup Instructions
 
-### 1. Flash Initial Bridge Node
+You can choose between two deployment modes:
+
+### Option A: Auto-Election Mode (Recommended)
+
+**Best for**: Equal peers where any node can become the bridge based on signal strength.
+
+1. Keep `INITIAL_BRIDGE = false` on **ALL nodes**
+2. Configure mesh credentials (MESH_PREFIX, MESH_PASSWORD)
+3. Configure router credentials (ROUTER_SSID, ROUTER_PASSWORD)
+4. Flash the same sketch to all ESP32/ESP8266 devices
+5. Power on all nodes simultaneously
+
+**What happens**:
+- Nodes start as regular mesh nodes
+- After 60-second startup period, automatic monitoring begins
+- If no bridge exists, nodes trigger an election
+- Node with best router RSSI wins and becomes bridge
+- Other nodes remain regular with failover capability
+
+**Advantages**:
+- Simpler setup - no need to designate a specific node
+- True dynamic failover - any node can become bridge
+- Best bridge selected based on signal strength
+
+### Option B: Pre-Designated Bridge Mode
+
+**Best for**: When you want a specific node to start as the bridge.
+
+**1. Flash Initial Bridge Node**
 
 1. Set `INITIAL_BRIDGE` to `true`
 2. Configure router credentials
 3. Flash to one ESP32/ESP8266
 4. This node will connect to router and start as bridge
 
-### 2. Flash Regular Nodes
+**2. Flash Regular Nodes**
 
 1. Set `INITIAL_BRIDGE` to `false`
 2. Configure same mesh and router credentials
 3. Flash to other ESP32/ESP8266 devices
 4. These nodes can become bridges via election
 
-### 3. Test Failover
+**Advantages**:
+- Immediate bridge availability (no 60s wait)
+- Predictable initial bridge selection
+- Good for nodes with fixed locations
 
-**Scenario 1: Bridge Goes Offline**
-1. Power off the initial bridge node
+### Test Failover Scenarios
+
+**Scenario 1: Auto-Election (No Initial Bridge)**
+1. Flash all nodes with `INITIAL_BRIDGE = false`
+2. Power on all nodes
+3. Wait 60 seconds for startup period
+4. Automatic monitoring detects no bridge
+5. Election starts automatically within 30 seconds
+6. Node with best router signal becomes bridge
+7. Monitor serial output to see election process
+
+**Scenario 2: Bridge Goes Offline**
+1. Power off the current bridge node (initial or elected)
 2. After 60 seconds, regular nodes detect failure
 3. Election starts automatically
 4. Node with best router signal becomes new bridge
 5. Monitor serial output to see election process
 
-**Scenario 2: Bridge Loses Internet**
-1. Disconnect router from Internet
+**Scenario 3: Bridge Loses Internet**
+1. Disconnect router from Internet (or block bridge node's Internet)
 2. Bridge reports `internetConnected: false`
-3. Election may start (nodes decide if failover needed)
-4. New bridge elected if necessary
+3. Nodes detect loss of Internet via status broadcasts
+4. Election starts to find a node with working Internet
+5. New bridge elected if another node has Internet access
 
 ## Serial Output
 

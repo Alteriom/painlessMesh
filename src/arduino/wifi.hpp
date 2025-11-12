@@ -155,6 +155,44 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       }
     });
 
+    // Add periodic monitoring task to detect when no bridge exists
+    // This handles the case where no node was initially configured as a bridge
+    this->addTask(30000, TASK_FOREVER, [this]() {
+      // Only check if failover is enabled and we have credentials
+      if (!bridgeFailoverEnabled || !routerCredentialsConfigured) {
+        return;
+      }
+      
+      // Don't check if we're already a bridge
+      if (this->isBridge()) {
+        return;
+      }
+      
+      // Skip check during startup period (60 seconds) to allow initial bridge discovery
+      if (millis() < 60000) {
+        return;
+      }
+      
+      // Check if there are any healthy bridges
+      bool hasHealthyBridge = false;
+      for (const auto& bridge : this->getBridges()) {
+        if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
+          hasHealthyBridge = true;
+          break;
+        }
+      }
+      
+      // If no healthy bridge exists, trigger an election
+      if (!hasHealthyBridge) {
+        Log(CONNECTION, "Bridge monitor: No healthy bridge detected, triggering election\n");
+        // Small delay to randomize election start across nodes
+        uint32_t randomDelay = random(1000, 3000);
+        this->addTask(randomDelay, TASK_ONCE, [this]() {
+          this->startBridgeElection();
+        });
+      }
+    });
+
     tcpServerInit();
     eventHandleInit();
 

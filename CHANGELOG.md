@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.6] - 2025-11-12
+
+### Fixed
+
+- **Bridge Failover Auto-Election (Issue #117)** - Bridge election now triggers when no initial bridge exists
+  - Added periodic monitoring task (30s interval) that detects absence of healthy bridge
+  - Activates after 60s startup grace period to allow network stabilization
+  - Randomized election delay (1-3s) prevents thundering herd problem
+  - Respects existing safeguards: election state, 60s cooldown, router visibility
+  - **Before**: No initial bridge → no election → mesh stays bridgeless indefinitely
+  - **After**: No initial bridge → 60s startup → monitoring detects absence → election triggered → best RSSI node becomes bridge
+  - Fully backward compatible: pre-designated bridge mode continues to work as before
+  - Core fix in `src/arduino/wifi.hpp`
+  - Resolves @woodlist's "Bridge_failover example does not work" issue
+
+### Changed
+
+- **bridge_failover Example Documentation** - Clarified two deployment modes
+  - Auto-Election Mode: All nodes regular (`INITIAL_BRIDGE=false`), RSSI-based election after 60s
+  - Pre-Designated Mode: Traditional single initial bridge setup
+  - Updated README.md with comprehensive auto-election documentation
+  - Enhanced header comments in bridge_failover.ino
+
+### Housekeeping
+
+- Synchronized package-lock.json version to 1.8.5
+
 ## [1.8.5] - 2025-11-12
 
 ### Fixed
