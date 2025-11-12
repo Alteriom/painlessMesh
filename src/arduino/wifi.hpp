@@ -812,6 +812,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     Log(STARTUP, "initBridgeCoordination(): Setting up multi-bridge coordination\n");
     
+    // Register our own priority in the bridgePriorities map
+    // This ensures getRecommendedBridge() with PRIORITY_BASED strategy works correctly
+    bridgePriorities[this->nodeId] = bridgePriority;
+    Log(STARTUP, "initBridgeCoordination(): Registered self priority (nodeId: %u, priority: %d)\n",
+        this->nodeId, bridgePriority);
+    
     // Register handler for incoming coordination messages (Type 613)
     this->callbackList.onPackage(
         613,  // BRIDGE_COORDINATION type
@@ -902,6 +908,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     String msg;
     serializeJson(doc, msg);
+    
+    // Update our own priority in bridgePriorities map
+    // This ensures priority-based selection always has current data
+    bridgePriorities[this->nodeId] = bridgePriority;
+    
     this->sendBroadcast(msg);
     
     Log(CONNECTION, "Bridge coordination sent: priority=%d, role=%s, load=%d%%\n",
