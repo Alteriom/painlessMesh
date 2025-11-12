@@ -176,7 +176,6 @@ void checkCriticalConditions() {
     alarm.timestamp = mesh.getNodeTime();
     alarm.temperature = currentTemperature;
     alarm.pressure = currentOxygenLevel;
-    alarm.deviceStatus = 0xFF;  // Critical alarm flag
     alarm.batteryLevel = 85;
 
     if (internetAvailable) {
