@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.7] - 2025-11-12
+
 ### Fixed
 
 - **Bridge Internet Connectivity Detection (Bridge_fallover)** - Fixed incorrect internet status reporting
@@ -17,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixes `hasInternetConnection()` returning false positives on regular nodes
   - Core fix in `src/arduino/wifi.hpp` line 1188-1192
   - Updated bridge_failover/README.md with troubleshooting guidance
+
+- **Version Documentation Consistency** - Updated header file version comments to match library version
+  - Updated `painlessMesh.h` header comment from version 1.8.4 to 1.8.6
+  - Updated `AlteriomPainlessMesh.h` version defines from 1.6.1 to 1.8.6
+  - Header file version comments now accurately reflect the current library version
+  - Clarified that version comments in headers indicate documentation update, not file-specific versioning
+  - Resolves user confusion about whether files have been modified since specific versions
 
 ## [1.8.6] - 2025-11-12
 

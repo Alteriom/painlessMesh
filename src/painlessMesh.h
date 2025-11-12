@@ -5,7 +5,7 @@
  * @file painlessMesh.h
  * @brief Main header file for Alteriom painlessMesh library
  * 
- * @version 1.8.4
+ * @version 1.8.7
  * @date 2025-11-12
  * 
  * painlessMesh is a user-friendly library for creating mesh networks with 
