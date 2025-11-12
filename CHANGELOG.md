@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.8] - 2025-11-12
+
+### Fixed
+
+- **Bridge Internet Connectivity Detection (Mobile Hotspot Compatibility)** - Fixed false negative with mobile hotspots
+  - Changed internet detection from checking gateway IP to checking local IP address
+  - Gateway IP may not be immediately available after connection, especially with mobile hotspots
+  - Some networks (mobile tethering) may not provide gateway IP via DHCP at all
+  - **Before**: Bridge connected to mobile hotspot → gets local IP → reports "Internet: NO" (gateway IP not available)
+  - **After**: Bridge connected to mobile hotspot → gets local IP → correctly reports "Internet: YES"
+  - Having a valid local IP + WiFi connected status is sufficient to indicate internet access
+  - Enhanced logging to show WiFi status, local IP, and gateway IP for better debugging
+  - Core fix in `src/arduino/wifi.hpp` line 1189-1191
+  - Improves upon 1.8.7 gateway IP check which didn't work with all network types
+  - Resolves issue where bridge connects successfully but still reports no internet
+  - Fixes Alteriom/painlessMesh#129
+
 ## [1.8.7] - 2025-11-12
 
 ### Fixed

@@ -344,12 +344,18 @@ bool amBridge = mesh.isBridge();
 
 **Symptoms**: Bridge shows "Internet available: NO" or `hasInternet: false` despite router having Internet
 
-**Cause**: Fixed in v1.8.5+. Previously only checked WiFi connection status, not actual Internet availability.
+**Cause**: Fixed progressively in v1.8.5+ and v1.8.7+. 
+
+**Historical Fixes**:
+- **v1.8.5**: Added gateway IP check in addition to WiFi connection status
+- **v1.8.7**: Improved gateway IP checking logic  
+- **v1.8.8+**: Changed to check local IP instead of gateway IP for better mobile hotspot compatibility
 
 **Solutions**:
-- Update to painlessMesh v1.8.5 or later
-- Bridge now checks both WiFi connection AND valid gateway IP
-- If still seeing issues, verify router's gateway IP is accessible: check `WiFi.gatewayIP()` returns valid IP (not 0.0.0.0)
+- Update to latest painlessMesh version
+- Bridge now checks WiFi connection AND valid local IP address
+- Works reliably with all network types including mobile hotspots and tethering
+- Local IP check is more reliable than gateway IP, which may not be available on all network types
 
 ### Election Doesn't Start
 
