@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.9] - 2025-11-12
+
+### Fixed
+
+- **Bridge Self-Registration (Type 610 & 613)** - Bridge nodes now properly track themselves in status and coordination
+  - **Bridge Status Broadcasting (Type 610)**: Fixed bridge nodes reporting "Known bridges: 0" despite being active
+    - Added immediate self-registration task in `initBridgeStatusBroadcast()` (line ~746)
+    - Bridge now calls `updateBridgeStatus()` with own nodeId immediately after initialization
+    - Added self-update in `sendBridgeStatus()` (line ~1192) before broadcasting
+    - Ensures bridge appears in its own `knownBridges` list from the start
+  - **Bridge Coordination (Type 613)**: Fixed multi-bridge priority tracking
+    - Added self-registration in `initBridgeCoordination()` (line ~803)
+    - Bridge now adds own priority to `bridgePriorities` map: `bridgePriorities[this->nodeId] = bridgePriority`
+    - Added priority self-update in `sendBridgeCoordination()` (line ~869) before broadcasting
+    - Ensures primary bridge selection works correctly with multiple bridges
+  - **Root Cause**: Mesh networks don't loop broadcasts back to sender by design
+    - Nodes receive broadcasts from other nodes but not their own messages
+    - Requires explicit local state management for any tracking data
+  - **Before Fix**:
+    - Bridge reports "Known bridges: 0" and "No primary bridge available!"
+    - Multi-bridge setups fail to select primary bridge (missing own priority)
+    - Bridge failover unreliable due to incomplete bridge tracking
+  - **After Fix**:
+    - Bridge correctly reports "Known bridges: 1" (or more in multi-bridge setups)
+    - Primary bridge selection works properly with all bridge priorities present
+    - Self-tracking pattern now consistent across all periodic broadcast types
+  - Core fixes in `src/arduino/wifi.hpp`
+  - Resolves @woodlist GitHub issue - bridge showing "Known bridges: 0"
+  - Comprehensive analysis documented in COMPREHENSIVE_BROADCAST_ANALYSIS.md
+
+### Changed
+
+- **Build System** - Switched Docker compiler from clang++ to g++
+  - Changed ENV CXX in Dockerfile from clang++ to g++
+  - Resolves template instantiation crashes during Docker builds
+  - Build verification confirms successful compilation with g++
+
+### Documentation
+
+- **Broadcast Message Analysis** - Added comprehensive review documentation
+  - Created COMPREHENSIVE_BROADCAST_ANALYSIS.md with full analysis of all 4 broadcast types
+  - Documents self-tracking requirements for Type 610 (STATUS) and 613 (COORDINATION)
+  - Confirms Type 611 (ELECTION) already implements correct self-registration
+  - Confirms Type 612 (TAKEOVER) doesn't require self-tracking (notification only)
+  - Establishes pattern guidelines for future broadcast implementations
+
 ## [1.8.8] - 2025-11-12
 
 ### Fixed
