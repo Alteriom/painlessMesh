@@ -340,6 +340,17 @@ bool amBridge = mesh.isBridge();
 - Wait a few seconds after startup for initial discovery
 - Bridge now broadcasts immediately on startup and when nodes connect (fixed in v1.8.4+)
 
+### Bridge Reports No Internet When Router Has Internet
+
+**Symptoms**: Bridge shows "Internet available: NO" or `hasInternet: false` despite router having Internet
+
+**Cause**: Fixed in v1.8.5+. Previously only checked WiFi connection status, not actual Internet availability.
+
+**Solutions**:
+- Update to painlessMesh v1.8.5 or later
+- Bridge now checks both WiFi connection AND valid gateway IP
+- If still seeing issues, verify router's gateway IP is accessible: check `WiFi.gatewayIP()` returns valid IP (not 0.0.0.0)
+
 ### Election Doesn't Start
 
 **Symptoms**: Bridge fails but no election occurs

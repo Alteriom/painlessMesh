@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bridge Internet Connectivity Detection (Bridge_fallover)** - Fixed incorrect internet status reporting
+  - Bridge nodes now properly check for actual Internet connectivity, not just WiFi connection
+  - Check verifies both `WiFi.status() == WL_CONNECTED` AND valid gateway IP (not 0.0.0.0)
+  - **Before**: Bridge connected to router → reports "Internet: NO" even when router has Internet
+  - **After**: Bridge connected to router with valid gateway → correctly reports "Internet: YES"
+  - Fixes `hasInternetConnection()` returning false positives on regular nodes
+  - Core fix in `src/arduino/wifi.hpp` line 1188-1192
+  - Updated bridge_failover/README.md with troubleshooting guidance
+
 ## [1.8.6] - 2025-11-12
 
 ### Fixed
