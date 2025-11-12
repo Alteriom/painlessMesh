@@ -592,6 +592,23 @@ These are the message types used by applications built on painlessMesh:
 
 **[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.0.md)**
 
+## Device Simulator (Planned)
+
+A standalone device simulator is planned to enable large-scale testing and validation:
+
+- **🎯 100+ Virtual Nodes** - Test mesh networks with hundreds of simulated ESP32/ESP8266 devices
+- **🧪 Firmware Validation** - Run your actual firmware code without hardware
+- **📊 Scenario Testing** - Configuration-driven test cases for various topologies and conditions
+- **📈 Performance Analysis** - Measure throughput, latency, and reliability at scale
+- **🔄 CI/CD Integration** - Automated testing in your development pipeline
+
+**Planning Documents:**
+- **[Executive Summary](SIMULATOR_SUMMARY.md)** - Overview and key decisions
+- **[Quick Start Guide](SIMULATOR_QUICKSTART.md)** - Usage examples and commands
+- **[Complete Plan](SIMULATOR_PLAN.md)** - Technical specification and roadmap
+
+**Status:** Planning complete - Ready for implementation in separate repository (`painlessMesh-simulator`)
+
 ## Getting Help
 
 - **[FAQ](docs/troubleshooting/faq.md)** - Common questions and solutions
