@@ -13,11 +13,15 @@ This document provides comprehensive instructions for releasing new versions of 
 # 2. Update CHANGELOG.md with your changes
 # Add your changes under the new version section
 
-# 3. Run the Release Agent to validate readiness
+# 3. Update header file version comments (recommended)
+# Edit src/painlessMesh.h and src/AlteriomPainlessMesh.h
+# Update @version comments to match the new library version
+
+# 4. Run the Release Agent to validate readiness
 ./scripts/release-agent.sh
 
-# 4. If all checks pass, commit and trigger release
-git add library.properties library.json package.json CHANGELOG.md
+# 5. If all checks pass, commit and trigger release
+git add library.properties library.json package.json CHANGELOG.md src/*.h
 git commit -m "release: v1.7.9 - Brief description"
 git push origin main
 ```
@@ -48,6 +52,8 @@ git push origin main
 ## 🎯 Detailed Process
 
 ### Version Management
+
+> **📖 For detailed information about version management, see [VERSION_MANAGEMENT.md](docs/VERSION_MANAGEMENT.md)**
 
 **File Consistency**: All three files must have matching versions:
 
