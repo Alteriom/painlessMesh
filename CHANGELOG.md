@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.4] - 2025-11-12
+
+### Fixed
+
+- **Bridge Discovery Timing (Issue #108)** - Immediate bridge status broadcast for faster node discovery
+  - Bridge nodes now send status broadcast immediately on initialization
+  - Bridge status broadcast sent when new nodes connect to mesh
+  - Eliminates 30-second discovery delay that caused "No primary bridge available" errors
+  - Bridge nodes are now discoverable in <1 second instead of up to 30 seconds
+  - Improves user experience in bridge_failover example
+  - Resolves @woodlist's issue with bridge discovery in bridge_failover example
+
+### Changed
+
+- **Bridge Status Broadcasting** - Enhanced timing for immediate node discovery
+  - Added immediate broadcast task on bridge initialization
+  - Registered newConnectionCallback to broadcast when nodes join
+  - Maintains existing periodic broadcasts (30-second default interval)
+  - No breaking changes - fully backward compatible
+
+### Documentation
+
+- **Bridge Failover Example** - Updated documentation for discovery improvements
+  - Added "Bridge Status Monitoring" section documenting new broadcast timing
+  - Added "Bridge Not Discovered" troubleshooting section
+  - Updated README with immediate discovery behavior
+  - Examples: `examples/bridge_failover/`
+
 ## [1.8.3] - 2025-11-11
 
 ### Fixed

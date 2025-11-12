@@ -532,7 +532,19 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.8.3 (November 11, 2025)
+## Latest Release: v1.8.4 (November 12, 2025)
+
+**Bridge Discovery Timing Fix for Instant Node Discovery**:
+
+- 🚀 **Instant Bridge Discovery** - Bridge nodes now discoverable in <1 second (was up to 30 seconds)
+- 🔧 **Immediate Status Broadcast** - Bridge sends status immediately on initialization
+- 🔗 **Connection-Triggered Broadcast** - Status broadcast when new nodes join mesh
+- ✅ **Fixes "No Primary Bridge Available"** - Eliminates discovery delays in bridge_failover example
+- 🔧 **100% Backward Compatible** - No breaking changes, enhanced timing only
+
+**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.4.md)** | **[📋 Full CHANGELOG](CHANGELOG.md)**
+
+## Previous Release: v1.8.3 (November 11, 2025)
 
 **ZIP File Integrity Fix for Arduino IDE Installation**:
 
@@ -542,7 +554,7 @@ These are the message types used by applications built on painlessMesh:
 - ✅ **Verified Installation** - Tested and working in Arduino IDE "Add .ZIP Library"
 - 🔧 **100% Backward Compatible** - No code changes, packaging fix only
 
-**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.3.md)** | **[📋 Full CHANGELOG](CHANGELOG.md)**
+**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.3.md)**
 
 ## Previous Release: v1.8.2 (November 11, 2025)
 
