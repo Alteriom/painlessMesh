@@ -12,7 +12,7 @@
  */
 
 #include "painlessMesh.h"
-#include "examples/alteriom/alteriom_sensor_package.hpp"
+#include "alteriom_sensor_package.hpp"
 
 // Mesh configuration
 #define MESH_PREFIX     "AlteriomMesh"
