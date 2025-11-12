@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/Alteriom/painlessMesh"
   },
-  "version": "1.8.7",
+  "version": "1.8.8",
   "frameworks": [
     "arduino"
   ],

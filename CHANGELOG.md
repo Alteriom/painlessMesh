@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.8] - 2025-11-12
+
 ### Fixed
 
 - **Bridge Internet Connectivity Detection (Mobile Hotspot Compatibility)** - Fixed false negative with mobile hotspots
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Core fix in `src/arduino/wifi.hpp` line 1189-1191
   - Improves upon 1.8.7 gateway IP check which didn't work with all network types
   - Resolves issue where bridge connects successfully but still reports no internet
+  - Fixes Alteriom/painlessMesh#129
 
 ## [1.8.7] - 2025-11-12
 
