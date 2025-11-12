@@ -1185,7 +1185,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["from"] = this->nodeId;
     obj["routing"] = 2;  // BROADCAST routing
     obj["timestamp"] = this->getNodeTime();
-    obj["internetConnected"] = (WiFi.status() == WL_CONNECTED);
+    
+    // Check Internet connectivity: WiFi connected AND valid gateway IP
+    bool hasInternet = (WiFi.status() == WL_CONNECTED) && 
+                       (WiFi.gatewayIP() != IPAddress(0, 0, 0, 0));
+    obj["internetConnected"] = hasInternet;
+    
     obj["routerRSSI"] = WiFi.RSSI();
     obj["routerChannel"] = WiFi.channel();
     obj["uptime"] = millis();
@@ -1196,7 +1201,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     serializeJson(doc, msg);
     
     Log(GENERAL, "sendBridgeStatus(): Broadcasting status (Internet: %s)\n",
-        (WiFi.status() == WL_CONNECTED) ? "Connected" : "Disconnected");
+        hasInternet ? "Connected" : "Disconnected");
     
     this->sendBroadcast(msg);
   }
