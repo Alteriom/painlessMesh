@@ -5,8 +5,8 @@
  * @file painlessMesh.h
  * @brief Main header file for Alteriom painlessMesh library
  * 
- * @version 1.8.3
- * @date 2025-11-11
+ * @version 1.8.4
+ * @date 2025-11-12
  * 
  * painlessMesh is a user-friendly library for creating mesh networks with 
  * ESP8266 and ESP32 devices. This Alteriom fork includes additional packages 
