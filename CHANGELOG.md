@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.5] - 2025-11-12
+
+### Fixed
+
+- **ntpTimeSyncBridge and ntpTimeSyncNode Compilation (Issue #108)** - Arduino IDE compilation errors fixed
+  - Fixed include path in ntpTimeSyncBridge.ino from `"examples/alteriom/alteriom_sensor_package.hpp"` to `"alteriom_sensor_package.hpp"`
+  - Fixed include path in ntpTimeSyncNode.ino from `"examples/alteriom/alteriom_sensor_package.hpp"` to `"alteriom_sensor_package.hpp"`
+  - Arduino IDE compiles sketches with sketch directory as working directory, requiring local header files
+  - Resolves @woodlist's compilation error: "No such file or directory"
+  
+- **Arduino String Method Compatibility** - Fixed incompatible method call in wifi.hpp
+  - Changed `stationSSID.empty()` to `stationSSID.isEmpty()` in src/arduino/wifi.hpp line 171
+  - Arduino's String class uses `isEmpty()` method instead of STL's `empty()`
+  - Fixes CI build failures for ESP32/ESP8266 examples
+  - Related to station credentials feature added in #113
+
+### Documentation
+
+- **Example Sketches** - Updated NTP time synchronization examples
+  - ntpTimeSyncBridge now compiles correctly in Arduino IDE
+  - ntpTimeSyncNode now compiles correctly in Arduino IDE
+  - Examples: `examples/ntpTimeSyncBridge/`, `examples/ntpTimeSyncNode/`
+
 ## [1.8.4] - 2025-11-12
 
 ### Fixed
