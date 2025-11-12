@@ -44,7 +44,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    */
   void init(TSTRING ssid, TSTRING password, uint16_t port = 5555,
             WiFiMode_t connectMode = WIFI_AP_STA, uint8_t channel = 1,
-            uint8_t hidden = 0, uint8_t maxconn = MAX_CONN) {
+            uint8_t hidden = 0, uint8_t maxconn = MAX_CONN,
+            TSTRING stationSSID = "", TSTRING stationPassword = "") {
     using namespace logger;
     // Init random generator seed to generate delay variance
     randomSeed(millis());
@@ -165,6 +166,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     if (connectMode & WIFI_STA) {
       this->initStation();
     }
+    
+    // If station credentials provided, connect to router
+    if (!stationSSID.empty() && (connectMode & WIFI_STA)) {
+      Log(STARTUP, "init(): Connecting to station %s\n", stationSSID.c_str());
+      this->stationManual(stationSSID, stationPassword);
+    }
   }
 
   /** Initialize the mesh network
@@ -187,9 +194,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   void init(TSTRING ssid, TSTRING password, Scheduler *baseScheduler,
             uint16_t port = 5555, WiFiMode_t connectMode = WIFI_AP_STA,
             uint8_t channel = 1, uint8_t hidden = 0,
-            uint8_t maxconn = MAX_CONN) {
+            uint8_t maxconn = MAX_CONN,
+            TSTRING stationSSID = "", TSTRING stationPassword = "") {
     this->setScheduler(baseScheduler);
-    init(ssid, password, port, connectMode, channel, hidden, maxconn);
+    init(ssid, password, port, connectMode, channel, hidden, maxconn, 
+         stationSSID, stationPassword);
   }
 
   /**
