@@ -46,7 +46,12 @@ Task taskBroadcastNTP(NTP_INTERVAL, TASK_FOREVER, [](){
   pkg.timestamp = millis();
   
   // Serialize and broadcast to mesh
-  String msg = pkg.toJson();
+  JsonDocument doc;
+  JsonObject obj = doc.to<JsonObject>();
+  pkg.addTo(std::move(obj));
+  
+  String msg;
+  serializeJson(doc, msg);
   mesh.sendBroadcast(msg);
   
   Serial.printf("Broadcast NTP time: %u from %s (accuracy: %ums)\n", 
