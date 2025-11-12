@@ -1,5 +1,4 @@
 {
-  "$schema": "https://github.com/github/copilot-schemas/blob/main/schemas/copilot-agent-config.schema.json",
   "version": "1.0",
   "publisher": {
     "name": "Alteriom",
