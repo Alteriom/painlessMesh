@@ -168,7 +168,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
     
     // If station credentials provided, connect to router
-    if (!stationSSID.empty() && (connectMode & WIFI_STA)) {
+    if (!stationSSID.isEmpty() && (connectMode & WIFI_STA)) {
       Log(STARTUP, "init(): Connecting to station %s\n", stationSSID.c_str());
       this->stationManual(stationSSID, stationPassword);
     }
