@@ -9,14 +9,26 @@
 // - ESP32 or ESP8266
 // - WiFi router with Internet connection
 //
-// Setup:
+// Setup Options:
+//
+// OPTION A - Auto-Election Mode (Recommended):
 // 1. Configure your mesh credentials (MESH_PREFIX, MESH_PASSWORD)
 // 2. Configure your router credentials (ROUTER_SSID, ROUTER_PASSWORD)
-// 3. Flash multiple nodes with this sketch
-// 4. Designate one as the initial bridge by calling mesh.initAsBridge()
-// 5. Other nodes will automatically participate in elections if bridge fails
+// 3. Keep INITIAL_BRIDGE = false on ALL nodes
+// 4. Flash multiple nodes with this sketch
+// 5. After startup (~60 seconds), nodes will automatically elect a bridge
+//    based on best router signal strength (RSSI)
+//
+// OPTION B - Pre-Designated Bridge Mode:
+// 1. Configure your mesh credentials (MESH_PREFIX, MESH_PASSWORD)
+// 2. Configure your router credentials (ROUTER_SSID, ROUTER_PASSWORD)
+// 3. Set INITIAL_BRIDGE = true on ONE node (your designated bridge)
+// 4. Keep INITIAL_BRIDGE = false on all other nodes
+// 5. Flash the nodes - designated bridge starts immediately
+// 6. If designated bridge fails, others will hold election
 //
 // Features Demonstrated:
+// - Automatic bridge election when no bridge exists
 // - Automatic bridge failure detection via heartbeats
 // - RSSI-based election protocol
 // - Deterministic winner selection with tiebreakers
