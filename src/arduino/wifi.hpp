@@ -752,6 +752,27 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     Log(STARTUP, "initBridgeStatusBroadcast(): Setting up bridge status broadcast\n");
     
+    // Register ourselves as a bridge in the knownBridges list
+    // This ensures the bridge knows about itself and reports correct status
+    this->addTask([this]() {
+      // Check Internet connectivity: WiFi connected AND valid IP address
+      bool hasInternet = (WiFi.status() == WL_CONNECTED) && 
+                         (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+      
+      this->updateBridgeStatus(
+        this->nodeId,               // bridgeNodeId
+        hasInternet,                // internetConnected
+        WiFi.RSSI(),                // routerRSSI
+        WiFi.channel(),             // routerChannel
+        millis(),                   // uptime
+        WiFi.gatewayIP().toString(),// gatewayIP
+        this->getNodeTime()         // timestamp
+      );
+      
+      Log(STARTUP, "initBridgeStatusBroadcast(): Registered self as bridge (nodeId: %u)\n", 
+          this->nodeId);
+    });
+    
     // Create periodic task to broadcast bridge status
     bridgeStatusTask = this->addTask(
       this->bridgeStatusIntervalMs,
@@ -1195,10 +1216,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                        (WiFi.localIP() != IPAddress(0, 0, 0, 0));
     obj["internetConnected"] = hasInternet;
     
-    obj["routerRSSI"] = WiFi.RSSI();
-    obj["routerChannel"] = WiFi.channel();
-    obj["uptime"] = millis();
-    obj["gatewayIP"] = WiFi.gatewayIP().toString();
+    int8_t rssi = WiFi.RSSI();
+    uint8_t channel = WiFi.channel();
+    uint32_t uptime = millis();
+    TSTRING gatewayIP = WiFi.gatewayIP().toString();
+    
+    obj["routerRSSI"] = rssi;
+    obj["routerChannel"] = channel;
+    obj["uptime"] = uptime;
+    obj["gatewayIP"] = gatewayIP;
     obj["message_type"] = 610;
     
     String msg;
@@ -1208,6 +1234,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         hasInternet ? "Connected" : "Disconnected");
     Log(GENERAL, "sendBridgeStatus(): WiFi status=%d, localIP=%s, gatewayIP=%s\n",
         WiFi.status(), WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str());
+    
+    // Update our own bridge status in knownBridges list
+    // This ensures the bridge reports itself correctly when queried
+    this->updateBridgeStatus(this->nodeId, hasInternet, rssi, channel, 
+                            uptime, gatewayIP, this->getNodeTime());
     
     this->sendBroadcast(msg);
   }

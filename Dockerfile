@@ -23,9 +23,9 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /workspace
 
-# Set C++ compiler
-ENV CXX=clang++
-ENV CC=clang
+# Set C++ compiler to g++ (clang has issues with complex templates)
+ENV CXX=g++
+ENV CC=gcc
 
 # Copy project files
 COPY . /workspace/
