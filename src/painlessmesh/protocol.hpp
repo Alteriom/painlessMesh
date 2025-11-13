@@ -380,7 +380,7 @@ class TimeSync : public PackageInterface {
   /**
    * Create a reply to the current message with the new time set
    */
-  void reply(uint newT0) {
+  void reply(uint32_t newT0) {
     msg.t0 = newT0;
     ++msg.type;
     std::swap(from, dest);

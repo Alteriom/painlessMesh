@@ -10,6 +10,11 @@ namespace logger {
 
 #define REMOTE_QUEUE_SIZE 10
 
+// Windows defines ERROR as a macro, undefine it to avoid conflicts
+#ifdef ERROR
+#undef ERROR
+#endif
+
 typedef enum {
   ERROR = 1 << 0,
   STARTUP = 1 << 1,
@@ -132,7 +137,7 @@ class LogClass {
 
       vsnprintf(str, 200, format, args);
 
-      remote_queue.push_back(std::pair<uint, TSTRING>(remote_uuid, str));
+      remote_queue.push_back(std::pair<uint32_t, TSTRING>(remote_uuid, str));
       ++remote_uuid;
       if (remote_queue.size() > REMOTE_QUEUE_SIZE) {
         // No place to store the reason, but do signify the queue is full,
@@ -142,15 +147,15 @@ class LogClass {
     }
   }
 
-  std::list<std::pair<uint, TSTRING>> &get_remote_queue() {
+  std::list<std::pair<uint32_t, TSTRING>> &get_remote_queue() {
     return remote_queue;
   }
 
  private:
   uint16_t types = 0;
   char str[200];
-  std::list<std::pair<uint, TSTRING>> remote_queue;
-  uint remote_uuid;
+  std::list<std::pair<uint32_t, TSTRING>> remote_queue;
+  uint32_t remote_uuid;
 };
 
 }  // namespace logger

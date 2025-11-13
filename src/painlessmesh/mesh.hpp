@@ -2285,7 +2285,7 @@ class Connection : public painlessmesh::layout::Neighbour,
       quality -= (80 + rssi);  // e.g., -90 dBm = penalty of 10
     }
 
-    return std::max(0, std::min(100, quality));
+    return (std::max)(0, (std::min)(100, quality));
   }
 
   /**

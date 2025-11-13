@@ -233,8 +233,13 @@ class AsyncServer {
   void begin() {
     mAcceptor.open(tcp::v4());
     int one = 1;
+#ifdef _WIN32
+    setsockopt(mAcceptor.native_handle(), SOL_SOCKET,
+               SO_REUSEADDR | SO_REUSEPORT, reinterpret_cast<const char*>(&one), sizeof(one));
+#else
     setsockopt(mAcceptor.native_handle(), SOL_SOCKET,
                SO_REUSEADDR | SO_REUSEPORT, &one, sizeof(one));
+#endif
     boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::tcp::v4(), _port);
     mAcceptor.set_option(boost::asio::socket_base::reuse_address(true));
     mAcceptor.set_option(boost::asio::ip::tcp::no_delay(true));
