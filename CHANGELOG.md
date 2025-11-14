@@ -9,24 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Bridge Status Broadcast Timing (Second Fix)** - Fixed newly connected nodes still not receiving bridge status
-  - Previous fix (1-second delay) was insufficient
-  - **Root Cause Analysis**: Time sync between nodes takes 3-4 seconds after connection establishment
-    - Connection establishes immediately but mesh protocol needs time to stabilize
-    - Node performs time synchronization with multiple adjustments over 3-4 seconds
-    - Single broadcast at 1 second arrives during time sync and may not be processed
-  - **New Fix**: Send multiple broadcasts with longer delays
-    - First broadcast at 5 seconds (after time sync completes)
-    - Second broadcast at 10 seconds (retry if first missed)
-    - Third broadcast at 15 seconds (final retry before normal 30s cycle)
-  - **Evidence from user logs**:
-    - Connection at 22:29:55.555
-    - Time sync from 22:29:56.359 to 22:29:59.076 (~3.5 seconds)
-    - Previous 1s broadcast sent during time sync, not received
-    - Status check at 22:29:59.514 showed "Known bridges: 0"
+- **Bridge Status Discovery - Direct Messaging** - Fixed newly connected nodes not receiving bridge status
+  - **Root Cause**: Broadcast messages were not reaching newly connected nodes reliably
+    - Time sync (NTP) was interfering with bridge discovery
+    - Broadcast routing may not be fully established immediately after connection
+  - **Solution**: Send bridge status directly to new node using `sendSingle()`
+    - Changed from broadcast (`routing=2`) to single (`routing=1`) 
+    - Minimal 500ms delay (just for connection stability)
+    - Direct targeted delivery ensures message reaches the new node
+    - Time sync no longer affects bridge discovery
   - Location: `src/arduino/wifi.hpp` line ~809 in `initBridgeStatusBroadcast()`
-  - Impact: Nodes now reliably receive bridge status within 5-15 seconds of connecting
-  - Backward compatible: No API changes, only internal timing improvement
+  - Impact: Nodes discover bridges immediately (within 500ms) after connecting
+  - Backward compatible: No API changes, internal delivery mechanism improved
   - Resolves GitHub issue #135 "The latest fix does not work"
 
 ## [1.8.9] - 2025-11-12

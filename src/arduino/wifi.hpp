@@ -804,30 +804,41 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       this->sendBridgeStatus();
     });
     
-    // Also broadcast when new nodes connect so they can discover the bridge immediately
-    // Send multiple broadcasts with increasing delays to ensure reception
-    // - 5s delay: allows time sync to complete (typically takes 3-4 seconds)
-    // - 10s delay: retry in case first broadcast was missed
-    // - 15s delay: final retry before normal periodic broadcast cycle
+    // Also send bridge status when new nodes connect so they can discover the bridge immediately
+    // Send directly to the new node to ensure delivery, independent of time sync
     this->newConnectionCallbacks.push_back([this](uint32_t nodeId) {
-      Log(CONNECTION, "New node %u connected, scheduling bridge status broadcasts\n", nodeId);
+      Log(CONNECTION, "New node %u connected, sending bridge status directly\n", nodeId);
       
-      // First broadcast after 5 seconds (allows time sync to complete)
-      this->addTask(5000, TASK_ONCE, [this, nodeId]() {
-        Log(CONNECTION, "Sending bridge status (attempt 1/3) to node %u\n", nodeId);
-        this->sendBridgeStatus();
-      });
-      
-      // Second broadcast after 10 seconds (retry)
-      this->addTask(10000, TASK_ONCE, [this, nodeId]() {
-        Log(CONNECTION, "Sending bridge status (attempt 2/3) to node %u\n", nodeId);
-        this->sendBridgeStatus();
-      });
-      
-      // Third broadcast after 15 seconds (final retry)
-      this->addTask(15000, TASK_ONCE, [this, nodeId]() {
-        Log(CONNECTION, "Sending bridge status (attempt 3/3) to node %u\n", nodeId);
-        this->sendBridgeStatus();
+      // Small delay to ensure connection is ready, then send directly to the new node
+      // This avoids issues with time sync blocking broadcast messages
+      this->addTask(500, TASK_ONCE, [this, nodeId]() {
+        // Create bridge status message
+        JsonDocument doc;
+        JsonObject obj = doc.to<JsonObject>();
+        
+        obj["type"] = 610;  // BRIDGE_STATUS type
+        obj["from"] = this->nodeId;
+        obj["routing"] = 1;  // SINGLE routing (direct to node)
+        obj["dest"] = nodeId;
+        obj["timestamp"] = this->getNodeTime();
+        
+        bool hasInternet = (WiFi.status() == WL_CONNECTED) && 
+                           (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+        obj["internetConnected"] = hasInternet;
+        obj["routerRSSI"] = WiFi.RSSI();
+        obj["routerChannel"] = WiFi.channel();
+        obj["uptime"] = millis();
+        obj["gatewayIP"] = WiFi.gatewayIP().toString();
+        obj["message_type"] = 610;
+        
+        String msg;
+        serializeJson(doc, msg);
+        
+        Log(CONNECTION, "Sending bridge status directly to node %u (Internet: %s)\n",
+            nodeId, hasInternet ? "YES" : "NO");
+        
+        // Send directly to the new node, bypassing broadcast routing
+        this->sendSingle(nodeId, msg);
       });
     });
     
