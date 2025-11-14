@@ -233,6 +233,10 @@ mesh.enableBridgeFailover(true);
 // Set election timeout (milliseconds)
 mesh.setElectionTimeout(5000);
 
+// Set minimum RSSI for isolated bridge elections (default: -80 dBm)
+// Prevents nodes with poor signal from becoming bridges when isolated
+mesh.setMinimumBridgeRSSI(-80);
+
 // Set bridge status broadcast interval
 mesh.setBridgeStatusInterval(30000);
 
@@ -357,6 +361,37 @@ bool amBridge = mesh.isBridge();
 - Works reliably with all network types including mobile hotspots and tethering
 - Local IP check is more reliable than gateway IP, which may not be available on all network types
 
+### Isolated Node with Poor Signal Attempting Bridge
+
+**Symptoms**: Node logs "Election Failed: Insufficient Signal Quality" or has -85+ dBm RSSI
+
+**Root Cause**: Node cannot see the mesh (isolated) and has poor router signal below minimum threshold
+
+**What's Happening**:
+1. Node comes online and doesn't detect existing bridge
+2. Triggers election where it's the only candidate
+3. Has poor router RSSI (e.g., -87 dBm, below -80 dBm threshold)
+4. Election automatically rejected to prevent unreliable bridge
+5. Node remains as regular node until mesh connection or better signal
+
+**Expected Behavior** (v1.8.10+):
+```
+=== Evaluating Election ===
+evaluateElection(): 1 candidates
+=== Election Failed: Insufficient Signal Quality ===
+  Single candidate with RSSI -87 dBm (minimum required: -80 dBm)
+  Node is isolated from mesh with poor router signal
+  Rejecting election to prevent unreliable bridge
+  Recommendation: Move closer to router or wait for mesh connection
+```
+
+**Solutions**:
+- **Best**: Move node closer to router for better signal strength
+- **Wait**: Node will join existing bridge once mesh connection established
+- **Adjust threshold**: `mesh.setMinimumBridgeRSSI(-85)` to relax requirement (not recommended)
+- **Check existing bridge**: Ensure another node with good signal is already bridge
+- **Verify mesh**: Ensure nodes can communicate with each other
+
 ### Election Doesn't Start
 
 **Symptoms**: Bridge fails but no election occurs
@@ -381,10 +416,23 @@ bool amBridge = mesh.isBridge();
 
 **Symptoms**: Node with weak signal becomes bridge
 
-**Solutions**:
+**Root Cause (Fixed in v1.8.10+)**: 
+When a node with poor router signal (e.g., -87 dBm) comes online and cannot see the existing bridge, it may trigger an election where it's the only candidate. Previously, it could win by default despite inadequate signal strength.
+
+**Solution (Automatic)**:
+Starting in v1.8.10, the election system enforces a minimum RSSI threshold (-80 dBm by default) for single-candidate elections. This prevents isolated nodes with poor signal from becoming bridges.
+
+**Behavior**:
+- **Single candidate with poor RSSI**: Election fails with warning message
+- **Multiple candidates**: Best RSSI wins regardless of threshold (mesh is connected)
+- **Single candidate with good RSSI**: Election proceeds normally
+
+**Manual Solutions**:
+- Update to painlessMesh v1.8.10 or later
+- Adjust minimum RSSI threshold: `mesh.setMinimumBridgeRSSI(-75)` (stricter)
 - Verify RSSI values in election logs
 - Check router positioning and interference
-- Consider adjusting tiebreaker weightings
+- Move nodes closer to router for better signal
 - Review signal strength readings
 
 ### Frequent Re-elections
