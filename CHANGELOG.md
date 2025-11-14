@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bridge Status Broadcast Timing** - Fixed newly connected nodes not receiving bridge status updates
+  - Issue: When a node connects to a bridge, the immediate broadcast was sent before TCP connection was fully ready
+  - Symptom: Newly connected nodes show "Known bridges: 0" and "No primary bridge available!"
+  - Fix: Added 1-second delay before sending bridge status to newly connected nodes
+  - Location: `src/arduino/wifi.hpp` line ~811 in `initBridgeStatusBroadcast()`
+  - Impact: Nodes now reliably receive bridge status within 1-2 seconds of connecting
+  - Backward compatible: No API changes, only internal timing improvement
+  - Resolves GitHub issue: "The problem with mesh does not solved"
+
 ## [1.8.9] - 2025-11-12
 
 ### Fixed
