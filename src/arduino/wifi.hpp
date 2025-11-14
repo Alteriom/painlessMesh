@@ -804,13 +804,41 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       this->sendBridgeStatus();
     });
     
-    // Also broadcast when new nodes connect so they can discover the bridge immediately
-    // Add a small delay to ensure TCP connection is fully established and ready to receive data
+    // Also send bridge status when new nodes connect so they can discover the bridge immediately
+    // Send directly to the new node to ensure delivery, independent of time sync
     this->newConnectionCallbacks.push_back([this](uint32_t nodeId) {
-      Log(CONNECTION, "New node %u connected, scheduling delayed bridge status\n", nodeId);
-      this->addTask(1000, TASK_ONCE, [this, nodeId]() {
-        Log(CONNECTION, "Sending bridge status to newly connected node %u\n", nodeId);
-        this->sendBridgeStatus();
+      Log(CONNECTION, "New node %u connected, sending bridge status directly\n", nodeId);
+      
+      // Small delay to ensure connection is ready, then send directly to the new node
+      // This avoids issues with time sync blocking broadcast messages
+      this->addTask(500, TASK_ONCE, [this, nodeId]() {
+        // Create bridge status message
+        JsonDocument doc;
+        JsonObject obj = doc.to<JsonObject>();
+        
+        obj["type"] = 610;  // BRIDGE_STATUS type
+        obj["from"] = this->nodeId;
+        obj["routing"] = 1;  // SINGLE routing (direct to node)
+        obj["dest"] = nodeId;
+        obj["timestamp"] = this->getNodeTime();
+        
+        bool hasInternet = (WiFi.status() == WL_CONNECTED) && 
+                           (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+        obj["internetConnected"] = hasInternet;
+        obj["routerRSSI"] = WiFi.RSSI();
+        obj["routerChannel"] = WiFi.channel();
+        obj["uptime"] = millis();
+        obj["gatewayIP"] = WiFi.gatewayIP().toString();
+        obj["message_type"] = 610;
+        
+        String msg;
+        serializeJson(doc, msg);
+        
+        Log(CONNECTION, "Sending bridge status directly to node %u (Internet: %s)\n",
+            nodeId, hasInternet ? "YES" : "NO");
+        
+        // Send directly to the new node, bypassing broadcast routing
+        this->sendSingle(nodeId, msg);
       });
     });
     
