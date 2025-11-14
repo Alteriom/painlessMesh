@@ -535,6 +535,21 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
+   * Set the minimum RSSI required for bridge election
+   * 
+   * Prevents nodes with poor router signal from becoming bridges in isolated
+   * elections. When a node is the only candidate, it must meet this threshold.
+   * When multiple candidates exist, the best RSSI wins regardless of threshold.
+   * 
+   * @param minRSSI Minimum RSSI in dBm (default: -80 dBm, range: -100 to -30)
+   */
+  void setMinimumBridgeRSSI(int8_t minRSSI) {
+    if (minRSSI < -100) minRSSI = -100;
+    if (minRSSI > -30) minRSSI = -30;
+    minimumBridgeRSSI = minRSSI;
+  }
+
+  /**
    * Set callback for when this node's bridge role changes
    * 
    * @param callback Function to call when role changes
@@ -1077,6 +1092,28 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       return;
     }
     
+    // Validate RSSI threshold for single-candidate elections
+    // When only one candidate exists, it indicates the node is isolated from the mesh.
+    // In this case, require minimum signal quality to prevent poor connections.
+    // When multiple candidates exist, the mesh is connected and best RSSI wins.
+    if (electionCandidates.size() == 1 && winner->routerRSSI < minimumBridgeRSSI) {
+      Log(CONNECTION, "=== Election Failed: Insufficient Signal Quality ===\n");
+      Log(CONNECTION, "  Single candidate with RSSI %d dBm (minimum required: %d dBm)\n",
+          winner->routerRSSI, minimumBridgeRSSI);
+      Log(CONNECTION, "  Node is isolated from mesh with poor router signal\n");
+      Log(CONNECTION, "  Rejecting election to prevent unreliable bridge\n");
+      Log(CONNECTION, "  Recommendation: Move closer to router or wait for mesh connection\n");
+      
+      electionState = ELECTION_IDLE;
+      electionCandidates.clear();
+      
+      // Notify via callback that election failed
+      if (bridgeRoleChangedCallback) {
+        bridgeRoleChangedCallback(false, "Insufficient signal quality for isolated bridge");
+      }
+      return;
+    }
+    
     Log(CONNECTION, "=== Election Winner: Node %u ===\n", winner->nodeId);
     Log(CONNECTION, "  Router RSSI: %d dBm\n", winner->routerRSSI);
     Log(CONNECTION, "  Uptime: %u ms\n", winner->uptime);
@@ -1381,6 +1418,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   TSTRING routerSSID = "";
   TSTRING routerPassword = "";
   uint32_t electionTimeoutMs = 5000;  // Default 5 seconds
+  int8_t minimumBridgeRSSI = -80;  // Default -80 dBm minimum for isolated elections
   uint32_t lastRoleChangeTime = 0;
   ElectionState electionState = ELECTION_IDLE;
   uint32_t electionDeadline = 0;
