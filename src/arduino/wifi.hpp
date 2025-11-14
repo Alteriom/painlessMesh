@@ -805,11 +805,28 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     });
     
     // Also broadcast when new nodes connect so they can discover the bridge immediately
-    // Add a small delay to ensure TCP connection is fully established and ready to receive data
+    // Send multiple broadcasts with increasing delays to ensure reception
+    // - 5s delay: allows time sync to complete (typically takes 3-4 seconds)
+    // - 10s delay: retry in case first broadcast was missed
+    // - 15s delay: final retry before normal periodic broadcast cycle
     this->newConnectionCallbacks.push_back([this](uint32_t nodeId) {
-      Log(CONNECTION, "New node %u connected, scheduling delayed bridge status\n", nodeId);
-      this->addTask(1000, TASK_ONCE, [this, nodeId]() {
-        Log(CONNECTION, "Sending bridge status to newly connected node %u\n", nodeId);
+      Log(CONNECTION, "New node %u connected, scheduling bridge status broadcasts\n", nodeId);
+      
+      // First broadcast after 5 seconds (allows time sync to complete)
+      this->addTask(5000, TASK_ONCE, [this, nodeId]() {
+        Log(CONNECTION, "Sending bridge status (attempt 1/3) to node %u\n", nodeId);
+        this->sendBridgeStatus();
+      });
+      
+      // Second broadcast after 10 seconds (retry)
+      this->addTask(10000, TASK_ONCE, [this, nodeId]() {
+        Log(CONNECTION, "Sending bridge status (attempt 2/3) to node %u\n", nodeId);
+        this->sendBridgeStatus();
+      });
+      
+      // Third broadcast after 15 seconds (final retry)
+      this->addTask(15000, TASK_ONCE, [this, nodeId]() {
+        Log(CONNECTION, "Sending bridge status (attempt 3/3) to node %u\n", nodeId);
         this->sendBridgeStatus();
       });
     });

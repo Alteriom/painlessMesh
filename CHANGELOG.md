@@ -9,14 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Bridge Status Broadcast Timing** - Fixed newly connected nodes not receiving bridge status updates
-  - Issue: When a node connects to a bridge, the immediate broadcast was sent before TCP connection was fully ready
-  - Symptom: Newly connected nodes show "Known bridges: 0" and "No primary bridge available!"
-  - Fix: Added 1-second delay before sending bridge status to newly connected nodes
-  - Location: `src/arduino/wifi.hpp` line ~811 in `initBridgeStatusBroadcast()`
-  - Impact: Nodes now reliably receive bridge status within 1-2 seconds of connecting
+- **Bridge Status Broadcast Timing (Second Fix)** - Fixed newly connected nodes still not receiving bridge status
+  - Previous fix (1-second delay) was insufficient
+  - **Root Cause Analysis**: Time sync between nodes takes 3-4 seconds after connection establishment
+    - Connection establishes immediately but mesh protocol needs time to stabilize
+    - Node performs time synchronization with multiple adjustments over 3-4 seconds
+    - Single broadcast at 1 second arrives during time sync and may not be processed
+  - **New Fix**: Send multiple broadcasts with longer delays
+    - First broadcast at 5 seconds (after time sync completes)
+    - Second broadcast at 10 seconds (retry if first missed)
+    - Third broadcast at 15 seconds (final retry before normal 30s cycle)
+  - **Evidence from user logs**:
+    - Connection at 22:29:55.555
+    - Time sync from 22:29:56.359 to 22:29:59.076 (~3.5 seconds)
+    - Previous 1s broadcast sent during time sync, not received
+    - Status check at 22:29:59.514 showed "Known bridges: 0"
+  - Location: `src/arduino/wifi.hpp` line ~809 in `initBridgeStatusBroadcast()`
+  - Impact: Nodes now reliably receive bridge status within 5-15 seconds of connecting
   - Backward compatible: No API changes, only internal timing improvement
-  - Resolves GitHub issue: "The problem with mesh does not solved"
+  - Resolves GitHub issue #135 "The latest fix does not work"
 
 ## [1.8.9] - 2025-11-12
 
