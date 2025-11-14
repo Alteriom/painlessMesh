@@ -805,9 +805,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     });
     
     // Also broadcast when new nodes connect so they can discover the bridge immediately
+    // Add a small delay to ensure TCP connection is fully established and ready to receive data
     this->newConnectionCallbacks.push_back([this](uint32_t nodeId) {
-      Log(CONNECTION, "New node %u connected, sending bridge status\n", nodeId);
-      this->sendBridgeStatus();
+      Log(CONNECTION, "New node %u connected, scheduling delayed bridge status\n", nodeId);
+      this->addTask(1000, TASK_ONCE, [this, nodeId]() {
+        Log(CONNECTION, "Sending bridge status to newly connected node %u\n", nodeId);
+        this->sendBridgeStatus();
+      });
     });
     
     Log(STARTUP, "Bridge status broadcast enabled (interval: %d ms)\n", 
