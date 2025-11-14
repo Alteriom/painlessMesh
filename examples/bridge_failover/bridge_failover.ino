@@ -136,6 +136,10 @@ void setup() {
     mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);
     mesh.enableBridgeFailover(true);
     mesh.setElectionTimeout(5000);  // 5 second election window
+    
+    // Optional: Set minimum RSSI for isolated bridge elections (default: -80 dBm)
+    // This prevents nodes with poor signal from becoming bridges when isolated
+    // mesh.setMinimumBridgeRSSI(-80);  // Uncomment to customize threshold
   }
 
   // Register callbacks
