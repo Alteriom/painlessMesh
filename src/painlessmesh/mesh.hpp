@@ -1,4 +1,4 @@
-#ifndef _PAINLESS_MESH_MESH_HPP_
+﻿#ifndef _PAINLESS_MESH_MESH_HPP_
 #define _PAINLESS_MESH_MESH_HPP_
 
 #include <vector>
@@ -428,7 +428,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   /** Set a callback routine for any messages that are addressed to this node.
    *
    * Every time this node receives a message, this callback routine will the
-   * called.  “from” is the id of the original sender of the message, and “msg”
+   * called.  â€œfromâ€ is the id of the original sender of the message, and â€œmsgâ€
    * is a string that contains the message.  The message can be anything.  A
    * JSON, some other text string, or binary data.
    *
@@ -1861,7 +1861,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * // === painlessMesh Diagnostics ===
    * // Mode: Regular Node
    * // Mesh: ProductionMesh (25 nodes)
-   * // Bridge: 123456789 (RSSI: -42 dBm, Internet: ✓)
+   * // Bridge: 123456789 (RSSI: -42 dBm, Internet: âœ“)
    * // Queue: 3 messages (2 CRITICAL, 1 NORMAL)
    * // Uptime: 02:15:33
    * // Last Election: 00:45:12 ago (Winner: 123456789)
@@ -1889,7 +1889,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       if (primaryBridge != nullptr) {
         report += "Bridge: " + TSTRING(std::to_string(primaryBridge->nodeId).c_str());
         report += " (RSSI: " + TSTRING(std::to_string(primaryBridge->routerRSSI).c_str()) + " dBm";
-        report += ", Internet: " + TSTRING(primaryBridge->internetConnected ? "✓" : "✗") + ")\n";
+        report += ", Internet: " + TSTRING(primaryBridge->internetConnected ? "âœ“" : "âœ—") + ")\n";
       } else {
         report += "Bridge: None available\n";
       }
@@ -1960,6 +1960,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     isExternalScheduler = true;
   }
 
+ public:  // Windows MSVC: router functions need access
   void startTimeSync(std::shared_ptr<T> conn) {
     using namespace logger;
     Log(S_TIME, "startTimeSync(): from %u with %u\n", this->nodeId,
@@ -2033,6 +2034,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         [](const std::shared_ptr<T> &conn) { return !conn->connected(); });
   }
 
+ public:  // Windows MSVC: TCP lambdas need access to droppedConnectionCallbacks
   // Callback functions
   callback::List<uint32_t> newConnectionCallbacks;
   callback::List<uint32_t, bool> droppedConnectionCallbacks;
@@ -2055,6 +2057,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool shouldContainRoot;
 
   Scheduler *mScheduler;
+
+ public:  // Windows MSVC: lambdas in friend functions need public access
 
   /**
    * Wrapper function for ESP32 semaphore function

@@ -7,47 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **Bridge Status Discovery - Routing Table Timing** - Fixed bridge status not reaching newly connected nodes
-  - **Root Cause**: Bridge status was sent before routing table was ready
-    - `newConnectionCallbacks` executes before `updateSubs()` establishes routing
-    - `sendSingle()` calls `findRoute()` which requires routing table to be updated
-    - Without routing entry, `findRoute()` returns null and message delivery fails
-    - Nodes connected successfully but never received bridge status
-  - **Solution**: Use `changedConnectionCallbacks` instead of `newConnectionCallbacks`
-    - `changedConnectionCallbacks` fires AFTER `updateSubs()` completes
-    - Routing table is guaranteed to be ready when bridge status is sent
-    - `sendSingle()` can now successfully find route to newly connected node
-    - 500ms delay maintained for connection stability
-  - **Code Flow**: `src/painlessmesh/router.hpp` lines 305, 327, 330
-    - Line 305: `newConnectionCallbacks.execute()` - routing NOT ready
-    - Line 327: `conn->updateSubs(newTree)` - routing table updated
-    - Line 330: `changedConnectionCallbacks.execute()` - routing IS ready
-  - Location: `src/arduino/wifi.hpp` line ~812 in `initBridgeStatusBroadcast()`
-  - Impact: Nodes reliably discover bridges immediately after connection
-  - Test: Added `catch_connection_routing_timing.cpp` to validate fix
-  - Resolves GitHub issue #137 - nodes with lower RSSI now receive bridge status
-  - Backward compatible: No API changes, internal callback timing improved
-
-## [1.8.10] - 2025-11-18
-
-### Fixed
-
-- **Bridge Status Discovery - Direct Messaging** - Fixed newly connected nodes not receiving bridge status
-  - **Root Cause**: Broadcast messages were not reaching newly connected nodes reliably
-    - Time sync (NTP) was interfering with bridge discovery
-    - Broadcast routing may not be fully established immediately after connection
-  - **Solution**: Send bridge status directly to new node using `sendSingle()`
-    - Changed from broadcast (`routing=2`) to single (`routing=1`) 
-    - Minimal 500ms delay (just for connection stability)
-    - Direct targeted delivery ensures message reaches the new node
-    - Time sync no longer affects bridge discovery
-  - Location: `src/arduino/wifi.hpp` line ~809 in `initBridgeStatusBroadcast()`
-  - Impact: Nodes discover bridges immediately (within 500ms) after connecting
-  - Backward compatible: No API changes, internal delivery mechanism improved
-  - Resolves GitHub issue #135 "The latest fix does not work"
-
 ## [1.8.9] - 2025-11-12
 
 ### Fixed

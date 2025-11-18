@@ -1,4 +1,4 @@
-#ifndef _PAINLESS_MESH_NTP_HPP_
+﻿#ifndef _PAINLESS_MESH_NTP_HPP_
 #define _PAINLESS_MESH_NTP_HPP_
 
 #ifndef TIME_SYNC_INTERVAL
@@ -42,7 +42,7 @@ class MeshTime {
    */
   uint32_t getNodeTime() { return micros() + timeOffset; }
 
- protected:
+ public:  // Windows MSVC: friend functions need access to timeOffset
   uint32_t timeOffset = 0;
 };
 

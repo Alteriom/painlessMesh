@@ -1,4 +1,4 @@
-#ifndef _PAINLESS_MESH_ROUTER_HPP_
+﻿#ifndef _PAINLESS_MESH_ROUTER_HPP_
 #define _PAINLESS_MESH_ROUTER_HPP_
 
 #include <algorithm>
@@ -235,14 +235,14 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
   // Base capacity: message length + overhead for JSON structure
   // Each nesting level adds overhead for pointers and metadata
   size_t calculatedCapacity = pkg.length() + 
-                              JSON_OBJECT_SIZE(10) * std::max(nestingDepth, size_t(1)) + 
+                              JSON_OBJECT_SIZE(10) * (std::max)(nestingDepth, size_t(1)) + 
                               512;  // Additional buffer for strings and padding
 #endif
   
   // Cap at 8KB for safety on ESP8266 (which has ~80KB total heap)
   // Messages larger than this should be rejected
   constexpr size_t MAX_MESSAGE_CAPACITY = 8192;
-  size_t capacity = std::min(calculatedCapacity, MAX_MESSAGE_CAPACITY);
+  size_t capacity = (std::min)(calculatedCapacity, MAX_MESSAGE_CAPACITY);
   
   auto variant = std::make_shared<protocol::Variant>(pkg, capacity);
   
@@ -330,7 +330,7 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
         [&mesh, nodeId]() { mesh.changedConnectionCallbacks.execute(nodeId); });
   } else {
     conn->nodeSyncTask.delay();
-    mesh.stability += std::min(1000 - mesh.stability, (size_t)25);
+    mesh.stability += (std::min)(1000 - mesh.stability, (size_t)25);
   }
 }
 

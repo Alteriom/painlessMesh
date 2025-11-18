@@ -1,4 +1,4 @@
-#ifndef _PAINLESS_MESH_BUFFER_HPP_
+﻿#ifndef _PAINLESS_MESH_BUFFER_HPP_
 #define _PAINLESS_MESH_BUFFER_HPP_
 
 #include <list>
@@ -37,7 +37,7 @@ class ReceiveBuffer {
     do {
       auto len = strnlen(data_ptr, length);
       do {
-        auto read_len = std::min(len, buf.length);
+        auto read_len = (std::min)(len, buf.length);
         memcpy(buf.buffer, data_ptr, read_len);
         buf.buffer[read_len] = '\0';
         auto newBuffer = T(buf.buffer);
@@ -179,7 +179,7 @@ class SentBuffer {
     else
       // String.toCharArray automatically turns the last character into
       // a \0, we need the extra space to deal with that annoyance
-      return std::min(buffer_length - 1, msg->length() + 1);
+      return (std::min)(buffer_length - 1, msg->length() + 1);
   }
 
   /**

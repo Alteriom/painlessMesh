@@ -1,0 +1,13 @@
+﻿Windows MSVC Compatibility Fix for mesh.hpp
+
+Issue: MSVC does not grant friend status to lambdas inside friend functions.
+The tcp::initServer and tcp::connect functions use lambdas that access:
+- semaphoreTake()
+- semaphoreGive()  
+- droppedConnectionCallbacks
+
+Solution: Make these members public for Windows compatibility.
+
+Location: src/painlessmesh/mesh.hpp around line 2060
+
+Change the access modifier from protected to public for the semaphore methods.
