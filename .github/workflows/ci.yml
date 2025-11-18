@@ -110,7 +110,16 @@ jobs:
           
           # Add ESP8266 board manager URL first
           arduino-cli config add board_manager.additional_urls http://arduino.esp8266.com/stable/package_esp8266com_index.json --config-dir test/ci/
-          arduino-cli core update-index --config-dir test/ci/
+          
+          # Update index with retry logic for transient server errors
+          for i in 1 2 3; do
+            if arduino-cli core update-index --config-dir test/ci/; then
+              break
+            else
+              echo "Attempt $i failed, retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
           
           # Install both ESP32 and ESP8266 platforms
           arduino-cli core install esp32:esp32 --config-dir test/ci/
