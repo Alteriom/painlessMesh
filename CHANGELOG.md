@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.10] - 2025-11-18
+
+### Fixed
+
+- **Bridge Status Discovery - Direct Messaging** - Fixed newly connected nodes not receiving bridge status reliably
+  - Changed bridge status delivery mechanism from broadcast to direct single message
+  - Bridge now sends status directly to newly connected nodes using `sendSingle()` (routing=1)
+  - Added minimal 500ms delay for connection stability before sending status
+  - **Root Cause**: Broadcast routing may not be established immediately after connection; time sync (NTP) operations were interfering with bridge discovery
+  - **Before Fix**: Nodes could wait up to 30 seconds for bridge status via periodic broadcast; "No primary bridge available" errors
+  - **After Fix**: Nodes discover bridges within 500ms of connection; reliable bridge discovery regardless of NTP sync activity
+  - Direct targeted delivery ensures message reaches new node immediately
+  - Core fix in `src/arduino/wifi.hpp` line ~809 in `initBridgeStatusBroadcast()`
+  - Resolves GitHub issue #135 "The latest fix does not work"
+  - 100% backward compatible - no API changes
+
 ## [1.8.9] - 2025-11-12
 
 ### Fixed
