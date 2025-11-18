@@ -16818,8 +16818,8 @@ namespace Catch {
             std::tm timeInfo = {};
             gmtime_s(&timeInfo, &rawtime);
 #else
-            std::tm* timeInfo;
-            timeInfo = std::gmtime(&rawtime);
+            std::tm timeInfoStorage;
+            std::tm* timeInfo = gmtime_r(&rawtime, &timeInfoStorage);
 #endif
 
             char timeStamp[timeStampSize];
