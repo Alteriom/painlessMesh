@@ -143,7 +143,7 @@ public:
     // Check for state change
     checkStateChange();
     
-    Log(logger::GENERAL, "MessageQueue: Enqueued message #%u (priority=%d, size=%u/%u)\n",
+    Log(logger::GENERAL, "MessageQueue: Enqueued message #%u (priority=%d, size=%zu/%zu)\n",
         msgId, priority, messages.size(), maxQueueSize);
     
     return msgId;
@@ -167,7 +167,7 @@ public:
       updatePriorityStats();
       checkStateChange();
       
-      Log(logger::GENERAL, "MessageQueue: Removed message #%u (size=%u)\n",
+      Log(logger::GENERAL, "MessageQueue: Removed message #%u (size=%zu)\n",
           messageId, messages.size());
       return true;
     }
