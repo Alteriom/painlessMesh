@@ -144,7 +144,7 @@ public:
     checkStateChange();
     
     Log(logger::GENERAL, "MessageQueue: Enqueued message #%u (priority=%d, size=%zu/%zu)\n",
-        msgId, priority, messages.size(), maxQueueSize);
+        msgId, priority, messages.size(), (size_t)maxQueueSize);
     
     return msgId;
   }
