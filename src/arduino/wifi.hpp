@@ -806,10 +806,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     // Also send bridge status when new nodes connect so they can discover the bridge immediately
     // Send directly to the new node to ensure delivery, independent of time sync
-    this->newConnectionCallbacks.push_back([this](uint32_t nodeId) {
-      Log(CONNECTION, "New node %u connected, sending bridge status directly\n", nodeId);
+    // Using changedConnectionCallbacks instead of newConnectionCallbacks ensures routing is ready
+    this->changedConnectionCallbacks.push_back([this](uint32_t nodeId) {
+      Log(CONNECTION, "Node %u connection changed, sending bridge status directly\n", nodeId);
       
-      // Small delay to ensure connection is ready, then send directly to the new node
+      // Small delay to ensure connection is fully stable, then send directly to the new node
       // This avoids issues with time sync blocking broadcast messages
       this->addTask(500, TASK_ONCE, [this, nodeId]() {
         // Create bridge status message
@@ -837,7 +838,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         Log(CONNECTION, "Sending bridge status directly to node %u (Internet: %s)\n",
             nodeId, hasInternet ? "YES" : "NO");
         
-        // Send directly to the new node, bypassing broadcast routing
+        // Send directly to the new node using routing table (which is now ready)
         this->sendSingle(nodeId, msg);
       });
     });
