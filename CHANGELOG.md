@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bridge Status Discovery - Routing Table Timing** - Fixed bridge status not reaching newly connected nodes
+  - **Root Cause**: Bridge status was sent before routing table was ready
+    - `newConnectionCallbacks` executes before `updateSubs()` establishes routing
+    - `sendSingle()` calls `findRoute()` which requires routing table to be updated
+    - Without routing entry, `findRoute()` returns null and message delivery fails
+    - Nodes connected successfully but never received bridge status
+  - **Solution**: Use `changedConnectionCallbacks` instead of `newConnectionCallbacks`
+    - `changedConnectionCallbacks` fires AFTER `updateSubs()` completes
+    - Routing table is guaranteed to be ready when bridge status is sent
+    - `sendSingle()` can now successfully find route to newly connected node
+    - 500ms delay maintained for connection stability
+  - **Code Flow**: `src/painlessmesh/router.hpp` lines 305, 327, 330
+    - Line 305: `newConnectionCallbacks.execute()` - routing NOT ready
+    - Line 327: `conn->updateSubs(newTree)` - routing table updated
+    - Line 330: `changedConnectionCallbacks.execute()` - routing IS ready
+  - Location: `src/arduino/wifi.hpp` line ~812 in `initBridgeStatusBroadcast()`
+  - Impact: Nodes reliably discover bridges immediately after connection
+  - Test: Added `catch_connection_routing_timing.cpp` to validate fix
+  - Resolves GitHub issue #137 - nodes with lower RSSI now receive bridge status
+  - Backward compatible: No API changes, internal callback timing improved
+
 ## [1.8.10] - 2025-11-18
 
 ### Fixed
