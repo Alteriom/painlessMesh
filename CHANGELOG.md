@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.11] - 2025-11-18
+
+### Fixed
+
+- **Bridge Discovery Race Condition** - Fixed routing table timing issue that prevented reliable bridge status delivery
+  - **Root Cause**: Bridge was sending status messages before routing tables were fully established after connection
+  - Changed from `newConnectionCallback` to `changedConnectionCallbacks` for routing table readiness
+  - Ensures routing tables are properly configured before attempting to send bridge status
+  - Bridge now waits for routing table convergence before sending status messages to new nodes
+  - **Before Fix**: Messages sent too early could fail to reach destination due to incomplete routing
+  - **After Fix**: Bridge status reliably delivered once routing is properly established
+  - Core fix in `src/arduino/wifi.hpp` - uses connection change callbacks instead of new connection callbacks
+  - More robust than timing-based delays (previous 500ms approach)
+  - Resolves GitHub issue #142
+  - Merged via PR #142
+
+- **Windows MSVC Compilation Compatibility** - Fixed access modifier issues for Windows builds
+  - MSVC compiler does not grant friend status to lambdas inside friend functions
+  - Changed semaphore methods (`semaphoreTake()`, `semaphoreGive()`) from protected to public
+  - Changed `droppedConnectionCallbacks` access for lambda compatibility
+  - **Impact**: Library now compiles successfully on Windows with MSVC compiler
+  - **Affected Platforms**: Windows desktop builds, Visual Studio projects
+  - Core fix in `src/painlessmesh/mesh.hpp` line ~2060
+  - Also updated access modifiers in `buffer.hpp`, `ntp.hpp`, and `router.hpp` for consistency
+  - No functional changes - purely compatibility improvements
+  - Maintains full compatibility with GCC/Clang compilers
+
+- **Code Security Improvements** - Fixed multiple code scanning alerts
+  - Fixed wrong type of arguments to formatting functions (alerts #3, #5)
+  - Fixed potentially overrunning write with float to string conversion (alert #2)
+  - Fixed use of potentially dangerous function (alert #1)
+  - Improved type safety in string formatting operations
+  - Enhanced buffer safety for float conversions
+  - Merged via PRs #144, #145, #146, #147
+
+### Changed
+
+- **CI/CD Reliability** - Added retry logic for Arduino package index updates
+  - Handles transient network failures during package publication
+  - Improves reliability of automated release workflow
+  - Reduces false failures in CI pipeline
+
 ## [1.8.10] - 2025-11-18
 
 ### Fixed
@@ -22,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Core fix in `src/arduino/wifi.hpp` line ~809 in `initBridgeStatusBroadcast()`
   - Resolves GitHub issue #135 "The latest fix does not work"
   - 100% backward compatible - no API changes
+  - **Note**: Further improved in v1.8.11 with routing table readiness detection
 
 ## [1.8.9] - 2025-11-12
 
