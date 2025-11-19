@@ -750,7 +750,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool enableRTC(rtc::RTCInterface* rtcInterface) {
     using namespace logger;
     Log(GENERAL, "enableRTC(): Initializing RTC\n");
-    return rtcManager.enable(rtcInterface);
+    bool success = rtcManager.enable(rtcInterface);
+    if (success) {
+      // RTC enabled successfully - mark node as having time authority
+      setTimeAuthority(true);
+    }
+    return success;
   }
 
   /**
@@ -760,6 +765,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     using namespace logger;
     Log(GENERAL, "disableRTC(): Disabling RTC\n");
     rtcManager.disable();
+    // RTC disabled - remove time authority if no other source
+    // Note: Bridge nodes may still have time authority from Internet
+    setTimeAuthority(false);
   }
 
   /**
@@ -862,6 +870,50 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   void onRTCSyncComplete(rtcSyncCompleteCallback_t onRTCSyncComplete) {
     Log(logger::GENERAL, "onRTCSyncComplete():\n");
     rtcSyncCompleteCallback = onRTCSyncComplete;
+  }
+
+  /**
+   * Set time authority status for this node
+   * 
+   * Nodes with time authority (RTC or Internet) are preferred as time sources
+   * during mesh time synchronization. This prevents nodes from adopting time
+   * from nodes without accurate time sources.
+   * 
+   * This is automatically set to true when:
+   * - RTC is enabled via enableRTC()
+   * - Bridge has Internet connectivity
+   * 
+   * \code
+   * // Manual control (advanced usage)
+   * mesh.setTimeAuthority(true);  // Mark as authoritative time source
+   * mesh.setTimeAuthority(false); // Mark as non-authoritative
+   * \endcode
+   * 
+   * @param hasAuthority True if node has accurate time source (RTC/Internet)
+   */
+  void setTimeAuthority(bool hasAuthority) {
+    using namespace logger;
+    if (this->hasTimeAuthority != hasAuthority) {
+      this->hasTimeAuthority = hasAuthority;
+      Log(GENERAL, "setTimeAuthority(): Time authority %s\n", 
+          hasAuthority ? "enabled" : "disabled");
+      
+      // Trigger time sync with all connections to propagate authority status
+      for (auto&& connection : this->subs) {
+        if (connection->nodeId != 0) {
+          connection->timeSyncTask.forceNextIteration();
+        }
+      }
+    }
+  }
+
+  /**
+   * Check if this node has time authority
+   * 
+   * @return True if node has RTC or Internet time source
+   */
+  bool getTimeAuthority() const {
+    return this->hasTimeAuthority;
   }
 
   //

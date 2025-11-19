@@ -76,6 +76,22 @@ inline int32_t tripDelay(uint32_t time0, uint32_t time1, uint32_t time2,
 }
 
 inline bool adopt(protocol::NodeTree mesh, protocol::NodeTree connection) {
+  // Prioritize nodes with time authority (RTC or Internet)
+  // Only adopt from nodes with time authority if we don't have one
+  if (!mesh.hasTimeAuthority && connection.hasTimeAuthority) {
+    Log(logger::S_TIME, "adopt(): Adopting from %u (has time authority)\n",
+        connection.nodeId);
+    return true;
+  }
+  
+  // Don't adopt from nodes without time authority if we have one
+  if (mesh.hasTimeAuthority && !connection.hasTimeAuthority) {
+    Log(logger::S_TIME, "adopt(): Not adopting from %u (no time authority)\n",
+        connection.nodeId);
+    return false;
+  }
+  
+  // If both have same time authority status, use existing logic
   auto mySubCount =
       layout::size(layout::excludeRoute(std::move(mesh), connection.nodeId));
   auto remoteSubCount = layout::size(connection);
