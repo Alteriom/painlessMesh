@@ -235,9 +235,8 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
               oldChannel, detectedChannel);
           WiFi.softAPdisconnect(false);
           delay(100);
-          // Access the wifi::Mesh class to restart AP
-          painlessmesh::wifi::Mesh* wifiMesh = static_cast<painlessmesh::wifi::Mesh*>(mesh);
-          wifiMesh->apInit(mesh->getNodeId());
+          // Call apInit via friend class access (StationScan is friend of wifi::Mesh)
+          mesh->apInit(mesh->getNodeId());
           Log(CONNECTION, "connectToAP(): AP restarted on channel %d\n", detectedChannel);
         }
       } else if (detectedChannel == 0) {
