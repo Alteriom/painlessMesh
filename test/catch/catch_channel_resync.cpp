@@ -1,6 +1,9 @@
 #define CATCH_CONFIG_MAIN
 #include "catch2/catch.hpp"
 #include "Arduino.h"
+#include "painlessmesh/mesh.hpp"
+
+using namespace painlessmesh;
 
 // Declare logger for test environment
 painlessmesh::logger::LogClass Log;
