@@ -1195,7 +1195,29 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     auto primaryBridge = this->getPrimaryBridge();
     uint32_t previousBridgeId = primaryBridge ? primaryBridge->nodeId : 0;
     
-    // Reconfigure as bridge
+    // IMPORTANT: Send takeover announcement BEFORE switching channels
+    // This ensures other nodes on the current channel receive the announcement
+    Log(STARTUP, "Sending takeover announcement on current channel before switching...\n");
+    JsonDocument doc;
+    JsonObject obj = doc.to<JsonObject>();
+    obj["type"] = 612;  // BRIDGE_TAKEOVER
+    obj["from"] = this->nodeId;
+    obj["routing"] = 2;  // BROADCAST
+    obj["previousBridge"] = previousBridgeId;
+    obj["reason"] = "Election winner - best router signal";
+    obj["routerRSSI"] = 0;  // Not yet connected to router
+    obj["timestamp"] = this->getNodeTime();
+    obj["message_type"] = 612;
+    
+    String msg;
+    serializeJson(doc, msg);
+    this->sendBroadcast(msg);
+    
+    // Give time for announcement to propagate before channel switch
+    delay(1000);
+    Log(STARTUP, "✓ Takeover announcement sent on channel %d\n", _meshChannel);
+    
+    // Now reconfigure as bridge (this will switch to router's channel)
     this->stop();
     delay(1000);
     
@@ -1204,33 +1226,34 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     lastRoleChangeTime = millis();
     
-    Log(STARTUP, "✓ Bridge promotion complete\n");
+    Log(STARTUP, "✓ Bridge promotion complete on channel %d\n", _meshChannel);
     
     // Notify via callback
     if (bridgeRoleChangedCallback) {
       bridgeRoleChangedCallback(true, "Election winner - best router signal");
     }
     
-    // Broadcast takeover announcement
-    JsonDocument doc;
-    JsonObject obj = doc.to<JsonObject>();
-    obj["type"] = 612;  // BRIDGE_TAKEOVER
-    obj["from"] = this->nodeId;
-    obj["routing"] = 2;  // BROADCAST
-    obj["previousBridge"] = previousBridgeId;
-    obj["reason"] = "Election winner - best router signal";
-    obj["routerRSSI"] = WiFi.RSSI();
-    obj["timestamp"] = this->getNodeTime();
-    obj["message_type"] = 612;
-    
-    String msg;
-    serializeJson(doc, msg);
-    
-    // Small delay to ensure mesh is ready
-    delay(2000);
-    this->sendBroadcast(msg);
-    
-    Log(STARTUP, "✓ Takeover announcement sent\n");
+    // Send a follow-up announcement on the new channel
+    // This helps nodes that have already switched channels to discover the new bridge
+    // Schedule it after a delay to ensure mesh is fully initialized
+    this->addTask(3000, TASK_ONCE, [this, previousBridgeId]() {
+      Log(STARTUP, "Sending follow-up takeover announcement on new channel %d\n", _meshChannel);
+      JsonDocument doc2;
+      JsonObject obj2 = doc2.to<JsonObject>();
+      obj2["type"] = 612;  // BRIDGE_TAKEOVER
+      obj2["from"] = this->nodeId;
+      obj2["routing"] = 2;  // BROADCAST
+      obj2["previousBridge"] = previousBridgeId;
+      obj2["reason"] = "Election winner - best router signal";
+      obj2["routerRSSI"] = WiFi.RSSI();
+      obj2["timestamp"] = this->getNodeTime();
+      obj2["message_type"] = 612;
+      
+      String msg2;
+      serializeJson(doc2, msg2);
+      this->sendBroadcast(msg2);
+      Log(STARTUP, "✓ Follow-up takeover announcement sent\n");
+    });
   }
 
   /**
