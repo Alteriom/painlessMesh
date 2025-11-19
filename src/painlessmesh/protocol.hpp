@@ -123,23 +123,27 @@ class NodeTree : public PackageInterface {
  public:
   uint32_t nodeId = 0;
   bool root = false;
+  bool hasTimeAuthority = false;  // True if node has RTC or Internet time source
   std::list<NodeTree> subs;
 
   NodeTree() {}
   virtual ~NodeTree() = default;  // Add virtual destructor
 
-  NodeTree(uint32_t nodeID, bool iAmRoot) {
+  NodeTree(uint32_t nodeID, bool iAmRoot, bool timeAuthority = false) {
     nodeId = nodeID;
     root = iAmRoot;
+    hasTimeAuthority = timeAuthority;
   }
 
   NodeTree(JsonObject jsonObj) {
 #if ARDUINOJSON_VERSION_MAJOR < 7
     if (jsonObj.containsKey("root")) root = jsonObj["root"].as<bool>();
+    if (jsonObj.containsKey("hasTimeAuthority")) hasTimeAuthority = jsonObj["hasTimeAuthority"].as<bool>();
     if (jsonObj.containsKey("nodeId"))
 #else
 
     if (jsonObj["root"].is<bool>()) root = jsonObj["root"].as<bool>();
+    if (jsonObj["hasTimeAuthority"].is<bool>()) hasTimeAuthority = jsonObj["hasTimeAuthority"].as<bool>();
     if (jsonObj["nodeId"].is<uint32_t>())
 #endif
       nodeId = jsonObj["nodeId"].as<uint32_t>();
@@ -161,6 +165,7 @@ class NodeTree : public PackageInterface {
   JsonObject addTo(JsonObject&& jsonObj) const {
     jsonObj["nodeId"] = nodeId;
     if (root) jsonObj["root"] = root;
+    if (hasTimeAuthority) jsonObj["hasTimeAuthority"] = hasTimeAuthority;
     if (subs.size() > 0) {
 #if ARDUINOJSON_VERSION_MAJOR == 7
       JsonArray subsArr = jsonObj["subs"].to<JsonArray>();
@@ -181,6 +186,7 @@ class NodeTree : public PackageInterface {
 
   bool operator==(const NodeTree& b) const {
     if (!(this->nodeId == b.nodeId && this->root == b.root &&
+          this->hasTimeAuthority == b.hasTimeAuthority &&
           this->subs.size() == b.subs.size()))
       return false;
     auto itA = this->subs.begin();
@@ -203,6 +209,7 @@ class NodeTree : public PackageInterface {
   size_t jsonObjectSize() const {
     size_t base = 1;
     if (root) ++base;
+    if (hasTimeAuthority) ++base;
     if (subs.size() > 0) ++base;
     size_t size = JSON_OBJECT_SIZE(base);
     if (subs.size() > 0) size += JSON_ARRAY_SIZE(subs.size());
@@ -215,6 +222,7 @@ class NodeTree : public PackageInterface {
     nodeId = 0;
     subs.clear();
     root = false;
+    hasTimeAuthority = false;
   }
 };
 
@@ -263,6 +271,7 @@ class NodeSyncRequest : public NodeTree {
   size_t jsonObjectSize() const {
     size_t base = 4;
     if (root) ++base;
+    if (hasTimeAuthority) ++base;
     if (subs.size() > 0) ++base;
     size_t size = JSON_OBJECT_SIZE(base);
     if (subs.size() > 0) size += JSON_ARRAY_SIZE(subs.size());

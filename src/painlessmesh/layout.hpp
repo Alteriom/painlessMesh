@@ -52,7 +52,7 @@ class Layout {
   bool isRoot() { return root; }
 
   protocol::NodeTree asNodeTree() {
-    auto nt = protocol::NodeTree(nodeId, root);
+    auto nt = protocol::NodeTree(nodeId, root, hasTimeAuthority);
     for (auto&& s : subs) {
       if (s->nodeId == 0) continue;
       nt.subs.push_back(protocol::NodeTree(*s));
@@ -63,6 +63,7 @@ class Layout {
  protected:
   uint32_t nodeId = 0;
   bool root = false;
+  bool hasTimeAuthority = false;
 };
 
 template <class T>
@@ -114,6 +115,7 @@ class Neighbour : public protocol::NodeTree {
       nodeId = tree.nodeId;
       subs = tree.subs;
       root = tree.root;
+      hasTimeAuthority = tree.hasTimeAuthority;
       return true;
     }
     return false;
@@ -124,8 +126,10 @@ class Neighbour : public protocol::NodeTree {
    */
   protocol::NodeSyncRequest request(NodeTree&& layout) {
     auto subTree = excludeRoute(std::move(layout), nodeId);
-    return protocol::NodeSyncRequest(subTree.nodeId, nodeId, subTree.subs,
+    auto req = protocol::NodeSyncRequest(subTree.nodeId, nodeId, subTree.subs,
                                      subTree.root);
+    req.hasTimeAuthority = subTree.hasTimeAuthority;
+    return req;
   }
 
   /**

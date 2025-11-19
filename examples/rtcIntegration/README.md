@@ -211,6 +211,63 @@ void rtcSyncCompleteCallback(uint32_t timestamp) {
 - Check NTP server is accessible
 - Ensure `syncRTCFromNTP()` called with valid timestamp
 
+## Time Authority
+
+painlessMesh v1.8.12+ includes **time authority** support to prevent nodes from adopting incorrect time from nodes without accurate time sources.
+
+### How It Works
+
+Nodes with time authority (RTC or Internet) are prioritized during mesh time synchronization:
+- Nodes **without** time authority will adopt time from nodes **with** time authority
+- Nodes **with** time authority will **NOT** adopt time from nodes without
+- When both nodes have same authority status, existing subnet/node ID logic applies
+
+### Setting Time Authority
+
+Time authority is automatically set when:
+- RTC is enabled via `enableRTC()` (time authority = true)
+- RTC is disabled via `disableRTC()` (time authority = false)
+
+For bridge nodes with Internet, set time authority manually:
+
+```cpp
+void bridgeStatusCallback(uint32_t bridgeNodeId, bool hasInternet) {
+  // If THIS node is the bridge, update time authority
+  if (bridgeNodeId == mesh.getNodeId()) {
+    if (hasInternet) {
+      mesh.setTimeAuthority(true);  // Internet available
+    } else if (!mesh.hasRTC()) {
+      mesh.setTimeAuthority(false); // No Internet and no RTC
+    }
+  }
+}
+```
+
+### Checking Time Authority
+
+```cpp
+if (mesh.getTimeAuthority()) {
+  Serial.println("This node has authoritative time source");
+}
+```
+
+### Use Cases
+
+**Scenario 1: Mixed RTC nodes**
+- Node A: Has RTC (time authority = true)
+- Node B: No RTC (time authority = false)
+- Result: Node B adopts time from Node A ✓
+
+**Scenario 2: Bridge with Internet**
+- Node A: Bridge with Internet (time authority = true)
+- Node B: Regular node (time authority = false)
+- Result: Node B adopts time from bridge ✓
+
+**Scenario 3: Network split**
+- Subnet A: All nodes have RTC
+- Subnet B: No nodes have RTC
+- Result: When subnets reconnect, Subnet B adopts from Subnet A ✓
+
 ## Best Practices
 
 1. **Always check RTC availability** before relying on timestamps
@@ -218,6 +275,8 @@ void rtcSyncCompleteCallback(uint32_t timestamp) {
 3. **Monitor battery** on RTC modules for continuous operation
 4. **Implement fallback** to mesh time if RTC fails
 5. **Log sync events** for debugging and maintenance
+6. **Set time authority** for bridge nodes when Internet is available
+7. **Use RTC on at least one node** in offline deployments for accurate timestamps
 
 ## Regulatory Compliance
 
