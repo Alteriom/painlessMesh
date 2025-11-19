@@ -87,6 +87,16 @@ CONNECTION: Found mesh on channel 6 (RSSI: -45)
 STARTUP: Mesh channel auto-detected: 6
 ```
 
+### Automatic Channel Re-synchronization
+
+Nodes automatically follow the mesh if the bridge changes channels:
+
+- When nodes can't find the mesh on their current channel for ~30 seconds, they trigger a full channel scan
+- If the mesh is found on a different channel, nodes automatically switch to that channel
+- This ensures the mesh stays connected even if the bridge switches channels (e.g., during bridge election)
+
+For detailed information about channel synchronization, see [Channel Synchronization Documentation](docs/CHANNEL_SYNCHRONIZATION.md).
+
 ## Manual Configuration (Legacy Approach)
 
 If you prefer the traditional approach or need more control, you can still manually configure the channel:
