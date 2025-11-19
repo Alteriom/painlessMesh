@@ -36,6 +36,16 @@ class StationScan {
   
   // Helper to scan all channels for a specific mesh SSID
   static uint8_t scanForMeshChannel(TSTRING meshSSID, bool meshHidden);
+  
+  // Check if channel re-synchronization is needed or in progress
+  bool isChannelResyncNeeded() const {
+    return consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD;
+  }
+  
+  // Get the number of consecutive empty scans
+  uint16_t getConsecutiveEmptyScans() const {
+    return consecutiveEmptyScans;
+  }
 
   /// Valid APs found during the last scan
   std::list<WiFi_AP_Record_t> lastAPs;
