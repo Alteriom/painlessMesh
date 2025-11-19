@@ -54,6 +54,10 @@ class StationScan {
   // Manually configure network and ip
   bool manual = false;
   IPAddress manualIP = IPAddress(0, 0, 0, 0);
+  
+  // Track consecutive scans with no mesh nodes found (for channel re-detection)
+  uint16_t consecutiveEmptyScans = 0;
+  static const uint16_t EMPTY_SCAN_THRESHOLD = 6; // ~30 seconds at default SCAN_INTERVAL
 
   friend painlessMesh;
 };

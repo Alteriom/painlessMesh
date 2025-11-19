@@ -204,6 +204,51 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   bool isRooted = layout::isRooted(mesh->asNodeTree());
   if (aps.empty()) {
     // No unknown nodes found
+    consecutiveEmptyScans++;
+    
+    // If we've had multiple consecutive empty scans and we're not connected,
+    // trigger a full channel re-scan to find the mesh
+    if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD && 
+        WiFi.status() != WL_CONNECTED &&
+        channel > 0) {
+      Log(CONNECTION,
+          "connectToAP(): No mesh nodes found for %d scans, triggering channel re-detection\n",
+          consecutiveEmptyScans);
+      
+      // Perform full channel scan to find the mesh
+      uint8_t detectedChannel = scanForMeshChannel(ssid, hidden);
+      if (detectedChannel > 0 && detectedChannel != mesh->_meshChannel) {
+        Log(CONNECTION,
+            "connectToAP(): Mesh found on different channel %d (was %d), updating...\n",
+            detectedChannel, mesh->_meshChannel);
+        
+        // Update mesh channel
+        uint8_t oldChannel = mesh->_meshChannel;
+        mesh->_meshChannel = detectedChannel;
+        channel = detectedChannel;
+        
+        // Restart AP on new channel to match the mesh
+        // This ensures this node's AP is also discoverable on the correct channel
+        if (WiFi.getMode() & WIFI_AP) {
+          Log(CONNECTION,
+              "connectToAP(): Restarting AP from channel %d to channel %d\n",
+              oldChannel, detectedChannel);
+          WiFi.softAPdisconnect(false);
+          delay(100);
+          // Access the wifi::Mesh class to restart AP
+          painlessmesh::wifi::Mesh* wifiMesh = static_cast<painlessmesh::wifi::Mesh*>(mesh);
+          wifiMesh->apInit(mesh->getNodeId());
+          Log(CONNECTION, "connectToAP(): AP restarted on channel %d\n", detectedChannel);
+        }
+      } else if (detectedChannel == 0) {
+        Log(CONNECTION,
+            "connectToAP(): Mesh not found on any channel during re-scan\n");
+      }
+      
+      // Reset counter after re-scan attempt
+      consecutiveEmptyScans = 0;
+    }
+    
     if (WiFi.status() == WL_CONNECTED &&
         !(mesh->shouldContainRoot && !isRooted)) {
       // if already connected -> scan slow
@@ -220,6 +265,8 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
     }
     mesh->stability += min(1000 - mesh->stability, (size_t)25);
   } else {
+    // Reset counter when APs are found
+    consecutiveEmptyScans = 0;
     if (WiFi.status() == WL_CONNECTED) {
       // TODO: Use %u instead of String() here and below
       // Also prob is always equal to stability, so we should use that directly
