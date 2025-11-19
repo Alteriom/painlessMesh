@@ -160,6 +160,20 @@ void bridgeStatusCallback(uint32_t bridgeNodeId, bool hasInternet) {
                 bridgeNodeId, 
                 hasInternet ? "Connected" : "Disconnected");
   
+  // If THIS node is the bridge, set time authority based on Internet availability
+  if (bridgeNodeId == mesh.getNodeId()) {
+    if (hasInternet) {
+      Serial.println("This node has Internet - setting time authority");
+      mesh.setTimeAuthority(true);
+    } else {
+      // Lost Internet - remove time authority if no RTC
+      if (!mesh.hasRTC()) {
+        Serial.println("Lost Internet and no RTC - removing time authority");
+        mesh.setTimeAuthority(false);
+      }
+    }
+  }
+  
   if (hasInternet && needsNTPSync && mesh.hasRTC()) {
     // Internet is available and we need to sync RTC
     // In a real application, you would get NTP time here
