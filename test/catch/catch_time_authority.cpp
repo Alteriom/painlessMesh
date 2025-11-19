@@ -19,18 +19,30 @@ SCENARIO("Time authority flag in NodeTree serialization") {
     node.hasTimeAuthority = true;
     
     WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+      JsonDocument doc;
+#else
       DynamicJsonDocument doc(512);
+#endif
       JsonObject obj = doc.to<JsonObject>();
       obj = node.addTo(std::move(obj));
       
       THEN("hasTimeAuthority should be in JSON") {
+#if ARDUINOJSON_VERSION_MAJOR < 7
         REQUIRE(obj.containsKey("hasTimeAuthority"));
+#else
+        REQUIRE(obj["hasTimeAuthority"].is<bool>());
+#endif
         REQUIRE(obj["hasTimeAuthority"].as<bool>() == true);
       }
     }
     
     WHEN("Deserializing from JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+      JsonDocument doc;
+#else
       DynamicJsonDocument doc(512);
+#endif
       JsonObject obj = doc.to<JsonObject>();
       obj = node.addTo(std::move(obj));
       
@@ -47,12 +59,20 @@ SCENARIO("Time authority flag in NodeTree serialization") {
     protocol::NodeTree node(54321, false, false);
     
     WHEN("Serializing to JSON") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+      JsonDocument doc;
+#else
       DynamicJsonDocument doc(512);
+#endif
       JsonObject obj = doc.to<JsonObject>();
       obj = node.addTo(std::move(obj));
       
       THEN("hasTimeAuthority should not be in JSON (defaults to false)") {
+#if ARDUINOJSON_VERSION_MAJOR < 7
         REQUIRE_FALSE(obj.containsKey("hasTimeAuthority"));
+#else
+        REQUIRE_FALSE(obj["hasTimeAuthority"].is<bool>());
+#endif
       }
     }
   }
@@ -170,7 +190,11 @@ SCENARIO("NodeSyncRequest preserves time authority") {
     req.hasTimeAuthority = true;
     
     WHEN("Serializing and deserializing") {
+#if ARDUINOJSON_VERSION_MAJOR == 7
+      JsonDocument doc;
+#else
       DynamicJsonDocument doc(1024);
+#endif
       JsonObject obj = doc.to<JsonObject>();
       obj = req.addTo(std::move(obj));
       
