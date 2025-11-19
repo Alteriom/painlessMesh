@@ -111,3 +111,49 @@ SCENARIO("Channel re-detection prevents false triggers") {
         }
     }
 }
+
+SCENARIO("Bridge election defers to channel re-sync when mesh connectivity is lost") {
+    GIVEN("A node with lost mesh connectivity") {
+        WHEN("Bridge election is triggered but empty scans indicate channel mismatch") {
+            THEN("Election is deferred to allow channel re-sync to complete") {
+                // This test documents the fix for issue #137:
+                // 
+                // Problem:
+                // - Bridge switches channels (e.g., channel 1 -> 4 to match router)
+                // - Other nodes lose mesh connectivity
+                // - Bridge monitor triggers election after 30 seconds
+                // - Nodes try to become bridge instead of re-syncing channel
+                //
+                // Solution:
+                // - startBridgeElection() checks consecutiveEmptyScans counter
+                // - If >= 3 empty scans and not connected, defer election
+                // - This allows channel re-sync logic to run first (threshold = 6)
+                // - Node will find mesh on new channel before trying to become bridge
+                //
+                // Expected behavior:
+                // 1. Node loses mesh connectivity (bridge switched channels)
+                // 2. Empty scans: 1, 2, 3... (fast scanning every 15 seconds)
+                // 3. At scan 3: Bridge monitor triggers election
+                // 4. startBridgeElection() detects emptyScans >= 3
+                // 5. Election is deferred: "deferring election to allow channel re-sync"
+                // 6. At scan 6: Channel re-sync triggers, finds mesh on new channel
+                // 7. Node updates to new channel and reconnects
+                // 8. Mesh connectivity restored without unnecessary bridge election
+                
+                REQUIRE(true); // This is a documentation test
+            }
+        }
+        
+        WHEN("Node has router credentials but mesh is on different channel") {
+            THEN("Channel re-sync is prioritized over becoming a bridge") {
+                // Benefits:
+                // - Maintains mesh topology (fewer bridges = more stable)
+                // - Avoids unnecessary router connections
+                // - Reduces network churn and reconnection overhead
+                // - Ensures nodes follow the primary bridge's channel
+                
+                REQUIRE(true); // This is a documentation test
+            }
+        }
+    }
+}

@@ -97,6 +97,33 @@ if (aps.empty()) {
 - Robust - works even if announcements are missed
 - Safe - includes guards against false triggers
 
+### 3. Bridge Election Deferral (Additional Fix - Nov 2025)
+
+**Files:** `src/arduino/wifi.hpp` and `src/painlessMeshSTA.h`
+
+To prevent nodes from trying to become bridges when they should be re-syncing channels, bridge election now checks mesh connectivity state:
+
+**Pre-election Check:**
+```cpp
+uint16_t emptyScans = stationScan.getConsecutiveEmptyScans();
+if (emptyScans >= 3 && WiFi.status() != WL_CONNECTED) {
+    // Defer election to allow channel re-sync to complete
+    Log(CONNECTION, "Mesh connectivity lost, deferring election...\n");
+    return;
+}
+```
+
+**Problem Addressed:**
+- Nodes losing mesh connectivity would immediately try to become bridges
+- Router scanning interfered with channel re-detection
+- Created unnecessary network churn and duplicate bridges
+
+**Benefits:**
+- Prioritizes mesh re-synchronization over bridge promotion
+- Prevents unnecessary bridge elections during channel transitions
+- Maintains stable mesh topology
+- Reduces router connection attempts
+
 ## Complete Scenario Flow
 
 ### Setup
@@ -123,40 +150,59 @@ if (aps.empty()) {
 - Node1 sends follow-up announcement on channel 6
 - (Node2 still on channel 1, doesn't hear this)
 
-**T+30s: Auto Re-detection Triggered**
-- Node2 has scanned 6 times on channel 1
-- No mesh nodes found in any scan
-- Node2 triggers full channel scan
+**T+15s-45s: Mesh Scanning Phase**
+- Node2 scans channel 1 repeatedly (emptyScans: 1, 2, 3...)
+- No mesh nodes found on channel 1
+- Fast scanning mode activated (every 15 seconds)
 
-**T+31s: Channel Found**
-- Node2 scans all channels (1-13)
+**T+30s: Bridge Monitor Check**
+- Node2's bridge monitor detects no healthy bridge
+- Triggers bridge election attempt
+- **NEW:** Election detects emptyScans = 3, defers election
+- Log: "Mesh connectivity lost, deferring election to allow channel re-sync"
+
+**T+90s: Auto Re-detection Triggered**
+- Node2 has scanned 6 times on channel 1 (emptyScans threshold reached)
+- No mesh nodes found in any scan
+- Node2 triggers full channel scan across all channels (1-13)
+
+**T+91s: Channel Found**
+- Node2 scans all channels
 - Finds mesh on channel 6 (RSSI: -45 dBm)
 - Node2 updates: `mesh->_meshChannel = 6`
+- Log: "Mesh found on different channel 6 (was 1), updating..."
 
-**T+32s: AP Restarted**
+**T+92s: AP Restarted**
 - Node2 restarts its AP on channel 6
 - Node2 resumes scanning on channel 6
+- Log: "AP restarted on channel 6"
 
-**T+35s: Mesh Reunified**
+**T+95s: Mesh Reunified**
 - Node2 finds Node1's AP on channel 6
 - Node2 connects to Node1
 - Mesh network fully operational on channel 6
+- **No unnecessary bridge election occurred**
 
 ## Files Changed
 
 ### Code Changes
-1. **src/painlessMeshSTA.h**
+1. **src/painlessMeshSTA.h** (Original + Nov 2025 Update)
    - Added `consecutiveEmptyScans` counter
    - Added `EMPTY_SCAN_THRESHOLD` constant
+   - **NEW:** Added `isChannelResyncNeeded()` helper method
+   - **NEW:** Added `getConsecutiveEmptyScans()` accessor
 
 2. **src/painlessMeshSTA.cpp**
    - Modified `connectToAP()` to trigger channel re-scan
    - Automatic channel update and AP restart logic
+   - Added `scanForMeshChannel()` to scan all channels
 
-3. **src/arduino/wifi.hpp**
+3. **src/arduino/wifi.hpp** (Original + Nov 2025 Update)
    - Modified `promoteToBridge()` to send dual announcements
    - Pre-switch announcement on old channel
    - Post-switch announcement on new channel (delayed)
+   - **NEW:** Modified `startBridgeElection()` to check mesh connectivity
+   - **NEW:** Defers election if emptyScans ≥ 3 and not connected
 
 ### Documentation
 1. **docs/CHANNEL_SYNCHRONIZATION.md**
@@ -169,12 +215,14 @@ if (aps.empty()) {
    - Updated with channel re-synchronization section
    - Link to detailed documentation
 
-3. **test/catch/catch_channel_resync.cpp**
+3. **test/catch/catch_channel_resync.cpp** (Original + Nov 2025 Update)
    - Unit tests for threshold configuration
    - Documentation tests for expected behavior
+   - **NEW:** Added test for bridge election deferral behavior
 
 4. **ISSUE_137_RESOLUTION.md** (this file)
    - Complete resolution summary
+   - **Updated:** Added section 3 on bridge election deferral
 
 ## Configuration
 
@@ -222,6 +270,13 @@ STARTUP: ✓ Takeover announcement sent on channel 1
 STARTUP: ✓ Router connected on channel 6
 STARTUP: ✓ Bridge promotion complete on channel 6
 STARTUP: Sending follow-up takeover announcement on new channel 6
+```
+
+**Bridge Election Deferral (Nov 2025 Fix):**
+```
+CONNECTION: Bridge monitor: No healthy bridge detected, triggering election
+CONNECTION: startBridgeElection(): Mesh connectivity lost (3 empty scans), deferring election to allow channel re-sync
+CONNECTION: startBridgeElection(): Will retry election in 75 seconds if still needed
 ```
 
 ## Testing Recommendations

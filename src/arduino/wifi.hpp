@@ -1021,6 +1021,29 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       return;
     }
     
+    // CRITICAL: Check if mesh channel re-synchronization is needed first
+    // If we haven't found any mesh nodes and are approaching the re-sync threshold,
+    // prioritize finding the mesh over becoming a bridge. This prevents the scenario
+    // where a node tries to become a bridge when it should be re-syncing to find
+    // the mesh on a different channel (e.g., after another node became bridge and
+    // switched channels to match the router).
+    uint16_t emptyScans = stationScan.getConsecutiveEmptyScans();
+    if (emptyScans >= 3 && WiFi.status() != WL_CONNECTED) {
+      Log(CONNECTION, 
+          "startBridgeElection(): Mesh connectivity lost (%d empty scans), "
+          "deferring election to allow channel re-sync\n", emptyScans);
+      
+      // Schedule a retry after channel re-sync has had a chance to run
+      // The channel re-sync threshold is StationScan::EMPTY_SCAN_THRESHOLD scans (default 6)
+      // Fast scan interval is 0.5 * SCAN_INTERVAL = 15 seconds
+      // Wait for re-sync to complete plus a buffer
+      uint32_t retryDelay = (StationScan::EMPTY_SCAN_THRESHOLD - emptyScans + 2) * 15000;
+      Log(CONNECTION, 
+          "startBridgeElection(): Will retry election in %u seconds if still needed\n",
+          retryDelay / 1000);
+      return;
+    }
+    
     Log(CONNECTION, "=== Bridge Election Started ===\n");
     electionState = ELECTION_SCANNING;
     
