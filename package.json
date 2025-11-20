@@ -51,7 +51,9 @@
     "dev:prebuild": "git submodule update --init",
     "validate-library": "./scripts/validate-release.sh",
     "prepublishOnly": "npm run validate-library",
-    "postpublish": "echo 'Package published successfully to NPM!'"
+    "postpublish": "echo 'Package published successfully to NPM!'",
+    "format": "prettier --write \"**/*.{json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{json,md,yml,yaml}\""
   },
   "engines": {
     "node": ">=14.0.0"
