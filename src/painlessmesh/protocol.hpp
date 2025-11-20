@@ -49,6 +49,13 @@ enum TimeType {
   TIME_REPLY
 };
 
+// Bridge protocol package types
+// These are used for bridge discovery, election, and coordination
+constexpr int BRIDGE_STATUS = 610;      // Bridge status broadcast (internet, RSSI, etc.)
+constexpr int BRIDGE_ELECTION = 611;    // Bridge election candidacy announcement
+constexpr int BRIDGE_TAKEOVER = 612;    // Bridge takeover notification
+constexpr int BRIDGE_COORDINATION = 613; // Multi-bridge coordination (defined in plugin.hpp)
+
 class PackageInterface {
  public:
   virtual JsonObject addTo(JsonObject&& jsonObj) const = 0;
