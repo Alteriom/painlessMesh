@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.12] - 2025-11-19
+
+### Changed
+
+- **Documentation Updates** - Comprehensive documentation improvements
+  - Updated all documentation to reflect current library state
+  - Improved code examples and usage instructions
+  - Enhanced API reference documentation
+  - Verified all links and references
+  - Merged via PRs #152, #153
+
+### Fixed
+
+- **Code Quality** - Resolved linting and formatting issues
+  - Fixed clang-format compliance across codebase
+  - Ensured prettier formatting consistency
+  - Improved code quality and maintainability
+
 ## [1.8.11] - 2025-11-18
 
 ### Fixed
