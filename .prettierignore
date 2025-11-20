@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+bin/
+build/
+dist/
+*.o
+*.a
+
+# Test directories with external dependencies
+test/ArduinoJson/
+test/TaskScheduler/
+
+# Documentation generated files
+docs/api/doxygen/
+doxygen/html/
+doxygen/latex/
+
+# IDE and system files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitmodules
+
+# Other
+*.log
+*.tmp

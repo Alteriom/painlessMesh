@@ -1,6 +1,6 @@
 # AlteriomPainlessMesh
 
-> **📚 [Complete Documentation](https://alteriom.github.io/painlessMesh/)** | **📖 [API Reference](https://alteriom.github.io/painlessMesh/#/api/doxygen)** | **🎯 [Examples](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples)**
+> **📚 [Complete Documentation](https://alteriom.github.io/painlessMesh/)** | **📖 [API Reference](https://alteriom.github.io/painlessMesh/#/api/doxygen)** | **🎯 [Examples](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples)** | **🗂️ [Documentation Index](DOCUMENTATION_INDEX.md)**
 
 <div align="center">
 
