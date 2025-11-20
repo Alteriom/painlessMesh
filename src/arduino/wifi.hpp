@@ -838,8 +838,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         Log(CONNECTION, "Sending bridge status directly to node %u (Internet: %s)\n",
             nodeId, hasInternet ? "YES" : "NO");
         
-        // Send directly to the new node using routing table (which is now ready)
-        this->sendSingle(nodeId, msg);
+        // Send directly to the new node using raw message to preserve type 610
+        // Using sendSingle() would wrap it in type 1 (SINGLE) and hide type 610
+        protocol::Variant variant(msg);
+        router::send<Connection>(variant, (*this));
       });
     });
     
@@ -1084,7 +1086,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     String msg;
     serializeJson(doc, msg);
-    this->sendBroadcast(msg);
+    
+    // Send election message using raw broadcast to preserve type 611
+    protocol::Variant variant(msg);
+    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
     
     Log(CONNECTION, "startBridgeElection(): Candidacy broadcast sent\n");
     
@@ -1234,7 +1239,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     String msg;
     serializeJson(doc, msg);
-    this->sendBroadcast(msg);
+    
+    // Send takeover message using raw broadcast to preserve type 612
+    protocol::Variant variant(msg);
+    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
     
     // Give time for announcement to propagate before channel switch
     delay(1000);
@@ -1274,7 +1282,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       
       String msg2;
       serializeJson(doc2, msg2);
-      this->sendBroadcast(msg2);
+      
+      // Send follow-up takeover using raw broadcast to preserve type 612
+      protocol::Variant variant2(msg2);
+      router::broadcast<protocol::Variant, Connection>(variant2, (*this), 0);
+      
       Log(STARTUP, "✓ Follow-up takeover announcement sent\n");
     });
   }
@@ -1367,7 +1379,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     this->updateBridgeStatus(this->nodeId, hasInternet, rssi, channel, 
                             uptime, gatewayIP, this->getNodeTime());
     
-    this->sendBroadcast(msg);
+    // Send bridge status using raw broadcast to preserve type 610
+    // Using sendBroadcast(msg) would wrap it in type 8 (BROADCAST) and hide type 610
+    protocol::Variant variant(msg);
+    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
   }
   void eventHandleInit() {
     using namespace logger;
