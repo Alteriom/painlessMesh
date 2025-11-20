@@ -89,9 +89,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->init(nodeId);
 
-    // Add bridge election package handler (Type 611)
+    // Add bridge election package handler (Type BRIDGE_ELECTION)
     this->callbackList.onPackage(
-        611,  // BRIDGE_ELECTION type
+        protocol::BRIDGE_ELECTION,
         [this](protocol::Variant& variant, std::shared_ptr<Connection>, uint32_t) {
           JsonDocument doc;
           TSTRING str;
@@ -113,9 +113,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           return false;  // Don't consume the package
         });
 
-    // Add bridge takeover package handler (Type 612)
+    // Add bridge takeover package handler (Type BRIDGE_TAKEOVER)
     this->callbackList.onPackage(
-        612,  // BRIDGE_TAKEOVER type
+        protocol::BRIDGE_TAKEOVER,
         [this](protocol::Variant& variant, std::shared_ptr<Connection>, uint32_t) {
           JsonDocument doc;
           TSTRING str;
@@ -817,7 +817,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         JsonDocument doc;
         JsonObject obj = doc.to<JsonObject>();
         
-        obj["type"] = 610;  // BRIDGE_STATUS type
+        obj["type"] = protocol::BRIDGE_STATUS;
         obj["from"] = this->nodeId;
         obj["routing"] = 1;  // SINGLE routing (direct to node)
         obj["dest"] = nodeId;
@@ -830,7 +830,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         obj["routerChannel"] = WiFi.channel();
         obj["uptime"] = millis();
         obj["gatewayIP"] = WiFi.gatewayIP().toString();
-        obj["message_type"] = 610;
+        obj["message_type"] = protocol::BRIDGE_STATUS;
         
         String msg;
         serializeJson(doc, msg);
@@ -838,8 +838,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         Log(CONNECTION, "Sending bridge status directly to node %u (Internet: %s)\n",
             nodeId, hasInternet ? "YES" : "NO");
         
-        // Send directly to the new node using routing table (which is now ready)
-        this->sendSingle(nodeId, msg);
+        // Send directly to the new node using raw message to preserve type BRIDGE_STATUS
+        // Using sendSingle() would wrap it in type 1 (SINGLE) and hide type BRIDGE_STATUS
+        protocol::Variant variant(msg);
+        router::send<Connection>(variant, (*this));
       });
     });
     
@@ -1072,7 +1074,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Broadcast candidacy using JSON directly (avoiding dependency on alteriom package)
     JsonDocument doc;
     JsonObject obj = doc.to<JsonObject>();
-    obj["type"] = 611;  // BRIDGE_ELECTION
+    obj["type"] = protocol::BRIDGE_ELECTION;
     obj["from"] = this->nodeId;
     obj["routing"] = 2;  // BROADCAST
     obj["routerRSSI"] = routerRSSI;
@@ -1080,11 +1082,14 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["freeMemory"] = ESP.getFreeHeap();
     obj["timestamp"] = this->getNodeTime();
     obj["routerSSID"] = routerSSID;
-    obj["message_type"] = 611;
+    obj["message_type"] = protocol::BRIDGE_ELECTION;
     
     String msg;
     serializeJson(doc, msg);
-    this->sendBroadcast(msg);
+    
+    // Send election message using raw broadcast to preserve type BRIDGE_ELECTION
+    protocol::Variant variant(msg);
+    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
     
     Log(CONNECTION, "startBridgeElection(): Candidacy broadcast sent\n");
     
@@ -1223,18 +1228,21 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(STARTUP, "Sending takeover announcement on current channel before switching...\n");
     JsonDocument doc;
     JsonObject obj = doc.to<JsonObject>();
-    obj["type"] = 612;  // BRIDGE_TAKEOVER
+    obj["type"] = protocol::BRIDGE_TAKEOVER;
     obj["from"] = this->nodeId;
     obj["routing"] = 2;  // BROADCAST
     obj["previousBridge"] = previousBridgeId;
     obj["reason"] = "Election winner - best router signal";
     obj["routerRSSI"] = 0;  // Not yet connected to router
     obj["timestamp"] = this->getNodeTime();
-    obj["message_type"] = 612;
+    obj["message_type"] = protocol::BRIDGE_TAKEOVER;
     
     String msg;
     serializeJson(doc, msg);
-    this->sendBroadcast(msg);
+    
+    // Send takeover message using raw broadcast to preserve type BRIDGE_TAKEOVER
+    protocol::Variant variant(msg);
+    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
     
     // Give time for announcement to propagate before channel switch
     delay(1000);
@@ -1263,18 +1271,22 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       Log(STARTUP, "Sending follow-up takeover announcement on new channel %d\n", _meshChannel);
       JsonDocument doc2;
       JsonObject obj2 = doc2.to<JsonObject>();
-      obj2["type"] = 612;  // BRIDGE_TAKEOVER
+      obj2["type"] = protocol::BRIDGE_TAKEOVER;
       obj2["from"] = this->nodeId;
       obj2["routing"] = 2;  // BROADCAST
       obj2["previousBridge"] = previousBridgeId;
       obj2["reason"] = "Election winner - best router signal";
       obj2["routerRSSI"] = WiFi.RSSI();
       obj2["timestamp"] = this->getNodeTime();
-      obj2["message_type"] = 612;
+      obj2["message_type"] = protocol::BRIDGE_TAKEOVER;
       
       String msg2;
       serializeJson(doc2, msg2);
-      this->sendBroadcast(msg2);
+      
+      // Send follow-up takeover using raw broadcast to preserve type BRIDGE_TAKEOVER
+      protocol::Variant variant2(msg2);
+      router::broadcast<protocol::Variant, Connection>(variant2, (*this), 0);
+      
       Log(STARTUP, "✓ Follow-up takeover announcement sent\n");
     });
   }
@@ -1329,7 +1341,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     JsonDocument doc;
     JsonObject obj = doc.to<JsonObject>();
     
-    obj["type"] = 610;  // BRIDGE_STATUS type
+    obj["type"] = protocol::BRIDGE_STATUS;
     obj["from"] = this->nodeId;
     obj["routing"] = 2;  // BROADCAST routing
     obj["timestamp"] = this->getNodeTime();
@@ -1352,7 +1364,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["routerChannel"] = channel;
     obj["uptime"] = uptime;
     obj["gatewayIP"] = gatewayIP;
-    obj["message_type"] = 610;
+    obj["message_type"] = protocol::BRIDGE_STATUS;
     
     String msg;
     serializeJson(doc, msg);
@@ -1367,7 +1379,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     this->updateBridgeStatus(this->nodeId, hasInternet, rssi, channel, 
                             uptime, gatewayIP, this->getNodeTime());
     
-    this->sendBroadcast(msg);
+    // Send bridge status using raw broadcast to preserve type BRIDGE_STATUS
+    // Using sendBroadcast(msg) would wrap it in type 8 (BROADCAST) and hide type BRIDGE_STATUS
+    protocol::Variant variant(msg);
+    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
   }
   void eventHandleInit() {
     using namespace logger;

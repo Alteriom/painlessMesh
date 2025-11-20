@@ -167,10 +167,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     this->callbackList = painlessmesh::router::addPackageCallback(
         std::move(this->callbackList), (*this));
 
-    // Add bridge status package handler (Type 610)
+    // Add bridge status package handler (Type BRIDGE_STATUS)
     // This will be called when any node receives a bridge status broadcast
     this->callbackList.onPackage(
-        610,  // BRIDGE_STATUS type
+        protocol::BRIDGE_STATUS,
         [this](protocol::Variant& variant, std::shared_ptr<T>, uint32_t) {
           // We need to manually parse the JSON since BridgeStatusPackage is in alteriom namespace
           // and may not be available in all contexts. We'll parse the critical fields directly.
