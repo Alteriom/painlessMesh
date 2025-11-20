@@ -83,6 +83,8 @@
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
-    "RELEASE_GUIDE.md"
+    "RELEASE_GUIDE.md",
+    "DOCUMENTATION_INDEX.md",
+    "RELEASE_NOTES_1.8.12.md"
   ]
 }
