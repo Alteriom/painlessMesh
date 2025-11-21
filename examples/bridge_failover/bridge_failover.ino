@@ -122,9 +122,16 @@ void setup() {
     Serial.println("This node will start as the primary bridge\n");
     
     // Initialize as bridge with automatic channel detection
-    mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
-                     ROUTER_SSID, ROUTER_PASSWORD,
-                     &userScheduler, MESH_PORT);
+    bool bridgeSuccess = mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                                           ROUTER_SSID, ROUTER_PASSWORD,
+                                           &userScheduler, MESH_PORT);
+    
+    if (!bridgeSuccess) {
+      Serial.println("✗ Failed to initialize as bridge!");
+      Serial.println("Check router credentials and connectivity.");
+      Serial.println("Halting...");
+      while(1) delay(1000);  // Halt execution
+    }
   } else {
     Serial.println("Mode: REGULAR NODE (Failover Enabled)");
     Serial.println("This node can become bridge via election\n");

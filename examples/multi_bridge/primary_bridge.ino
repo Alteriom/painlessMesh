@@ -73,9 +73,16 @@ void setup() {
   mesh.setBridgeSelectionStrategy(painlessMesh::PRIORITY_BASED);
   
   // Initialize as bridge with priority 10 (primary)
-  mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
-                    ROUTER_SSID, ROUTER_PASSWORD,
-                    &userScheduler, MESH_PORT, 10);  // Priority 10 = Primary
+  bool bridgeSuccess = mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                                         ROUTER_SSID, ROUTER_PASSWORD,
+                                         &userScheduler, MESH_PORT, 10);  // Priority 10 = Primary
+  
+  if (!bridgeSuccess) {
+    Serial.println("✗ Failed to initialize as primary bridge!");
+    Serial.println("Check router credentials and connectivity.");
+    Serial.println("Halting...");
+    while(1) delay(1000);  // Halt execution
+  }
   
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);
