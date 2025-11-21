@@ -93,10 +93,14 @@ void setup() {
   
   if (!bridgeSuccess) {
     Serial.println("✗ Failed to initialize as secondary bridge!");
-    Serial.println("Check router credentials and connectivity.");
-    Serial.println("Rebooting in 10 seconds...");
-    delay(10000);
-    ESP.restart();
+    Serial.println("Router unreachable - falling back to regular mesh node");
+    
+    // Fallback: Initialize as regular node
+    // Device will still participate in mesh, relying on other bridges
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    
+    Serial.println("✓ Running as regular node - relying on other bridges for connectivity");
+    Serial.println("Note: Fix router connectivity and restart to resume bridge role");
   }
   
   mesh.onReceive(&receivedCallback);

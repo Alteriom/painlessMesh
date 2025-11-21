@@ -53,10 +53,15 @@ void setup() {
 
   if (!bridgeSuccess) {
     Serial.println("✗ Failed to initialize as bridge!");
-    Serial.println("Check router credentials and connectivity.");
-    Serial.println("Rebooting in 10 seconds...");
-    delay(10000);
-    ESP.restart();
+    Serial.println("Router unreachable - falling back to regular mesh node");
+    Serial.println("The node will join the mesh without bridge functionality");
+    
+    // Fallback: Initialize as regular mesh node
+    // This allows the device to still participate in the mesh
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    
+    Serial.println("✓ Initialized as regular mesh node");
+    Serial.println("Note: To function as a bridge, fix router connectivity and restart");
   }
 
   // Optional: Configure bridge status broadcasting
