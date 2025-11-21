@@ -1294,7 +1294,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
                  savedChannel, _meshHidden, MAX_CONN);
       
+      // Reset election state and clear candidates (consistent with normal election completion)
       electionState = ELECTION_IDLE;
+      electionCandidates.clear();
       
       // Notify via callback
       if (bridgeRoleChangedCallback) {
