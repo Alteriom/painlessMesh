@@ -129,8 +129,9 @@ void setup() {
     if (!bridgeSuccess) {
       Serial.println("✗ Failed to initialize as bridge!");
       Serial.println("Check router credentials and connectivity.");
-      Serial.println("Halting...");
-      while(1) delay(1000);  // Halt execution
+      Serial.println("Rebooting in 10 seconds...");
+      delay(10000);
+      ESP.restart();
     }
   } else {
     Serial.println("Mode: REGULAR NODE (Failover Enabled)");
