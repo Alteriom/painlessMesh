@@ -9,6 +9,12 @@ using namespace painlessmesh;
 // Declare logger for test environment
 painlessmesh::logger::LogClass Log;
 
+// NOTE ON TEST ENVIRONMENT:
+// The test environment's millis() returns 64-bit epoch time in milliseconds (e.g., 1763742830198),
+// while BridgeInfo.lastSeen is uint32_t. This causes type mismatch when checking isHealthy().
+// In real Arduino/ESP32 environment, millis() returns uint32_t and works correctly.
+// Therefore, some tests focus on bridge tracking logic rather than health timeout behavior.
+
 SCENARIO("hasInternetConnection() checks knownBridges list", "[bridge][internet]") {
     GIVEN("A node with a bridge in knownBridges") {
         Scheduler scheduler;
@@ -19,8 +25,6 @@ SCENARIO("hasInternetConnection() checks knownBridges list", "[bridge][internet]
         node.init(&scheduler, nodeId);
         
         // Add a bridge to knownBridges with internet
-        // NOTE: In test environment, isHealthy() may not work due to millis() overflow,
-        // but in real Arduino environment this works correctly
         node.updateBridgeStatus(
             bridgeId,           // bridgeNodeId
             true,              // internetConnected
@@ -157,8 +161,6 @@ SCENARIO("hasInternetConnection() considers bridge health", "[bridge][internet][
             
             // In real scenario, the bridge would timeout after 60 seconds
             // The isHealthy() check in hasInternetConnection() filters stale bridges
-            // NOTE: Test environment's millis() returns epoch time (64-bit) which
-            // doesn't work well with uint32_t lastSeen, so isHealthy() may fail in tests
             
             THEN("Bridge should exist in the list") {
                 REQUIRE(bridges.size() == 1);
@@ -188,12 +190,8 @@ SCENARIO("Bridge node reports internet status correctly after initialization", "
             bridgeNode.setRoot(true);
             bridgeNode.setContainsRoot(true);
             
-            // At this point, in the real Arduino implementation (wifi::Mesh),
-            // hasInternetConnection() is overridden to check WiFi.status() FIRST
-            // before checking knownBridges. This ensures immediate detection.
-            // 
-            // The test environment uses base class (painlessmesh::Mesh<Connection>)
-            // which only checks knownBridges, so returns false.
+            // In Arduino implementation, wifi::Mesh overrides hasInternetConnection()
+            // to check WiFi.status() first. Test environment uses base class.
             
             THEN("hasInternetConnection() should be callable") {
                 // This validates that the method exists and doesn't crash

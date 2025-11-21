@@ -630,8 +630,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // First check if THIS node is a bridge with Internet
     if (this->isBridge()) {
       // Check Internet connectivity: WiFi connected AND valid IP address
-      bool hasInternet = (WiFi.status() == WL_CONNECTED) && 
-                         (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+      bool hasInternet = (WiFi.status() == WL_CONNECTED) && (WiFi.localIP() != IPAddress(0, 0, 0, 0));
       if (hasInternet) {
         return true;
       }
