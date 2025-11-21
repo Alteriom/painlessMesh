@@ -619,6 +619,29 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
+   * Check if any bridge in the mesh has Internet connectivity
+   * 
+   * Override of base class method to also check if THIS node is a bridge
+   * with Internet connectivity, not just other bridges in the mesh.
+   * 
+   * @return true if at least one bridge (including this node) has Internet
+   */
+  bool hasInternetConnection() {
+    // First check if THIS node is a bridge with Internet
+    if (this->isBridge()) {
+      // Check Internet connectivity: WiFi connected AND valid IP address
+      bool hasInternet = (WiFi.status() == WL_CONNECTED) && 
+                         (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+      if (hasInternet) {
+        return true;
+      }
+    }
+    
+    // Then check other bridges in the mesh (call parent implementation)
+    return painlessmesh::Mesh<Connection>::hasInternetConnection();
+  }
+
+  /**
    * Get recommended bridge for message transmission
    * 
    * Uses the configured bridge selection strategy to pick the best bridge.
