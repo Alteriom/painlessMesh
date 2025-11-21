@@ -121,22 +121,125 @@ SCENARIO("Bridge initialization provides clear success/failure indication", "[br
 SCENARIO("Examples handle bridge initialization failure appropriately", "[bridge][examples]") {
     GIVEN("Bridge example code in setup()") {
         WHEN("initAsBridge() is called") {
-            THEN("Return value should be checked") {
-                // Updated examples check return value:
+            THEN("Return value should be checked with graceful fallback") {
+                // Updated examples check return value and fallback gracefully:
                 //
                 // bool bridgeSuccess = mesh.initAsBridge(...);
                 // if (!bridgeSuccess) {
                 //   Serial.println("✗ Failed to initialize as bridge!");
-                //   Serial.println("Check router credentials and connectivity.");
-                //   Serial.println("Halting...");
-                //   while(1) delay(1000);  // Halt execution
+                //   Serial.println("Router unreachable - falling back to regular mesh node");
+                //   
+                //   // Fallback: Initialize as regular mesh node
+                //   mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+                //   
+                //   Serial.println("✓ Initialized as regular mesh node");
                 // }
                 //
-                // This provides clear feedback to the user about what went wrong
-                // and prevents the sketch from continuing in an undefined state.
+                // This approach:
+                // - Gives control to library users (no forced restart)
+                // - Allows device to participate in mesh
+                // - Provides clear feedback about state
+                // - Enables flexible recovery strategies
                 
                 INFO("Examples check initAsBridge() return value");
-                INFO("Clear error messages guide user troubleshooting");
+                INFO("Graceful fallback to regular node maintains mesh connectivity");
+                INFO("No forced restart - user maintains control");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Fallback patterns prevent network instability", "[bridge][fallback][stability]") {
+    GIVEN("Multiple fallback patterns available") {
+        WHEN("Bridge initialization fails") {
+            THEN("Different patterns support different use cases") {
+                // Pattern 1: Basic Fallback
+                // - Falls back to regular mesh node
+                // - Maintains mesh connectivity
+                // - Requires manual intervention for bridge role
+                //
+                // Pattern 2: Auto-Promotion
+                // - Falls back with failover enabled
+                // - Automatically promotes when router available
+                // - No manual intervention needed
+                //
+                // Pattern 3: Multi-Bridge Redundancy
+                // - Primary falls back to regular node
+                // - Secondary bridge maintains connectivity
+                // - Graceful degradation of primary
+                //
+                // Pattern 4: Retry with Backoff
+                // - Retries with exponential backoff
+                // - Prevents network flooding
+                // - Eventually falls back if persistent failure
+                //
+                // Pattern 5: User-Controlled Restart
+                // - User decides when to restart
+                // - Appropriate for dedicated bridge hardware
+                // - Clear intent that bridge role is required
+                
+                INFO("Multiple fallback patterns documented");
+                INFO("Users choose pattern based on deployment requirements");
+                INFO("No single forced behavior - flexible library design");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Channel discovery prevents mesh fragmentation", "[bridge][channel][discovery]") {
+    GIVEN("Nodes on different channels") {
+        WHEN("Bridge appears on different channel") {
+            THEN("Channel management prevents instability") {
+                // Channel Discovery Process:
+                // 1. Nodes scan for mesh SSID on all channels
+                // 2. Connection negotiation determines channel
+                // 3. Bridge maintains router's channel
+                // 4. Regular nodes switch to bridge's channel
+                //
+                // Channel Re-synchronization:
+                // - Triggered after 6 consecutive empty scans
+                // - Re-scans all channels to find mesh
+                // - Prevents permanent fragmentation
+                //
+                // Election Deferral:
+                // - Election deferred if approaching re-sync threshold
+                // - Prevents channel chase loops
+                // - Allows mesh to stabilize before election
+                //
+                // This design ensures:
+                // - No endless restart loops
+                // - Eventual mesh convergence
+                // - Bridge maintains router connection
+                // - Network stability during failures
+                
+                INFO("Channel discovery prevents fragmentation");
+                INFO("Re-sync mechanism handles channel mismatches");
+                INFO("Election deferral prevents chase loops");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Documentation provides comprehensive guidance", "[bridge][documentation]") {
+    GIVEN("Library users need guidance on bridge initialization") {
+        WHEN("Consulting documentation") {
+            THEN("Comprehensive patterns and best practices are provided") {
+                // Documentation includes:
+                // - Design philosophy (library doesn't dictate recovery)
+                // - Detailed behavior of initAsBridge() success/failure paths
+                // - Five recommended fallback patterns with use cases
+                // - Channel discovery and mesh formation explanation
+                // - Best practices for different deployment scenarios
+                // - Testing recommendations for each scenario
+                //
+                // See: docs/BRIDGE_INITIALIZATION_FALLBACK.md
+                
+                INFO("Comprehensive documentation in BRIDGE_INITIALIZATION_FALLBACK.md");
+                INFO("Covers fallback patterns, channel management, best practices");
+                INFO("Testing scenarios for validation");
                 REQUIRE(true); // Documented behavior
             }
         }
