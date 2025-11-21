@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.14] - 2025-11-21
+
+### Fixed
+
+- **Bridge Internet Detection** - Fixed `hasInternetConnection()` returning false on bridge nodes immediately after initialization
+  - **Root Cause**: Base `hasInternetConnection()` only checked `knownBridges` list; bridge self-registration happens asynchronously
+  - Added override in Arduino `wifi::Mesh` to check local WiFi status before checking remote bridges
+  - Bridge nodes now immediately report correct internet status via `WiFi.status()` check
+  - Fixes issue where internet-dependent features (like WhatsApp messaging) failed on bridge nodes
+  - **Impact**: Bridge nodes correctly report internet connectivity immediately after initialization
+  - **Affected Components**: Bridge_fallover example, any code using `mesh.hasInternetConnection()` on bridge nodes
+  - Core fix in `src/arduino/wifi.hpp` - added WiFi status check override
+  - Resolves GitHub issue #159
+  - Merged via PR #160
+
 ## [1.8.12] - 2025-11-19
 
 ### Changed
