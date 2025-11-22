@@ -87,9 +87,21 @@ void setup() {
   mesh.setBridgeSelectionStrategy(painlessMesh::PRIORITY_BASED);
   
   // Initialize as bridge with priority 5 (secondary)
-  mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
-                    ROUTER_SSID, ROUTER_PASSWORD,
-                    &userScheduler, MESH_PORT, 5);  // Priority 5 = Secondary
+  bool bridgeSuccess = mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                                         ROUTER_SSID, ROUTER_PASSWORD,
+                                         &userScheduler, MESH_PORT, 5);  // Priority 5 = Secondary
+  
+  if (!bridgeSuccess) {
+    Serial.println("✗ Failed to initialize as secondary bridge!");
+    Serial.println("Router unreachable - falling back to regular mesh node");
+    
+    // Fallback: Initialize as regular node
+    // Device will still participate in mesh, relying on other bridges
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    
+    Serial.println("✓ Running as regular node - relying on other bridges for connectivity");
+    Serial.println("Note: Fix router connectivity and restart to resume bridge role");
+  }
   
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);

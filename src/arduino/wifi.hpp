@@ -260,7 +260,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * @param baseScheduler Task scheduler for mesh operations
    * @param port TCP port for mesh communication (default: 5555)
    */
-  void initAsBridge(TSTRING meshSSID, TSTRING meshPassword,
+  bool initAsBridge(TSTRING meshSSID, TSTRING meshPassword,
                     TSTRING routerSSID, TSTRING routerPassword,
                     Scheduler *baseScheduler, uint16_t port = 5555) {
     using namespace logger;
@@ -298,14 +298,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       detectedChannel = WiFi.channel();
       // Validate channel is in valid range (1-13 for 2.4GHz)
       if (detectedChannel < 1 || detectedChannel > 13) {
-        Log(ERROR, "\n✗ Invalid channel detected: %d, using default channel 1\n", detectedChannel);
+        Log(ERROR, "\n✗ Invalid channel detected: %d, falling back to channel 1\n", detectedChannel);
         detectedChannel = 1;
       } else {
         Log(STARTUP, "\n✓ Router connected on channel %d\n", detectedChannel);
         Log(STARTUP, "✓ Router IP: %s\n", WiFi.localIP().toString().c_str());
       }
     } else {
-      Log(ERROR, "\n✗ Failed to connect to router, using default channel 1\n");
+      Log(ERROR, "\n✗ Failed to connect to router\n");
+      Log(ERROR, "Cannot become bridge without router connection\n");
+      Log(ERROR, "Bridge initialization aborted - remaining as regular node\n");
+      return false;
     }
     
     Log(STARTUP, "Step 2: Initializing mesh on channel %d...\n", detectedChannel);
@@ -331,6 +334,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(STARTUP, "  Mesh Channel: %d (matches router)\n", detectedChannel);
     Log(STARTUP, "  Router: %s\n", routerSSID.c_str());
     Log(STARTUP, "  Port: %d\n", port);
+    return true;
   }
 
   /**
@@ -347,7 +351,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * @param port TCP port for mesh communication (default: 5555)
    * @param priority Bridge priority: 10=highest (primary), 5=medium (secondary), 1=lowest (default: 5)
    */
-  void initAsBridge(TSTRING meshSSID, TSTRING meshPassword,
+  bool initAsBridge(TSTRING meshSSID, TSTRING meshPassword,
                     TSTRING routerSSID, TSTRING routerPassword,
                     Scheduler *baseScheduler, uint16_t port, uint8_t priority) {
     using namespace logger;
@@ -370,12 +374,14 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         priority, bridgeRole.c_str());
     
     // Call the base initAsBridge method
-    initAsBridge(meshSSID, meshPassword, routerSSID, routerPassword, baseScheduler, port);
+    bool success = initAsBridge(meshSSID, meshPassword, routerSSID, routerPassword, baseScheduler, port);
     
-    // Setup multi-bridge coordination if enabled
-    if (multiBridgeEnabled) {
+    // Setup multi-bridge coordination if enabled and bridge init succeeded
+    if (success && multiBridgeEnabled) {
       initBridgeCoordination();
     }
+    
+    return success;
   }
 
   /**
@@ -1270,12 +1276,35 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     delay(1000);
     Log(STARTUP, "✓ Takeover announcement sent on channel %d\n", _meshChannel);
     
+    // Save current mesh configuration to restore if bridge init fails
+    uint8_t savedChannel = _meshChannel;
+    
     // Now reconfigure as bridge (this will switch to router's channel)
     this->stop();
     delay(1000);
     
-    this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                       mScheduler, _meshPort);
+    bool bridgeInitSuccess = this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                                                 mScheduler, _meshPort);
+    
+    if (!bridgeInitSuccess) {
+      Log(ERROR, "✗ Bridge promotion failed - router unreachable\n");
+      Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
+      
+      // Re-initialize as regular node on the original channel
+      this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
+                 savedChannel, _meshHidden, MAX_CONN);
+      
+      // Reset election state and clear candidates (consistent with normal election completion)
+      electionState = ELECTION_IDLE;
+      electionCandidates.clear();
+      
+      // Notify via callback
+      if (bridgeRoleChangedCallback) {
+        bridgeRoleChangedCallback(false, "Bridge promotion failed - router unreachable");
+      }
+      
+      return;
+    }
     
     lastRoleChangeTime = millis();
     

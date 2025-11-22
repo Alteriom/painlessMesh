@@ -47,9 +47,22 @@ void setup() {
   // 3. Set this node as root
   // 4. Maintain router connection
   // 5. Start broadcasting bridge status (Type 610) every 30 seconds
-  mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
-                    ROUTER_SSID, ROUTER_PASSWORD,
-                    &userScheduler, MESH_PORT);
+  bool bridgeSuccess = mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                                         ROUTER_SSID, ROUTER_PASSWORD,
+                                         &userScheduler, MESH_PORT);
+
+  if (!bridgeSuccess) {
+    Serial.println("✗ Failed to initialize as bridge!");
+    Serial.println("Router unreachable - falling back to regular mesh node");
+    Serial.println("The node will join the mesh without bridge functionality");
+    
+    // Fallback: Initialize as regular mesh node
+    // This allows the device to still participate in the mesh
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    
+    Serial.println("✓ Initialized as regular mesh node");
+    Serial.println("Note: To function as a bridge, fix router connectivity and restart");
+  }
 
   // Optional: Configure bridge status broadcasting
   // mesh.setBridgeStatusInterval(60000);  // Change to 60 seconds
@@ -61,7 +74,7 @@ void setup() {
   // Set up message callback
   mesh.onReceive(&receivedCallback);
   
-  Serial.println("Bridge node initialized and ready!");
+  Serial.println("✓ Bridge node initialized and ready!");
   Serial.println("Broadcasting bridge status to mesh every 30 seconds");
 }
 
