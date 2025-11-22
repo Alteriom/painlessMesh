@@ -29,23 +29,5 @@ add_executable(catch_connection test/boost/connection.cpp test/catch/fake_serial
 target_include_directories(catch_connection PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
 TARGET_LINK_LIBRARIES(catch_connection ${Boost_LIBRARIES})
 
-# Example tests using simulator
-add_executable(catch_example_basic test/boost/catch_example_basic.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
-target_include_directories(catch_example_basic PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
-TARGET_LINK_LIBRARIES(catch_example_basic ${Boost_LIBRARIES})
-
-add_executable(catch_example_starthere test/boost/catch_example_starthere.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
-target_include_directories(catch_example_starthere PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
-TARGET_LINK_LIBRARIES(catch_example_starthere ${Boost_LIBRARIES})
-
-add_executable(catch_example_timesync test/boost/catch_example_timesync.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
-target_include_directories(catch_example_timesync PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
-TARGET_LINK_LIBRARIES(catch_example_timesync ${Boost_LIBRARIES})
-
-add_executable(catch_example_echo test/boost/catch_example_echo.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
-target_include_directories(catch_example_echo PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
-TARGET_LINK_LIBRARIES(catch_example_echo ${Boost_LIBRARIES})
-
-add_executable(catch_example_routing test/boost/catch_example_routing.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
-target_include_directories(catch_example_routing PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
-TARGET_LINK_LIBRARIES(catch_example_routing ${Boost_LIBRARIES})
+# Note: Example validation tests have been moved to the external painlessMesh-simulator
+# See examples/*/test/simulator/ directories and docs/SIMULATOR_TESTING.md for details
