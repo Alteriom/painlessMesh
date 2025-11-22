@@ -1,13 +1,12 @@
 # painlessMesh Testing
 
-This directory contains the comprehensive test suite for painlessMesh, including unit tests, integration tests, and simulator-based validation of example sketches.
+This directory contains the comprehensive test suite for painlessMesh, including unit tests, integration tests, and full simulator-based validation.
 
 ## Test Structure
 
 ```
 test/
-├── boost/                    # Boost.Asio simulator-based integration tests
-│   ├── catch_example_*.cpp   # Tests validating example sketches
+├── boost/                    # Boost.Asio-based integration tests
 │   ├── tcp_integration.cpp   # Core TCP/mesh integration tests
 │   ├── connection.cpp        # Connection handling tests
 │   └── Arduino.h             # Arduino API stubs for PC testing
@@ -16,10 +15,11 @@ test/
 │   ├── fake_serial.cpp       # Serial port stub for testing
 │   └── README_*.md           # Test-specific documentation
 ├── include/                  # Test utilities and helpers
-│   ├── simulator_utils.hpp   # Reusable simulator framework
 │   ├── catch_utils.hpp       # Catch2 test helpers
 │   ├── fake_asynctcp.hpp     # AsyncTCP stub
 │   └── fake_serial.hpp       # Serial stub header
+├── simulator/                # painlessMesh-simulator (git submodule)
+│   └── [Full simulator tool] # For testing with 100+ virtual nodes
 ├── ArduinoJson/              # ArduinoJson library (git submodule)
 └── TaskScheduler/            # TaskScheduler library (git submodule)
 ```
@@ -60,25 +60,25 @@ Tests for core mesh functionality:
 ./bin/catch_connection
 ```
 
-### 3. Simulator Tests (`test/boost/catch_example_*.cpp`)
+### 3. Simulator Tests (External Tool)
 
-**NEW**: Validates example sketches using the simulator framework:
+**Full-scale simulator** at `test/simulator/`:
 
-- **Basic example**: Message broadcasting, callbacks
-- **StartHere example**: Node lists, time sync, delay measurement
-- **Time sync**: Comprehensive synchronization validation
-- **Bridge examples**: Bridge functionality (planned)
-- **OTA examples**: Firmware updates (planned)
-- **MQTT examples**: MQTT bridge (planned)
+- Tests actual example firmware with 100+ virtual nodes
+- YAML-based test scenario configuration
+- Realistic network conditions (latency, packet loss, partitions)
+- Metrics collection and analysis
+- CI/CD integration
 
 **Example:**
 ```bash
-./bin/catch_example_basic
-./bin/catch_example_starthere
-./bin/catch_example_timesync
+cd test/simulator
+mkdir build && cd build
+cmake -G Ninja .. && ninja
+./painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
-See [SIMULATOR_TESTING.md](../docs/development/SIMULATOR_TESTING.md) for detailed documentation.
+See [SIMULATOR_TESTING.md](../docs/SIMULATOR_TESTING.md) for complete documentation.
 
 ## Quick Start
 

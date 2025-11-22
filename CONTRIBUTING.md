@@ -25,12 +25,16 @@ NOTE: Always do a `git pull` on `develop` before you start working to capture th
 Before submitting a pull request, ensure all tests pass:
 
 ```bash
-# Build tests
+# Build and run unit/integration tests
 cmake -G Ninja .
 ninja
-
-# Run all tests
 run-parts --regex catch_ bin/
+
+# Run simulator tests (for examples)
+cd test/simulator
+mkdir build && cd build
+cmake -G Ninja .. && ninja
+./painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
 ### Adding Tests for New Features
@@ -38,20 +42,25 @@ run-parts --regex catch_ bin/
 When adding new features or examples:
 
 1. **Unit Tests**: Add tests in `test/catch/` for new components
-2. **Example Tests**: Add simulator tests in `test/boost/` for new example sketches
-3. **Documentation**: Update test documentation in `test/README.md`
+2. **Integration Tests**: Add to `test/boost/tcp_integration.cpp` for core functionality
+3. **Simulator Tests**: Create test scenarios in `examples/your_example/test/simulator/` for new examples
+4. **Documentation**: Update relevant test documentation
 
-See [Simulator Testing Guide](docs/development/SIMULATOR_TESTING.md) for detailed instructions on writing tests.
+### Example Validation with Simulator
 
-### Example Validation
+All example sketches should have simulator tests that validate behavior with multiple virtual nodes:
 
-All example sketches should have corresponding simulator tests that validate:
-- Basic functionality works as documented
-- Messages are delivered correctly
-- Callbacks fire as expected
-- Edge cases are handled properly
+1. Create firmware adapter in `examples/your_example/test/simulator/firmware/`
+2. Create YAML test scenarios in `examples/your_example/test/simulator/scenarios/`
+3. Document test setup in `examples/your_example/test/simulator/README.md`
 
-This helps prevent regressions and ensures examples remain working references for users.
+See [Simulator Testing Guide](docs/SIMULATOR_TESTING.md) for complete instructions.
+
+This ensures examples:
+- Work as documented with multiple nodes
+- Handle edge cases properly
+- Don't regress with library changes
+- Serve as validated references for users
 
 ## Versioning
 

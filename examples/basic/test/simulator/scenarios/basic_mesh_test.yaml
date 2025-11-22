@@ -1,0 +1,70 @@
+---
+# Test scenario for basic.ino example
+# This validates that the basic example works correctly with multiple nodes
+
+simulation:
+  name: "Basic Example - Mesh Formation and Broadcasting"
+  description: "Validates basic.ino with 10 nodes forming a mesh and exchanging messages"
+  duration: 60  # seconds
+  
+nodes:
+  - template: "basic_example"
+    count: 10
+    config:
+      mesh_prefix: "whateverYouLike"
+      mesh_password: "somethingSneaky"
+      mesh_port: 5555
+
+topology:
+  type: "random"  # Nodes connect to random neighbors
+  connectivity: 0.7  # 70% connectivity
+
+network:
+  latency:
+    min_ms: 1
+    max_ms: 10
+  bandwidth_kbps: 1000
+  packet_loss_percent: 0
+
+# Events to inject during simulation
+events:
+  - type: "node_start"
+    time: 0
+    nodes: "all"
+  
+  # Add a new node mid-simulation to test dynamic joining
+  - type: "node_start"
+    time: 30
+    count: 1
+    template: "basic_example"
+
+# Metrics to collect
+metrics:
+  collect:
+    - messages_sent
+    - messages_received
+    - topology_changes
+    - connections_established
+  
+  output:
+    file: "results/basic_test_results.csv"
+    format: "csv"
+
+# Validation criteria
+validation:
+  # All nodes should form a mesh
+  - check: "all_nodes_connected"
+    description: "All nodes should see each other in the mesh"
+    timeout: 30
+  
+  # Messages should be delivered
+  - check: "messages_delivered"
+    description: "All nodes should receive broadcasts from others"
+    min_messages_per_node: 5
+    timeout: 60
+  
+  # Time should synchronize
+  - check: "time_synchronized"
+    description: "Node times should converge"
+    max_time_diff_ms: 10000
+    timeout: 45
