@@ -28,3 +28,16 @@ TARGET_LINK_LIBRARIES(catch_tcp_integration ${Boost_LIBRARIES})
 add_executable(catch_connection test/boost/connection.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
 target_include_directories(catch_connection PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
 TARGET_LINK_LIBRARIES(catch_connection ${Boost_LIBRARIES})
+
+# Example tests using simulator
+add_executable(catch_example_basic test/boost/catch_example_basic.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
+target_include_directories(catch_example_basic PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
+TARGET_LINK_LIBRARIES(catch_example_basic ${Boost_LIBRARIES})
+
+add_executable(catch_example_starthere test/boost/catch_example_starthere.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
+target_include_directories(catch_example_starthere PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
+TARGET_LINK_LIBRARIES(catch_example_starthere ${Boost_LIBRARIES})
+
+add_executable(catch_example_timesync test/boost/catch_example_timesync.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
+target_include_directories(catch_example_timesync PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
+TARGET_LINK_LIBRARIES(catch_example_timesync ${Boost_LIBRARIES})
