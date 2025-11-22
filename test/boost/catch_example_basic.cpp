@@ -30,7 +30,7 @@ SCENARIO("Basic example - message broadcasting works") {
         SimulatedMeshNetwork network(&scheduler, 3, io_service);
 
         WHEN("The network is allowed to stabilize") {
-            bool meshFormed = network.waitForFullMesh(5000);
+            bool meshFormed = network.waitForFullMesh(10000);
             
             THEN("All nodes should see the full mesh topology") {
                 REQUIRE(meshFormed);

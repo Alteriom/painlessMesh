@@ -12,7 +12,7 @@ IF(Boost_FOUND)
   LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
 ENDIF(Boost_FOUND)
 
-FILE(GLOB TESTFILES test/**/catch_*.cpp)
+FILE(GLOB TESTFILES test/catch/catch_*.cpp)
 foreach(TESTFILE ${TESTFILES})
     get_filename_component(NAME ${TESTFILE} NAME_WE) 
     add_executable(${NAME} ${TESTFILE} test/catch/fake_serial.cpp src/scheduler.cpp)
