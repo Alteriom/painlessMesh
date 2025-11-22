@@ -292,46 +292,44 @@ print(df.groupby('timestamp')['time_drift_ms'].max())
 
 ## CI/CD Integration
 
-### GitHub Actions Example
+### GitHub Actions Integration
 
+Simulator tests are integrated into the CI/CD pipeline in `.github/workflows/ci.yml`:
+
+**The `simulator-tests` job:**
+- Runs on every push and pull request
+- Builds the simulator from the submodule
+- Executes example test scenarios
+- Uploads results as artifacts
+
+**Configuration:**
 ```yaml
-name: Simulator Tests
-
-on: [push, pull_request]
-
-jobs:
-  test-examples:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: recursive
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install cmake ninja-build libboost-dev libyaml-cpp-dev
-      
-      - name: Build simulator
-        run: |
-          cd test/simulator
-          mkdir build && cd build
-          cmake -G Ninja ..
-          ninja
-      
-      - name: Test basic example
-        run: |
-          cd test/simulator/build
-          ./painlessmesh-simulator --config \
-            ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
-      
-      - name: Upload results
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: test-results
-          path: test/simulator/build/results/
+simulator-tests:
+  name: Simulator Integration Tests
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get install cmake ninja-build libboost-dev libyaml-cpp-dev
+    
+    - name: Build simulator
+      run: |
+        cd test/simulator
+        mkdir build && cd build
+        cmake -G Ninja .. && ninja
+    
+    - name: Run tests
+      run: |
+        cd test/simulator/build
+        ./painlessmesh-simulator --config \
+          ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
+
+This ensures example sketches are validated on every code change.
 
 ## Examples with Simulator Tests
 
