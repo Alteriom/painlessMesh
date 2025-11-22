@@ -113,9 +113,6 @@ SCENARIO("Routing - messages route through intermediate nodes") {
 
     GIVEN("A linear mesh topology") {
         // Create nodes but connect them linearly: 0->1->2->3
-        Scheduler scheduler;
-        boost::asio::io_context io_service;
-        
         std::vector<std::shared_ptr<SimulatedMeshNode>> nodes;
         for (size_t i = 0; i < 4; ++i) {
             auto node = std::make_shared<SimulatedMeshNode>(

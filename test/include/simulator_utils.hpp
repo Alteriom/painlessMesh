@@ -66,6 +66,9 @@ public:
     /**
      * @brief Connect this node to another node
      * @param otherNode The node to connect to
+     * 
+     * Note: AsyncClient is allocated with new but ownership is transferred
+     * to the painlessmesh tcp layer which manages its lifetime.
      */
     void connectTo(SimulatedMeshNode &otherNode) {
         auto pClient = new AsyncClient(io_service);
@@ -197,8 +200,13 @@ public:
 
     /**
      * @brief Get a node by its node ID
+     * @param nodeId The mesh node ID
+     * @return Shared pointer to the node, or nullptr if not found
      */
     std::shared_ptr<SimulatedMeshNode> getByNodeId(uint32_t nodeId) {
+        if (nodeId < baseID || (nodeId - baseID) >= nodes.size()) {
+            return nullptr;
+        }
         return nodes[nodeId - baseID];
     }
 

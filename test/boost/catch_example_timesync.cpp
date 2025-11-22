@@ -28,8 +28,8 @@ SCENARIO("Time sync - nodes synchronize time after forming mesh") {
     boost::asio::io_context io_service;
 
     GIVEN("A mesh with nodes having random time offsets") {
-        auto dim = runif(8, 12);
-        SimulatedMeshNetwork network(&scheduler, dim, io_service);
+        auto nodeCount = runif(8, 12);
+        SimulatedMeshNetwork network(&scheduler, nodeCount, io_service);
 
         WHEN("The mesh first forms") {
             // Measure initial time differences
@@ -240,8 +240,8 @@ SCENARIO("Time sync - works with large meshes") {
     boost::asio::io_context io_service;
 
     GIVEN("A large mesh network") {
-        auto dim = runif(10, 15);
-        SimulatedMeshNetwork network(&scheduler, dim, io_service);
+        auto nodeCount = runif(10, 15);
+        SimulatedMeshNetwork network(&scheduler, nodeCount, io_service);
 
         WHEN("Large mesh synchronizes") {
             network.runFor(15000, 10);
