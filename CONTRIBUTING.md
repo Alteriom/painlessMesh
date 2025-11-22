@@ -18,6 +18,41 @@ NOTE: Tests *must* pass in order for the code to be merged.
 
 NOTE: Always do a `git pull` on `develop` before you start working to capture the latest changes.
 
+## Testing Requirements
+
+### Running Tests
+
+Before submitting a pull request, ensure all tests pass:
+
+```bash
+# Build tests
+cmake -G Ninja .
+ninja
+
+# Run all tests
+run-parts --regex catch_ bin/
+```
+
+### Adding Tests for New Features
+
+When adding new features or examples:
+
+1. **Unit Tests**: Add tests in `test/catch/` for new components
+2. **Example Tests**: Add simulator tests in `test/boost/` for new example sketches
+3. **Documentation**: Update test documentation in `test/README.md`
+
+See [Simulator Testing Guide](docs/development/SIMULATOR_TESTING.md) for detailed instructions on writing tests.
+
+### Example Validation
+
+All example sketches should have corresponding simulator tests that validate:
+- Basic functionality works as documented
+- Messages are delivered correctly
+- Callbacks fire as expected
+- Edge cases are handled properly
+
+This helps prevent regressions and ensures examples remain working references for users.
+
 ## Versioning
 
 This project will try its best to adhere to [semver](http://semver.org/) i.e, a codified guide to versioning software. When a new feature is developed or a bug is fixed the version will need to be bumped to signify the change. 
