@@ -83,9 +83,12 @@ class Nodes {
     for (auto &&m : nodes) m->stop();
   }
 
-  auto size() { return nodes.size(); }
+  size_t size() const { return nodes.size(); }
 
   std::shared_ptr<MeshTest> get(size_t nodeId) {
+    if (nodeId < baseID || (nodeId - baseID) >= nodes.size()) {
+      return nullptr;
+    }
     return nodes[nodeId - baseID];
   }
 
