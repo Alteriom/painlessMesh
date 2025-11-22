@@ -42,7 +42,7 @@ git submodule update --init simulator
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt-get install cmake ninja-build libboost-dev libyaml-cpp-dev
+sudo apt-get install cmake ninja-build libboost-dev libboost-program-options-dev libyaml-cpp-dev
 ```
 
 **macOS:**
@@ -314,7 +314,7 @@ simulator-tests:
     
     - name: Install dependencies
       run: |
-        sudo apt-get install cmake ninja-build libboost-dev libyaml-cpp-dev
+        sudo apt-get install cmake ninja-build libboost-dev libboost-program-options-dev libyaml-cpp-dev
     
     - name: Build simulator
       run: |

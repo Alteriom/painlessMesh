@@ -17,7 +17,7 @@ The simulator allows testing the basic example with 10+ virtual nodes without ph
 
 Install dependencies (Ubuntu/Debian):
 ```bash
-sudo apt-get install cmake ninja-build libboost-dev libyaml-cpp-dev
+sudo apt-get install cmake ninja-build libboost-dev libboost-program-options-dev libyaml-cpp-dev
 ```
 
 ### Initialize Submodule

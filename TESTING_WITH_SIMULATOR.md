@@ -8,7 +8,7 @@ This guide shows how to validate painlessMesh examples using the integrated simu
 
 ```bash
 # Ubuntu/Debian
-sudo apt-get install cmake ninja-build libboost-dev libyaml-cpp-dev
+sudo apt-get install cmake ninja-build libboost-dev libboost-program-options-dev libyaml-cpp-dev
 
 # macOS
 brew install cmake ninja boost yaml-cpp
