@@ -2,487 +2,247 @@
 
 ## Overview
 
-The painlessMesh library includes a comprehensive simulator-based testing framework that validates example sketches and library functionality in a controlled, deterministic environment. This framework uses Boost.Asio to create virtual mesh networks that can be tested without physical hardware.
-
-## Why Simulator Testing?
-
-Simulator testing provides several key advantages:
-
-- **Regression Prevention**: Automatically catches bugs before they reach production
-- **Example Validation**: Ensures all example sketches work as documented
-- **Deterministic Testing**: Reproducible tests without WiFi interference or hardware variability
-- **CI/CD Integration**: Runs automatically on every commit
-- **Fast Iteration**: Test complex mesh scenarios in seconds, not minutes
-- **Coverage**: Tests real mesh behavior including routing, time sync, and topology
+The painlessMesh library includes a Boost.Asio-based simulator for testing mesh functionality without physical hardware. The simulator classes (`MeshTest` and `Nodes`) were originally created for integration testing and have now been extracted into a reusable header (`mesh_simulator.hpp`) for testing all examples.
 
 ## Architecture
 
-### Components
+The simulator uses Boost.Asio to create virtual mesh nodes that communicate over TCP/IP on localhost. This provides:
 
-1. **Boost.Asio Networking**: Simulates TCP/IP connections between virtual nodes
-2. **SimulatedMeshNode**: Wraps painlessMesh with testing utilities
-3. **SimulatedMeshNetwork**: Manages multiple nodes in a test scenario
-4. **Test Utilities**: Helper functions for common testing patterns
+- **Deterministic testing**: No WiFi interference or hardware variability
+- **Fast execution**: Tests run in seconds instead of minutes
+- **Reproducible results**: Same code always produces same behavior
+- **Easy debugging**: All nodes run in same process
 
-### File Structure
+## Simulator Classes
 
-```
-test/
-├── boost/                          # Boost-based simulator tests
-│   ├── catch_example_basic.cpp     # Tests for basic.ino example
-│   ├── catch_example_starthere.cpp # Tests for startHere.ino example
-│   ├── catch_example_timesync.cpp  # Time synchronization tests
-│   └── tcp_integration.cpp         # Original integration tests
-├── include/
-│   └── simulator_utils.hpp         # Reusable simulator utilities
-└── catch/                          # Unit tests (Catch2)
-```
+### MeshTest
 
-## Using the Simulator
-
-### Basic Example
+`MeshTest` extends `painlessMesh::Mesh` with Boost.Asio networking:
 
 ```cpp
-#include "simulator_utils.hpp"
+MeshTest node(&scheduler, nodeId, io_context);
+node.connect(otherNode);  // Connect to another node
+node.sendBroadcast("Hello");
+node.sendSingle(targetId, "Direct message");
+```
 
-SCENARIO("Test message broadcasting") {
+### Nodes
+
+`Nodes` manages multiple `MeshTest` nodes, automatically connecting them into a mesh:
+
+```cpp
+Nodes n(&scheduler, 5, io_context);  // Create 5-node mesh
+
+// Access individual nodes
+n.nodes[0]->sendBroadcast("Message");
+
+// Update all nodes
+n.update();  // Updates all nodes and polls io_context
+
+// Clean shutdown
+n.stop();
+```
+
+## Writing Tests
+
+### Basic Pattern
+
+```cpp
+#include "mesh_simulator.hpp"
+
+SCENARIO("Example test") {
+    using namespace logger;
+    Log.setLogLevel(ERROR);
+
     Scheduler scheduler;
     boost::asio::io_context io_service;
-    
-    // Create a 3-node network
-    SimulatedMeshNetwork network(&scheduler, 3, io_service);
-    
-    // Wait for mesh formation
-    network.waitForFullMesh(5000);
-    
-    // Send a message
-    network[0]->sendBroadcast("Hello mesh!");
-    network.runFor(1000);
-    
-    // Verify delivery
-    REQUIRE(network[1]->getMessagesReceived() >= 1);
-    REQUIRE(network[2]->getLastMessage() == "Hello mesh!");
-}
-```
+    Nodes n(&scheduler, 3, io_service);
 
-### Advanced Example
-
-```cpp
-SCENARIO("Test time synchronization") {
-    Scheduler scheduler;
-    boost::asio::io_context io_service;
-    
-    // Create network with 8-12 random nodes
-    auto nodeCount = runif(8, 12);
-    SimulatedMeshNetwork network(&scheduler, nodeCount, io_service);
-    
-    // Measure initial time differences
-    int initialDiff = 0;
-    for (size_t i = 0; i < network.size() - 1; ++i) {
-        initialDiff += std::abs((int)network[0]->getNodeTime() -
-                               (int)network[i + 1]->getNodeTime());
+    // Let mesh form
+    for (auto i = 0; i < 5000; ++i) {
+        n.update();
+        delay(10);
     }
-    initialDiff /= network.size();
     
-    // Run time sync protocol
-    network.runFor(10000, 10);
+    // Verify topology
+    REQUIRE(layout::size(n.nodes[0]->asNodeTree()) == 3);
     
-    // Measure final time differences
-    int finalDiff = 0;
-    for (size_t i = 0; i < network.size() - 1; ++i) {
-        finalDiff += std::abs((int)network[0]->getNodeTime() -
-                             (int)network[i + 1]->getNodeTime());
-    }
-    finalDiff /= network.size();
-    
-    // Verify synchronization
-    REQUIRE(finalDiff < initialDiff);
-    REQUIRE(finalDiff < 10000); // Within 10ms average
-}
-```
-
-## API Reference
-
-### SimulatedMeshNode
-
-A test wrapper around painlessMesh with built-in tracking and utilities.
-
-#### Constructor
-
-```cpp
-SimulatedMeshNode(Scheduler *scheduler, size_t nodeId, 
-                  boost::asio::io_context &io)
-```
-
-#### Key Methods
-
-- `connectTo(SimulatedMeshNode &otherNode)` - Connect to another node
-- `setReceiveCallback(callback)` - Set custom message receive handler
-- `setConnectionCallback(callback)` - Set custom connection change handler
-- `getMessagesReceived()` - Get count of received messages
-- `getLastMessage()` - Get content of last received message
-- `getLastMessageFrom()` - Get sender ID of last message
-- `getConnectionsChanged()` - Get count of connection changes
-- `resetCounters()` - Reset all counters to zero
-
-### SimulatedMeshNetwork
-
-Manages a collection of simulated nodes forming a mesh network.
-
-#### Constructor
-
-```cpp
-SimulatedMeshNetwork(Scheduler *scheduler, size_t numNodes, 
-                    boost::asio::io_context &io, size_t baseId = 6481)
-```
-
-#### Key Methods
-
-- `update()` - Update all nodes (call in a loop)
-- `stop()` - Stop all nodes
-- `size()` - Get number of nodes
-- `operator[](size_t index)` - Get node by index
-- `getByNodeId(uint32_t nodeId)` - Get node by its mesh ID
-- `runFor(iterations, delayMs)` - Run simulation for N iterations
-- `waitForFullMesh(timeout)` - Wait until all nodes see full mesh
-- `waitUntil(condition, timeout)` - Wait until condition is met
-
-## Testing Patterns
-
-### 1. Mesh Formation
-
-```cpp
-GIVEN("A mesh network") {
-    SimulatedMeshNetwork network(&scheduler, 5, io_service);
-    
-    WHEN("Network stabilizes") {
-        bool formed = network.waitForFullMesh(10000);
-        
-        THEN("All nodes see full topology") {
-            REQUIRE(formed);
-            for (size_t i = 0; i < 5; ++i) {
-                REQUIRE(layout::size(network[i]->asNodeTree()) == 5);
-            }
-        }
-    }
-}
-```
-
-### 2. Message Delivery
-
-```cpp
-GIVEN("Connected nodes") {
-    SimulatedMeshNetwork network(&scheduler, 3, io_service);
-    network.waitForFullMesh(5000);
-    
-    WHEN("Message is broadcast") {
-        network[0]->sendBroadcast("Test message");
-        network.runFor(1000);
-        
-        THEN("All other nodes receive it") {
-            REQUIRE(network[1]->getLastMessage() == "Test message");
-            REQUIRE(network[2]->getLastMessage() == "Test message");
-        }
-    }
-}
-```
-
-### 3. Custom Callbacks
-
-```cpp
-GIVEN("Node with custom callback") {
-    SimulatedMeshNetwork network(&scheduler, 2, io_service);
-    
-    size_t callbackCount = 0;
-    std::string lastMsg;
-    
-    network[0]->setReceiveCallback([&](uint32_t from, std::string msg) {
-        callbackCount++;
-        lastMsg = msg;
+    // Test messaging
+    size_t received = 0;
+    n.nodes[1]->onReceive([&](uint32_t from, std::string msg) {
+        received++;
     });
     
-    WHEN("Messages arrive") {
-        network.waitForFullMesh(2000);
-        network[1]->sendBroadcast("Hello");
-        network.runFor(500);
-        
-        THEN("Callback is invoked") {
-            REQUIRE(callbackCount > 0);
-            REQUIRE(lastMsg == "Hello");
-        }
+    n.nodes[0]->sendBroadcast("Test");
+    
+    for (auto i = 0; i < 1000; ++i) {
+        n.update();
+        delay(10);
     }
+    
+    REQUIRE(received >= 1);
+    n.stop();
 }
 ```
 
-### 4. Time Synchronization
+### Testing Broadcasts
 
 ```cpp
-GIVEN("Mesh with time sync") {
-    SimulatedMeshNetwork network(&scheduler, 4, io_service);
-    
-    WHEN("Sync protocol runs") {
-        network.waitForFullMesh(5000);
-        network.runFor(10000, 10);
-        
-        THEN("Times converge") {
-            int maxDiff = 0;
-            for (size_t i = 1; i < 4; ++i) {
-                int diff = std::abs((int)network[0]->getNodeTime() -
-                                   (int)network[i]->getNodeTime());
-                maxDiff = std::max(maxDiff, diff);
-            }
-            REQUIRE(maxDiff < 50000); // Within 50ms
-        }
-    }
+Nodes n(&scheduler, 4, io_service);
+
+// Setup receivers
+size_t count[4] = {0};
+for (size_t i = 0; i < 4; ++i) {
+    n.nodes[i]->onReceive([&, i](uint32_t from, std::string msg) {
+        count[i]++;
+    });
 }
+
+// Send broadcast
+n.nodes[0]->sendBroadcast("Hello all");
+
+// Process messages
+for (auto i = 0; i < 1000; ++i) {
+    n.update();
+    delay(10);
+}
+
+// Verify delivery (sender doesn't receive own broadcast)
+REQUIRE(count[1] >= 1);
+REQUIRE(count[2] >= 1);
+REQUIRE(count[3] >= 1);
 ```
 
-### 5. Disconnection Handling
+### Testing Point-to-Point
 
 ```cpp
-GIVEN("Formed mesh") {
-    SimulatedMeshNetwork network(&scheduler, 3, io_service);
-    network.waitForFullMesh(5000);
-    
-    WHEN("Connection breaks") {
-        if (network[0]->subs.size() > 0) {
-            (*network[0]->subs.begin())->close();
-            network.runFor(1000);
-            
-            THEN("Topology updates") {
-                REQUIRE(layout::size(network[0]->asNodeTree()) < 3);
-            }
-        }
-    }
+Nodes n(&scheduler, 3, io_service);
+
+std::string received;
+n.nodes[2]->onReceive([&](uint32_t from, std::string msg) {
+    received = msg;
+});
+
+n.nodes[0]->sendSingle(n.nodes[2]->getNodeId(), "Direct");
+
+for (auto i = 0; i < 1000; ++i) {
+    n.update();
+    delay(10);
 }
+
+REQUIRE(received == "Direct");
 ```
 
-## Building and Running Tests
+### Testing Time Sync
+
+```cpp
+Nodes n(&scheduler, 10, io_service);
+
+// Initial time differences are large
+int initialDiff = 0;
+for (size_t i = 0; i < n.size() - 1; ++i) {
+    initialDiff += std::abs((int)n.nodes[0]->getNodeTime() -
+                           (int)n.nodes[i + 1]->getNodeTime());
+}
+initialDiff /= n.size();
+
+// Run time sync
+for (auto i = 0; i < 10000; ++i) {
+    n.update();
+    delay(10);
+}
+
+// Final differences are small
+int finalDiff = 0;
+for (size_t i = 0; i < n.size() - 1; ++i) {
+    finalDiff += std::abs((int)n.nodes[0]->getNodeTime() -
+                         (int)n.nodes[i + 1]->getNodeTime());
+}
+finalDiff /= n.size();
+
+REQUIRE(finalDiff < initialDiff);
+REQUIRE(finalDiff < 10000);  // Within 10ms average
+```
+
+## Building and Running
 
 ### Prerequisites
 
-- CMake 3.10+
-- Boost library (system component)
-- Ninja build system (optional but recommended)
+```bash
+sudo apt-get install cmake ninja-build libboost-system-dev
+```
 
-### Build Tests
+### Clone Dependencies
 
 ```bash
-# Clone dependencies if needed
 cd test
 git clone https://github.com/bblanchon/ArduinoJson.git
 git clone https://github.com/arkhipenko/TaskScheduler
 cd ..
+```
 
-# Configure and build
+### Build and Run
+
+```bash
 cmake -G Ninja .
 ninja
 
-# Or without Ninja
-cmake .
-make
-```
-
-### Run Tests
-
-```bash
-# Run all tests
-run-parts --regex catch_ bin/
-
 # Run specific test
 ./bin/catch_example_basic
-./bin/catch_example_starthere
-./bin/catch_example_timesync
 
-# Run with verbose output
-./bin/catch_example_basic -s
-
-# Run specific test case
-./bin/catch_example_basic "Basic example - message broadcasting works"
+# Run all tests
+run-parts --regex catch_ bin/
 ```
 
-### CI/CD Integration
+## Test Organization
 
-Tests run automatically on GitHub Actions for every commit:
+- `test/include/mesh_simulator.hpp` - Simulator class definitions
+- `test/boost/tcp_integration.cpp` - Original integration tests
+- `test/boost/catch_example_*.cpp` - Example validation tests
 
-```yaml
-# .github/workflows/ci.yml
-- name: Build tests
-  run: cmake -G Ninja . && ninja
+## Adding New Tests
 
-- name: Run tests
-  run: run-parts --regex catch_ bin/
-```
-
-## Writing New Tests
-
-### 1. Choose Test File
-
-- Use `test/boost/catch_example_*.cpp` for example validations
-- Use descriptive names matching the example being tested
-
-### 2. Follow the Pattern
-
-```cpp
-#define CATCH_CONFIG_MAIN
-#include "catch2/catch.hpp"
-#include "Arduino.h"
-#include "simulator_utils.hpp"
-
-WiFiClass WiFi;
-ESPClass ESP;
-
-using namespace painlessmesh;
-painlessmesh::logger::LogClass Log;
-
-SCENARIO("Descriptive test name") {
-    using namespace logger;
-    Log.setLogLevel(ERROR);
-    
-    Scheduler scheduler;
-    boost::asio::io_context io_service;
-    
-    GIVEN("Initial setup") {
-        // Setup code
-        
-        WHEN("Action occurs") {
-            // Test action
-            
-            THEN("Expected outcome") {
-                REQUIRE(/* assertion */);
-            }
-        }
-    }
-}
-```
-
-### 3. Add to CMakeLists.txt
+1. Create `test/boost/catch_example_yourtest.cpp`
+2. Include `mesh_simulator.hpp`
+3. Use `MeshTest` or `Nodes` classes
+4. Follow existing test patterns
+5. Add to `CMakeLists.txt`:
 
 ```cmake
-add_executable(catch_example_yourtest test/boost/catch_example_yourtest.cpp 
-               test/catch/fake_serial.cpp src/scheduler.cpp)
+add_executable(catch_example_yourtest 
+    test/boost/catch_example_yourtest.cpp 
+    test/catch/fake_serial.cpp src/scheduler.cpp)
 target_include_directories(catch_example_yourtest PUBLIC 
-                          test/include/ test/boost/ test/ArduinoJson/src/ 
-                          test/TaskScheduler/src/ src/)
+    test/include/ test/boost/ test/ArduinoJson/src/ 
+    test/TaskScheduler/src/ src/)
 TARGET_LINK_LIBRARIES(catch_example_yourtest ${Boost_LIBRARIES})
-```
-
-### 4. Test Your Test
-
-```bash
-ninja
-./bin/catch_example_yourtest -s
 ```
 
 ## Best Practices
 
-### 1. Use Descriptive Scenarios
-
-❌ Bad:
-```cpp
-SCENARIO("Test 1") {
-```
-
-✅ Good:
-```cpp
-SCENARIO("Basic example - message broadcasting works") {
-```
-
-### 2. Test One Concept Per Scenario
-
-Each SCENARIO should test a single, clear concept or feature.
-
-### 3. Use Appropriate Timeouts
-
-- Mesh formation: 5,000-10,000 iterations
-- Message delivery: 500-1,000 iterations
-- Time sync: 10,000+ iterations
-
-### 4. Clean Up Resources
-
-Always call `network.stop()` at the end of tests.
-
-### 5. Use Random Variations
-
-Use `runif()` to test with varying network sizes:
-
-```cpp
-auto nodeCount = runif(8, 12);
-SimulatedMeshNetwork network(&scheduler, nodeCount, io_service);
-```
-
-### 6. Check Both Success and Failure
-
-Test both expected successes and how failures are handled:
-
-```cpp
-WHEN("Connection breaks") {
-    // Test disconnection handling
-}
-```
+1. **Use appropriate timeouts**: Mesh formation needs 5000-10000 iterations
+2. **Call update() and delay()**: Use `n.update(); delay(10);` pattern
+3. **Clean up**: Always call `n.stop()` at test end
+4. **Set log level**: Use `Log.setLogLevel(ERROR);` to reduce noise
+5. **Test one concept per scenario**: Keep tests focused
 
 ## Troubleshooting
 
-### Test Hangs
+### Tests hang
+- Increase iteration count for mesh formation
+- Check that callbacks don't block
 
-If a test hangs, it's usually waiting for a condition that never occurs:
+### Messages not delivered
+- Ensure mesh has time to form before sending
+- Use sufficient iterations for message propagation
 
-- Reduce timeout values
-- Add debug logging: `Log.setLogLevel(ERROR | COMMUNICATION);`
-- Check if mesh formation succeeded with `waitForFullMesh()`
-
-### Flaky Tests
-
-If tests pass sometimes and fail others:
-
-- Increase iteration counts for mesh operations
-- Add delays between operations
-- Check for race conditions in callbacks
-
-### Build Errors
-
-If CMake can't find Boost:
-
-```bash
-# Ubuntu/Debian
-sudo apt-get install libboost-dev libboost-system-dev
-
-# macOS
-brew install boost
-
-# Windows
-# Download from boost.org or use vcpkg
-```
-
-## Examples Covered
-
-Current simulator tests cover:
-
-- ✅ `basic.ino` - Message broadcasting and callbacks
-- ✅ `startHere.ino` - Node lists, time sync, delay measurement
-- ✅ Time synchronization - Comprehensive sync validation
-
-### Planned Coverage
-
-- [ ] `bridge.ino` - Bridge to internet functionality
-- [ ] `bridge_failover` - Automatic bridge election
-- [ ] `otaSender`/`otaReceiver` - OTA updates
-- [ ] `priority` examples - Priority messaging
-- [ ] Alteriom examples - Custom package testing
-- [ ] MQTT examples - MQTT bridge functionality
-
-## Contributing
-
-When adding new examples to the repository:
-
-1. Create corresponding simulator tests
-2. Follow the patterns in existing test files
-3. Ensure tests pass locally before committing
-4. Document any special testing requirements
+### Build errors
+- Verify Boost is installed
+- Check test dependencies are cloned
+- Ensure CMake configuration succeeded
 
 ## References
 
-- [Catch2 Documentation](https://github.com/catchorg/Catch2)
-- [Boost.Asio Documentation](https://www.boost.org/doc/libs/release/doc/html/boost_asio.html)
-- [painlessMesh API](../../README.md)
-- [CONTRIBUTING.md](../../CONTRIBUTING.md)
+- Original simulator: `test/boost/tcp_integration.cpp`
+- Simulator header: `test/include/mesh_simulator.hpp`
+- Example tests: `test/boost/catch_example_*.cpp`
