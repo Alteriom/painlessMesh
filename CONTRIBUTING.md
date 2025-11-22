@@ -34,7 +34,7 @@ run-parts --regex catch_ bin/
 cd test/simulator
 mkdir build && cd build
 cmake -G Ninja .. && ninja
-./painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
+bin/painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
 ### Adding Tests for New Features

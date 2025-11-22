@@ -196,7 +196,7 @@ jobs:
         run: |
           cd test/simulator/build
           # Run with timeout to prevent hanging
-          timeout 120 ./painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml || echo "Simulator test completed with status $?"
+          timeout 120 bin/painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml || echo "Simulator test completed with status $?"
 
       - name: Upload simulator results
         if: always()

@@ -62,7 +62,7 @@ cmake -G Ninja ..
 ninja
 
 # Run basic example test
-./painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
+bin/painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
 ## Example Test Structure
@@ -101,7 +101,7 @@ validation:
 cd examples/basic/test/simulator
 mkdir build && cd build
 cmake -G Ninja .. && ninja
-./painlessmesh-simulator --config ../scenarios/basic_mesh_test.yaml
+bin/painlessmesh-simulator --config ../scenarios/basic_mesh_test.yaml
 ```
 
 ## Creating Tests for Your Example
@@ -176,7 +176,7 @@ Copy from `examples/basic/test/simulator/CMakeLists.txt` and adapt paths.
 
 ```bash
 cd test/simulator/build
-./painlessmesh-simulator --config ../../../examples/your_example/test/simulator/scenarios/your_test.yaml
+bin/painlessmesh-simulator --config ../../../examples/your_example/test/simulator/scenarios/your_test.yaml
 ```
 
 ## Test Scenarios
@@ -325,7 +325,7 @@ simulator-tests:
     - name: Run tests
       run: |
         cd test/simulator/build
-        ./painlessmesh-simulator --config \
+        bin/painlessmesh-simulator --config \
           ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 

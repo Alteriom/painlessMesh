@@ -38,14 +38,14 @@ cmake -G Ninja ..
 ninja
 
 # Run test scenario
-./painlessmesh-simulator --config ../scenarios/basic_mesh_test.yaml
+bin/painlessmesh-simulator --config ../scenarios/basic_mesh_test.yaml
 
 # Or using the simulator from test/simulator
 cd ../../../../test/simulator
 mkdir -p build && cd build
 cmake -G Ninja ..
 ninja
-./painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
+bin/painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
 ## Test Scenarios

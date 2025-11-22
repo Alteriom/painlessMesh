@@ -75,7 +75,7 @@ Tests for core mesh functionality:
 cd test/simulator
 mkdir build && cd build
 cmake -G Ninja .. && ninja
-./painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
+bin/painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
 See [SIMULATOR_TESTING.md](../docs/SIMULATOR_TESTING.md) for complete documentation.

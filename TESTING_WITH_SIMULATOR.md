@@ -35,7 +35,7 @@ cmake -G Ninja ..
 ninja
 
 # Run basic example validation
-./painlessmesh-simulator --config \
+bin/painlessmesh-simulator --config \
   ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
@@ -195,7 +195,7 @@ Add to `.github/workflows/ci.yml`:
 - name: Test examples with simulator
   run: |
     cd test/simulator/build
-    ./painlessmesh-simulator --config \
+    bin/painlessmesh-simulator --config \
       ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
@@ -231,7 +231,7 @@ simulation:
 
 Enable verbose logging:
 ```bash
-./painlessmesh-simulator --config test.yaml --verbose
+bin/painlessmesh-simulator --config test.yaml --verbose
 ```
 
 ## Documentation
