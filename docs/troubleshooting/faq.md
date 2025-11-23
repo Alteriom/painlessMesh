@@ -293,29 +293,130 @@ String createSecureMessage(String data) {
 
 ### Q: Can I connect the mesh to the internet?
 
-**A:** Yes, using bridge nodes:
+**A:** Yes, using bridge nodes. **Important:** Only the bridge node has internet access - regular mesh nodes do NOT have internet access.
 
+**Architecture:**
+```text
+Internet
+   |
+Router (WiFi)
+   |
+Bridge Node (AP+STA mode) ← Only this node has internet access
+   |
+Mesh Network
+ / | \
+Node1 Node2 Node3... ← These nodes do NOT have internet access
+```
+
+**Bridge Node Setup:**
 ```cpp
 // Bridge node connects to both mesh and internet
 void setup() {
-    // Connect to mesh
-    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    // Modern approach: Auto-detect channel and connect
+    mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                      ROUTER_SSID, ROUTER_PASSWORD,
+                      &userScheduler, MESH_PORT);
     
-    // Also connect to home WiFi
-    WiFi.begin("HomeWiFi", "password");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-    }
-    
-    Serial.println("Bridge node: Connected to both mesh and internet");
+    mesh.onReceive(&receivedCallback);
 }
 
 // Forward mesh data to internet services
-mesh.onReceive([](uint32_t from, String& msg) {
-    // Forward to HTTP server, MQTT broker, etc.
-    httpClient.POST("http://myserver.com/api/data", msg);
-});
+void receivedCallback(uint32_t from, String& msg) {
+    // Bridge forwards messages to HTTP server, MQTT broker, etc.
+    if (WiFi.status() == WL_CONNECTED) {
+        httpClient.POST("http://myserver.com/api/data", msg);
+    }
+}
 ```
+
+**Regular Nodes:**
+```cpp
+// Regular nodes send data TO the bridge (no direct internet access)
+void setup() {
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    mesh.onReceive(&receivedCallback);
+}
+
+void sendDataToInternet() {
+    // Regular nodes send to bridge, which forwards to internet
+    String data = "{\"sensor\":\"temp\",\"value\":25.5}";
+    mesh.sendSingle(bridgeNodeId, data);
+    // Bridge will forward this to internet services
+}
+```
+
+See [BRIDGE_TO_INTERNET.md](../../BRIDGE_TO_INTERNET.md) for complete documentation.
+
+### Q: Why can't my regular mesh nodes access the Internet / make HTTP requests?
+
+**A:** This is expected behavior. **Only the bridge node has internet access** - regular mesh nodes only communicate with other mesh nodes.
+
+**Why this happens:**
+
+ESP8266/ESP32 WiFi hardware can only operate on one channel at a time. In a mesh network:
+
+- **Bridge node** uses `WIFI_AP_STA` mode:
+  - Access Point (AP) for mesh on channel X
+  - Station (STA) connected to router on channel X
+  - Has internet access via router
+
+- **Regular nodes** use `WIFI_AP` mode:
+  - Access Point (AP) for mesh only
+  - No router connection
+  - No internet access
+
+**Solution - Forward through bridge:**
+
+```cpp
+// ==== BRIDGE NODE ====
+#include "HTTPClient.h"
+
+void receivedCallback(uint32_t from, String& msg) {
+    // Parse message from mesh nodes
+    DynamicJsonDocument doc(1024);
+    deserializeJson(doc, msg);
+    
+    // Forward to internet service
+    if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+        http.begin("http://api.example.com/data");
+        http.addHeader("Content-Type", "application/json");
+        http.POST(msg);
+        http.end();
+    }
+}
+
+// ==== REGULAR NODE ====
+void sendDataToCloud() {
+    // Create message
+    String msg = "{\"sensor\":\"temp\",\"value\":25.5}";
+    
+    // Send to bridge (NOT directly to internet!)
+    mesh.sendSingle(bridgeNodeId, msg);
+    
+    // Bridge will forward to internet service
+}
+```
+
+**Common mistake:**
+
+```cpp
+// ❌ This will NOT work on regular mesh nodes:
+HTTPClient http;
+http.begin("http://api.example.com/data");
+http.POST(data);  // ERROR: No internet connection!
+
+// ✅ Correct approach - send to bridge:
+mesh.sendSingle(bridgeNodeId, data);  // Bridge forwards to internet
+```
+
+**Architecture patterns:**
+
+1. **Single bridge**: One node connects to router, others forward through it
+2. **Bridge failover**: Multiple nodes have router credentials, automatic failover
+3. **Multi-bridge**: Multiple simultaneous bridges for load balancing
+
+See [BRIDGE_TO_INTERNET.md](../../BRIDGE_TO_INTERNET.md) and [BRIDGE_FAILOVER.md](../BRIDGE_FAILOVER.md).
 
 ### Q: Can I use MQTT with painlessMesh?
 

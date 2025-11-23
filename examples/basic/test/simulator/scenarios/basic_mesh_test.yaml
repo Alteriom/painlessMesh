@@ -1,0 +1,81 @@
+# Test scenario for basic.ino example
+# This validates that the basic example works correctly with multiple nodes
+
+simulation:
+  name: "Basic Example - Mesh Formation and Broadcasting"
+  description: "Validates basic.ino with 10 nodes forming a mesh and exchanging messages"
+  duration: 60  # seconds
+  time_scale: 1.0
+  seed: 12345
+
+network:
+  default_latency:
+    min_ms: 1
+    max_ms: 10
+  default_packet_loss:
+    rate: 0.0
+  default_bandwidth:
+    bits_per_second: 1000000
+
+nodes:
+  # Create individual nodes - simulator doesn't support template/count syntax
+  - id: "node1"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "whateverYouLike"
+      mesh_password: "somethingSneaky"
+      mesh_port: 5555
+      broadcast_interval: "1000"
+      broadcast_message: "Hello from node"
+  
+  - id: "node2"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "whateverYouLike"
+      mesh_password: "somethingSneaky"
+      mesh_port: 5555
+      broadcast_interval: "1000"
+      broadcast_message: "Hello from node"
+  
+  - id: "node3"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "whateverYouLike"
+      mesh_password: "somethingSneaky"
+      mesh_port: 5555
+      broadcast_interval: "1000"
+      broadcast_message: "Hello from node"
+  
+  - id: "node4"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "whateverYouLike"
+      mesh_password: "somethingSneaky"
+      mesh_port: 5555
+      broadcast_interval: "1000"
+      broadcast_message: "Hello from node"
+  
+  - id: "node5"
+    firmware: "SimpleBroadcast"
+    config:
+      mesh_prefix: "whateverYouLike"
+      mesh_password: "somethingSneaky"
+      mesh_port: 5555
+      broadcast_interval: "1000"
+      broadcast_message: "Hello from node"
+
+topology:
+  type: "mesh"  # Full mesh - all nodes connected
+
+# No events - nodes start automatically
+events: []
+
+# Metrics to collect
+metrics:
+  output: "basic_test_results.csv"
+  interval: 5
+  collect:
+    - "messages_sent"
+    - "messages_received"
+    - "bytes_sent"
+    - "bytes_received"

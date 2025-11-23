@@ -2,6 +2,34 @@
 
 This guide covers the most frequently encountered problems when working with painlessMesh and their solutions.
 
+## Architecture & Design Issues
+
+### Regular Nodes Cannot Access Internet / HTTP Requests Fail
+
+**Symptoms:**
+- HTTP/HTTPS requests fail with "connection refused"
+- `WiFi.status()` shows disconnected on regular mesh nodes
+- Internet services (APIs, WhatsApp bot, etc.) only work on bridge node
+
+**Cause:**
+
+This is **expected behavior**, not a bug. Only bridge nodes have internet access.
+
+**Solution:**
+
+See the dedicated guide for this common architecture mistake:
+
+📖 **[Common Architecture Mistakes](common-architecture-mistakes.md)**
+
+**Quick Summary:**
+
+painlessMesh uses a bridge-forwarding pattern:
+- **Bridge node**: Has internet access, forwards data to/from internet
+- **Regular nodes**: No internet access, send data to bridge
+- **Architecture**: Regular nodes → Bridge → Internet
+
+Regular nodes must send data to the bridge, which then forwards to internet services.
+
 ## Platform-Specific Issues
 
 ### ESP32-C6 Crashes on Startup

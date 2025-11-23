@@ -18,6 +18,50 @@ NOTE: Tests *must* pass in order for the code to be merged.
 
 NOTE: Always do a `git pull` on `develop` before you start working to capture the latest changes.
 
+## Testing Requirements
+
+### Running Tests
+
+Before submitting a pull request, ensure all tests pass:
+
+```bash
+# Build and run unit/integration tests
+cmake -G Ninja .
+ninja
+run-parts --regex catch_ bin/
+
+# Run simulator tests (for examples)
+cd test/simulator
+mkdir build && cd build
+cmake -G Ninja .. && ninja
+bin/painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
+```
+
+### Adding Tests for New Features
+
+When adding new features or examples:
+
+1. **Unit Tests**: Add tests in `test/catch/` for new components
+2. **Integration Tests**: Add to `test/boost/tcp_integration.cpp` for core functionality
+3. **Simulator Tests**: Create test scenarios in `examples/your_example/test/simulator/` for new examples
+4. **Documentation**: Update relevant test documentation
+
+### Example Validation with Simulator
+
+All example sketches should have simulator tests that validate behavior with multiple virtual nodes:
+
+1. Create firmware adapter in `examples/your_example/test/simulator/firmware/`
+2. Create YAML test scenarios in `examples/your_example/test/simulator/scenarios/`
+3. Document test setup in `examples/your_example/test/simulator/README.md`
+
+See [Simulator Testing Guide](docs/SIMULATOR_TESTING.md) for complete instructions.
+
+This ensures examples:
+- Work as documented with multiple nodes
+- Handle edge cases properly
+- Don't regress with library changes
+- Serve as validated references for users
+
 ## Versioning
 
 This project will try its best to adhere to [semver](http://semver.org/) i.e, a codified guide to versioning software. When a new feature is developed or a bug is fixed the version will need to be bumped to signify the change. 

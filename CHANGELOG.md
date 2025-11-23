@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.15] - 2025-11-23
+
+### Added
+
+- **Simulator Integration** - Integrated painlessMesh-simulator for automated example validation
+  - Added painlessMesh-simulator as git submodule at `test/simulator/`
+  - Created YAML-based test scenarios for example validation
+  - Configured CI/CD to automatically run simulator tests on every push/PR
+  - Validates mesh formation, message broadcasting, and time synchronization with 5+ virtual nodes
+  - Provides framework for testing with 100+ nodes without hardware
+  - Resolves GitHub issue #163
+  - Merged via PR #164
+
+### Documentation
+
+- **Release Readiness Assessment** - Created comprehensive release readiness plan
+  - `RELEASE_READINESS_PLAN.md` - Complete audit of test infrastructure, performance issues, and security
+  - Confirmed library is production-ready with all 119+ test assertions passing
+  - Documented Issue #161 resolution (architectural clarification, not a bug)
+  - `TESTING_WITH_SIMULATOR.md` - Quick start guide for simulator
+  - `docs/SIMULATOR_TESTING.md` - Complete simulator integration guide with CI details
+
+### Fixed
+
+- **Build System** - Fixed references to removed test files in CMakeLists.txt
+- **CI/CD** - Added missing libboost-program-options-dev dependency for simulator build
+- **Documentation** - Updated all simulator paths and dependency lists
+
 ## [1.8.14] - 2025-11-21
 
 ### Fixed

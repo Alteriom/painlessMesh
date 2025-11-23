@@ -4,3 +4,6 @@
 [submodule "test/TaskScheduler"]
 	path = test/TaskScheduler
 	url = https://github.com/arkhipenko/TaskScheduler
+[submodule "test/simulator"]
+	path = test/simulator
+	url = https://github.com/Alteriom/painlessMesh-simulator.git
