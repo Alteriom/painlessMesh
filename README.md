@@ -595,6 +595,8 @@ These are the message types used by applications built on painlessMesh:
 ## Getting Help
 
 - **[FAQ](docs/troubleshooting/faq.md)** - Common questions and solutions
+- **[Common Issues](docs/troubleshooting/common-issues.md)** - Troubleshooting guide
+- **[Common Architecture Mistakes](docs/troubleshooting/common-architecture-mistakes.md)** - Design patterns and pitfalls
 - **[Version Numbers FAQ](docs/FAQ_VERSION_NUMBERS.md)** - Understanding version numbers in header files
 - **[Version Management Guide](docs/VERSION_MANAGEMENT.md)** - Complete versioning documentation
 - **[GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)** - Bug reports and feature requests  
