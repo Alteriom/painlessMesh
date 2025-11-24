@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bridge Discovery** - Fixed regular nodes unable to discover bridge nodes in bridge failover examples
+  - **Root Cause**: Regular nodes were using default channel=1 instead of channel=0 (auto-detect)
+  - Bridge nodes operate on router's WiFi channel (e.g., channel 6), not channel 1
+  - Nodes on fixed channel cannot discover bridges on different channels
+  - **Solution**: Updated examples to use `channel=0` for automatic mesh channel detection
+  - **Affected Examples**: 
+    - `bridge_failover/bridge_failover.ino` - Both regular node and fallback initialization
+    - `multi_bridge/regular_node.ino` - Regular node initialization
+    - `bridgeAwareSensorNode/bridgeAwareSensorNode.ino` - Sensor node initialization
+  - **Documentation**: Added channel detection explanation to bridge_failover README
+  - **Impact**: Regular nodes now properly discover and connect to bridges regardless of router channel
+  - Users experiencing "No primary bridge available!" / "Known bridges: 0" should update to this version
+
 ## [1.8.15] - 2025-11-23
 
 ### Added

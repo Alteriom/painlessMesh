@@ -105,6 +105,29 @@ To prevent oscillation:
 #define INITIAL_BRIDGE  false
 ```
 
+### Channel Detection (Automatic)
+
+**Critical for Bridge Discovery:**
+
+Regular nodes **must** use channel auto-detection (channel=0) to discover bridges. This is because:
+
+1. Bridge nodes operate on the **router's WiFi channel** (e.g., channel 6)
+2. Regular nodes scanning on a fixed channel (e.g., channel 1) cannot see bridges on different channels
+3. Channel auto-detection scans all channels to find the mesh
+
+The example code automatically uses channel=0:
+```cpp
+// Regular node initialization with auto-detection
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
+//                                                                            ^ channel=0
+```
+
+**What happens:**
+- Node scans all WiFi channels (1-13) to find the mesh SSID
+- Detects the channel where the bridge/mesh is operating
+- Joins the mesh on that channel
+- Ensures proper bridge discovery and mesh connectivity
+
 ## Setup Instructions
 
 You can choose between two deployment modes:
