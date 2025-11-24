@@ -34,6 +34,12 @@
 // - Deterministic winner selection with tiebreakers
 // - Seamless promotion to bridge role
 // - Bridge takeover announcements
+// - Automatic mesh channel detection for bridge discovery
+//
+// Important Note:
+// Regular nodes MUST use channel auto-detection (channel=0) to discover
+// bridges that are operating on the router's WiFi channel. The example
+// automatically uses channel=0 for this purpose.
 //
 //************************************************************
 
@@ -132,7 +138,8 @@ void setup() {
       
       // Fallback: Initialize as regular node with bridge failover enabled
       // This allows automatic promotion to bridge when router becomes available
-      mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+      // channel=0 enables automatic mesh channel detection
+      mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
       mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);
       mesh.enableBridgeFailover(true);
       mesh.setElectionTimeout(5000);
@@ -143,8 +150,9 @@ void setup() {
     Serial.println("Mode: REGULAR NODE (Failover Enabled)");
     Serial.println("This node can become bridge via election\n");
     
-    // Initialize as regular node
-    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    // Initialize as regular node with auto-channel detection
+    // channel=0 enables automatic mesh channel detection
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
     
     // Configure for automatic bridge failover
     mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);

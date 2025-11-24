@@ -9,9 +9,13 @@
 // - Queues critical messages when Internet is unavailable
 // - Automatically sends queued messages when Internet returns
 // - Implements failover logic for multiple bridges
+// - Automatic channel detection for bridge discovery
 //
 // Use case: Fish farm monitoring system that needs to ensure
 // critical alarms are delivered even during Internet outages
+//
+// Important: Uses channel=0 for auto-detection to discover
+// bridges operating on the router's WiFi channel.
 //************************************************************
 
 #include "painlessTaskOptions.h"  // Must be first to configure TaskScheduler
@@ -61,9 +65,11 @@ Task taskCheckCritical(5000, TASK_FOREVER, &checkCriticalConditions);
 void setup() {
   Serial.begin(115200);
 
-  // Initialize mesh
+  // Initialize mesh with auto-channel detection
+  // channel=0 enables automatic mesh channel detection
+  // This is required to discover bridges that operate on the router's channel
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
   
   // Setup callbacks
   mesh.onReceive(&handleIncomingPackage);

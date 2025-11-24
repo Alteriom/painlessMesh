@@ -337,12 +337,19 @@ bool amBridge = mesh.isBridge();
 
 **Symptoms**: Regular nodes show "No primary bridge available!" and "Known bridges: 0"
 
+**Root Cause**: Regular nodes must use channel auto-detection (channel=0) to discover bridges on the router's channel.
+
 **Solutions**:
+- **CRITICAL**: Initialize regular nodes with `channel=0` for auto-detection:
+  ```cpp
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
+  ```
 - Verify bridge node successfully connected to router (check serial output)
 - Ensure mesh network name and password match on all nodes
 - Check that nodes are on the same WiFi channel as the router/bridge
 - Wait a few seconds after startup for initial discovery
 - Bridge now broadcasts immediately on startup and when nodes connect (fixed in v1.8.4+)
+- **Note**: The example code has been updated to use channel=0 by default
 
 ### Bridge Reports No Internet When Router Has Internet
 
