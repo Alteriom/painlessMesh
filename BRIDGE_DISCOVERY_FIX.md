@@ -245,6 +245,50 @@ To verify your fix is working:
 - **Fixed In**: Next release after PR merge
 - **Workaround**: Manually specify `channel=0` in affected examples
 
+## Split-Brain Race Condition Fix
+
+### Additional Issue Discovered
+
+During testing, a second issue was identified: when multiple nodes with `INITIAL_BRIDGE = false` start simultaneously, they can both become bridges and not see each other (split-brain scenario).
+
+**Root Cause**:
+1. Both nodes initialize as regular nodes
+2. After 60-second startup period, both detect "no bridge exists"
+3. Both trigger elections with short 1-3 second random delay
+4. If mesh hasn't formed yet, each runs an isolated election
+5. Each wins its own election and becomes a bridge
+6. Once bridges, they stop scanning for mesh nodes
+
+**Solution: Configurable Election Timing**
+
+Added new API methods to allow users to tune election timing:
+
+```cpp
+// Set startup delay before first election check
+// Longer delay allows more time for mesh formation
+mesh.setElectionStartupDelay(90000);  // 90 seconds (default: 60 seconds)
+
+// Set random delay range for elections
+// Longer delays reduce simultaneous election risk
+mesh.setElectionRandomDelay(10000, 30000);  // 10-30 seconds (default: 1-3 seconds)
+```
+
+**Recommended Settings for Simultaneous Startups**:
+```cpp
+mesh.setElectionStartupDelay(90000);      // 90 second startup delay
+mesh.setElectionRandomDelay(10000, 30000); // 10-30 second random delay
+```
+
+**Alternative Solutions**:
+- Stagger node startup by 10-20 seconds
+- Use pre-designated bridge mode (`INITIAL_BRIDGE = true` on one node)
+
 ## Summary
 
-The bridge discovery issue was caused by a channel mismatch between bridge nodes (using router's channel) and regular nodes (using default channel 1). The fix is simple: always use `channel=0` for regular nodes in bridge-enabled networks to enable automatic channel detection. This ensures nodes can discover and connect to bridges regardless of which WiFi channel the router is using.
+Two issues were addressed:
+
+1. **Channel Mismatch**: Bridge discovery failed because regular nodes scanned on channel 1 while bridges operated on router's channel. Fixed by using `channel=0` for automatic channel detection.
+
+2. **Split-Brain Race Condition**: Multiple nodes starting simultaneously could both become bridges. Fixed by adding configurable election timing parameters to allow sufficient time for mesh formation before elections start.
+
+Both fixes ensure reliable bridge failover operation in all deployment scenarios.

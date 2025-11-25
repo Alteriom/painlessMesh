@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Configurable Bridge Election Timing** - New API methods to prevent split-brain scenarios
+  - `setElectionStartupDelay(delayMs)` - Configure startup delay before first election (default: 60s, min: 10s)
+  - `setElectionRandomDelay(minMs, maxMs)` - Configure random delay range for elections (default: 1-3s)
+  - Longer delays allow more time for mesh formation when nodes start simultaneously
+  - Prevents race condition where multiple nodes become bridges in isolation
+  - All timing parameters are user-configurable without hard-coded values
+  - **Impact**: Users can now tune election timing for their specific deployment scenarios
+
 ### Fixed
 
 - **Bridge Discovery** - Fixed regular nodes unable to discover bridge nodes in bridge failover examples
@@ -18,9 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `bridge_failover/bridge_failover.ino` - Both regular node and fallback initialization
     - `multi_bridge/regular_node.ino` - Regular node initialization
     - `bridgeAwareSensorNode/bridgeAwareSensorNode.ino` - Sensor node initialization
+    - `ntpTimeSyncNode/ntpTimeSyncNode.ino` - Time sync node initialization
   - **Documentation**: Added channel detection explanation to bridge_failover README
   - **Impact**: Regular nodes now properly discover and connect to bridges regardless of router channel
   - Users experiencing "No primary bridge available!" / "Known bridges: 0" should update to this version
+
+- **Split-Brain Prevention** - Addressed race condition when multiple nodes start simultaneously
+  - **Root Cause**: 60-63s window insufficient for mesh formation before elections start
+  - Both nodes detect "no bridge", run isolated elections, each wins and becomes bridge
+  - **Solution**: Added configurable timing parameters (see Added section above)
+  - **Documentation**: Added comprehensive troubleshooting section to bridge_failover README
+  - **Recommended Settings**: 90s startup delay + 10-30s random delay for simultaneous startups
+  - **Alternative**: Stagger node startup by 10-20 seconds or use pre-designated bridge mode
 
 ## [1.8.15] - 2025-11-23
 

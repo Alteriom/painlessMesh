@@ -162,6 +162,14 @@ void setup() {
     // Optional: Set minimum RSSI for isolated bridge elections (default: -80 dBm)
     // This prevents nodes with poor signal from becoming bridges when isolated
     // mesh.setMinimumBridgeRSSI(-80);  // Uncomment to customize threshold
+    
+    // Optional: Configure election timing to prevent split-brain when nodes start simultaneously
+    // Longer startup delay allows more time for mesh formation before elections begin
+    // mesh.setElectionStartupDelay(90000);  // 90 seconds (default: 60 seconds)
+    
+    // Optional: Increase random delay to reduce simultaneous election risk
+    // Longer delays provide more mesh discovery time when multiple nodes detect missing bridge
+    // mesh.setElectionRandomDelay(10000, 30000);  // 10-30 seconds (default: 1-3 seconds)
   }
 
   // Register callbacks
