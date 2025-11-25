@@ -105,6 +105,29 @@ To prevent oscillation:
 #define INITIAL_BRIDGE  false
 ```
 
+### Channel Detection (Automatic)
+
+**Critical for Bridge Discovery:**
+
+Regular nodes **must** use channel auto-detection (channel=0) to discover bridges. This is because:
+
+1. Bridge nodes operate on the **router's WiFi channel** (e.g., channel 6)
+2. Regular nodes scanning on a fixed channel (e.g., channel 1) cannot see bridges on different channels
+3. Channel auto-detection scans all channels to find the mesh
+
+The example code automatically uses channel=0:
+```cpp
+// Regular node initialization with auto-detection
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
+//                                                                            ^ channel=0
+```
+
+**What happens:**
+- Node scans all WiFi channels (1-13) to find the mesh SSID
+- Detects the channel where the bridge/mesh is operating
+- Joins the mesh on that channel
+- Ensures proper bridge discovery and mesh connectivity
+
 ## Setup Instructions
 
 You can choose between two deployment modes:
@@ -237,6 +260,14 @@ mesh.setElectionTimeout(5000);
 // Prevents nodes with poor signal from becoming bridges when isolated
 mesh.setMinimumBridgeRSSI(-80);
 
+// Set startup delay before first election check (default: 60000 ms = 60 seconds)
+// Longer delays allow more time for mesh formation, reducing split-brain risk
+mesh.setElectionStartupDelay(90000);  // 90 seconds
+
+// Set random delay range for elections (default: 1000-3000 ms)
+// Longer delays reduce simultaneous election risk when multiple nodes start together
+mesh.setElectionRandomDelay(10000, 30000);  // 10-30 seconds
+
 // Set bridge status broadcast interval
 mesh.setBridgeStatusInterval(30000);
 
@@ -337,12 +368,62 @@ bool amBridge = mesh.isBridge();
 
 **Symptoms**: Regular nodes show "No primary bridge available!" and "Known bridges: 0"
 
+**Root Cause**: Regular nodes must use channel auto-detection (channel=0) to discover bridges on the router's channel.
+
 **Solutions**:
+- **CRITICAL**: Initialize regular nodes with `channel=0` for auto-detection:
+  ```cpp
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
+  ```
 - Verify bridge node successfully connected to router (check serial output)
 - Ensure mesh network name and password match on all nodes
 - Check that nodes are on the same WiFi channel as the router/bridge
 - Wait a few seconds after startup for initial discovery
 - Bridge now broadcasts immediately on startup and when nodes connect (fixed in v1.8.4+)
+- **Note**: The example code has been updated to use channel=0 by default
+
+### Split-Brain Scenario (Multiple Bridges)
+
+**Symptoms**: When nodes start simultaneously, both become bridges and don't see each other
+
+**Root Cause**: Race condition - both nodes detect "no bridge" after startup period, run isolated elections, each wins their own election and becomes a bridge.
+
+**Why This Happens**:
+1. Both nodes initialize as regular nodes with `INITIAL_BRIDGE = false`
+2. After 60s startup period, both detect "no bridge exists"
+3. Both trigger elections with short 1-3s random delay
+4. If mesh connection hasn't formed yet, each runs an isolated election
+5. Each node wins its own election and becomes a bridge
+6. Once both are bridges, they stop scanning for mesh nodes
+
+**Solutions**:
+
+**Option 1: Increase Startup Delay (Recommended)**
+```cpp
+// Allow more time for mesh formation before elections start
+mesh.setElectionStartupDelay(90000);  // 90 seconds instead of default 60 seconds
+```
+
+**Option 2: Increase Random Election Delay**
+```cpp
+// Provide more mesh discovery time when elections trigger
+mesh.setElectionRandomDelay(10000, 30000);  // 10-30 seconds instead of 1-3 seconds
+```
+
+**Option 3: Combine Both**
+```cpp
+mesh.setElectionStartupDelay(90000);      // 90 second startup delay
+mesh.setElectionRandomDelay(10000, 30000); // 10-30 second random delay
+```
+
+**Option 4: Stagger Node Startup**
+- Power on nodes 10-20 seconds apart
+- First node establishes mesh, second node discovers it
+
+**Option 5: Use Pre-Designated Bridge**
+- Set `INITIAL_BRIDGE = true` on one node only
+- Guarantees single bridge from startup
+- Good for fixed deployments
 
 ### Bridge Reports No Internet When Router Has Internet
 

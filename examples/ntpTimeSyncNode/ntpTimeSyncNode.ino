@@ -89,9 +89,11 @@ Task taskStatus(30000, TASK_FOREVER, [](){
 void setup() {
   Serial.begin(115200);
   
-  // Initialize mesh
+  // Initialize mesh with auto-channel detection
+  // channel=0 enables automatic mesh channel detection
+  // This is required to discover bridges that operate on the router's channel
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
   
   // Set callbacks
   mesh.onReceive(&receivedCallback);
@@ -101,7 +103,7 @@ void setup() {
   taskStatus.enable();
   
   Serial.println("Regular mesh node initialized");
-  Serial.println("Listening for NTP time broadcasts...");
+  Serial.println("Listening for NTP time broadcasts from bridge...");
 }
 
 void loop() {

@@ -6,10 +6,13 @@
 // for Internet connectivity.
 //
 // Features demonstrated:
-// - Automatic bridge discovery
+// - Automatic bridge discovery with channel auto-detection
 // - Bridge selection awareness
 // - Message routing to best available bridge
 // - Failover handling
+//
+// Important: Regular nodes use channel=0 for auto-detection to
+// discover bridges operating on the router's WiFi channel.
 //************************************************************
 
 #include "painlessMesh.h"
@@ -114,10 +117,12 @@ void setup() {
   
   Serial.println("\n\n=== Multi-Bridge: REGULAR NODE ===\n");
   
-  // Initialize as regular mesh node
+  // Initialize as regular mesh node with auto-channel detection
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
   
-  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+  // channel=0 enables automatic mesh channel detection
+  // This is required to discover bridges that operate on the router's channel
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
   
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);

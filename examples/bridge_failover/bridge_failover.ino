@@ -34,6 +34,12 @@
 // - Deterministic winner selection with tiebreakers
 // - Seamless promotion to bridge role
 // - Bridge takeover announcements
+// - Automatic mesh channel detection for bridge discovery
+//
+// Important Note:
+// Regular nodes MUST use channel auto-detection (channel=0) to discover
+// bridges that are operating on the router's WiFi channel. The example
+// automatically uses channel=0 for this purpose.
 //
 //************************************************************
 
@@ -132,7 +138,8 @@ void setup() {
       
       // Fallback: Initialize as regular node with bridge failover enabled
       // This allows automatic promotion to bridge when router becomes available
-      mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+      // channel=0 enables automatic mesh channel detection
+      mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
       mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);
       mesh.enableBridgeFailover(true);
       mesh.setElectionTimeout(5000);
@@ -143,8 +150,9 @@ void setup() {
     Serial.println("Mode: REGULAR NODE (Failover Enabled)");
     Serial.println("This node can become bridge via election\n");
     
-    // Initialize as regular node
-    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    // Initialize as regular node with auto-channel detection
+    // channel=0 enables automatic mesh channel detection
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
     
     // Configure for automatic bridge failover
     mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);
@@ -154,6 +162,14 @@ void setup() {
     // Optional: Set minimum RSSI for isolated bridge elections (default: -80 dBm)
     // This prevents nodes with poor signal from becoming bridges when isolated
     // mesh.setMinimumBridgeRSSI(-80);  // Uncomment to customize threshold
+    
+    // Optional: Configure election timing to prevent split-brain when nodes start simultaneously
+    // Longer startup delay allows more time for mesh formation before elections begin
+    // mesh.setElectionStartupDelay(90000);  // 90 seconds (default: 60 seconds)
+    
+    // Optional: Increase random delay to reduce simultaneous election risk
+    // Longer delays provide more mesh discovery time when multiple nodes detect missing bridge
+    // mesh.setElectionRandomDelay(10000, 30000);  // 10-30 seconds (default: 1-3 seconds)
   }
 
   // Register callbacks

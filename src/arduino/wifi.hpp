@@ -168,8 +168,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         return;
       }
       
-      // Skip check during startup period (60 seconds) to allow initial bridge discovery
-      if (millis() < 60000) {
+      // Skip check during startup period to allow initial bridge discovery
+      if (millis() < electionStartupDelayMs) {
         return;
       }
       
@@ -185,8 +185,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       // If no healthy bridge exists, trigger an election
       if (!hasHealthyBridge) {
         Log(CONNECTION, "Bridge monitor: No healthy bridge detected, triggering election\n");
-        // Small delay to randomize election start across nodes
-        uint32_t randomDelay = random(1000, 3000);
+        // Random delay to prevent simultaneous elections when multiple nodes start together
+        uint32_t randomDelay = random(electionRandomDelayMinMs, electionRandomDelayMaxMs);
+        Log(CONNECTION, "Bridge monitor: Scheduling election in %u ms\n", randomDelay);
         this->addTask(randomDelay, TASK_ONCE, [this]() {
           this->startBridgeElection();
         });
@@ -553,6 +554,37 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     if (minRSSI < -100) minRSSI = -100;
     if (minRSSI > -30) minRSSI = -30;
     minimumBridgeRSSI = minRSSI;
+  }
+
+  /**
+   * Set the startup delay before first bridge election check
+   * 
+   * Allows time for mesh network formation before starting bridge elections.
+   * Longer delays reduce the risk of split-brain scenarios when multiple nodes
+   * start simultaneously, ensuring nodes discover each other before elections.
+   * 
+   * @param delayMs Startup delay in milliseconds (default: 60000 = 60 seconds, min: 10000)
+   */
+  void setElectionStartupDelay(uint32_t delayMs) {
+    if (delayMs < 10000) delayMs = 10000;  // Minimum 10 seconds
+    electionStartupDelayMs = delayMs;
+  }
+
+  /**
+   * Set the random delay range for bridge elections
+   * 
+   * When multiple nodes detect missing bridge simultaneously, randomized delays
+   * prevent all nodes from starting elections at the same instant. Longer delays
+   * provide more time for mesh discovery and reduce split-brain risk.
+   * 
+   * @param minMs Minimum random delay in milliseconds (default: 1000 = 1 second)
+   * @param maxMs Maximum random delay in milliseconds (default: 3000 = 3 seconds)
+   */
+  void setElectionRandomDelay(uint32_t minMs, uint32_t maxMs) {
+    if (minMs < 100) minMs = 100;  // Minimum 100ms
+    if (maxMs < minMs) maxMs = minMs + 1000;  // Ensure max > min
+    electionRandomDelayMinMs = minMs;
+    electionRandomDelayMaxMs = maxMs;
   }
 
   /**
@@ -1564,6 +1596,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   TSTRING routerPassword = "";
   uint32_t electionTimeoutMs = 5000;  // Default 5 seconds
   int8_t minimumBridgeRSSI = -80;  // Default -80 dBm minimum for isolated elections
+  uint32_t electionStartupDelayMs = 60000;  // Default 60 seconds before first election check
+  uint32_t electionRandomDelayMinMs = 1000;  // Default min 1 second random delay
+  uint32_t electionRandomDelayMaxMs = 3000;  // Default max 3 seconds random delay
   uint32_t lastRoleChangeTime = 0;
   ElectionState electionState = ELECTION_IDLE;
   uint32_t electionDeadline = 0;
