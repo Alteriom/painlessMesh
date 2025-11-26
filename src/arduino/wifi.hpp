@@ -8,6 +8,7 @@
 #include "painlessMeshSTA.h"
 
 #include "painlessmesh/callback.hpp"
+#include "painlessmesh/gateway.hpp"
 #include "painlessmesh/mesh.hpp"
 #include "painlessmesh/router.hpp"
 #include "painlessmesh/tcp.hpp"
@@ -383,6 +384,150 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
     
     return success;
+  }
+
+  /**
+   * Initialize mesh as a shared gateway node
+   * 
+   * This method initializes all mesh nodes in AP+STA mode with router
+   * connectivity. Unlike initAsBridge() which creates a single bridge node,
+   * initAsSharedGateway() allows all nodes to connect to the router while
+   * maintaining mesh communication.
+   * 
+   * Key features:
+   * - All nodes operate in AP+STA mode
+   * - All nodes connect to the same router
+   * - Mesh and router operate on the same channel for reliability
+   * - Automatic router reconnection on disconnect
+   * - Channel synchronization between mesh and router
+   * 
+   * @param meshPrefix The name prefix for the mesh network
+   * @param meshPassword WiFi password for the mesh network
+   * @param routerSSID SSID of the router to connect to
+   * @param routerPassword Password for the router
+   * @param userScheduler Task scheduler for mesh operations
+   * @param port TCP port for mesh communication (default: 5555)
+   * @param config SharedGatewayConfig with advanced settings (optional)
+   * @return true if initialization succeeded, false otherwise
+   */
+  bool initAsSharedGateway(TSTRING meshPrefix, TSTRING meshPassword,
+                           TSTRING routerSSID, TSTRING routerPassword,
+                           Scheduler *userScheduler, uint16_t port = 5555,
+                           gateway::SharedGatewayConfig config = gateway::SharedGatewayConfig()) {
+    using namespace logger;
+    
+    Log(STARTUP, "=== Shared Gateway Mode Initialization ===\n");
+    
+    // Validate configuration if enabled
+    if (config.enabled) {
+      auto result = config.validate();
+      if (!result.valid) {
+        Log(ERROR, "initAsSharedGateway(): Config validation failed: %s\n",
+            result.errorMessage.c_str());
+        return false;
+      }
+    }
+    
+    // Store shared gateway configuration
+    _sharedGatewayConfig = config;
+    _sharedGatewayConfig.routerSSID = routerSSID;
+    _sharedGatewayConfig.routerPassword = routerPassword;
+    _sharedGatewayConfig.enabled = true;
+    _sharedGatewayMode = true;
+    
+    Log(STARTUP, "Step 1: Scanning for router %s to detect channel...\n", routerSSID.c_str());
+    
+    // Step 1: Scan for router to detect its channel
+    // We need to ensure mesh and router operate on the same channel
+    if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
+    
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+    WiFi.setAutoReconnect(false);
+    Log(STARTUP, "initAsSharedGateway(): AutoReconnect disabled\n");
+#else
+    WiFi.setAutoConnect(false);
+    Log(STARTUP, "initAsSharedGateway(): AutoConnect disabled\n");
+#endif
+    WiFi.persistent(false);
+    WiFi.mode(WIFI_STA);
+    
+    // Connect to router to detect channel
+    WiFi.begin(routerSSID.c_str(), routerPassword.c_str());
+    
+    // Wait for connection with timeout (using constant for configurability)
+    int timeout = ROUTER_CONNECTION_TIMEOUT_SECONDS;
+    while (WiFi.status() != WL_CONNECTED && timeout > 0) {
+      delay(1000);
+      timeout--;
+      Log(STARTUP, ".");
+    }
+    
+    uint8_t detectedChannel = 1;  // Default fallback
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      detectedChannel = WiFi.channel();
+      // Validate channel is in valid range (1-14 for 2.4GHz, region-dependent)
+      if (detectedChannel < MIN_WIFI_CHANNEL || detectedChannel > MAX_WIFI_CHANNEL) {
+        Log(ERROR, "\n✗ Invalid channel detected: %d, falling back to channel 1\n", detectedChannel);
+        detectedChannel = 1;
+      } else {
+        Log(STARTUP, "\n✓ Router connected on channel %d\n", detectedChannel);
+        Log(STARTUP, "✓ Router IP: %s\n", WiFi.localIP().toString().c_str());
+      }
+    } else {
+      Log(ERROR, "\n✗ Failed to connect to router during channel detection\n");
+      Log(ERROR, "Continuing with default channel 1, will retry router connection later\n");
+    }
+    
+    // Disconnect from router, we'll reconnect after mesh init
+    WiFi.disconnect();
+    delay(100);
+    
+    Log(STARTUP, "Step 2: Initializing mesh on channel %d...\n", detectedChannel);
+    
+    // Step 2: Initialize mesh on detected channel with AP+STA mode
+    // Set scheduler before init
+    this->setScheduler(userScheduler);
+    init(meshPrefix, meshPassword, port, WIFI_AP_STA, detectedChannel, 0, MAX_CONN);
+    
+    Log(STARTUP, "Step 3: Establishing router connection in shared gateway mode...\n");
+    
+    // Step 3: Establish router connection using stationManual
+    // Port 0 means we don't expect TCP mesh connection to the router
+    stationManual(routerSSID, routerPassword, 0);
+    
+    // Step 4: Setup router connection monitoring and reconnection logic
+    initSharedGatewayMonitoring();
+    
+    // Store router credentials for reconnection
+    setRouterCredentials(routerSSID, routerPassword);
+    
+    Log(STARTUP, "=== Shared Gateway Mode Active ===\n");
+    Log(STARTUP, "  Mesh Prefix: %s\n", meshPrefix.c_str());
+    Log(STARTUP, "  Mesh Channel: %d (synced with router)\n", detectedChannel);
+    Log(STARTUP, "  Router: %s\n", routerSSID.c_str());
+    Log(STARTUP, "  Port: %d\n", port);
+    Log(STARTUP, "  Mode: AP+STA (all nodes can connect to router)\n");
+    
+    return true;
+  }
+
+  /**
+   * Check if shared gateway mode is enabled
+   * 
+   * @return true if node is operating in shared gateway mode
+   */
+  bool isSharedGatewayMode() const {
+    return _sharedGatewayMode;
+  }
+
+  /**
+   * Get the shared gateway configuration
+   * 
+   * @return const reference to the SharedGatewayConfig
+   */
+  const gateway::SharedGatewayConfig& getSharedGatewayConfig() const {
+    return _sharedGatewayConfig;
   }
 
   /**
@@ -1617,6 +1762,154 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   std::vector<uint32_t> knownBridgePeers;  // List of peer bridge node IDs
   uint32_t selectedBridgeOverride = 0;  // Manual bridge selection override
   size_t lastSelectedBridgeIndex = 0;  // For round-robin selection
+
+  // Shared gateway mode state and configuration
+  bool _sharedGatewayMode = false;
+  gateway::SharedGatewayConfig _sharedGatewayConfig;
+  std::shared_ptr<Task> _sharedGatewayMonitorTask;
+  uint32_t _lastRouterReconnectAttempt = 0;
+  uint8_t _routerReconnectAttempts = 0;
+  static const uint8_t MAX_ROUTER_RECONNECT_ATTEMPTS = 10;
+  static const uint32_t ROUTER_RECONNECT_BASE_INTERVAL = 5000;  // 5 seconds base interval
+  static const uint32_t ROUTER_RECONNECT_MAX_INTERVAL = 300000; // 5 minutes max interval
+  static const int ROUTER_CONNECTION_TIMEOUT_SECONDS = 30;      // Router connection timeout
+  static const uint8_t MIN_WIFI_CHANNEL = 1;
+  static const uint8_t MAX_WIFI_CHANNEL = 14;  // Support channels 1-14 for regions that allow it
+
+  /**
+   * Initialize shared gateway monitoring
+   * 
+   * Sets up periodic monitoring of router connection and automatic
+   * reconnection logic for shared gateway mode.
+   */
+  void initSharedGatewayMonitoring() {
+    using namespace logger;
+    
+    if (!_sharedGatewayMode) {
+      return;
+    }
+    
+    Log(STARTUP, "initSharedGatewayMonitoring(): Setting up router connection monitoring\n");
+    
+    // Add callback for router disconnection in shared gateway mode
+    this->droppedConnectionCallbacks.push_back(
+        [this](uint32_t nodeId, bool station) {
+          if (station && _sharedGatewayMode) {
+            Log(CONNECTION, "Router disconnected in shared gateway mode, scheduling reconnection\n");
+            scheduleRouterReconnect();
+          }
+        });
+    
+    // Create periodic monitoring task
+    _sharedGatewayMonitorTask = this->addTask(
+        _sharedGatewayConfig.internetCheckInterval,
+        TASK_FOREVER,
+        [this]() {
+          monitorRouterConnection();
+        });
+    
+    Log(STARTUP, "Router connection monitoring enabled (interval: %u ms)\n",
+        _sharedGatewayConfig.internetCheckInterval);
+  }
+
+  /**
+   * Monitor router connection in shared gateway mode
+   * 
+   * Checks router connectivity and triggers reconnection if needed.
+   */
+  void monitorRouterConnection() {
+    using namespace logger;
+    
+    if (!_sharedGatewayMode) {
+      return;
+    }
+    
+    bool isConnected = (WiFi.status() == WL_CONNECTED) && 
+                       (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+    
+    if (!isConnected) {
+      Log(CONNECTION, "monitorRouterConnection(): Router connection lost, triggering reconnect\n");
+      scheduleRouterReconnect();
+    } else {
+      // Connection is healthy, reset reconnect attempts
+      _routerReconnectAttempts = 0;
+      
+      // Log periodic status
+      Log(GENERAL, "monitorRouterConnection(): Router connected (RSSI: %d dBm, IP: %s)\n",
+          WiFi.RSSI(), WiFi.localIP().toString().c_str());
+    }
+  }
+
+  /**
+   * Schedule router reconnection with exponential backoff
+   */
+  void scheduleRouterReconnect() {
+    using namespace logger;
+    
+    if (!_sharedGatewayMode) {
+      return;
+    }
+    
+    // Don't schedule if already connected
+    if (WiFi.status() == WL_CONNECTED) {
+      return;
+    }
+    
+    // Limit reconnection attempts
+    if (_routerReconnectAttempts >= MAX_ROUTER_RECONNECT_ATTEMPTS) {
+      Log(ERROR, "scheduleRouterReconnect(): Max reconnection attempts reached (%d)\n",
+          MAX_ROUTER_RECONNECT_ATTEMPTS);
+      Log(ERROR, "Router reconnection suspended. Manual intervention may be required.\n");
+      return;
+    }
+    
+    // Calculate delay with exponential backoff, preventing overflow
+    // Limit shift amount to prevent overflow (5000 * 2^6 = 320000 is safe)
+    uint8_t shiftAmount = (_routerReconnectAttempts > 6) ? 6 : _routerReconnectAttempts;
+    uint32_t delay = ROUTER_RECONNECT_BASE_INTERVAL * (1UL << shiftAmount);
+    if (delay > ROUTER_RECONNECT_MAX_INTERVAL) delay = ROUTER_RECONNECT_MAX_INTERVAL;
+    
+    // Don't reconnect too frequently
+    uint32_t now = millis();
+    if (now - _lastRouterReconnectAttempt < delay) {
+      return;
+    }
+    
+    _routerReconnectAttempts++;
+    _lastRouterReconnectAttempt = now;
+    
+    Log(CONNECTION, "scheduleRouterReconnect(): Attempting reconnection (attempt %d/%d, delay %u ms)\n",
+        _routerReconnectAttempts, MAX_ROUTER_RECONNECT_ATTEMPTS, delay);
+    
+    // Schedule reconnection
+    this->addTask(delay, TASK_ONCE, [this]() {
+      attemptRouterReconnect();
+    });
+  }
+
+  /**
+   * Attempt to reconnect to the router
+   */
+  void attemptRouterReconnect() {
+    using namespace logger;
+    
+    if (!_sharedGatewayMode) {
+      return;
+    }
+    
+    // Check if already connected
+    if (WiFi.status() == WL_CONNECTED) {
+      Log(CONNECTION, "attemptRouterReconnect(): Already connected to router\n");
+      _routerReconnectAttempts = 0;
+      return;
+    }
+    
+    Log(CONNECTION, "attemptRouterReconnect(): Reconnecting to router %s...\n",
+        _sharedGatewayConfig.routerSSID.c_str());
+    
+    // Use stationManual to reconnect (port 0 means no TCP mesh connection to router)
+    stationManual(_sharedGatewayConfig.routerSSID, _sharedGatewayConfig.routerPassword, 0);
+  }
 };
 }  // namespace wifi
 };  // namespace painlessmesh
