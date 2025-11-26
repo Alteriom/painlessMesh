@@ -190,6 +190,10 @@ struct SharedGatewayConfig {
     uint32_t gatewayHeartbeatInterval = 15000; // Primary gateway heartbeat
     uint32_t gatewayFailureTimeout = 45000;    // Consider gateway failed after 45s
     bool participateInElection = true;         // Whether this node can be primary
+    
+    // Message priority for relayed messages (default: CRITICAL/highest)
+    uint8_t relayedMessagePriority = 0;        // 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
+    bool maintainPermanentConnection = true;   // Keep router connection always active
 };
 ```
 
@@ -507,6 +511,8 @@ Node A's Internet fails, routes through Node B (primary gateway):
 | `maxTrackedMessages` | uint16_t | 500 | Maximum tracked messages |
 | `gatewayHeartbeatInterval` | uint32_t | 15000 | Primary gateway heartbeat frequency (ms) |
 | `gatewayFailureTimeout` | uint32_t | 45000 | Time before gateway considered failed (ms) |
+| `relayedMessagePriority` | uint8_t | 0 (CRITICAL) | Priority for relayed messages (0=highest) |
+| `maintainPermanentConnection` | bool | true | Keep router connection always active |
 
 ---
 
@@ -593,11 +599,18 @@ Node A's Internet fails, routes through Node B (primary gateway):
 
 ## Open Questions
 
-1. Should all nodes maintain router connection permanently?
-2. How to handle partial Internet connectivity?
-3. Message queue size and priority when relaying?
-4. How to handle mixed-mode networks?
-5. Testing without real Internet?
+1. ~~Should all nodes maintain router connection permanently?~~
+   - **RESOLVED**: Yes, nodes should maintain permanent router connections. The goal is to always be able to send data to Internet, either locally or via mesh. Nodes that aren't connected indicate Internet unavailability.
+
+2. ~~How to handle partial Internet connectivity?~~
+   - **RESOLVED**: This is beyond initial scope. Extended Internet checking for specific services should be implemented client-side.
+
+3. ~~Message queue size and priority when relaying?~~
+   - **RESOLVED**: Relayed gateway messages should default to highest priority. User configuration can override this behavior.
+
+4. How to handle mixed-mode networks? *(Still open)*
+
+5. Testing without real Internet? *(Still open)*
 
 ---
 
