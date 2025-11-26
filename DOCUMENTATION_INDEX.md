@@ -45,6 +45,7 @@ Complete guide to finding documentation in the AlteriomPainlessMesh library.
 - **[docs/BRIDGE_HEALTH_MONITORING.md](docs/BRIDGE_HEALTH_MONITORING.md)** - Bridge health monitoring
 - **[BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md)** - Connecting mesh to internet
 - **[docs/design/SHARED_GATEWAY_DESIGN.md](docs/design/SHARED_GATEWAY_DESIGN.md)** - Shared Gateway Mode design document (proposed feature)
+- **[docs/design/SHARED_GATEWAY_IMPLEMENTATION_PLAN.md](docs/design/SHARED_GATEWAY_IMPLEMENTATION_PLAN.md)** - Detailed implementation plan with 16 issues
 
 ### Development
 - **[docs/API_DESIGN_GUIDELINES.md](docs/API_DESIGN_GUIDELINES.md)** - API design patterns
