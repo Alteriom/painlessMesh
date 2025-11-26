@@ -576,7 +576,7 @@ Node A's Internet fails, routes through Node B (primary gateway):
 
 1. **Channel Conflict**: Use 5GHz WiFi when available, implement rate limiting
 2. **Network Congestion**: Only primary gateway sends heartbeats, adjustable intervals
-3. **Race Conditions**: Deterministic evaluation algorithm, state machine
+3. **Race Conditions**: Deterministic election algorithm (highest RSSI wins, node ID as tiebreaker), state machine
 4. **Memory Exhaustion**: Configurable limits, automatic cleanup
 5. **False Positives**: Multiple check hosts, consecutive failure threshold
 
@@ -610,7 +610,7 @@ Node A's Internet fails, routes through Node B (primary gateway):
 
 ---
 
-## Appendix B: Message Type Summary
+## Appendix A: Message Type Summary
 
 | Type ID | Name | Direction | Purpose |
 |---------|------|-----------|---------|
