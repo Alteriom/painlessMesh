@@ -441,11 +441,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // We need to ensure mesh and router operate on the same channel
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
     
-    Log(STARTUP, "initAsSharedGateway(): %d\n",
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-        WiFi.setAutoReconnect(false));
+    WiFi.setAutoReconnect(false);
+    Log(STARTUP, "initAsSharedGateway(): AutoReconnect disabled\n");
 #else
-        WiFi.setAutoConnect(false));
+    WiFi.setAutoConnect(false);
+    Log(STARTUP, "initAsSharedGateway(): AutoConnect disabled\n");
 #endif
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
@@ -453,8 +454,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Connect to router to detect channel
     WiFi.begin(routerSSID.c_str(), routerPassword.c_str());
     
-    // Wait for connection with timeout
-    int timeout = 30;  // 30 seconds timeout
+    // Wait for connection with timeout (using constant for configurability)
+    int timeout = ROUTER_CONNECTION_TIMEOUT_SECONDS;
     while (WiFi.status() != WL_CONNECTED && timeout > 0) {
       delay(1000);
       timeout--;
@@ -465,8 +466,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     if (WiFi.status() == WL_CONNECTED) {
       detectedChannel = WiFi.channel();
-      // Validate channel is in valid range (1-13 for 2.4GHz)
-      if (detectedChannel < 1 || detectedChannel > 13) {
+      // Validate channel is in valid range (1-14 for 2.4GHz, region-dependent)
+      if (detectedChannel < MIN_WIFI_CHANNEL || detectedChannel > MAX_WIFI_CHANNEL) {
         Log(ERROR, "\n✗ Invalid channel detected: %d, falling back to channel 1\n", detectedChannel);
         detectedChannel = 1;
       } else {
@@ -1770,6 +1771,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   uint8_t _routerReconnectAttempts = 0;
   static const uint8_t MAX_ROUTER_RECONNECT_ATTEMPTS = 10;
   static const uint32_t ROUTER_RECONNECT_BASE_INTERVAL = 5000;  // 5 seconds base interval
+  static const uint32_t ROUTER_RECONNECT_MAX_INTERVAL = 300000; // 5 minutes max interval
+  static const int ROUTER_CONNECTION_TIMEOUT_SECONDS = 30;      // Router connection timeout
+  static const uint8_t MIN_WIFI_CHANNEL = 1;
+  static const uint8_t MAX_WIFI_CHANNEL = 14;  // Support channels 1-14 for regions that allow it
 
   /**
    * Initialize shared gateway monitoring
@@ -1858,9 +1863,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       return;
     }
     
-    // Calculate delay with exponential backoff
-    uint32_t delay = ROUTER_RECONNECT_BASE_INTERVAL * (1 << _routerReconnectAttempts);
-    if (delay > 300000) delay = 300000;  // Cap at 5 minutes
+    // Calculate delay with exponential backoff, preventing overflow
+    // Limit shift amount to prevent overflow (5000 * 2^6 = 320000 is safe)
+    uint8_t shiftAmount = (_routerReconnectAttempts > 6) ? 6 : _routerReconnectAttempts;
+    uint32_t delay = ROUTER_RECONNECT_BASE_INTERVAL * (1UL << shiftAmount);
+    if (delay > ROUTER_RECONNECT_MAX_INTERVAL) delay = ROUTER_RECONNECT_MAX_INTERVAL;
     
     // Don't reconnect too frequently
     uint32_t now = millis();
