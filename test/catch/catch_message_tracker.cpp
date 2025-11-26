@@ -143,7 +143,8 @@ SCENARIO("MessageTracker cleanup of expired entries works correctly") {
       tracker.markProcessed(101, 1);
       
       // Wait for messages to expire
-      delay(20000);  // 20ms (delay uses usleep with microseconds)
+      // delay() in test env uses usleep, so delay(20000) = 20ms
+      delay(20000);
       
       uint32_t removed = tracker.cleanup();
       
@@ -172,7 +173,8 @@ SCENARIO("MessageTracker cleanup of expired entries works correctly") {
       tracker.markProcessed(100, 1);
       
       // Wait for first message to expire
-      delay(15000);  // 15ms
+      // delay() in test env uses usleep, so delay(15000) = 15ms
+      delay(15000);
       
       // Add another message (this one is fresh)
       tracker.markProcessed(101, 1);
@@ -396,11 +398,10 @@ SCENARIO("MessageTracker handles edge cases correctly") {
     MessageTracker tracker(0, 60000);
     
     WHEN("Trying to add a message") {
-      tracker.markProcessed(100, 1);
+      bool result = tracker.markProcessed(100, 1);
       
-      THEN("Message should be evicted immediately due to 0 capacity") {
-        // With capacity 0, the message is added then immediately evicted
-        // to enforce the limit
+      THEN("Should return false and not track the message") {
+        REQUIRE(!result);
         REQUIRE(tracker.size() == 0);
       }
     }

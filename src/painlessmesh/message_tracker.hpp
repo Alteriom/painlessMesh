@@ -99,10 +99,12 @@ public:
   /**
    * Mark a message as processed
    * If the tracker is at capacity, oldest entries will be removed first.
+   * Note: If maxMessages is 0, this method does nothing and returns false.
    * @param messageId The unique message identifier
    * @param originNode The node that originated the message
+   * @return true if message was tracked, false if capacity is 0
    */
-  void markProcessed(uint32_t messageId, uint32_t originNode) {
+  bool markProcessed(uint32_t messageId, uint32_t originNode) {
     MessageKey key = {messageId, originNode};
     uint32_t currentTime = millis();
     
@@ -113,14 +115,14 @@ public:
       it->second.timestamp = currentTime;
       Log(logger::GENERAL, "MessageTracker: Updated message %u from node %u\n",
           messageId, originNode);
-      return;
+      return true;
     }
     
     // Handle capacity 0 case - don't add new entries
     if (maxTrackedMessages == 0) {
       Log(logger::GENERAL, "MessageTracker: Cannot track message %u (capacity=0)\n",
           messageId);
-      return;
+      return false;
     }
     
     // Enforce memory limits before adding new entry
@@ -132,6 +134,7 @@ public:
     trackedMessages[key] = TrackedMessage(currentTime);
     Log(logger::GENERAL, "MessageTracker: Tracked message %u from node %u (size=%zu)\n",
         messageId, originNode, trackedMessages.size());
+    return true;
   }
   
   /**
