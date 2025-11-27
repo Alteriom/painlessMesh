@@ -905,6 +905,196 @@ class GatewayDataPackage : public plugin::SinglePackage {
   }
 };
 
+/**
+ * @brief Gateway Acknowledgment Package for delivery confirmations
+ *
+ * This package is sent from the gateway back to the origin node to confirm
+ * delivery status of a GatewayDataPackage. It provides feedback on whether
+ * the data was successfully delivered to the Internet destination.
+ *
+ * MEMORY FOOTPRINT
+ * ================
+ * The GatewayAckPackage structure has an estimated memory footprint of:
+ * - Base fields (from SinglePackage): ~20 bytes
+ * - Fixed fields (messageId, originNode, success, httpStatus, timestamp): ~14 bytes
+ * - TSTRING field (error):
+ *   - ESP8266/ESP32 String: ~12 bytes overhead + content length
+ *   - PC/Test std::string: ~32 bytes overhead + content length
+ * - Total estimated minimum: ~46 bytes (ESP) to ~66 bytes (PC/Test)
+ * - With typical error message: ~100-200 bytes
+ *
+ * For ESP8266 with ~80KB RAM, this represents <0.3% of available memory.
+ * For ESP32 with ~320KB RAM, this represents <0.1% of available memory.
+ *
+ * Example usage:
+ * @code
+ * // Gateway responding to a successful delivery
+ * GatewayAckPackage ack;
+ * ack.messageId = originalPackage.messageId;
+ * ack.originNode = originalPackage.originNode;
+ * ack.dest = originalPackage.originNode;  // Route back to origin
+ * ack.from = mesh.getNodeId();
+ * ack.success = true;
+ * ack.httpStatus = 200;
+ * ack.timestamp = mesh.getNodeTime();
+ *
+ * mesh.sendPackage(&ack);
+ *
+ * // Gateway responding to a failed delivery
+ * GatewayAckPackage ack;
+ * ack.messageId = originalPackage.messageId;
+ * ack.originNode = originalPackage.originNode;
+ * ack.dest = originalPackage.originNode;
+ * ack.from = mesh.getNodeId();
+ * ack.success = false;
+ * ack.httpStatus = 503;
+ * ack.error = "Service unavailable";
+ * ack.timestamp = mesh.getNodeTime();
+ *
+ * mesh.sendPackage(&ack);
+ * @endcode
+ *
+ * Type ID: 621 (GATEWAY_ACK)
+ * Base class: SinglePackage (routed back to origin node)
+ */
+class GatewayAckPackage : public plugin::SinglePackage {
+ public:
+  /**
+   * @brief Original message ID being acknowledged
+   *
+   * The messageId from the GatewayDataPackage that this acknowledgment
+   * corresponds to. Used for correlation at the origin node.
+   */
+  uint32_t messageId = 0;
+
+  /**
+   * @brief Original sender node ID
+   *
+   * The node ID that originally sent the GatewayDataPackage.
+   * Used for routing and correlation.
+   */
+  uint32_t originNode = 0;
+
+  /**
+   * @brief Delivery success status
+   *
+   * True if the message was successfully delivered to the Internet
+   * destination, false otherwise.
+   */
+  bool success = false;
+
+  /**
+   * @brief HTTP response code (if applicable)
+   *
+   * The HTTP status code received from the Internet destination.
+   * Examples: 200 (OK), 404 (Not Found), 500 (Server Error).
+   * Set to 0 if not applicable (e.g., connection failure).
+   */
+  uint16_t httpStatus = 0;
+
+  /**
+   * @brief Error message (if failed)
+   *
+   * A human-readable error message describing why delivery failed.
+   * Empty string if success is true.
+   */
+  TSTRING error = "";
+
+  /**
+   * @brief Acknowledgment timestamp
+   *
+   * Mesh time when the acknowledgment was created.
+   * Can be used to calculate round-trip time.
+   */
+  uint32_t timestamp = 0;
+
+  /**
+   * @brief Number of additional JSON fields in this package
+   *
+   * Used for jsonObjectSize() calculation in ArduinoJson v6.
+   * Count: msgId, origin, success, http, err, ts = 6 fields
+   */
+  static constexpr int numPackageFields = 6;
+
+  /**
+   * @brief Default constructor
+   *
+   * Creates a GatewayAckPackage with type ID 621 (GATEWAY_ACK).
+   */
+  GatewayAckPackage() : SinglePackage(protocol::GATEWAY_ACK) {}
+
+  /**
+   * @brief Construct from JSON object
+   *
+   * Deserializes a GatewayAckPackage from a JSON object.
+   * Compatible with ArduinoJson v6 and v7.
+   *
+   * @param jsonObj JSON object containing package data
+   */
+  GatewayAckPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {
+    messageId = jsonObj["msgId"];
+    originNode = jsonObj["origin"];
+    success = jsonObj["success"] | false;
+    httpStatus = jsonObj["http"];
+    timestamp = jsonObj["ts"];
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+    if (jsonObj.containsKey("err"))
+      error = jsonObj["err"].as<TSTRING>();
+#else
+    if (jsonObj["err"].is<TSTRING>())
+      error = jsonObj["err"].as<TSTRING>();
+#endif
+  }
+
+  /**
+   * @brief Serialize to JSON object
+   *
+   * Adds all package fields to the provided JSON object.
+   *
+   * @param jsonObj JSON object to add fields to
+   * @return The modified JSON object
+   */
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = SinglePackage::addTo(std::move(jsonObj));
+    jsonObj["msgId"] = messageId;
+    jsonObj["origin"] = originNode;
+    jsonObj["success"] = success;
+    jsonObj["http"] = httpStatus;
+    jsonObj["err"] = error;
+    jsonObj["ts"] = timestamp;
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  /**
+   * @brief Calculate JSON object size for ArduinoJson v6
+   *
+   * Used for buffer allocation when serializing.
+   *
+   * @return Estimated size in bytes
+   */
+  size_t jsonObjectSize() const {
+    // noJsonFields (from base class) + numPackageFields (our fields)
+    return JSON_OBJECT_SIZE(noJsonFields + numPackageFields) + error.length();
+  }
+#endif
+
+  /**
+   * @brief Get the estimated memory footprint
+   *
+   * Returns an estimate of the memory used by this package instance.
+   *
+   * @return Estimated memory usage in bytes
+   */
+  size_t estimatedMemoryFootprint() const {
+    size_t baseSize = sizeof(GatewayAckPackage);
+    // Add dynamic string content (not included in sizeof)
+    baseSize += error.length();
+    return baseSize;
+  }
+};
+
 }  // namespace gateway
 }  // namespace painlessmesh
 

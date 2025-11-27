@@ -59,6 +59,7 @@ constexpr int BRIDGE_COORDINATION = 613; // Multi-bridge coordination (defined i
 // Gateway data protocol types
 // Used for routing Internet requests through the mesh network
 constexpr int GATEWAY_DATA = 620;       // Gateway data package for Internet routing
+constexpr int GATEWAY_ACK = 621;        // Gateway acknowledgment package
 
 class PackageInterface {
  public:
