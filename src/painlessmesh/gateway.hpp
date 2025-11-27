@@ -776,6 +776,14 @@ class GatewayDataPackage : public plugin::SinglePackage {
   bool requiresAck = false;
 
   /**
+   * @brief Number of additional JSON fields in this package
+   *
+   * Used for jsonObjectSize() calculation in ArduinoJson v6.
+   * Count: msgId, origin, ts, prio, dest_url, payload, content, retry, ack = 9 fields
+   */
+  static constexpr int numPackageFields = 9;
+
+  /**
    * @brief Default constructor
    *
    * Creates a GatewayDataPackage with type ID 620 (GATEWAY_DATA).
@@ -846,8 +854,8 @@ class GatewayDataPackage : public plugin::SinglePackage {
    * @return Estimated size in bytes
    */
   size_t jsonObjectSize() const {
-    // noJsonFields (4) + our 9 fields = 13 fields total
-    return JSON_OBJECT_SIZE(noJsonFields + 9) + destination.length() +
+    // noJsonFields (from base class) + numPackageFields (our fields)
+    return JSON_OBJECT_SIZE(noJsonFields + numPackageFields) + destination.length() +
            payload.length() + contentType.length();
   }
 #endif
@@ -862,6 +870,10 @@ class GatewayDataPackage : public plugin::SinglePackage {
    * The ID format is:
    * - Upper 16 bits: Lower 16 bits of node ID
    * - Lower 16 bits: Incrementing counter (wraps at 65535)
+   *
+   * @note This function is not thread-safe. On ESP8266/ESP32, this is
+   * acceptable as the main loop is single-threaded. For multi-threaded
+   * environments, consider using atomic operations.
    *
    * @param nodeId The ID of the node generating the message
    * @return A unique message ID
