@@ -1051,12 +1051,11 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     Log(COMMUNICATION, "sendToInternet(): msgId=%u dest=%s priority=%u\n",
         messageId, destination.c_str(), priority);
 
-    // Check if we have local Internet access - use it directly
+    // Check if we have local Internet access
+    // Note: Even with local Internet, we still use the gateway protocol for consistency.
+    // A future optimization could bypass the mesh for nodes with direct Internet access.
     if (hasLocalInternet()) {
-      Log(COMMUNICATION, "sendToInternet(): Using local Internet\n");
-      // In local Internet mode, we would perform the request directly
-      // For now, we still need to go through gateway protocol for consistency
-      // This could be optimized in the future for direct HTTP/MQTT
+      Log(COMMUNICATION, "sendToInternet(): Local Internet available, using gateway protocol for consistency\n");
     }
 
     // Find the best gateway to route through
@@ -1108,10 +1107,15 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     auto conn = painlessmesh::router::findRoute<T>((*this), gateway->nodeId);
     if (conn) {
       sent = painlessmesh::router::sendWithPriority(pkg, conn, priority);
+      if (!sent) {
+        Log(ERROR, "sendToInternet(): sendWithPriority failed to gateway %u (send buffer full?)\n", gateway->nodeId);
+      }
+    } else {
+      Log(ERROR, "sendToInternet(): No route to gateway %u\n", gateway->nodeId);
     }
 
     if (!sent) {
-      Log(ERROR, "sendToInternet(): Failed to send to gateway %u\n", gateway->nodeId);
+      Log(ERROR, "sendToInternet(): Failed to send to gateway %u, scheduling retry\n", gateway->nodeId);
       // Schedule retry or failure callback
       scheduleInternetRetry(messageId);
     } else {

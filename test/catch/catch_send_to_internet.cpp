@@ -19,8 +19,9 @@ using namespace painlessmesh::gateway;
 // Logger for test environment
 painlessmesh::logger::LogClass Log;
 
-// Forward declaration of PendingInternetRequest for testing
-// This mirrors the struct definition in mesh.hpp
+// Test-local copy of PendingInternetRequest for unit testing
+// This mirrors the struct definition in mesh.hpp to test the struct behavior
+// without including the full mesh.hpp header and its dependencies.
 
 /**
  * Callback type for Internet request results
@@ -29,7 +30,8 @@ typedef std::function<void(bool success, uint16_t httpStatus, TSTRING error)>
     internetResultCallback_t;
 
 /**
- * Pending Internet request entry for testing
+ * Test version of PendingInternetRequest for isolated unit testing
+ * Mirrors the struct in mesh.hpp - changes there should be reflected here.
  */
 struct TestPendingInternetRequest {
   uint32_t messageId = 0;
