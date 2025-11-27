@@ -1,6 +1,7 @@
 ﻿#ifndef _PAINLESS_MESH_MESH_HPP_
 #define _PAINLESS_MESH_MESH_HPP_
 
+#include <algorithm>
 #include <vector>
 #include <map>
 #include <set>
@@ -578,6 +579,31 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
   /**
+   * Get list of nodes that currently have Internet access
+   * 
+   * Returns node IDs of all healthy bridges with active Internet connectivity.
+   * Only bridges that have reported status within the timeout period are included.
+   * 
+   * \code
+   * auto internetNodes = mesh.getNodesWithInternet();
+   * for (auto nodeId : internetNodes) {
+   *   Serial.printf("Node %u has Internet access\n", nodeId);
+   * }
+   * \endcode
+   * 
+   * @return Vector of node IDs with Internet connectivity
+   */
+  std::vector<uint32_t> getNodesWithInternet() {
+    std::vector<uint32_t> nodesWithInternet;
+    for (const auto& bridge : knownBridges) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
+        nodesWithInternet.push_back(bridge.nodeId);
+      }
+    }
+    return nodesWithInternet;
+  }
+
+  /**
    * Get list of all known bridges in the mesh
    * 
    * @return vector of BridgeInfo objects for all tracked bridges
@@ -646,6 +672,93 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   void enableBridgeStatusBroadcast(bool enabled) {
     bridgeStatusBroadcastEnabled = enabled;
+  }
+
+  /**
+   * Clean up expired bridge entries that haven't reported recently
+   * 
+   * Removes bridges that haven't sent a status update within the timeout period.
+   * This helps maintain an accurate list of available gateways and prevents
+   * the bridge list from growing unbounded.
+   * 
+   * Called periodically when bridge cleanup is enabled, or can be called manually.
+   * 
+   * \code
+   * // Manual cleanup
+   * mesh.cleanupExpiredBridges();
+   * 
+   * // Or enable automatic cleanup (recommended)
+   * mesh.enableBridgeCleanup();
+   * \endcode
+   */
+  void cleanupExpiredBridges() {
+    using namespace logger;
+    size_t sizeBefore = knownBridges.size();
+    
+    // Remove bridges that haven't reported within the timeout period
+    knownBridges.erase(
+        std::remove_if(knownBridges.begin(), knownBridges.end(),
+                       [this](const BridgeInfo& bridge) {
+                         return !bridge.isHealthy(bridgeTimeoutMs);
+                       }),
+        knownBridges.end());
+    
+    size_t removed = sizeBefore - knownBridges.size();
+    if (removed > 0) {
+      Log(GENERAL, "cleanupExpiredBridges(): Removed %u expired bridges\n", removed);
+    }
+  }
+
+  /**
+   * Enable periodic cleanup of expired bridge entries
+   * 
+   * Starts a background task that periodically removes stale bridge entries.
+   * The cleanup runs at the same interval as the bridge timeout (default 60 seconds).
+   * 
+   * This is recommended for all nodes to prevent memory growth from
+   * accumulating stale bridge entries.
+   * 
+   * \code
+   * mesh.enableBridgeCleanup();  // Start automatic cleanup
+   * \endcode
+   */
+  void enableBridgeCleanup() {
+    using namespace logger;
+    if (bridgeCleanupTask != nullptr) {
+      Log(GENERAL, "enableBridgeCleanup(): Already enabled\n");
+      return;
+    }
+    
+    Log(GENERAL, "enableBridgeCleanup(): Starting cleanup task (interval: %u ms)\n",
+        bridgeTimeoutMs);
+    
+    bridgeCleanupTask = this->addTask(
+        bridgeTimeoutMs,
+        TASK_FOREVER,
+        [this]() {
+          this->cleanupExpiredBridges();
+        });
+  }
+
+  /**
+   * Disable periodic cleanup of expired bridge entries
+   */
+  void disableBridgeCleanup() {
+    using namespace logger;
+    if (bridgeCleanupTask != nullptr) {
+      bridgeCleanupTask->disable();
+      bridgeCleanupTask = nullptr;
+      Log(GENERAL, "disableBridgeCleanup(): Cleanup task disabled\n");
+    }
+  }
+
+  /**
+   * Check if bridge cleanup is enabled
+   * 
+   * @return true if periodic cleanup is running
+   */
+  bool isBridgeCleanupEnabled() const {
+    return bridgeCleanupTask != nullptr && bridgeCleanupTask->isEnabled();
   }
 
   // ==================== Local Internet Health Check API ====================
@@ -874,7 +987,30 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     bool wasConnected = false;
     bool isNewBridge = false;
     if (bridge == nullptr) {
-      // New bridge - add to list
+      // New bridge - enforce MAX_KNOWN_BRIDGES limit before adding
+      if (knownBridges.size() >= MAX_KNOWN_BRIDGES) {
+        // First try to remove expired bridges
+        cleanupExpiredBridges();
+        
+        // If still at capacity, remove the bridge with worst RSSI (lowest signal)
+        if (knownBridges.size() >= MAX_KNOWN_BRIDGES) {
+          auto worstBridge = knownBridges.begin();
+          int8_t worstRSSI = worstBridge->routerRSSI;
+          
+          for (auto it = knownBridges.begin(); it != knownBridges.end(); ++it) {
+            if (it->routerRSSI < worstRSSI) {
+              worstRSSI = it->routerRSSI;
+              worstBridge = it;
+            }
+          }
+          
+          Log(logger::GENERAL, "updateBridgeStatus(): Removing bridge %u (RSSI: %d) to make room\n",
+              worstBridge->nodeId, worstBridge->routerRSSI);
+          knownBridges.erase(worstBridge);
+        }
+      }
+      
+      // Add new bridge
       BridgeInfo newBridge;
       newBridge.nodeId = bridgeNodeId;
       knownBridges.push_back(newBridge);
@@ -2338,6 +2474,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   uint32_t bridgeStatusIntervalMs = 30000;  // Default 30 seconds
   uint32_t bridgeTimeoutMs = 60000;         // Default 60 seconds
   bool bridgeStatusBroadcastEnabled = true;
+  
+  // Bridge cleanup configuration
+  static const size_t MAX_KNOWN_BRIDGES = 20;  // Memory efficient limit for ESP8266
+  std::shared_ptr<Task> bridgeCleanupTask = nullptr;
 
   // Health metrics tracking
   uint32_t metricsDisconnectCount = 0;
