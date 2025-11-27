@@ -640,12 +640,15 @@ class InternetHealthChecker {
  *
  * Defines the priority levels for message routing through the gateway.
  * Lower values indicate higher priority.
+ *
+ * @note Uses PRIORITY_ prefix to avoid conflicts with Arduino macros
+ *       (HIGH and LOW are defined in esp32-hal-gpio.h)
  */
 enum class GatewayPriority : uint8_t {
-  CRITICAL = 0,  ///< Critical messages - immediate processing
-  HIGH = 1,      ///< High priority - processed before normal
-  NORMAL = 2,    ///< Normal priority - standard processing
-  LOW = 3        ///< Low priority - processed when idle
+  PRIORITY_CRITICAL = 0,  ///< Critical messages - immediate processing
+  PRIORITY_HIGH = 1,      ///< High priority - processed before normal
+  PRIORITY_NORMAL = 2,    ///< Normal priority - standard processing
+  PRIORITY_LOW = 3        ///< Low priority - processed when idle
 };
 
 /**
@@ -685,7 +688,7 @@ enum class GatewayPriority : uint8_t {
  * pkg.messageId = GatewayDataPackage::generateMessageId(mesh.getNodeId());
  * pkg.originNode = mesh.getNodeId();
  * pkg.timestamp = mesh.getNodeTime();
- * pkg.priority = static_cast<uint8_t>(GatewayPriority::NORMAL);
+ * pkg.priority = static_cast<uint8_t>(GatewayPriority::PRIORITY_NORMAL);
  * pkg.destination = "https://api.example.com/data";
  * pkg.payload = "{\"sensor\": 42}";
  * pkg.contentType = "application/json";
@@ -729,7 +732,7 @@ class GatewayDataPackage : public plugin::SinglePackage {
    * Determines processing order at the gateway.
    * Use GatewayPriority enum for type-safe values.
    */
-  uint8_t priority = static_cast<uint8_t>(GatewayPriority::NORMAL);
+  uint8_t priority = static_cast<uint8_t>(GatewayPriority::PRIORITY_NORMAL);
 
   /**
    * @brief Destination URL or endpoint

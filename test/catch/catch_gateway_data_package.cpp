@@ -40,7 +40,7 @@ SCENARIO("GatewayDataPackage has correct defaults") {
         }
 
         THEN("priority should be NORMAL (2)") {
-            REQUIRE(pkg.priority == static_cast<uint8_t>(GatewayPriority::NORMAL));
+            REQUIRE(pkg.priority == static_cast<uint8_t>(GatewayPriority::PRIORITY_NORMAL));
             REQUIRE(pkg.priority == 2);
         }
 
@@ -74,7 +74,7 @@ SCENARIO("GatewayDataPackage serialization works correctly") {
         pkg.messageId = 0xABCD1234;
         pkg.originNode = 12345;
         pkg.timestamp = 1609459200;
-        pkg.priority = static_cast<uint8_t>(GatewayPriority::HIGH);
+        pkg.priority = static_cast<uint8_t>(GatewayPriority::PRIORITY_HIGH);
         pkg.destination = "https://api.example.com/sensor";
         pkg.payload = "{\"temperature\": 23.5}";
         pkg.contentType = "application/json";
@@ -220,19 +220,19 @@ SCENARIO("GatewayDataPackage generateMessageId works correctly") {
 SCENARIO("GatewayDataPackage priority levels are correct") {
     GIVEN("GatewayPriority enum values") {
         THEN("CRITICAL should be 0") {
-            REQUIRE(static_cast<uint8_t>(GatewayPriority::CRITICAL) == 0);
+            REQUIRE(static_cast<uint8_t>(GatewayPriority::PRIORITY_CRITICAL) == 0);
         }
 
         THEN("HIGH should be 1") {
-            REQUIRE(static_cast<uint8_t>(GatewayPriority::HIGH) == 1);
+            REQUIRE(static_cast<uint8_t>(GatewayPriority::PRIORITY_HIGH) == 1);
         }
 
         THEN("NORMAL should be 2") {
-            REQUIRE(static_cast<uint8_t>(GatewayPriority::NORMAL) == 2);
+            REQUIRE(static_cast<uint8_t>(GatewayPriority::PRIORITY_NORMAL) == 2);
         }
 
         THEN("LOW should be 3") {
-            REQUIRE(static_cast<uint8_t>(GatewayPriority::LOW) == 3);
+            REQUIRE(static_cast<uint8_t>(GatewayPriority::PRIORITY_LOW) == 3);
         }
     }
 
@@ -240,7 +240,7 @@ SCENARIO("GatewayDataPackage priority levels are correct") {
         GatewayDataPackage pkg;
 
         WHEN("Setting priority to CRITICAL") {
-            pkg.priority = static_cast<uint8_t>(GatewayPriority::CRITICAL);
+            pkg.priority = static_cast<uint8_t>(GatewayPriority::PRIORITY_CRITICAL);
 
             THEN("Priority should be 0") {
                 REQUIRE(pkg.priority == 0);
@@ -248,7 +248,7 @@ SCENARIO("GatewayDataPackage priority levels are correct") {
         }
 
         WHEN("Setting priority to LOW") {
-            pkg.priority = static_cast<uint8_t>(GatewayPriority::LOW);
+            pkg.priority = static_cast<uint8_t>(GatewayPriority::PRIORITY_LOW);
 
             THEN("Priority should be 3") {
                 REQUIRE(pkg.priority == 3);
