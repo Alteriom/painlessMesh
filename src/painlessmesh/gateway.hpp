@@ -33,6 +33,7 @@
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
+#include "painlessmesh/message_tracker.hpp"
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
 
@@ -1095,7 +1096,299 @@ class GatewayAckPackage : public plugin::SinglePackage {
   }
 };
 
+/**
+ * @brief Metrics for monitoring GatewayMessageHandler duplicate detection
+ *
+ * This structure tracks statistics about message processing and duplicate
+ * detection in the gateway message handler. Useful for monitoring system
+ * health and debugging duplicate-related issues.
+ *
+ * Example usage:
+ * @code
+ * GatewayMessageHandler handler;
+ * // ... process messages ...
+ * GatewayMetrics metrics = handler.getMetrics();
+ * Serial.printf("Duplicates: %u, Processed: %u\n",
+ *               metrics.duplicatesDetected, metrics.messagesProcessed);
+ * @endcode
+ */
+struct GatewayMetrics {
+  /**
+   * @brief Count of duplicate messages detected and dropped
+   *
+   * Incremented each time an incoming message is identified as a duplicate
+   * and skipped from processing.
+   */
+  uint32_t duplicatesDetected = 0;
+
+  /**
+   * @brief Total count of messages successfully processed
+   *
+   * Incremented for each unique message that passes duplicate checking
+   * and is processed.
+   */
+  uint32_t messagesProcessed = 0;
+
+  /**
+   * @brief Count of acknowledgments sent
+   *
+   * Incremented each time an acknowledgment is sent for a message.
+   */
+  uint32_t acknowledgmentsSent = 0;
+
+  /**
+   * @brief Count of duplicate acknowledgments skipped
+   *
+   * Incremented when an acknowledgment would have been sent, but was
+   * skipped because one was already sent for that message.
+   */
+  uint32_t duplicateAcksSkipped = 0;
+
+  /**
+   * @brief Reset all metrics to zero
+   */
+  void reset() {
+    duplicatesDetected = 0;
+    messagesProcessed = 0;
+    acknowledgmentsSent = 0;
+    duplicateAcksSkipped = 0;
+  }
+
+  /**
+   * @brief Get the duplicate detection rate as a percentage
+   * @return Percentage of messages that were duplicates (0-100), or 0 if no messages
+   */
+  uint8_t getDuplicateRate() const {
+    uint32_t total = messagesProcessed + duplicatesDetected;
+    if (total == 0) return 0;
+    return static_cast<uint8_t>((duplicatesDetected * 100) / total);
+  }
+
+  /**
+   * @brief Get the duplicate ack rate as a percentage
+   * @return Percentage of acks that were duplicates (0-100), or 0 if no acks
+   */
+  uint8_t getDuplicateAckRate() const {
+    uint32_t total = acknowledgmentsSent + duplicateAcksSkipped;
+    if (total == 0) return 0;
+    return static_cast<uint8_t>((duplicateAcksSkipped * 100) / total);
+  }
+};
+
 }  // namespace gateway
+
+/**
+ * @brief Gateway Message Handler with duplicate prevention
+ *
+ * This class integrates MessageTracker to prevent duplicate message processing
+ * in gateway operations. It provides:
+ * - Duplicate message detection and dropping
+ * - Single acknowledgment per message enforcement
+ * - Metrics for monitoring duplicate detection
+ * - Configurable tracker limits via SharedGatewayConfig
+ * - Logging for duplicate detection events
+ *
+ * MEMORY FOOTPRINT
+ * ================
+ * The GatewayMessageHandler uses a MessageTracker internally, which stores
+ * message entries in a std::map. Memory usage depends on configuration:
+ * - Default (500 messages): ~20KB estimated
+ * - ESP8266 recommended (100 messages): ~4KB estimated
+ * - Each tracked message: ~40 bytes (MessageKey + TrackedMessage + map overhead)
+ *
+ * Example usage:
+ * @code
+ * GatewayMessageHandler handler;
+ *
+ * // Configure from shared gateway config
+ * SharedGatewayConfig config;
+ * config.maxTrackedMessages = 500;
+ * config.duplicateTrackingTimeout = 60000;
+ * handler.configure(config);
+ *
+ * // Handle incoming message
+ * GatewayDataPackage pkg;
+ * // ... populate pkg ...
+ *
+ * if (handler.handleIncomingMessage(pkg)) {
+ *     // Process the message - it's not a duplicate
+ *     processGatewayRequest(pkg);
+ *
+ *     // Check if we should send an ack
+ *     if (pkg.requiresAck && handler.shouldSendAcknowledgment(pkg.messageId, pkg.originNode)) {
+ *         sendAck(pkg);
+ *         handler.markAcknowledgmentSent(pkg.messageId, pkg.originNode);
+ *     }
+ * }
+ *
+ * // Periodically cleanup old entries
+ * handler.cleanup();
+ *
+ * // Monitor metrics
+ * auto metrics = handler.getMetrics();
+ * @endcode
+ */
+class GatewayMessageHandler {
+ public:
+  /**
+   * @brief Default constructor
+   *
+   * Creates a GatewayMessageHandler with default configuration:
+   * - maxTrackedMessages: 500
+   * - duplicateTrackingTimeout: 60000ms (60 seconds)
+   */
+  GatewayMessageHandler() : tracker_(500, 60000) {}
+
+  /**
+   * @brief Configure the handler using SharedGatewayConfig parameters
+   *
+   * Updates the internal MessageTracker with configuration values from
+   * the provided SharedGatewayConfig. This should be called before
+   * processing messages to ensure proper configuration.
+   *
+   * @param config SharedGatewayConfig with tracker parameters
+   */
+  void configure(const gateway::SharedGatewayConfig& config) {
+    tracker_.setMaxMessages(config.maxTrackedMessages);
+    tracker_.setTimeoutMs(config.duplicateTrackingTimeout);
+    Log(logger::GENERAL,
+        "GatewayMessageHandler: Configured with maxMessages=%u, timeout=%ums\n",
+        config.maxTrackedMessages, config.duplicateTrackingTimeout);
+  }
+
+  /**
+   * @brief Handle an incoming GatewayDataPackage and check for duplicates
+   *
+   * Checks if the message has already been processed using the MessageTracker.
+   * If the message is a duplicate, it is dropped silently and metrics are updated.
+   * If the message is new, it is marked as processed and should be handled.
+   *
+   * @param pkg The incoming GatewayDataPackage to check
+   * @return true if the message should be processed (not a duplicate)
+   * @return false if the message is a duplicate and should be skipped
+   */
+  bool handleIncomingMessage(const gateway::GatewayDataPackage& pkg) {
+    // Check if this message was already processed
+    if (tracker_.isProcessed(pkg.messageId, pkg.originNode)) {
+      metrics_.duplicatesDetected++;
+      Log(logger::GENERAL,
+          "GatewayMessageHandler: Duplicate message detected (msgId=%u, origin=%u)\n",
+          pkg.messageId, pkg.originNode);
+      return false;
+    }
+
+    // Mark as processed and allow handling
+    tracker_.markProcessed(pkg.messageId, pkg.originNode);
+    metrics_.messagesProcessed++;
+    Log(logger::GENERAL,
+        "GatewayMessageHandler: Processing new message (msgId=%u, origin=%u)\n",
+        pkg.messageId, pkg.originNode);
+    return true;
+  }
+
+  /**
+   * @brief Check if an acknowledgment should be sent for a message
+   *
+   * Checks if an acknowledgment has already been sent for the specified
+   * message. This prevents sending duplicate acknowledgments during
+   * network partitions or message retries.
+   *
+   * @param messageId The unique message identifier
+   * @param originNode The node that originated the message
+   * @return true if acknowledgment should be sent (not already acked)
+   * @return false if acknowledgment was already sent (skip sending)
+   */
+  bool shouldSendAcknowledgment(uint32_t messageId, uint32_t originNode) {
+    // Check if we already sent an ack for this message
+    if (tracker_.isAcknowledged(messageId, originNode)) {
+      metrics_.duplicateAcksSkipped++;
+      Log(logger::GENERAL,
+          "GatewayMessageHandler: Duplicate ack skipped (msgId=%u, origin=%u)\n",
+          messageId, originNode);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * @brief Mark that an acknowledgment has been sent for a message
+   *
+   * Records that an acknowledgment was sent for the specified message.
+   * Subsequent calls to shouldSendAcknowledgment() for this message
+   * will return false.
+   *
+   * @param messageId The unique message identifier
+   * @param originNode The node that originated the message
+   */
+  void markAcknowledgmentSent(uint32_t messageId, uint32_t originNode) {
+    // First ensure the message is tracked (in case ack is sent before processing)
+    if (!tracker_.isProcessed(messageId, originNode)) {
+      tracker_.markProcessed(messageId, originNode);
+    }
+
+    tracker_.markAcknowledged(messageId, originNode);
+    metrics_.acknowledgmentsSent++;
+    Log(logger::GENERAL,
+        "GatewayMessageHandler: Acknowledgment sent (msgId=%u, origin=%u)\n",
+        messageId, originNode);
+  }
+
+  /**
+   * @brief Cleanup old entries from the tracker
+   *
+   * Removes expired entries from the internal MessageTracker based on
+   * the configured timeout. Should be called periodically to free memory.
+   *
+   * @return Number of entries removed
+   */
+  uint32_t cleanup() {
+    return tracker_.cleanup();
+  }
+
+  /**
+   * @brief Get current metrics for monitoring
+   *
+   * Returns a copy of the current metrics structure containing
+   * statistics about duplicate detection and message processing.
+   *
+   * @return GatewayMetrics structure with current statistics
+   */
+  gateway::GatewayMetrics getMetrics() const {
+    return metrics_;
+  }
+
+  /**
+   * @brief Reset all metrics to zero
+   *
+   * Clears all metrics counters. Does not affect tracked messages.
+   */
+  void resetMetrics() {
+    metrics_.reset();
+    Log(logger::GENERAL, "GatewayMessageHandler: Metrics reset\n");
+  }
+
+  /**
+   * @brief Get the number of currently tracked messages
+   * @return Number of entries in the tracker
+   */
+  size_t getTrackedMessageCount() const {
+    return tracker_.size();
+  }
+
+  /**
+   * @brief Clear all tracked messages
+   *
+   * Removes all entries from the tracker. Does not affect metrics.
+   */
+  void clearTrackedMessages() {
+    tracker_.clear();
+  }
+
+ private:
+  MessageTracker tracker_;
+  gateway::GatewayMetrics metrics_;
+};
+
 }  // namespace painlessmesh
 
 #endif  // _PAINLESS_MESH_GATEWAY_HPP_
