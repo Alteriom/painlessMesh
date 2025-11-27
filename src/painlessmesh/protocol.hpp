@@ -56,6 +56,10 @@ constexpr int BRIDGE_ELECTION = 611;    // Bridge election candidacy announcemen
 constexpr int BRIDGE_TAKEOVER = 612;    // Bridge takeover notification
 constexpr int BRIDGE_COORDINATION = 613; // Multi-bridge coordination (defined in plugin.hpp)
 
+// Gateway data protocol types
+// Used for routing Internet requests through the mesh network
+constexpr int GATEWAY_DATA = 620;       // Gateway data package for Internet routing
+
 class PackageInterface {
  public:
   virtual JsonObject addTo(JsonObject&& jsonObj) const = 0;
