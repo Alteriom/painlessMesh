@@ -13,6 +13,7 @@
 #include "painlessmesh/gateway.hpp"
 #include "painlessmesh/logger.hpp"
 #include "painlessmesh/message_queue.hpp"
+#include "painlessmesh/message_tracker.hpp"
 #include "painlessmesh/ntp.hpp"
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
@@ -33,6 +34,42 @@ typedef std::function<void(uint32_t nodeId, int32_t delay)> nodeDelayCallback_t;
 typedef std::function<void(uint32_t bridgeNodeId, bool internetAvailable)> bridgeStatusChangedCallback_t;
 typedef std::function<void(uint32_t timestamp)> rtcSyncCompleteCallback_t;
 typedef std::function<void(bool available)> localInternetChangedCallback_t;
+
+/**
+ * Callback type for Internet request results
+ *
+ * @param success Whether the request was delivered successfully
+ * @param httpStatus HTTP status code from the destination (0 if not applicable)
+ * @param error Human-readable error message (empty if success)
+ */
+typedef std::function<void(bool success, uint16_t httpStatus, TSTRING error)>
+    internetResultCallback_t;
+
+/**
+ * Pending Internet request entry
+ *
+ * Tracks a pending sendToInternet() request for acknowledgment handling
+ */
+struct PendingInternetRequest {
+  uint32_t messageId = 0;          ///< Unique message ID
+  uint32_t timestamp = 0;          ///< When request was sent (millis)
+  uint8_t retryCount = 0;          ///< Number of retries attempted
+  uint8_t maxRetries = 3;          ///< Maximum retry attempts
+  uint8_t priority = 2;            ///< Priority level (0=CRITICAL to 3=LOW)
+  uint32_t timeoutMs = 30000;      ///< Timeout in milliseconds
+  uint32_t retryDelayMs = 1000;    ///< Current retry delay (for exponential backoff)
+  uint32_t gatewayNodeId = 0;      ///< Target gateway node ID
+  TSTRING destination = "";        ///< Internet destination URL
+  TSTRING payload = "";            ///< Request payload
+  internetResultCallback_t callback;  ///< User callback for result
+
+  /**
+   * Check if this request has timed out
+   */
+  bool isTimedOut() const {
+    return (static_cast<uint32_t>(millis()) - timestamp) > timeoutMs;
+  }
+};
 
 /**
  * Bridge information structure
@@ -954,6 +991,439 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 #endif
 
+  // ==================== Send to Internet API ====================
+
+  /**
+   * Send data to an Internet destination through the mesh gateway
+   *
+   * This method provides a high-level API for sending data to the Internet
+   * through the mesh network. It automatically handles:
+   * - Local Internet: If this node has direct Internet access, sends directly
+   * - Gateway routing: Otherwise routes through the best available gateway
+   * - Acknowledgment tracking: Tracks message delivery with callbacks
+   * - Retry logic: Implements exponential backoff for failed deliveries
+   * - Priority handling: Respects message priority levels
+   *
+   * PRIORITY LEVELS:
+   * - 0 (CRITICAL): Immediate processing, no delays
+   * - 1 (HIGH): High priority, processed before normal
+   * - 2 (NORMAL): Standard processing (default)
+   * - 3 (LOW): Background processing when idle
+   *
+   * CALLBACK BEHAVIOR:
+   * The callback is invoked when:
+   * - Success: Gateway confirms delivery to Internet destination
+   * - Failure: Timeout, no gateway available, or delivery error
+   *
+   * \code
+   * // Send sensor data to cloud API
+   * uint32_t msgId = mesh.sendToInternet(
+   *   "https://api.example.com/sensor",
+   *   "{\"temperature\": 23.5}",
+   *   [](bool success, uint16_t httpStatus, String error) {
+   *     if (success) {
+   *       Serial.printf("Delivered! HTTP %u\n", httpStatus);
+   *     } else {
+   *       Serial.printf("Failed: %s\n", error.c_str());
+   *     }
+   *   },
+   *   PRIORITY_NORMAL  // Optional priority
+   * );
+   * Serial.printf("Message ID: %u\n", msgId);
+   * \endcode
+   *
+   * @param destination The Internet destination URL (e.g., "https://api.example.com/data")
+   * @param payload The data payload to send (typically JSON)
+   * @param callback Function called with result (success, httpStatus, error)
+   * @param priority Message priority (0=CRITICAL to 3=LOW, default: 2=NORMAL)
+   * @return Unique message ID for tracking, or 0 if immediate failure
+   */
+  uint32_t sendToInternet(
+      TSTRING destination,
+      TSTRING payload,
+      internetResultCallback_t callback,
+      uint8_t priority = static_cast<uint8_t>(gateway::GatewayPriority::PRIORITY_NORMAL)) {
+    using namespace logger;
+
+    // Generate unique message ID
+    uint32_t messageId = gateway::GatewayDataPackage::generateMessageId(this->nodeId);
+
+    Log(COMMUNICATION, "sendToInternet(): msgId=%u dest=%s priority=%u\n",
+        messageId, destination.c_str(), priority);
+
+    // Check if we have local Internet access
+    // Note: Even with local Internet, we still use the gateway protocol for consistency.
+    // A future optimization could bypass the mesh for nodes with direct Internet access.
+    if (hasLocalInternet()) {
+      Log(COMMUNICATION, "sendToInternet(): Local Internet available, using gateway protocol for consistency\n");
+    }
+
+    // Find the best gateway to route through
+    BridgeInfo* gateway = getPrimaryBridge();
+    if (gateway == nullptr) {
+      Log(ERROR, "sendToInternet(): No gateway available\n");
+      if (callback) {
+        // Schedule callback to avoid blocking
+        this->addTask([callback]() {
+          callback(false, 0, "No gateway available");
+        });
+      }
+      return 0;
+    }
+
+    // Create and store the pending request
+    PendingInternetRequest request;
+    request.messageId = messageId;
+    request.timestamp = millis();
+    request.retryCount = 0;
+    request.maxRetries = internetRetryCount;
+    request.priority = priority;
+    request.timeoutMs = internetRequestTimeout;
+    request.retryDelayMs = internetRetryDelay;
+    request.gatewayNodeId = gateway->nodeId;
+    request.destination = destination;
+    request.payload = payload;
+    request.callback = callback;
+
+    // Store pending request
+    pendingInternetRequests[messageId] = request;
+
+    // Create gateway data package
+    gateway::GatewayDataPackage pkg;
+    pkg.from = this->nodeId;
+    pkg.dest = gateway->nodeId;
+    pkg.messageId = messageId;
+    pkg.originNode = this->nodeId;
+    pkg.timestamp = this->getNodeTime();
+    pkg.priority = priority;
+    pkg.destination = destination;
+    pkg.payload = payload;
+    pkg.contentType = "application/json";
+    pkg.retryCount = 0;
+    pkg.requiresAck = true;
+
+    // Send the package with priority
+    bool sent = false;
+    auto conn = painlessmesh::router::findRoute<T>((*this), gateway->nodeId);
+    if (conn) {
+      sent = painlessmesh::router::sendWithPriority(pkg, conn, priority);
+      if (!sent) {
+        Log(ERROR, "sendToInternet(): sendWithPriority failed to gateway %u (send buffer full?)\n", gateway->nodeId);
+      }
+    } else {
+      Log(ERROR, "sendToInternet(): No route to gateway %u\n", gateway->nodeId);
+    }
+
+    if (!sent) {
+      Log(ERROR, "sendToInternet(): Failed to send to gateway %u, scheduling retry\n", gateway->nodeId);
+      // Schedule retry or failure callback
+      scheduleInternetRetry(messageId);
+    } else {
+      Log(COMMUNICATION, "sendToInternet(): Sent to gateway %u\n", gateway->nodeId);
+      // Schedule timeout check
+      scheduleInternetTimeout(messageId);
+    }
+
+    return messageId;
+  }
+
+  /**
+   * Configure Internet request timeout
+   *
+   * @param timeoutMs Timeout in milliseconds (default: 30000)
+   */
+  void setInternetRequestTimeout(uint32_t timeoutMs) {
+    internetRequestTimeout = timeoutMs;
+  }
+
+  /**
+   * Configure Internet request retry count
+   *
+   * @param retryCount Number of retry attempts (default: 3)
+   */
+  void setInternetRetryCount(uint8_t retryCount) {
+    internetRetryCount = retryCount;
+  }
+
+  /**
+   * Configure base retry delay for exponential backoff
+   *
+   * @param delayMs Base delay in milliseconds (default: 1000)
+   */
+  void setInternetRetryDelay(uint32_t delayMs) {
+    internetRetryDelay = delayMs;
+  }
+
+  /**
+   * Get number of pending Internet requests
+   *
+   * @return Number of requests waiting for acknowledgment
+   */
+  size_t getPendingInternetRequestCount() const {
+    return pendingInternetRequests.size();
+  }
+
+  /**
+   * Cancel a pending Internet request
+   *
+   * @param messageId Message ID to cancel
+   * @return true if request was found and cancelled
+   */
+  bool cancelInternetRequest(uint32_t messageId) {
+    auto it = pendingInternetRequests.find(messageId);
+    if (it != pendingInternetRequests.end()) {
+      if (it->second.callback) {
+        it->second.callback(false, 0, "Request cancelled");
+      }
+      pendingInternetRequests.erase(it);
+      Log(logger::GENERAL, "cancelInternetRequest(): Cancelled msgId=%u\n", messageId);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Enable the sendToInternet() API
+   *
+   * This registers the handler for GatewayAckPackage (Type 621) and
+   * starts the periodic cleanup of timed-out requests.
+   *
+   * Call this after mesh.init() to enable the sendToInternet() functionality.
+   *
+   * \code
+   * mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+   * mesh.enableSendToInternet();  // Enable the API
+   * \endcode
+   */
+  void enableSendToInternet() {
+    using namespace logger;
+    Log(GENERAL, "enableSendToInternet(): Enabling Internet routing API\n");
+
+    // Register handler for gateway acknowledgment packages
+    this->callbackList.onPackage(
+        protocol::GATEWAY_ACK,
+        [this](protocol::Variant& variant, std::shared_ptr<T>, uint32_t) {
+          auto ack = variant.to<gateway::GatewayAckPackage>();
+          this->handleGatewayAck(ack);
+          return false;  // Don't consume, allow other handlers
+        });
+
+    // Start cleanup task for timed-out requests
+    if (internetCleanupTask == nullptr) {
+      internetCleanupTask = this->addTask(
+          5000,  // Check every 5 seconds
+          TASK_FOREVER,
+          [this]() {
+            this->cleanupTimedOutRequests();
+          });
+    }
+
+    sendToInternetEnabled = true;
+  }
+
+  /**
+   * Disable the sendToInternet() API
+   */
+  void disableSendToInternet() {
+    using namespace logger;
+    Log(GENERAL, "disableSendToInternet(): Disabling Internet routing API\n");
+
+    if (internetCleanupTask != nullptr) {
+      internetCleanupTask->disable();
+      internetCleanupTask = nullptr;
+    }
+
+    // Cancel all pending requests
+    for (auto& pair : pendingInternetRequests) {
+      if (pair.second.callback) {
+        pair.second.callback(false, 0, "API disabled");
+      }
+    }
+    pendingInternetRequests.clear();
+
+    sendToInternetEnabled = false;
+  }
+
+  /**
+   * Check if sendToInternet() API is enabled
+   *
+   * @return true if the API is enabled
+   */
+  bool isSendToInternetEnabled() const {
+    return sendToInternetEnabled;
+  }
+
+ private:
+  /**
+   * Handle incoming gateway acknowledgment package
+   */
+  void handleGatewayAck(const gateway::GatewayAckPackage& ack) {
+    using namespace logger;
+    Log(COMMUNICATION, "handleGatewayAck(): msgId=%u success=%d http=%u\n",
+        ack.messageId, ack.success, ack.httpStatus);
+
+    auto it = pendingInternetRequests.find(ack.messageId);
+    if (it == pendingInternetRequests.end()) {
+      Log(GENERAL, "handleGatewayAck(): Unknown message ID %u\n", ack.messageId);
+      return;
+    }
+
+    PendingInternetRequest& request = it->second;
+
+    // Call user callback
+    if (request.callback) {
+      request.callback(ack.success, ack.httpStatus, ack.error);
+    }
+
+    // Remove from pending
+    pendingInternetRequests.erase(it);
+  }
+
+  /**
+   * Schedule retry for a failed Internet request
+   */
+  void scheduleInternetRetry(uint32_t messageId) {
+    auto it = pendingInternetRequests.find(messageId);
+    if (it == pendingInternetRequests.end()) {
+      return;
+    }
+
+    PendingInternetRequest& request = it->second;
+
+    if (request.retryCount >= request.maxRetries) {
+      // Max retries reached - fail the request
+      Log(logger::ERROR, "scheduleInternetRetry(): Max retries reached for msgId=%u\n",
+          messageId);
+      if (request.callback) {
+        request.callback(false, 0, "Max retries exceeded");
+      }
+      pendingInternetRequests.erase(it);
+      return;
+    }
+
+    // Calculate exponential backoff delay
+    uint32_t delay = request.retryDelayMs * (1 << request.retryCount);
+    request.retryCount++;
+
+    Log(logger::COMMUNICATION, "scheduleInternetRetry(): Retry %u for msgId=%u in %u ms\n",
+        request.retryCount, messageId, delay);
+
+    // Schedule retry
+    this->addTask(delay, TASK_ONCE, [this, messageId]() {
+      this->retryInternetRequest(messageId);
+    });
+  }
+
+  /**
+   * Retry sending an Internet request
+   */
+  void retryInternetRequest(uint32_t messageId) {
+    auto it = pendingInternetRequests.find(messageId);
+    if (it == pendingInternetRequests.end()) {
+      return;
+    }
+
+    PendingInternetRequest& request = it->second;
+
+    // Find gateway (may have changed)
+    BridgeInfo* gateway = getPrimaryBridge();
+    if (gateway == nullptr) {
+      Log(logger::ERROR, "retryInternetRequest(): No gateway for retry msgId=%u\n",
+          messageId);
+      scheduleInternetRetry(messageId);
+      return;
+    }
+
+    // Update gateway node ID (may have changed)
+    request.gatewayNodeId = gateway->nodeId;
+
+    // Create gateway data package
+    gateway::GatewayDataPackage pkg;
+    pkg.from = this->nodeId;
+    pkg.dest = gateway->nodeId;
+    pkg.messageId = messageId;
+    pkg.originNode = this->nodeId;
+    pkg.timestamp = this->getNodeTime();
+    pkg.priority = request.priority;
+    pkg.destination = request.destination;
+    pkg.payload = request.payload;
+    pkg.contentType = "application/json";
+    pkg.retryCount = request.retryCount;
+    pkg.requiresAck = true;
+
+    // Send the package
+    auto conn = painlessmesh::router::findRoute<T>((*this), gateway->nodeId);
+    bool sent = false;
+    if (conn) {
+      sent = painlessmesh::router::sendWithPriority(pkg, conn, request.priority);
+    }
+
+    if (!sent) {
+      Log(logger::ERROR, "retryInternetRequest(): Retry send failed msgId=%u\n", messageId);
+      scheduleInternetRetry(messageId);
+    } else {
+      Log(logger::COMMUNICATION, "retryInternetRequest(): Retry sent msgId=%u to gateway %u\n",
+          messageId, gateway->nodeId);
+    }
+  }
+
+  /**
+   * Schedule timeout check for an Internet request
+   */
+  void scheduleInternetTimeout(uint32_t messageId) {
+    auto it = pendingInternetRequests.find(messageId);
+    if (it == pendingInternetRequests.end()) {
+      return;
+    }
+
+    uint32_t timeout = it->second.timeoutMs;
+
+    this->addTask(timeout, TASK_ONCE, [this, messageId]() {
+      this->checkInternetRequestTimeout(messageId);
+    });
+  }
+
+  /**
+   * Check if a specific request has timed out
+   */
+  void checkInternetRequestTimeout(uint32_t messageId) {
+    auto it = pendingInternetRequests.find(messageId);
+    if (it == pendingInternetRequests.end()) {
+      return;  // Already handled
+    }
+
+    PendingInternetRequest& request = it->second;
+
+    if (request.isTimedOut()) {
+      Log(logger::ERROR, "checkInternetRequestTimeout(): Request timed out msgId=%u\n",
+          messageId);
+      if (request.callback) {
+        request.callback(false, 0, "Request timed out");
+      }
+      pendingInternetRequests.erase(it);
+    }
+  }
+
+  /**
+   * Cleanup all timed-out Internet requests
+   */
+  void cleanupTimedOutRequests() {
+    auto it = pendingInternetRequests.begin();
+    while (it != pendingInternetRequests.end()) {
+      if (it->second.isTimedOut()) {
+        Log(logger::GENERAL, "cleanupTimedOutRequests(): Cleaning up msgId=%u\n",
+            it->first);
+        if (it->second.callback) {
+          it->second.callback(false, 0, "Request timed out");
+        }
+        it = pendingInternetRequests.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
+ public:
   /**
    * Update bridge information from received status package
    * Internal method called when bridge status is received
@@ -2496,6 +2966,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   gateway::InternetHealthChecker internetHealthChecker;
   std::shared_ptr<Task> internetHealthCheckTask = nullptr;
   localInternetChangedCallback_t localInternetChangedCallback;
+
+  // sendToInternet API
+  std::map<uint32_t, PendingInternetRequest> pendingInternetRequests;
+  std::shared_ptr<Task> internetCleanupTask = nullptr;
+  uint32_t internetRequestTimeout = 30000;   // Default 30 seconds
+  uint8_t internetRetryCount = 3;            // Default 3 retries
+  uint32_t internetRetryDelay = 1000;        // Default 1 second base delay
+  bool sendToInternetEnabled = false;
 
   friend T;
   friend void onDataCb(void *, AsyncClient *, void *, size_t);
