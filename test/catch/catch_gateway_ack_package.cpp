@@ -151,7 +151,7 @@ SCENARIO("GatewayAckPackage handles long error messages") {
         pkg.success = false;
         pkg.httpStatus = 503;
         
-        // Create an error message of ~200 characters
+        // Create an error message of ~180 characters
         TSTRING longError = "Service temporarily unavailable: The server is currently unable to handle the request due to temporary overloading or maintenance. This is a temporary condition which will be resolved soon.";
         
         pkg.error = longError;
