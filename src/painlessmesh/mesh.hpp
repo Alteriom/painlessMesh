@@ -736,7 +736,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         bridgeTimeoutMs,
         TASK_FOREVER,
         [this]() {
-          this->cleanupExpiredBridges();
+          cleanupExpiredBridges();
         });
   }
 
@@ -993,7 +993,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         cleanupExpiredBridges();
         
         // If still at capacity, remove the bridge with worst RSSI (lowest signal)
-        if (knownBridges.size() >= MAX_KNOWN_BRIDGES) {
+        if (knownBridges.size() >= MAX_KNOWN_BRIDGES && !knownBridges.empty()) {
           auto worstBridge = knownBridges.begin();
           int8_t worstRSSI = worstBridge->routerRSSI;
           
