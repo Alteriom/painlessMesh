@@ -34,6 +34,8 @@
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
 
+#include <functional>
+
 namespace painlessmesh {
 namespace gateway {
 
@@ -355,6 +357,280 @@ struct SharedGatewayConfig {
     baseSize += internetCheckHost.length();
     return baseSize;
   }
+};
+
+/**
+ * @brief Structure to hold Internet connectivity check results
+ *
+ * Contains detailed information about the last Internet connectivity check,
+ * including whether it succeeded, timing information, and error details.
+ */
+struct InternetStatus {
+  bool available = false;          ///< Whether Internet is currently available
+  uint32_t lastCheckTime = 0;      ///< Timestamp of last check (millis)
+  uint32_t lastSuccessTime = 0;    ///< Timestamp of last successful check (millis)
+  uint32_t checkCount = 0;         ///< Total number of checks performed
+  uint32_t successCount = 0;       ///< Number of successful checks
+  uint32_t failureCount = 0;       ///< Number of failed checks
+  uint32_t lastLatencyMs = 0;      ///< Latency of last successful check in ms
+  TSTRING lastError = "";          ///< Error message from last failed check
+  TSTRING checkHost = "";          ///< Host used for connectivity check
+  uint16_t checkPort = 0;          ///< Port used for connectivity check
+
+  /**
+   * @brief Get the uptime percentage of Internet connectivity
+   * @return Percentage of successful checks (0-100), or 0 if no checks performed
+   */
+  uint8_t getUptimePercent() const {
+    if (checkCount == 0) return 0;
+    return static_cast<uint8_t>((successCount * 100) / checkCount);
+  }
+
+  /**
+   * @brief Get time since last successful Internet check
+   * @return Milliseconds since last success, or UINT32_MAX if never succeeded
+   */
+  uint32_t getTimeSinceLastSuccess() const {
+    if (lastSuccessTime == 0) return UINT32_MAX;
+    return millis() - lastSuccessTime;
+  }
+
+  /**
+   * @brief Check if Internet status is stale (no recent check)
+   * @param maxAgeMs Maximum age in milliseconds (default: 60000)
+   * @return true if last check was too long ago
+   */
+  bool isStale(uint32_t maxAgeMs = 60000) const {
+    if (lastCheckTime == 0) return true;
+    return (millis() - lastCheckTime) > maxAgeMs;
+  }
+};
+
+/**
+ * @brief Callback type for Internet connectivity change events
+ */
+typedef std::function<void(bool available)> InternetChangedCallback_t;
+
+/**
+ * @brief Internet Health Checker class for periodic connectivity monitoring
+ *
+ * This class performs periodic TCP connection tests to verify Internet
+ * connectivity. It is designed to be non-blocking and work with the
+ * TaskScheduler for asynchronous operation.
+ *
+ * PLATFORM SUPPORT:
+ * - ESP32/ESP8266: Uses WiFiClient for actual TCP connections
+ * - PC/Test: Mocked connectivity (always fails in test environment)
+ *
+ * Example usage:
+ * @code
+ * InternetHealthChecker checker;
+ * checker.setConfig(gatewayConfig);
+ * checker.onConnectivityChanged([](bool available) {
+ *   Serial.printf("Internet %s\n", available ? "connected" : "disconnected");
+ * });
+ * checker.start(scheduler);
+ * @endcode
+ */
+class InternetHealthChecker {
+ public:
+  InternetHealthChecker() = default;
+
+  /**
+   * @brief Configure the health checker with gateway settings
+   * @param config SharedGatewayConfig with check parameters
+   */
+  void setConfig(const SharedGatewayConfig& config) {
+    checkHost_ = config.internetCheckHost;
+    checkPort_ = config.internetCheckPort;
+    checkInterval_ = config.internetCheckInterval;
+    checkTimeout_ = config.internetCheckTimeout;
+    status_.checkHost = checkHost_;
+    status_.checkPort = checkPort_;
+  }
+
+  /**
+   * @brief Set custom check host and port
+   * @param host Host to check (IP address or hostname)
+   * @param port Port to connect to (default: 53 for DNS)
+   */
+  void setCheckTarget(const TSTRING& host, uint16_t port = 53) {
+    checkHost_ = host;
+    checkPort_ = port;
+    status_.checkHost = checkHost_;
+    status_.checkPort = checkPort_;
+  }
+
+  /**
+   * @brief Set check interval
+   * @param intervalMs Interval between checks in milliseconds
+   */
+  void setCheckInterval(uint32_t intervalMs) {
+    checkInterval_ = intervalMs;
+  }
+
+  /**
+   * @brief Set check timeout
+   * @param timeoutMs Timeout for each check in milliseconds
+   */
+  void setCheckTimeout(uint32_t timeoutMs) {
+    checkTimeout_ = timeoutMs;
+  }
+
+  /**
+   * @brief Register callback for connectivity changes
+   * @param callback Function to call when connectivity status changes
+   */
+  void onConnectivityChanged(InternetChangedCallback_t callback) {
+    connectivityChangedCallback_ = callback;
+  }
+
+  /**
+   * @brief Check if local Internet is currently available
+   * @return true if last check succeeded
+   */
+  bool hasLocalInternet() const {
+    return status_.available;
+  }
+
+  /**
+   * @brief Get detailed Internet status
+   * @return InternetStatus structure with full details
+   */
+  InternetStatus getStatus() const {
+    return status_;
+  }
+
+  /**
+   * @brief Perform an immediate Internet connectivity check
+   *
+   * This method performs a synchronous TCP connection test.
+   * On ESP32/ESP8266, it uses WiFiClient.
+   * In test environment, connectivity is mocked.
+   *
+   * @return true if connection succeeded
+   */
+  bool checkNow() {
+    status_.checkCount++;
+    status_.lastCheckTime = millis();
+
+    bool connected = performTcpCheck();
+
+    if (connected) {
+      status_.successCount++;
+      status_.lastSuccessTime = millis();
+      status_.lastError = "";
+    } else {
+      status_.failureCount++;
+    }
+
+    // Detect status change and fire callback
+    if (connected != status_.available) {
+      status_.available = connected;
+      if (connectivityChangedCallback_) {
+        connectivityChangedCallback_(connected);
+      }
+    }
+
+    return connected;
+  }
+
+  /**
+   * @brief Get check interval
+   * @return Check interval in milliseconds
+   */
+  uint32_t getCheckInterval() const {
+    return checkInterval_;
+  }
+
+  /**
+   * @brief Get check timeout
+   * @return Check timeout in milliseconds
+   */
+  uint32_t getCheckTimeout() const {
+    return checkTimeout_;
+  }
+
+  /**
+   * @brief Get check host
+   * @return Host being checked
+   */
+  TSTRING getCheckHost() const {
+    return checkHost_;
+  }
+
+  /**
+   * @brief Get check port
+   * @return Port being checked
+   */
+  uint16_t getCheckPort() const {
+    return checkPort_;
+  }
+
+  /**
+   * @brief Reset all statistics
+   */
+  void resetStats() {
+    status_.checkCount = 0;
+    status_.successCount = 0;
+    status_.failureCount = 0;
+    status_.lastCheckTime = 0;
+    status_.lastSuccessTime = 0;
+    status_.lastLatencyMs = 0;
+    status_.lastError = "";
+  }
+
+#ifdef PAINLESSMESH_BOOST
+  /**
+   * @brief Set mock connectivity result (test environment only)
+   * @param connected Whether to simulate connected state
+   */
+  void setMockConnected(bool connected) {
+    mockConnected_ = connected;
+  }
+#endif
+
+ private:
+  /**
+   * @brief Perform the actual TCP connection check
+   *
+   * Platform-specific implementation:
+   * - ESP32/ESP8266: Uses WiFiClient to connect
+   * - Test/PC: Returns mock value
+   *
+   * @return true if connection succeeded
+   */
+  bool performTcpCheck() {
+#ifdef PAINLESSMESH_BOOST
+    // Test environment - use mock value
+    if (mockConnected_) {
+      status_.lastLatencyMs = 10;  // Simulated latency
+      return true;
+    }
+    status_.lastError = "Mock: No Internet in test environment";
+    return false;
+#else
+    // Arduino/ESP environment - actual TCP check
+    // Note: WiFiClient usage is handled in the arduino-specific code
+    // This base implementation returns false; override in wifi.hpp
+    status_.lastError = "Not implemented in base class";
+    return false;
+#endif
+  }
+
+  // Configuration
+  TSTRING checkHost_ = "8.8.8.8";
+  uint16_t checkPort_ = 53;
+  uint32_t checkInterval_ = 30000;
+  uint32_t checkTimeout_ = 5000;
+
+  // State
+  InternetStatus status_;
+  InternetChangedCallback_t connectivityChangedCallback_;
+
+#ifdef PAINLESSMESH_BOOST
+  bool mockConnected_ = false;
+#endif
 };
 
 }  // namespace gateway

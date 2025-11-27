@@ -9,6 +9,7 @@
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/connection.hpp"
+#include "painlessmesh/gateway.hpp"
 #include "painlessmesh/logger.hpp"
 #include "painlessmesh/message_queue.hpp"
 #include "painlessmesh/ntp.hpp"
@@ -30,6 +31,7 @@ typedef std::function<void(int32_t offset)> nodeTimeAdjustedCallback_t;
 typedef std::function<void(uint32_t nodeId, int32_t delay)> nodeDelayCallback_t;
 typedef std::function<void(uint32_t bridgeNodeId, bool internetAvailable)> bridgeStatusChangedCallback_t;
 typedef std::function<void(uint32_t timestamp)> rtcSyncCompleteCallback_t;
+typedef std::function<void(bool available)> localInternetChangedCallback_t;
 
 /**
  * Bridge information structure
@@ -645,6 +647,199 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   void enableBridgeStatusBroadcast(bool enabled) {
     bridgeStatusBroadcastEnabled = enabled;
   }
+
+  // ==================== Local Internet Health Check API ====================
+
+  /**
+   * Check if THIS node has direct local Internet access
+   * 
+   * This method checks whether this specific node can directly reach the Internet,
+   * as opposed to hasInternetConnection() which checks if any bridge in the mesh
+   * has Internet access.
+   * 
+   * For gateway/bridge nodes, this returns the result of the local health check.
+   * For regular nodes, this typically returns false unless they have their own
+   * Internet connection.
+   * 
+   * \code
+   * if (mesh.hasLocalInternet()) {
+   *   Serial.println("This node has direct Internet access");
+   * }
+   * \endcode
+   * 
+   * @return true if this node has verified local Internet connectivity
+   */
+  bool hasLocalInternet() {
+    return internetHealthChecker.hasLocalInternet();
+  }
+
+  /**
+   * Register callback for local Internet connectivity changes
+   * 
+   * This callback fires when THIS node's direct Internet connectivity changes,
+   * as detected by the periodic health check.
+   * 
+   * \code
+   * mesh.onLocalInternetChanged([](bool available) {
+   *   if (available) {
+   *     Serial.println("Local Internet connected");
+   *   } else {
+   *     Serial.println("Local Internet disconnected");
+   *   }
+   * });
+   * \endcode
+   * 
+   * @param callback Function to call when local Internet status changes
+   */
+  void onLocalInternetChanged(localInternetChangedCallback_t callback) {
+    Log(logger::GENERAL, "onLocalInternetChanged():\n");
+    localInternetChangedCallback = callback;
+    internetHealthChecker.onConnectivityChanged(callback);
+  }
+
+  /**
+   * Get detailed status of local Internet connectivity
+   * 
+   * Returns comprehensive information about Internet connectivity checks
+   * including success/failure counts, timing, and error messages.
+   * 
+   * \code
+   * auto status = mesh.getInternetStatus();
+   * Serial.printf("Internet %s, uptime: %d%%\n", 
+   *               status.available ? "UP" : "DOWN",
+   *               status.getUptimePercent());
+   * \endcode
+   * 
+   * @return InternetStatus structure with detailed connectivity info
+   */
+  gateway::InternetStatus getInternetStatus() {
+    return internetHealthChecker.getStatus();
+  }
+
+  /**
+   * Configure Internet health checker with gateway settings
+   * 
+   * Sets up the health checker with parameters from SharedGatewayConfig.
+   * This should be called before enabling gateway mode.
+   * 
+   * @param config Gateway configuration with check parameters
+   */
+  void configureInternetHealthCheck(const gateway::SharedGatewayConfig& config) {
+    internetHealthChecker.setConfig(config);
+  }
+
+  /**
+   * Set custom Internet check target
+   * 
+   * Override the default check host/port (8.8.8.8:53).
+   * 
+   * @param host Host to check (IP or hostname)
+   * @param port Port to connect to (default 53 for DNS)
+   */
+  void setInternetCheckTarget(const TSTRING& host, uint16_t port = 53) {
+    internetHealthChecker.setCheckTarget(host, port);
+  }
+
+  /**
+   * Set Internet check interval
+   * 
+   * @param intervalMs Interval between checks in milliseconds
+   */
+  void setInternetCheckInterval(uint32_t intervalMs) {
+    internetHealthChecker.setCheckInterval(intervalMs);
+  }
+
+  /**
+   * Set Internet check timeout
+   * 
+   * @param timeoutMs Timeout for each check in milliseconds
+   */
+  void setInternetCheckTimeout(uint32_t timeoutMs) {
+    internetHealthChecker.setCheckTimeout(timeoutMs);
+  }
+
+  /**
+   * Perform an immediate Internet connectivity check
+   * 
+   * Bypasses the periodic check schedule and performs an immediate check.
+   * Fires the onLocalInternetChanged callback if status changes.
+   * 
+   * @return true if Internet is reachable
+   */
+  bool checkInternetNow() {
+    return internetHealthChecker.checkNow();
+  }
+
+  /**
+   * Enable periodic Internet health checking
+   * 
+   * Starts a TaskScheduler task that periodically checks Internet connectivity.
+   * The check interval is configured via setInternetCheckInterval() or
+   * configureInternetHealthCheck().
+   * 
+   * \code
+   * mesh.enableInternetHealthCheck();  // Use default 30 second interval
+   * // or
+   * mesh.setInternetCheckInterval(15000);  // 15 seconds
+   * mesh.enableInternetHealthCheck();
+   * \endcode
+   */
+  void enableInternetHealthCheck() {
+    using namespace logger;
+    if (internetHealthCheckTask != nullptr) {
+      Log(GENERAL, "enableInternetHealthCheck(): Already enabled\n");
+      return;
+    }
+    
+    Log(GENERAL, "enableInternetHealthCheck(): Starting health check task (interval: %u ms)\n",
+        internetHealthChecker.getCheckInterval());
+    
+    internetHealthCheckTask = this->addTask(
+        internetHealthChecker.getCheckInterval(),
+        TASK_FOREVER,
+        [this]() {
+          this->internetHealthChecker.checkNow();
+        });
+  }
+
+  /**
+   * Disable periodic Internet health checking
+   */
+  void disableInternetHealthCheck() {
+    using namespace logger;
+    if (internetHealthCheckTask != nullptr) {
+      internetHealthCheckTask->disable();
+      internetHealthCheckTask = nullptr;
+      Log(GENERAL, "disableInternetHealthCheck(): Health check task disabled\n");
+    }
+  }
+
+  /**
+   * Check if Internet health checking is enabled
+   * 
+   * @return true if periodic health checks are running
+   */
+  bool isInternetHealthCheckEnabled() const {
+    return internetHealthCheckTask != nullptr && internetHealthCheckTask->isEnabled();
+  }
+
+  /**
+   * Reset Internet health check statistics
+   */
+  void resetInternetHealthStats() {
+    internetHealthChecker.resetStats();
+  }
+
+#ifdef PAINLESSMESH_BOOST
+  /**
+   * Set mock Internet connectivity (test environment only)
+   * 
+   * @param connected Whether to simulate connected state
+   */
+  void setMockInternetConnected(bool connected) {
+    internetHealthChecker.setMockConnected(connected);
+  }
+#endif
 
   /**
    * Update bridge information from received status package
@@ -2156,6 +2351,11 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   static const size_t MAX_ELECTION_HISTORY = 10;
   BridgeChangeEvent lastBridgeChange;
   uint32_t lastBridgeChangeTime = 0;
+
+  // Local Internet health check
+  gateway::InternetHealthChecker internetHealthChecker;
+  std::shared_ptr<Task> internetHealthCheckTask = nullptr;
+  localInternetChangedCallback_t localInternetChangedCallback;
 
   friend T;
   friend void onDataCb(void *, AsyncClient *, void *, size_t);
