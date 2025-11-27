@@ -33,6 +33,8 @@
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
+#include "painlessmesh/plugin.hpp"
+#include "painlessmesh/protocol.hpp"
 
 #include <functional>
 
@@ -631,6 +633,261 @@ class InternetHealthChecker {
 #ifdef PAINLESSMESH_BOOST
   bool mockConnected_ = false;
 #endif
+};
+
+/**
+ * @brief Priority levels for GatewayDataPackage messages
+ *
+ * Defines the priority levels for message routing through the gateway.
+ * Lower values indicate higher priority.
+ */
+enum class GatewayPriority : uint8_t {
+  CRITICAL = 0,  ///< Critical messages - immediate processing
+  HIGH = 1,      ///< High priority - processed before normal
+  NORMAL = 2,    ///< Normal priority - standard processing
+  LOW = 3        ///< Low priority - processed when idle
+};
+
+/**
+ * @brief Gateway Data Package for routing Internet requests through mesh
+ *
+ * This package enables mesh nodes to send data through a gateway node to
+ * the Internet. It provides a standardized format for:
+ * - HTTP requests to external APIs
+ * - MQTT message publishing
+ * - WebSocket communications
+ * - Any other Internet-bound data
+ *
+ * MEMORY FOOTPRINT
+ * ================
+ * The GatewayDataPackage structure has an estimated memory footprint of:
+ * - Base fields (from SinglePackage): ~20 bytes
+ * - Fixed fields (messageId, originNode, timestamp, priority, retryCount,
+ *   requiresAck): ~18 bytes
+ * - TSTRING fields (destination, payload, contentType):
+ *   - ESP8266/ESP32 String: ~12 bytes overhead per String + content length
+ *   - PC/Test std::string: ~32 bytes overhead per string + content length
+ * - Total estimated minimum: ~74 bytes (ESP) to ~134 bytes (PC/Test)
+ * - With typical content: ~200-500 bytes depending on payload size
+ *
+ * For ESP8266 with ~80KB RAM, keep payload under 1KB for safety.
+ * For ESP32 with ~320KB RAM, larger payloads are acceptable.
+ *
+ * MESSAGE ID GENERATION
+ * =====================
+ * Use generateMessageId(nodeId) to create unique message IDs.
+ * The ID combines a per-node counter with the node ID to ensure
+ * uniqueness across the mesh network.
+ *
+ * Example usage:
+ * @code
+ * GatewayDataPackage pkg;
+ * pkg.messageId = GatewayDataPackage::generateMessageId(mesh.getNodeId());
+ * pkg.originNode = mesh.getNodeId();
+ * pkg.timestamp = mesh.getNodeTime();
+ * pkg.priority = static_cast<uint8_t>(GatewayPriority::NORMAL);
+ * pkg.destination = "https://api.example.com/data";
+ * pkg.payload = "{\"sensor\": 42}";
+ * pkg.contentType = "application/json";
+ * pkg.requiresAck = true;
+ *
+ * mesh.sendPackage(&pkg);
+ * @endcode
+ *
+ * Type ID: 620 (GATEWAY_DATA)
+ * Base class: SinglePackage (routed to specific gateway node)
+ */
+class GatewayDataPackage : public plugin::SinglePackage {
+ public:
+  /**
+   * @brief Unique message identifier
+   *
+   * Generated using generateMessageId() to ensure uniqueness across the mesh.
+   * Used for tracking, acknowledgment, and deduplication.
+   */
+  uint32_t messageId = 0;
+
+  /**
+   * @brief Node ID that originated this message
+   *
+   * The node that created the message, which may differ from the
+   * 'from' field during relay operations.
+   */
+  uint32_t originNode = 0;
+
+  /**
+   * @brief Creation timestamp
+   *
+   * Mesh time when the message was created.
+   * Used for TTL calculations and ordering.
+   */
+  uint32_t timestamp = 0;
+
+  /**
+   * @brief Message priority (0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW)
+   *
+   * Determines processing order at the gateway.
+   * Use GatewayPriority enum for type-safe values.
+   */
+  uint8_t priority = static_cast<uint8_t>(GatewayPriority::NORMAL);
+
+  /**
+   * @brief Destination URL or endpoint
+   *
+   * The Internet destination for this data. Examples:
+   * - "https://api.example.com/sensor"
+   * - "mqtt://broker.example.com/topic"
+   * - "wss://ws.example.com/stream"
+   */
+  TSTRING destination = "";
+
+  /**
+   * @brief Application payload data
+   *
+   * The actual data to send to the destination.
+   * Format depends on contentType (JSON, binary, etc.).
+   */
+  TSTRING payload = "";
+
+  /**
+   * @brief MIME content type
+   *
+   * Describes the format of the payload. Common values:
+   * - "application/json"
+   * - "text/plain"
+   * - "application/octet-stream"
+   */
+  TSTRING contentType = "application/json";
+
+  /**
+   * @brief Number of relay attempts
+   *
+   * Incremented each time the message is relayed.
+   * Can be used for hop counting and loop detection.
+   */
+  uint8_t retryCount = 0;
+
+  /**
+   * @brief Whether acknowledgment is required
+   *
+   * When true, the gateway should send a response back
+   * confirming successful delivery to the Internet destination.
+   */
+  bool requiresAck = false;
+
+  /**
+   * @brief Default constructor
+   *
+   * Creates a GatewayDataPackage with type ID 620 (GATEWAY_DATA).
+   */
+  GatewayDataPackage() : SinglePackage(protocol::GATEWAY_DATA) {}
+
+  /**
+   * @brief Construct from JSON object
+   *
+   * Deserializes a GatewayDataPackage from a JSON object.
+   * Compatible with ArduinoJson v6 and v7.
+   *
+   * @param jsonObj JSON object containing package data
+   */
+  GatewayDataPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {
+    messageId = jsonObj["msgId"];
+    originNode = jsonObj["origin"];
+    timestamp = jsonObj["ts"];
+    priority = jsonObj["prio"];
+    retryCount = jsonObj["retry"];
+    requiresAck = jsonObj["ack"] | false;
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+    if (jsonObj.containsKey("dest_url"))
+      destination = jsonObj["dest_url"].as<TSTRING>();
+    if (jsonObj.containsKey("payload"))
+      payload = jsonObj["payload"].as<TSTRING>();
+    if (jsonObj.containsKey("content"))
+      contentType = jsonObj["content"].as<TSTRING>();
+#else
+    if (jsonObj["dest_url"].is<TSTRING>())
+      destination = jsonObj["dest_url"].as<TSTRING>();
+    if (jsonObj["payload"].is<TSTRING>())
+      payload = jsonObj["payload"].as<TSTRING>();
+    if (jsonObj["content"].is<TSTRING>())
+      contentType = jsonObj["content"].as<TSTRING>();
+#endif
+  }
+
+  /**
+   * @brief Serialize to JSON object
+   *
+   * Adds all package fields to the provided JSON object.
+   *
+   * @param jsonObj JSON object to add fields to
+   * @return The modified JSON object
+   */
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = SinglePackage::addTo(std::move(jsonObj));
+    jsonObj["msgId"] = messageId;
+    jsonObj["origin"] = originNode;
+    jsonObj["ts"] = timestamp;
+    jsonObj["prio"] = priority;
+    jsonObj["dest_url"] = destination;
+    jsonObj["payload"] = payload;
+    jsonObj["content"] = contentType;
+    jsonObj["retry"] = retryCount;
+    jsonObj["ack"] = requiresAck;
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  /**
+   * @brief Calculate JSON object size for ArduinoJson v6
+   *
+   * Used for buffer allocation when serializing.
+   *
+   * @return Estimated size in bytes
+   */
+  size_t jsonObjectSize() const {
+    // noJsonFields (4) + our 9 fields = 13 fields total
+    return JSON_OBJECT_SIZE(noJsonFields + 9) + destination.length() +
+           payload.length() + contentType.length();
+  }
+#endif
+
+  /**
+   * @brief Generate a unique message ID
+   *
+   * Creates a unique message ID by combining a per-node counter
+   * with the node ID. This ensures uniqueness across the mesh
+   * even if multiple nodes generate IDs simultaneously.
+   *
+   * The ID format is:
+   * - Upper 16 bits: Lower 16 bits of node ID
+   * - Lower 16 bits: Incrementing counter (wraps at 65535)
+   *
+   * @param nodeId The ID of the node generating the message
+   * @return A unique message ID
+   */
+  static uint32_t generateMessageId(uint32_t nodeId) {
+    static uint16_t counter = 0;
+    ++counter;
+    // Combine node ID (upper 16 bits) with counter (lower 16 bits)
+    return ((nodeId & 0xFFFF) << 16) | counter;
+  }
+
+  /**
+   * @brief Get the estimated memory footprint
+   *
+   * Returns an estimate of the memory used by this package instance.
+   *
+   * @return Estimated memory usage in bytes
+   */
+  size_t estimatedMemoryFootprint() const {
+    size_t baseSize = sizeof(GatewayDataPackage);
+    // Add dynamic string content (not included in sizeof)
+    baseSize += destination.length();
+    baseSize += payload.length();
+    baseSize += contentType.length();
+    return baseSize;
+  }
 };
 
 }  // namespace gateway
