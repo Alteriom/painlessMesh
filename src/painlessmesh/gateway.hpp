@@ -1097,6 +1097,209 @@ class GatewayAckPackage : public plugin::SinglePackage {
 };
 
 /**
+ * @brief Gateway Heartbeat Package for primary gateway health monitoring
+ *
+ * This package is broadcast periodically by the primary gateway to inform all
+ * nodes in the mesh about the gateway's health status. It provides essential
+ * information for:
+ * - Gateway availability monitoring
+ * - Internet connectivity status
+ * - Gateway election decision-making
+ * - Failover detection
+ *
+ * BROADCAST INTERVAL
+ * ==================
+ * The primary gateway should broadcast heartbeats at the interval configured
+ * in SharedGatewayConfig::gatewayHeartbeatInterval (default: 15 seconds).
+ *
+ * TIMEOUT DETECTION
+ * =================
+ * If no heartbeat is received within SharedGatewayConfig::gatewayFailureTimeout
+ * (default: 45 seconds), the gateway should be considered failed and election
+ * may begin.
+ *
+ * MEMORY FOOTPRINT
+ * ================
+ * The GatewayHeartbeatPackage structure has an estimated memory footprint of:
+ * - Base fields (from BroadcastPackage): ~16 bytes
+ * - Fixed fields (isPrimary, hasInternet, routerRSSI, uptime, timestamp): ~11 bytes
+ * - Total estimated: ~27 bytes
+ *
+ * For ESP8266 with ~80KB RAM, this represents <0.1% of available memory.
+ * For ESP32 with ~320KB RAM, this represents <0.01% of available memory.
+ *
+ * Example usage:
+ * @code
+ * // Primary gateway broadcasting heartbeat
+ * GatewayHeartbeatPackage heartbeat;
+ * heartbeat.from = mesh.getNodeId();
+ * heartbeat.isPrimary = true;
+ * heartbeat.hasInternet = internetChecker.hasLocalInternet();
+ * heartbeat.routerRSSI = WiFi.RSSI();
+ * heartbeat.uptime = millis() / 1000;  // Convert to seconds
+ * heartbeat.timestamp = mesh.getNodeTime();
+ *
+ * mesh.sendPackage(&heartbeat);
+ *
+ * // Node receiving heartbeat
+ * void onHeartbeat(GatewayHeartbeatPackage& heartbeat) {
+ *     lastGatewayHeartbeat = millis();
+ *     primaryGatewayId = heartbeat.from;
+ *     hasGatewayInternet = heartbeat.hasInternet;
+ * }
+ * @endcode
+ *
+ * Type ID: 622 (GATEWAY_HEARTBEAT)
+ * Base class: BroadcastPackage (sent to all nodes in mesh)
+ */
+class GatewayHeartbeatPackage : public plugin::BroadcastPackage {
+ public:
+  /**
+   * @brief Indicates if this is the primary gateway
+   *
+   * True if the node sending this heartbeat is the currently elected
+   * primary gateway. Secondary/standby gateways may also send heartbeats
+   * with isPrimary = false for coordination purposes.
+   */
+  bool isPrimary = false;
+
+  /**
+   * @brief Indicates if this gateway has Internet connectivity
+   *
+   * True if the gateway can currently reach the Internet.
+   * Used by other nodes to determine if data can be routed
+   * to Internet services through this gateway.
+   */
+  bool hasInternet = false;
+
+  /**
+   * @brief Signal strength to the router in dBm
+   *
+   * The RSSI value indicating signal quality to the external WiFi router.
+   * Range: typically -90 (weak) to -30 (strong) dBm.
+   * Used in gateway election to prefer gateways with better connections.
+   * Set to 0 if not connected to a router.
+   */
+  int8_t routerRSSI = 0;
+
+  /**
+   * @brief Gateway uptime in seconds
+   *
+   * How long this gateway has been running, in seconds.
+   * Used in election tiebreakers - longer uptime indicates stability.
+   */
+  uint32_t uptime = 0;
+
+  /**
+   * @brief Heartbeat timestamp
+   *
+   * Mesh time when this heartbeat was generated.
+   * Used for calculating latency and detecting stale heartbeats.
+   */
+  uint32_t timestamp = 0;
+
+  /**
+   * @brief Number of additional JSON fields in this package
+   *
+   * Used for jsonObjectSize() calculation in ArduinoJson v6.
+   * Count: primary, internet, rssi, uptime, ts = 5 fields
+   */
+  static constexpr int numPackageFields = 5;
+
+  /**
+   * @brief Default constructor
+   *
+   * Creates a GatewayHeartbeatPackage with type ID 622 (GATEWAY_HEARTBEAT).
+   */
+  GatewayHeartbeatPackage() : BroadcastPackage(protocol::GATEWAY_HEARTBEAT) {}
+
+  /**
+   * @brief Construct from JSON object
+   *
+   * Deserializes a GatewayHeartbeatPackage from a JSON object.
+   * Compatible with ArduinoJson v6 and v7.
+   *
+   * @param jsonObj JSON object containing package data
+   */
+  GatewayHeartbeatPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+    isPrimary = jsonObj["primary"] | false;
+    hasInternet = jsonObj["internet"] | false;
+    routerRSSI = jsonObj["rssi"] | 0;
+    uptime = jsonObj["uptime"] | 0;
+    timestamp = jsonObj["ts"] | 0;
+  }
+
+  /**
+   * @brief Serialize to JSON object
+   *
+   * Adds all package fields to the provided JSON object.
+   *
+   * @param jsonObj JSON object to add fields to
+   * @return The modified JSON object
+   */
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+    jsonObj["primary"] = isPrimary;
+    jsonObj["internet"] = hasInternet;
+    jsonObj["rssi"] = routerRSSI;
+    jsonObj["uptime"] = uptime;
+    jsonObj["ts"] = timestamp;
+    return jsonObj;
+  }
+
+#if ARDUINOJSON_VERSION_MAJOR < 7
+  /**
+   * @brief Calculate JSON object size for ArduinoJson v6
+   *
+   * Used for buffer allocation when serializing.
+   *
+   * @return Estimated size in bytes
+   */
+  size_t jsonObjectSize() const {
+    // noJsonFields (from base class) + numPackageFields (our fields)
+    return JSON_OBJECT_SIZE(noJsonFields + numPackageFields);
+  }
+#endif
+
+  /**
+   * @brief Get the estimated memory footprint
+   *
+   * Returns an estimate of the memory used by this package instance.
+   *
+   * @return Estimated memory usage in bytes
+   */
+  size_t estimatedMemoryFootprint() const {
+    // No dynamic strings, so sizeof gives accurate footprint
+    return sizeof(GatewayHeartbeatPackage);
+  }
+
+  /**
+   * @brief Check if this heartbeat indicates a healthy gateway
+   *
+   * A gateway is considered healthy if it is primary and has Internet access.
+   *
+   * @return true if the gateway is healthy
+   */
+  bool isHealthy() const {
+    return isPrimary && hasInternet;
+  }
+
+  /**
+   * @brief Check if the router signal strength is acceptable
+   *
+   * Signal strength is considered acceptable if RSSI is better than -70 dBm.
+   * This is a typical threshold for reliable WiFi connectivity.
+   *
+   * @return true if signal strength is acceptable
+   */
+  bool hasAcceptableSignal() const {
+    // RSSI of 0 typically means not connected
+    // RSSI better than -70 dBm is considered acceptable
+    return routerRSSI != 0 && routerRSSI > -70;
+  }
+};
+
+/**
  * @brief Metrics for monitoring GatewayMessageHandler duplicate detection
  *
  * This structure tracks statistics about message processing and duplicate
