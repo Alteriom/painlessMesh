@@ -38,6 +38,7 @@
 #include "painlessmesh/protocol.hpp"
 
 #include <functional>
+#include <map>
 
 namespace painlessmesh {
 namespace gateway {
@@ -1297,6 +1298,501 @@ class GatewayHeartbeatPackage : public plugin::BroadcastPackage {
     // RSSI better than -70 dBm is considered acceptable
     return routerRSSI != 0 && routerRSSI > -70;
   }
+};
+
+/**
+ * @brief Gateway Election Manager for coordinating primary gateway selection
+ *
+ * This class implements a deterministic election protocol for selecting a
+ * primary gateway in the mesh network. It provides:
+ * - Primary gateway failure detection via heartbeat monitoring
+ * - Deterministic winner selection (highest RSSI, then highest node ID)
+ * - Split-brain prevention during elections
+ * - Cooldown period to prevent election thrashing
+ *
+ * ELECTION STATE MACHINE
+ * ======================
+ * The manager operates in three states:
+ * 1. IDLE: Monitoring heartbeats, no election in progress
+ * 2. ELECTION_RUNNING: Election triggered, collecting candidates
+ * 3. COOLDOWN: Post-election cooldown to prevent rapid re-elections
+ *
+ * ELECTION ALGORITHM
+ * ==================
+ * Only nodes with Internet connectivity (hasInternet == true) can be candidates.
+ * Winner is selected by:
+ * 1. Highest RSSI wins
+ * 2. If RSSI tie, highest node ID wins
+ *
+ * This ensures deterministic, consistent winner selection across all nodes.
+ *
+ * MEMORY FOOTPRINT
+ * ================
+ * The GatewayElectionManager has an estimated memory footprint of:
+ * - Fixed fields: ~60 bytes
+ * - Candidate map: ~40 bytes per candidate + map overhead
+ * - Total estimated: ~200-500 bytes depending on candidate count
+ *
+ * Example usage:
+ * @code
+ * GatewayElectionManager election;
+ * election.configure(gatewayConfig);
+ * election.setNodeId(mesh.getNodeId());
+ * election.setLocalCandidate(internetChecker.hasLocalInternet(), WiFi.RSSI());
+ *
+ * // In heartbeat callback
+ * void onHeartbeat(GatewayHeartbeatPackage& heartbeat) {
+ *     election.processHeartbeat(heartbeat);
+ * }
+ *
+ * // In update loop (call periodically)
+ * if (election.update(millis())) {
+ *     // This node won the election, broadcast as primary
+ *     broadcastPrimaryHeartbeat();
+ * }
+ *
+ * // Register callback for election results
+ * election.onElectionResult([](uint32_t winnerId, bool isLocal) {
+ *     Serial.printf("Election winner: %u (local: %s)\n",
+ *                   winnerId, isLocal ? "yes" : "no");
+ * });
+ * @endcode
+ */
+class GatewayElectionManager {
+ public:
+  /**
+   * @brief Election state machine states
+   */
+  enum class ElectionState {
+    IDLE,             ///< Monitoring heartbeats, no election in progress
+    ELECTION_RUNNING, ///< Election triggered, collecting candidates
+    COOLDOWN          ///< Post-election cooldown period
+  };
+
+  /**
+   * @brief Callback type for election result notifications
+   * @param winnerId The node ID of the election winner
+   * @param isLocalNode True if this node is the winner
+   */
+  typedef std::function<void(uint32_t winnerId, bool isLocalNode)>
+      ElectionResultCallback_t;
+
+  /**
+   * @brief Default constructor
+   *
+   * Creates a GatewayElectionManager with default configuration:
+   * - gatewayFailureTimeout: 45000ms
+   * - electionDuration: 5000ms
+   * - electionCooldownPeriod: 60000ms
+   */
+  GatewayElectionManager()
+      : state_(ElectionState::IDLE),
+        nodeId_(0),
+        localHasInternet_(false),
+        localRssi_(0),
+        primaryGatewayId_(0),
+        isElectedPrimary_(false),
+        lastPrimaryHeartbeatTime_(0),
+        electionStartTime_(0),
+        cooldownStartTime_(0),
+        gatewayFailureTimeout_(45000),
+        electionDuration_(5000),
+        electionCooldownPeriod_(60000) {}
+
+  /**
+   * @brief Configure the election manager using SharedGatewayConfig
+   *
+   * Updates the failure timeout from the provided configuration.
+   *
+   * @param config SharedGatewayConfig with timeout parameters
+   */
+  void configure(const SharedGatewayConfig& config) {
+    gatewayFailureTimeout_ = config.gatewayFailureTimeout;
+    Log(logger::GENERAL,
+        "GatewayElectionManager: Configured with failureTimeout=%ums\n",
+        gatewayFailureTimeout_);
+  }
+
+  /**
+   * @brief Set the local node ID
+   *
+   * Must be called before the manager can participate in elections.
+   *
+   * @param nodeId The local node's unique identifier
+   */
+  void setNodeId(uint32_t nodeId) {
+    nodeId_ = nodeId;
+    Log(logger::GENERAL, "GatewayElectionManager: Node ID set to %u\n", nodeId_);
+  }
+
+  /**
+   * @brief Set the local node's election candidacy parameters
+   *
+   * Updates whether this node can participate in elections based on
+   * Internet connectivity and signal strength.
+   *
+   * @param hasInternet True if this node has Internet connectivity
+   * @param rssi Signal strength to the router in dBm
+   */
+  void setLocalCandidate(bool hasInternet, int8_t rssi) {
+    localHasInternet_ = hasInternet;
+    localRssi_ = rssi;
+  }
+
+  /**
+   * @brief Process an incoming gateway heartbeat
+   *
+   * Updates internal state based on the received heartbeat:
+   * - If from primary, updates last heartbeat time
+   * - If during election, may defer to higher-priority primary
+   *
+   * @param heartbeat The received GatewayHeartbeatPackage
+   */
+  void processHeartbeat(const GatewayHeartbeatPackage& heartbeat) {
+    uint32_t currentTime = millis();
+
+    // Track this node as a potential candidate if it has Internet
+    if (heartbeat.hasInternet) {
+      Candidate candidate;
+      candidate.nodeId = heartbeat.from;
+      candidate.rssi = heartbeat.routerRSSI;
+      candidate.hasInternet = heartbeat.hasInternet;
+      candidate.lastSeen = currentTime;
+      candidates_[heartbeat.from] = candidate;
+    }
+
+    // Handle heartbeat from a node claiming to be primary
+    if (heartbeat.isPrimary) {
+      // During election, check for split-brain prevention
+      if (state_ == ElectionState::ELECTION_RUNNING) {
+        // If sender has higher priority (higher RSSI, or same RSSI and higher
+        // nodeId), defer to them
+        if (shouldDeferTo(heartbeat.routerRSSI, heartbeat.from)) {
+          Log(logger::GENERAL,
+              "GatewayElectionManager: Deferring to primary node %u "
+              "(RSSI=%d)\n",
+              heartbeat.from, heartbeat.routerRSSI);
+          primaryGatewayId_ = heartbeat.from;
+          isElectedPrimary_ = false;
+          lastPrimaryHeartbeatTime_ = currentTime;
+          transitionToCooldown(currentTime);
+          return;
+        }
+      } else {
+        // Not in election, accept this node as primary
+        primaryGatewayId_ = heartbeat.from;
+        lastPrimaryHeartbeatTime_ = currentTime;
+
+        // If we were primary but another node claims primary with higher
+        // priority, step down
+        if (isElectedPrimary_ && heartbeat.from != nodeId_) {
+          if (shouldDeferTo(heartbeat.routerRSSI, heartbeat.from)) {
+            Log(logger::GENERAL,
+                "GatewayElectionManager: Stepping down, deferring to node %u\n",
+                heartbeat.from);
+            isElectedPrimary_ = false;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * @brief Update the election state machine
+   *
+   * Should be called periodically (e.g., every second) to:
+   * - Check for primary gateway timeout
+   * - Progress election state machine
+   * - Determine election winners
+   *
+   * @param currentTime Current time in milliseconds (e.g., millis())
+   * @return true if this node should broadcast as primary (won election)
+   */
+  bool update(uint32_t currentTime) {
+    bool shouldBroadcastAsPrimary = false;
+
+    switch (state_) {
+      case ElectionState::IDLE:
+        // Check if primary gateway has timed out
+        if (primaryGatewayId_ != 0 && lastPrimaryHeartbeatTime_ != 0) {
+          uint32_t timeSinceLastHeartbeat =
+              currentTime - lastPrimaryHeartbeatTime_;
+          if (timeSinceLastHeartbeat > gatewayFailureTimeout_) {
+            Log(logger::GENERAL,
+                "GatewayElectionManager: Primary gateway %u timed out "
+                "(no heartbeat for %ums)\n",
+                primaryGatewayId_, timeSinceLastHeartbeat);
+            // Primary failed, start election if we can participate
+            if (canParticipateInElection()) {
+              startElection();
+            } else {
+              // Can't participate, just clear the primary
+              primaryGatewayId_ = 0;
+            }
+          }
+        } else if (primaryGatewayId_ == 0 && canParticipateInElection()) {
+          // No known primary and we can participate, start election
+          startElection();
+        }
+        break;
+
+      case ElectionState::ELECTION_RUNNING:
+        // Check if election duration has elapsed
+        if (currentTime - electionStartTime_ >= electionDuration_) {
+          // Election complete, select winner
+          uint32_t winnerId = selectWinner();
+          if (winnerId != 0) {
+            primaryGatewayId_ = winnerId;
+            isElectedPrimary_ = (winnerId == nodeId_);
+
+            Log(logger::GENERAL,
+                "GatewayElectionManager: Election complete, winner=%u "
+                "(local=%s)\n",
+                winnerId, isElectedPrimary_ ? "yes" : "no");
+
+            // Notify via callback
+            if (electionResultCallback_) {
+              electionResultCallback_(winnerId, isElectedPrimary_);
+            }
+
+            if (isElectedPrimary_) {
+              shouldBroadcastAsPrimary = true;
+              lastPrimaryHeartbeatTime_ = currentTime;
+            }
+          } else {
+            Log(logger::GENERAL,
+                "GatewayElectionManager: Election complete, no valid candidates\n");
+            primaryGatewayId_ = 0;
+            isElectedPrimary_ = false;
+          }
+
+          transitionToCooldown(currentTime);
+        }
+        break;
+
+      case ElectionState::COOLDOWN:
+        // Check if cooldown period has elapsed
+        if (currentTime - cooldownStartTime_ >= electionCooldownPeriod_) {
+          Log(logger::GENERAL,
+              "GatewayElectionManager: Cooldown complete, returning to IDLE\n");
+          state_ = ElectionState::IDLE;
+        }
+        break;
+    }
+
+    return shouldBroadcastAsPrimary;
+  }
+
+  /**
+   * @brief Check if this node is the elected primary gateway
+   * @return true if this node won the last election
+   */
+  bool isElectedPrimary() const { return isElectedPrimary_; }
+
+  /**
+   * @brief Get the current election state
+   * @return Current ElectionState
+   */
+  ElectionState getState() const { return state_; }
+
+  /**
+   * @brief Get the current primary gateway node ID
+   * @return Primary gateway node ID, or 0 if none
+   */
+  uint32_t getPrimaryGatewayId() const { return primaryGatewayId_; }
+
+  /**
+   * @brief Register a callback for election results
+   *
+   * The callback is invoked when an election completes with the winner's
+   * node ID and whether this node is the winner.
+   *
+   * @param callback Function to call on election completion
+   */
+  void onElectionResult(ElectionResultCallback_t callback) {
+    electionResultCallback_ = callback;
+  }
+
+  /**
+   * @brief Force start an election
+   *
+   * Manually triggers an election, useful for testing or when a node
+   * needs to force re-election. Only starts if not already in election
+   * or cooldown.
+   */
+  void startElection() {
+    if (state_ != ElectionState::IDLE) {
+      Log(logger::GENERAL,
+          "GatewayElectionManager: Cannot start election, state=%d\n",
+          static_cast<int>(state_));
+      return;
+    }
+
+    Log(logger::GENERAL,
+        "GatewayElectionManager: Starting election (nodeId=%u, "
+        "hasInternet=%s, rssi=%d)\n",
+        nodeId_, localHasInternet_ ? "yes" : "no", localRssi_);
+
+    state_ = ElectionState::ELECTION_RUNNING;
+    electionStartTime_ = millis();
+    isElectedPrimary_ = false;
+
+    // Clear old candidates and add self if eligible
+    candidates_.clear();
+    if (localHasInternet_ && nodeId_ != 0) {
+      Candidate localCandidate;
+      localCandidate.nodeId = nodeId_;
+      localCandidate.rssi = localRssi_;
+      localCandidate.hasInternet = localHasInternet_;
+      localCandidate.lastSeen = electionStartTime_;
+      candidates_[nodeId_] = localCandidate;
+    }
+  }
+
+  /**
+   * @brief Reset all election state
+   *
+   * Clears all state including primary gateway, candidates, and returns
+   * to IDLE state. Does not clear configuration or node ID.
+   */
+  void reset() {
+    state_ = ElectionState::IDLE;
+    primaryGatewayId_ = 0;
+    isElectedPrimary_ = false;
+    lastPrimaryHeartbeatTime_ = 0;
+    electionStartTime_ = 0;
+    cooldownStartTime_ = 0;
+    candidates_.clear();
+    Log(logger::GENERAL, "GatewayElectionManager: State reset\n");
+  }
+
+  /**
+   * @brief Set the election duration
+   * @param durationMs Duration in milliseconds (default: 5000)
+   */
+  void setElectionDuration(uint32_t durationMs) {
+    electionDuration_ = durationMs;
+  }
+
+  /**
+   * @brief Set the cooldown period
+   * @param periodMs Cooldown period in milliseconds (default: 60000)
+   */
+  void setCooldownPeriod(uint32_t periodMs) {
+    electionCooldownPeriod_ = periodMs;
+  }
+
+  /**
+   * @brief Get the number of known candidates
+   * @return Number of candidates in the current election
+   */
+  size_t getCandidateCount() const { return candidates_.size(); }
+
+ private:
+  /**
+   * @brief Internal structure for tracking election candidates
+   */
+  struct Candidate {
+    uint32_t nodeId = 0;
+    int8_t rssi = 0;
+    bool hasInternet = false;
+    uint32_t lastSeen = 0;
+  };
+
+  /**
+   * @brief Check if this node can participate in elections
+   * @return true if node has Internet and valid node ID
+   */
+  bool canParticipateInElection() const {
+    return localHasInternet_ && nodeId_ != 0;
+  }
+
+  /**
+   * @brief Check if we should defer to another node
+   *
+   * Used for split-brain prevention. Defers to nodes with:
+   * 1. Higher RSSI, or
+   * 2. Same RSSI and higher node ID
+   *
+   * @param otherRssi The other node's RSSI
+   * @param otherNodeId The other node's ID
+   * @return true if we should defer to the other node
+   */
+  bool shouldDeferTo(int8_t otherRssi, uint32_t otherNodeId) const {
+    // Higher RSSI wins
+    if (otherRssi > localRssi_) return true;
+    if (otherRssi < localRssi_) return false;
+    // Same RSSI, higher node ID wins
+    return otherNodeId > nodeId_;
+  }
+
+  /**
+   * @brief Select the winner from current candidates
+   *
+   * Implements deterministic winner selection:
+   * 1. Highest RSSI wins
+   * 2. If RSSI tie, highest node ID wins
+   *
+   * @return Winner's node ID, or 0 if no valid candidates
+   */
+  uint32_t selectWinner() const {
+    uint32_t winnerId = 0;
+    int8_t winnerRssi = -128;  // Minimum possible RSSI
+
+    for (const auto& pair : candidates_) {
+      const Candidate& candidate = pair.second;
+
+      // Only consider candidates with Internet
+      if (!candidate.hasInternet) continue;
+
+      // Check if this candidate beats the current winner
+      bool isBetter = false;
+      if (candidate.rssi > winnerRssi) {
+        isBetter = true;
+      } else if (candidate.rssi == winnerRssi && candidate.nodeId > winnerId) {
+        isBetter = true;
+      }
+
+      if (isBetter) {
+        winnerId = candidate.nodeId;
+        winnerRssi = candidate.rssi;
+      }
+    }
+
+    return winnerId;
+  }
+
+  /**
+   * @brief Transition to cooldown state
+   * @param currentTime Current time in milliseconds
+   */
+  void transitionToCooldown(uint32_t currentTime) {
+    state_ = ElectionState::COOLDOWN;
+    cooldownStartTime_ = currentTime;
+    candidates_.clear();
+  }
+
+  // State
+  ElectionState state_;
+  uint32_t nodeId_;
+  bool localHasInternet_;
+  int8_t localRssi_;
+  uint32_t primaryGatewayId_;
+  bool isElectedPrimary_;
+  uint32_t lastPrimaryHeartbeatTime_;
+  uint32_t electionStartTime_;
+  uint32_t cooldownStartTime_;
+
+  // Configuration
+  uint32_t gatewayFailureTimeout_;
+  uint32_t electionDuration_;
+  uint32_t electionCooldownPeriod_;
+
+  // Candidates map: nodeId -> Candidate
+  std::map<uint32_t, Candidate> candidates_;
+
+  // Callback
+  ElectionResultCallback_t electionResultCallback_;
 };
 
 /**
