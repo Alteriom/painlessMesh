@@ -60,6 +60,7 @@ constexpr int BRIDGE_COORDINATION = 613; // Multi-bridge coordination (defined i
 // Used for routing Internet requests through the mesh network
 constexpr int GATEWAY_DATA = 620;       // Gateway data package for Internet routing
 constexpr int GATEWAY_ACK = 621;        // Gateway acknowledgment package
+constexpr int GATEWAY_HEARTBEAT = 622;  // Gateway heartbeat for health monitoring
 
 class PackageInterface {
  public:
