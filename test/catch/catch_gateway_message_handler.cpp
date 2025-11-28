@@ -225,7 +225,9 @@ SCENARIO("GatewayMessageHandler cleanup works correctly") {
       REQUIRE(handler.getTrackedMessageCount() == 2);
 
       // Wait for messages to expire
-      delay(20000);  // 20ms in test env
+      // Note: delay() in test environment uses usleep(i) which takes microseconds,
+      // so delay(20000) = 20ms (sufficient for 10ms timeout configured above)
+      delay(20000);
 
       uint32_t removed = handler.cleanup();
 

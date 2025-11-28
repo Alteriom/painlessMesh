@@ -1159,9 +1159,11 @@ struct GatewayMetrics {
    * @return Percentage of messages that were duplicates (0-100), or 0 if no messages
    */
   uint8_t getDuplicateRate() const {
-    uint32_t total = messagesProcessed + duplicatesDetected;
+    uint64_t total = static_cast<uint64_t>(messagesProcessed) +
+                     static_cast<uint64_t>(duplicatesDetected);
     if (total == 0) return 0;
-    return static_cast<uint8_t>((duplicatesDetected * 100) / total);
+    // Use uint64_t arithmetic to prevent overflow
+    return static_cast<uint8_t>((static_cast<uint64_t>(duplicatesDetected) * 100) / total);
   }
 
   /**
@@ -1169,9 +1171,11 @@ struct GatewayMetrics {
    * @return Percentage of acks that were duplicates (0-100), or 0 if no acks
    */
   uint8_t getDuplicateAckRate() const {
-    uint32_t total = acknowledgmentsSent + duplicateAcksSkipped;
+    uint64_t total = static_cast<uint64_t>(acknowledgmentsSent) +
+                     static_cast<uint64_t>(duplicateAcksSkipped);
     if (total == 0) return 0;
-    return static_cast<uint8_t>((duplicateAcksSkipped * 100) / total);
+    // Use uint64_t arithmetic to prevent overflow
+    return static_cast<uint8_t>((static_cast<uint64_t>(duplicateAcksSkipped) * 100) / total);
   }
 };
 
