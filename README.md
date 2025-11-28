@@ -244,6 +244,49 @@ mesh.onQueueFlushed(&queueFlushedCallback);
 
 See [Message Queue Implementation](docs/implementation/MESSAGE_QUEUE_IMPLEMENTATION.md), [Issue #66 Closure](docs/internal/ISSUE_66_CLOSURE.md), and [examples/queued_alarms/](examples/queued_alarms/) for complete documentation.
 
+#### 🌐 Shared Gateway Mode (v1.9.0+)
+
+**All Nodes as Internet Gateways with Automatic Failover**
+
+- 🌍 **Universal Internet Access** - All nodes connect to the same router and can send to Internet
+- 🔄 **Instant Failover** - Near-instant relay through mesh when local Internet fails
+- ⚡ **No Single Point of Failure** - Any node can serve as gateway, eliminating bridge dependency
+- 🎯 **Automatic Gateway Election** - RSSI-based election determines primary gateway
+- 🛡️ **Duplicate Prevention** - Built-in deduplication prevents multiple deliveries
+- 📊 **Delivery Confirmation** - Acknowledgment system confirms Internet delivery
+
+**Use Cases:**
+- Fish farm monitoring where any node can send critical O₂ alarms
+- Industrial sensor networks with redundant Internet paths
+- Smart building systems with resilient cloud connectivity
+- Remote monitoring stations with shared WiFi infrastructure
+
+**Example:**
+```cpp
+// Initialize all nodes as shared gateways
+bool success = mesh.initAsSharedGateway(
+    MESH_PREFIX, MESH_PASSWORD,
+    ROUTER_SSID, ROUTER_PASSWORD,
+    &userScheduler, MESH_PORT
+);
+
+// Send data with automatic failover
+mesh.sendToInternet(
+    "https://api.example.com/data",
+    sensorJson,
+    [](bool success, uint16_t status, String error) {
+        Serial.printf("Delivery: %s\n", success ? "OK" : error.c_str());
+    }
+);
+
+// Monitor gateway changes
+mesh.onGatewayChanged([](uint32_t newGateway) {
+    Serial.printf("Primary gateway: %u\n", newGateway);
+});
+```
+
+See [Shared Gateway API Reference](docs/api/shared-gateway.md), [Shared Gateway Design](docs/design/SHARED_GATEWAY_DESIGN.md), and [examples/sharedGateway/](examples/sharedGateway/) for complete documentation.
+
 #### MQTT Bridge Commands
 
 The MQTT bridge enables bidirectional communication between MQTT brokers and mesh networks:
