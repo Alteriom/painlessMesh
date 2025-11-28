@@ -246,10 +246,10 @@ bool sendHttpRequest(const String& url, const String& payload, int& httpCode) {
 #ifdef ESP32
   if (USE_HTTPS) {
     // ESP32 HTTPS with certificate validation disabled
-    WiFiClientSecure* secureClient = new WiFiClientSecure();
-    secureClient->setInsecure();  // Skip certificate validation (not for production!)
+    WiFiClientSecure secureClient;
+    secureClient.setInsecure();  // Skip certificate validation (not for production!)
     
-    http.begin(*secureClient, url);
+    http.begin(secureClient, url);
     http.setTimeout(HTTP_TIMEOUT);
     http.addHeader("Content-Type", "application/json");
     
@@ -273,7 +273,6 @@ bool sendHttpRequest(const String& url, const String& payload, int& httpCode) {
     }
     
     http.end();
-    delete secureClient;
   } else {
     // ESP32 HTTP (non-secure)
     http.begin(url);
@@ -303,8 +302,6 @@ bool sendHttpRequest(const String& url, const String& payload, int& httpCode) {
   }
 #else
   // ESP8266 implementation
-  WiFiClient client;
-  
   if (USE_HTTPS) {
     // ESP8266 HTTPS with certificate validation disabled
     WiFiClientSecure secureClient;
@@ -336,6 +333,7 @@ bool sendHttpRequest(const String& url, const String& payload, int& httpCode) {
     http.end();
   } else {
     // ESP8266 HTTP (non-secure)
+    WiFiClient client;
     http.begin(client, url);
     http.setTimeout(HTTP_TIMEOUT);
     http.addHeader("Content-Type", "application/json");
@@ -378,7 +376,7 @@ bool sendHttpRequest(const String& url, const String& payload, int& httpCode) {
  * @return JSON string containing sensor data
  */
 String createSensorPayload() {
-  // ArduinoJson v7 uses JsonDocument with automatic sizing
+  // JsonDocument with automatic sizing (ArduinoJson v6.21+ and v7+)
   JsonDocument doc;
   JsonObject obj = doc.to<JsonObject>();
   
