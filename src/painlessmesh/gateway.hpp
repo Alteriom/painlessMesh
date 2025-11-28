@@ -1447,10 +1447,10 @@ class GatewayElectionManager {
    * - If during election, may defer to higher-priority primary
    *
    * @param heartbeat The received GatewayHeartbeatPackage
+   * @param currentTime Current time in milliseconds (e.g., millis())
    */
-  void processHeartbeat(const GatewayHeartbeatPackage& heartbeat) {
-    uint32_t currentTime = millis();
-
+  void processHeartbeat(const GatewayHeartbeatPackage& heartbeat,
+                        uint32_t currentTime) {
     // Track this node as a potential candidate if it has Internet
     if (heartbeat.hasInternet) {
       Candidate candidate;
@@ -1498,6 +1498,19 @@ class GatewayElectionManager {
   }
 
   /**
+   * @brief Process an incoming gateway heartbeat (convenience overload)
+   *
+   * Calls processHeartbeat(heartbeat, millis()) for backward compatibility.
+   * For testing, prefer processHeartbeat(heartbeat, currentTime) for
+   * deterministic behavior.
+   *
+   * @param heartbeat The received GatewayHeartbeatPackage
+   */
+  void processHeartbeat(const GatewayHeartbeatPackage& heartbeat) {
+    processHeartbeat(heartbeat, millis());
+  }
+
+  /**
    * @brief Update the election state machine
    *
    * Should be called periodically (e.g., every second) to:
@@ -1524,7 +1537,7 @@ class GatewayElectionManager {
                 primaryGatewayId_, timeSinceLastHeartbeat);
             // Primary failed, start election if we can participate
             if (canParticipateInElection()) {
-              startElection();
+              startElection(currentTime);
             } else {
               // Can't participate, just clear the primary
               primaryGatewayId_ = 0;
@@ -1532,7 +1545,7 @@ class GatewayElectionManager {
           }
         } else if (primaryGatewayId_ == 0 && canParticipateInElection()) {
           // No known primary and we can participate, start election
-          startElection();
+          startElection(currentTime);
         }
         break;
 
@@ -1619,8 +1632,10 @@ class GatewayElectionManager {
    * Manually triggers an election, useful for testing or when a node
    * needs to force re-election. Only starts if not already in election
    * or cooldown.
+   *
+   * @param currentTime Current time in milliseconds (e.g., millis())
    */
-  void startElection() {
+  void startElection(uint32_t currentTime) {
     if (state_ != ElectionState::IDLE) {
       Log(logger::GENERAL,
           "GatewayElectionManager: Cannot start election, state=%d\n",
@@ -1634,7 +1649,7 @@ class GatewayElectionManager {
         nodeId_, localHasInternet_ ? "yes" : "no", localRssi_);
 
     state_ = ElectionState::ELECTION_RUNNING;
-    electionStartTime_ = millis();
+    electionStartTime_ = currentTime;
     isElectedPrimary_ = false;
 
     // Clear old candidates and add self if eligible
@@ -1648,6 +1663,14 @@ class GatewayElectionManager {
       candidates_[nodeId_] = localCandidate;
     }
   }
+
+  /**
+   * @brief Force start an election (convenience overload)
+   *
+   * Calls startElection(millis()) for backward compatibility.
+   * For testing, prefer startElection(currentTime) for deterministic behavior.
+   */
+  void startElection() { startElection(millis()); }
 
   /**
    * @brief Reset all election state

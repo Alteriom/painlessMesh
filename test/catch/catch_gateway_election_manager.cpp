@@ -100,9 +100,9 @@ SCENARIO("GatewayElectionManager starts election correctly") {
         WHEN("Starting an election") {
             election.startElection();
 
-            THEN("state should still be IDLE (cannot participate)") {
-                // startElection checks IDLE state, doesn't check Internet in startElection itself
-                // But internally it won't add self as candidate
+            THEN("state should be ELECTION_RUNNING (election runs but node is not a candidate)") {
+                // startElection() transitions to ELECTION_RUNNING regardless of Internet capability
+                // However, the node won't add itself as a candidate without Internet
                 REQUIRE(election.getState() == GatewayElectionManager::ElectionState::ELECTION_RUNNING);
             }
 
@@ -118,6 +118,7 @@ SCENARIO("GatewayElectionManager processes heartbeats correctly") {
         GatewayElectionManager election;
         election.setNodeId(12345);
         election.setLocalCandidate(true, -50);
+        uint32_t currentTime = 1000;
 
         WHEN("Receiving a heartbeat from a primary gateway") {
             GatewayHeartbeatPackage heartbeat;
@@ -127,7 +128,7 @@ SCENARIO("GatewayElectionManager processes heartbeats correctly") {
             heartbeat.routerRSSI = -40;
             heartbeat.uptime = 86400;
 
-            election.processHeartbeat(heartbeat);
+            election.processHeartbeat(heartbeat, currentTime);
 
             THEN("Primary gateway ID should be updated") {
                 REQUIRE(election.getPrimaryGatewayId() == 99999);
@@ -150,7 +151,7 @@ SCENARIO("GatewayElectionManager processes heartbeats correctly") {
             heartbeat.routerRSSI = -35;
             heartbeat.uptime = 3600;
 
-            election.processHeartbeat(heartbeat);
+            election.processHeartbeat(heartbeat, currentTime);
 
             THEN("Primary gateway ID should remain 0") {
                 REQUIRE(election.getPrimaryGatewayId() == 0);
@@ -170,9 +171,10 @@ SCENARIO("GatewayElectionManager election winner selection is deterministic") {
         election.setNodeId(10000);
         election.setLocalCandidate(true, -60);  // Weakest signal
         election.setElectionDuration(0);  // Immediate election completion
+        uint32_t currentTime = 1000;
 
         // Start election
-        election.startElection();
+        election.startElection(currentTime);
 
         // Add other candidates via heartbeats
         GatewayHeartbeatPackage hb1;
@@ -180,17 +182,16 @@ SCENARIO("GatewayElectionManager election winner selection is deterministic") {
         hb1.isPrimary = false;
         hb1.hasInternet = true;
         hb1.routerRSSI = -40;  // Best signal
-        election.processHeartbeat(hb1);
+        election.processHeartbeat(hb1, currentTime);
 
         GatewayHeartbeatPackage hb2;
         hb2.from = 30000;
         hb2.isPrimary = false;
         hb2.hasInternet = true;
         hb2.routerRSSI = -50;  // Medium signal
-        election.processHeartbeat(hb2);
+        election.processHeartbeat(hb2, currentTime);
 
         WHEN("Election completes") {
-            uint32_t currentTime = 1000;
             bool shouldBroadcast = election.update(currentTime);
 
             THEN("Node with highest RSSI wins") {
@@ -218,18 +219,19 @@ SCENARIO("GatewayElectionManager handles RSSI tie with node ID tiebreaker") {
         election.setNodeId(10000);  // Lower node ID
         election.setLocalCandidate(true, -45);
         election.setElectionDuration(0);
+        uint32_t currentTime = 1000;
 
-        election.startElection();
+        election.startElection(currentTime);
 
         GatewayHeartbeatPackage hb1;
         hb1.from = 20000;  // Higher node ID
         hb1.isPrimary = false;
         hb1.hasInternet = true;
         hb1.routerRSSI = -45;  // Same RSSI as local
-        election.processHeartbeat(hb1);
+        election.processHeartbeat(hb1, currentTime);
 
         WHEN("Election completes") {
-            bool shouldBroadcast = election.update(1000);
+            bool shouldBroadcast = election.update(currentTime);
 
             THEN("Higher node ID wins the tiebreaker") {
                 REQUIRE(election.getPrimaryGatewayId() == 20000);
@@ -250,18 +252,19 @@ SCENARIO("GatewayElectionManager handles RSSI tie with node ID tiebreaker") {
         election.setNodeId(30000);  // Higher node ID
         election.setLocalCandidate(true, -45);
         election.setElectionDuration(0);
+        uint32_t currentTime = 1000;
 
-        election.startElection();
+        election.startElection(currentTime);
 
         GatewayHeartbeatPackage hb1;
         hb1.from = 20000;  // Lower node ID
         hb1.isPrimary = false;
         hb1.hasInternet = true;
         hb1.routerRSSI = -45;  // Same RSSI as local
-        election.processHeartbeat(hb1);
+        election.processHeartbeat(hb1, currentTime);
 
         WHEN("Election completes") {
-            bool shouldBroadcast = election.update(1000);
+            bool shouldBroadcast = election.update(currentTime);
 
             THEN("Local node (higher ID) wins the tiebreaker") {
                 REQUIRE(election.getPrimaryGatewayId() == 30000);
@@ -285,14 +288,15 @@ SCENARIO("GatewayElectionManager cooldown prevents rapid re-elections") {
         election.setLocalCandidate(true, -45);
         election.setElectionDuration(0);
         election.setCooldownPeriod(60000);  // 60 second cooldown
+        uint32_t currentTime = 1000;
 
-        election.startElection();
-        election.update(1000);  // Complete the election
+        election.startElection(currentTime);
+        election.update(currentTime);  // Complete the election
 
         REQUIRE(election.getState() == GatewayElectionManager::ElectionState::COOLDOWN);
 
         WHEN("Trying to start another election during cooldown") {
-            election.startElection();
+            election.startElection(currentTime);
 
             THEN("State should remain in COOLDOWN") {
                 REQUIRE(election.getState() == GatewayElectionManager::ElectionState::COOLDOWN);
@@ -301,7 +305,7 @@ SCENARIO("GatewayElectionManager cooldown prevents rapid re-elections") {
 
         WHEN("Cooldown period elapses") {
             // Simulate time passing beyond cooldown
-            uint32_t afterCooldown = 1000 + 60001;  // Just past cooldown
+            uint32_t afterCooldown = currentTime + 60001;  // Just past cooldown
             election.update(afterCooldown);
 
             THEN("State should return to IDLE") {
@@ -309,7 +313,7 @@ SCENARIO("GatewayElectionManager cooldown prevents rapid re-elections") {
             }
 
             AND_WHEN("Starting a new election after cooldown") {
-                election.startElection();
+                election.startElection(afterCooldown);
 
                 THEN("Election should start") {
                     REQUIRE(election.getState() == GatewayElectionManager::ElectionState::ELECTION_RUNNING);
@@ -325,8 +329,9 @@ SCENARIO("GatewayElectionManager split-brain prevention during election") {
         election.setNodeId(10000);
         election.setLocalCandidate(true, -50);  // Local RSSI
         election.setElectionDuration(10000);  // Long election to test split-brain
+        uint32_t currentTime = 1000;
 
-        election.startElection();
+        election.startElection(currentTime);
         REQUIRE(election.getState() == GatewayElectionManager::ElectionState::ELECTION_RUNNING);
 
         WHEN("Receiving heartbeat from node claiming primary with higher RSSI") {
@@ -337,7 +342,7 @@ SCENARIO("GatewayElectionManager split-brain prevention during election") {
             hb.routerRSSI = -40;  // Better than local -50
             hb.uptime = 3600;
 
-            election.processHeartbeat(hb);
+            election.processHeartbeat(hb, currentTime);
 
             THEN("Should defer to the higher priority primary") {
                 REQUIRE(election.getPrimaryGatewayId() == 99999);
@@ -360,7 +365,7 @@ SCENARIO("GatewayElectionManager split-brain prevention during election") {
             hb.routerRSSI = -60;  // Worse than local -50
             hb.uptime = 3600;
 
-            election.processHeartbeat(hb);
+            election.processHeartbeat(hb, currentTime);
 
             THEN("Should NOT defer to lower priority primary") {
                 // Primary ID might be set but election continues
@@ -376,9 +381,10 @@ SCENARIO("GatewayElectionManager reset clears all state") {
         election.setNodeId(12345);
         election.setLocalCandidate(true, -45);
         election.setElectionDuration(0);
+        uint32_t currentTime = 1000;
 
-        election.startElection();
-        election.update(1000);  // Complete election
+        election.startElection(currentTime);
+        election.update(currentTime);  // Complete election
 
         // Verify we have state
         REQUIRE(election.getState() == GatewayElectionManager::ElectionState::COOLDOWN);
@@ -413,6 +419,7 @@ SCENARIO("GatewayElectionManager election result callback is invoked") {
         election.setNodeId(12345);
         election.setLocalCandidate(true, -45);
         election.setElectionDuration(0);
+        uint32_t currentTime = 1000;
 
         uint32_t callbackWinner = 0;
         bool callbackIsLocal = false;
@@ -425,8 +432,8 @@ SCENARIO("GatewayElectionManager election result callback is invoked") {
         });
 
         WHEN("Election completes with local node as winner") {
-            election.startElection();
-            election.update(1000);
+            election.startElection(currentTime);
+            election.update(currentTime);
 
             THEN("Callback should be invoked") {
                 REQUIRE(callbackInvoked == true);
@@ -447,6 +454,7 @@ SCENARIO("GatewayElectionManager election result callback is invoked") {
         election.setNodeId(10000);
         election.setLocalCandidate(true, -60);  // Weak signal
         election.setElectionDuration(0);
+        uint32_t currentTime = 1000;
 
         uint32_t callbackWinner = 0;
         bool callbackIsLocal = true;  // Default to true to verify it changes
@@ -458,7 +466,7 @@ SCENARIO("GatewayElectionManager election result callback is invoked") {
             callbackInvoked = true;
         });
 
-        election.startElection();
+        election.startElection(currentTime);
 
         // Add stronger candidate
         GatewayHeartbeatPackage hb;
@@ -466,10 +474,10 @@ SCENARIO("GatewayElectionManager election result callback is invoked") {
         hb.isPrimary = false;
         hb.hasInternet = true;
         hb.routerRSSI = -40;  // Much stronger
-        election.processHeartbeat(hb);
+        election.processHeartbeat(hb, currentTime);
 
         WHEN("Election completes with remote node as winner") {
-            election.update(1000);
+            election.update(currentTime);
 
             THEN("Callback should be invoked") {
                 REQUIRE(callbackInvoked == true);
@@ -492,8 +500,9 @@ SCENARIO("GatewayElectionManager handles no valid candidates") {
         election.setNodeId(12345);
         election.setLocalCandidate(false, -45);  // No Internet
         election.setElectionDuration(0);
+        uint32_t currentTime = 1000;
 
-        election.startElection();
+        election.startElection(currentTime);
 
         // Add candidate without Internet via heartbeat
         GatewayHeartbeatPackage hb;
@@ -501,10 +510,10 @@ SCENARIO("GatewayElectionManager handles no valid candidates") {
         hb.isPrimary = false;
         hb.hasInternet = false;  // No Internet
         hb.routerRSSI = -40;
-        election.processHeartbeat(hb);
+        election.processHeartbeat(hb, currentTime);
 
         WHEN("Election completes") {
-            election.update(1000);
+            election.update(currentTime);
 
             THEN("Primary gateway ID should be 0") {
                 REQUIRE(election.getPrimaryGatewayId() == 0);
