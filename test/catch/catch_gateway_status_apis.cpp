@@ -9,6 +9,14 @@ using namespace painlessmesh;
 // Declare logger for test environment
 painlessmesh::logger::LogClass Log;
 
+// Test data conventions (consistent with other test files in repo):
+// - Test node IDs: 12345 (self), 99999, 11111, 22222, 33333 (other nodes)
+// - RSSI values: -45 (strong), -50 (good), -55 (medium), -60/-70 (weak), -127 (min)
+// - Router channel: 6 (standard)
+// - Uptime: 10000 ms (typical)
+// - Gateway IP: "192.168.1.1" (standard)
+// - Timestamp: 1000 (arbitrary)
+
 // ==================== isPrimaryGateway Tests ====================
 
 SCENARIO("isPrimaryGateway returns false when no bridges exist", "[gateway][isPrimaryGateway]") {

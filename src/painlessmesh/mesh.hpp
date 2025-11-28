@@ -743,6 +743,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * Returns node IDs of all healthy bridges with active Internet connectivity.
    * Only bridges that have reported status within the timeout period are included.
    * 
+   * This method provides the same data as getNodesWithInternet() but returns
+   * a std::list for consistency with other node list methods in painlessMesh.
+   * 
    * \code
    * auto gateways = mesh.getGateways();
    * Serial.printf("Available gateways: %d\n", gateways.size());
@@ -754,13 +757,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return List of node IDs with Internet connectivity
    */
   std::list<uint32_t> getGateways() {
-    std::list<uint32_t> gateways;
-    for (const auto& bridge : knownBridges) {
-      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
-        gateways.push_back(bridge.nodeId);
-      }
-    }
-    return gateways;
+    // Convert vector to list for API consistency with getNodeList()
+    // The copy overhead is acceptable since gateway lists are typically small
+    auto nodes = getNodesWithInternet();
+    return std::list<uint32_t>(nodes.begin(), nodes.end());
   }
 
   /**
@@ -780,13 +780,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return Number of available gateways
    */
   size_t getGatewayCount() {
-    size_t count = 0;
-    for (const auto& bridge : knownBridges) {
-      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
-        count++;
-      }
-    }
-    return count;
+    return getNodesWithInternet().size();
   }
 
   /**
