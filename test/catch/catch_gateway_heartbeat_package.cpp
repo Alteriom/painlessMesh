@@ -216,8 +216,9 @@ SCENARIO("GatewayHeartbeatPackage handles edge case uptime values") {
     GIVEN("A GatewayHeartbeatPackage with large uptime") {
         GatewayHeartbeatPackage pkg;
         pkg.from = 11111;
-        // ~136 years in seconds - realistic maximum for embedded device
-        pkg.uptime = 0x7FFFFFFF;  // Maximum positive int32_t value
+        // ~68 years in seconds - realistic maximum for embedded device
+        // Note: ArduinoJson may not correctly handle values > INT32_MAX
+        pkg.uptime = 0x7FFFFFFF;
 
         WHEN("Converting to and from Variant") {
             auto var = protocol::Variant(&pkg);
