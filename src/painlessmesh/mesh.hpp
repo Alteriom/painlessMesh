@@ -2,6 +2,7 @@
 #define _PAINLESS_MESH_MESH_HPP_
 
 #include <algorithm>
+#include <list>
 #include <vector>
 #include <map>
 #include <set>
@@ -34,6 +35,7 @@ typedef std::function<void(uint32_t nodeId, int32_t delay)> nodeDelayCallback_t;
 typedef std::function<void(uint32_t bridgeNodeId, bool internetAvailable)> bridgeStatusChangedCallback_t;
 typedef std::function<void(uint32_t timestamp)> rtcSyncCompleteCallback_t;
 typedef std::function<void(bool available)> localInternetChangedCallback_t;
+typedef std::function<void(uint32_t oldPrimary, uint32_t newPrimary)> gatewayChangedCallback_t;
 
 /**
  * Callback type for Internet request results
@@ -92,7 +94,9 @@ public:
    * A bridge is healthy if we've received a status update within the timeout period
    */
   bool isHealthy(uint32_t timeoutMs = 60000) const {
-    return (millis() - lastSeen) < timeoutMs;
+    // Cast millis() to uint32_t to handle overflow correctly
+    // This ensures consistent behavior on both embedded and test environments
+    return (static_cast<uint32_t>(millis()) - lastSeen) < timeoutMs;
   }
 };
 
@@ -682,6 +686,133 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   bool isBridge() {
     return this->root;
+  }
+
+  // ==================== Gateway Status API ====================
+
+  /**
+   * Check if this node is the primary gateway
+   * 
+   * A node is the primary gateway if it's the bridge with the best RSSI
+   * to the router and has Internet connectivity.
+   * 
+   * \code
+   * if (mesh.isPrimaryGateway()) {
+   *   Serial.println("I am the primary gateway!");
+   * }
+   * \endcode
+   * 
+   * @return true if this node is the primary gateway
+   */
+  bool isPrimaryGateway() {
+    BridgeInfo* primary = getPrimaryBridge();
+    if (primary == nullptr) {
+      return false;
+    }
+    return primary->nodeId == this->nodeId;
+  }
+
+  /**
+   * Get the node ID of the current primary gateway
+   * 
+   * Returns the node ID of the bridge with the best RSSI to the router
+   * that has Internet connectivity, or 0 if no gateway is available.
+   * 
+   * \code
+   * uint32_t gatewayId = mesh.getPrimaryGateway();
+   * if (gatewayId != 0) {
+   *   Serial.printf("Primary gateway is node %u\n", gatewayId);
+   * } else {
+   *   Serial.println("No gateway available");
+   * }
+   * \endcode
+   * 
+   * @return Node ID of the primary gateway, or 0 if none available
+   */
+  uint32_t getPrimaryGateway() {
+    BridgeInfo* primary = getPrimaryBridge();
+    if (primary == nullptr) {
+      return 0;
+    }
+    return primary->nodeId;
+  }
+
+  /**
+   * Get list of all nodes with Internet access
+   * 
+   * Returns node IDs of all healthy bridges with active Internet connectivity.
+   * Only bridges that have reported status within the timeout period are included.
+   * 
+   * \code
+   * auto gateways = mesh.getGateways();
+   * Serial.printf("Available gateways: %d\n", gateways.size());
+   * for (auto gatewayId : gateways) {
+   *   Serial.printf("  Gateway: %u\n", gatewayId);
+   * }
+   * \endcode
+   * 
+   * @return List of node IDs with Internet connectivity
+   */
+  std::list<uint32_t> getGateways() {
+    std::list<uint32_t> gateways;
+    for (const auto& bridge : knownBridges) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
+        gateways.push_back(bridge.nodeId);
+      }
+    }
+    return gateways;
+  }
+
+  /**
+   * Get count of available gateways
+   * 
+   * Returns the number of healthy bridges with active Internet connectivity.
+   * 
+   * \code
+   * size_t count = mesh.getGatewayCount();
+   * if (count == 0) {
+   *   Serial.println("Warning: No gateways available!");
+   * } else {
+   *   Serial.printf("%d gateway(s) available\n", count);
+   * }
+   * \endcode
+   * 
+   * @return Number of available gateways
+   */
+  size_t getGatewayCount() {
+    size_t count = 0;
+    for (const auto& bridge : knownBridges) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Register callback for primary gateway changes
+   * 
+   * This callback fires when the primary gateway changes, either because
+   * a new gateway becomes available, the current gateway becomes unavailable,
+   * or a better gateway is discovered.
+   * 
+   * \code
+   * mesh.onGatewayChanged([](uint32_t oldPrimary, uint32_t newPrimary) {
+   *   if (newPrimary == 0) {
+   *     Serial.println("Warning: Lost all gateways!");
+   *   } else if (oldPrimary == 0) {
+   *     Serial.printf("Gateway available: %u\n", newPrimary);
+   *   } else {
+   *     Serial.printf("Gateway changed: %u -> %u\n", oldPrimary, newPrimary);
+   *   }
+   * });
+   * \endcode
+   * 
+   * @param callback Function to call when primary gateway changes
+   */
+  void onGatewayChanged(gatewayChangedCallback_t callback) {
+    Log(logger::GENERAL, "onGatewayChanged():\n");
+    gatewayChangedCallback = callback;
   }
 
   /**
@@ -1502,6 +1633,11 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // Check if primary bridge changed
     auto newPrimary = this->getPrimaryBridge();
     uint32_t newPrimaryBridgeId = (newPrimary != nullptr) ? newPrimary->nodeId : 0;
+    
+    // Trigger gateway changed callback if primary gateway changed
+    if (oldPrimaryBridgeId != newPrimaryBridgeId && gatewayChangedCallback) {
+      gatewayChangedCallback(oldPrimaryBridgeId, newPrimaryBridgeId);
+    }
     
     if (diagnosticsEnabled && oldPrimaryBridgeId != newPrimaryBridgeId) {
       // Record bridge change
@@ -2896,6 +3032,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   nodeDelayCallback_t nodeDelayReceivedCallback;
   bridgeStatusChangedCallback_t bridgeStatusChangedCallback;
   rtcSyncCompleteCallback_t rtcSyncCompleteCallback;
+  gatewayChangedCallback_t gatewayChangedCallback;
   
   // Message queue for offline mode
   MessageQueue* messageQueue = nullptr;
