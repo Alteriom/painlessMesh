@@ -27,6 +27,7 @@ Welcome to the comprehensive documentation for the Alteriom fork of painlessMesh
 ### API Reference
 
 - [Core API](api/core-api.md) - Main painlessMesh class methods
+- [Shared Gateway API](api/shared-gateway.md) - Shared Gateway Mode reference (v1.9.0+)
 - [Plugin API](api/plugin-api.md) - Creating custom packages and plugins
 - [Configuration](api/configuration.md) - Configuration options and constants
 - [Callbacks](api/callbacks.md) - Event handling and callbacks
