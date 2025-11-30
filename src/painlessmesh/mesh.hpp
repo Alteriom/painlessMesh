@@ -680,6 +680,58 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
   /**
+   * Get the last known bridge with Internet connection (regardless of lastSeen timeout)
+   * 
+   * Unlike getPrimaryBridge(), this method returns the best known bridge even if
+   * the lastSeen timestamp is stale. This is useful when the local node is temporarily
+   * disconnected from the mesh and cannot receive bridge status updates.
+   * 
+   * The returned bridge may not be currently reachable, but represents the last
+   * known good configuration.
+   * 
+   * @return pointer to BridgeInfo of last known bridge, or nullptr if no bridge ever seen
+   */
+  BridgeInfo* getLastKnownBridge() {
+    BridgeInfo* best = nullptr;
+    int8_t bestRSSI = -127;  // Worst possible RSSI
+    
+    for (auto& bridge : knownBridges) {
+      // Include any bridge that reported Internet at some point
+      if (bridge.internetConnected) {
+        if (bridge.routerRSSI > bestRSSI) {
+          bestRSSI = bridge.routerRSSI;
+          best = &bridge;
+        }
+      }
+    }
+    
+    return best;
+  }
+
+  /**
+   * Check if this node has active mesh connections
+   * 
+   * Returns true if this node has at least one active connection to other
+   * mesh nodes. When false, the node is isolated and cannot receive any
+   * mesh messages including bridge status updates.
+   * 
+   * This is useful for distinguishing between:
+   * - Bridge genuinely unavailable (mesh connected, but bridge not responding)
+   * - Local node temporarily disconnected (cannot receive any mesh messages)
+   * 
+   * @return true if at least one mesh connection is active
+   */
+  bool hasActiveMeshConnections() {
+    // Check if we have any active connections in our subs list
+    for (auto& conn : this->subs) {
+      if (conn && conn->connected()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Check if this node is acting as a bridge
    * 
    * @return true if this node is configured as a root node (typically bridges)

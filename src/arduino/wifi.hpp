@@ -174,6 +174,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         return;
       }
       
+      // IMPORTANT: Don't trigger election if we're disconnected from the mesh
+      // When isolated, we can't receive bridge status broadcasts, so lack of
+      // healthy bridge could simply mean WE are disconnected, not that the bridge
+      // is unavailable. Wait until mesh connectivity is restored before considering
+      // an election.
+      if (!this->hasActiveMeshConnections()) {
+        Log(CONNECTION, "Bridge monitor: Skipping - no active mesh connections\n");
+        return;
+      }
+      
       // Check if there are any healthy bridges
       bool hasHealthyBridge = false;
       for (const auto& bridge : this->getBridges()) {
