@@ -11,7 +11,7 @@
 [![Release](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/Alteriom/painlessMesh?label=version)](https://github.com/Alteriom/painlessMesh/releases)
 [![NPM Version](https://img.shields.io/npm/v/@alteriom/painlessmesh?label=npm)](https://www.npmjs.com/package/@alteriom/painlessmesh)
-[![PlatformIO Registry](https://badges.registry.platformio.org/packages/alteriom/library/painlessMesh.svg)](https://registry.platformio.org/libraries/alteriom/painlessMesh)
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/alteriom/library/AlteriomPainlessMesh.svg)](https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh)
 [![Arduino Library Manager](https://img.shields.io/badge/Arduino-Library%20Manager-blue.svg)](https://www.arduino.cc/reference/en/libraries/alteriompainlessmesh/)
 
 </div>
@@ -143,7 +143,7 @@ All packages provide type-safe serialization, automatic JSON conversion, and mes
 - 🎯 **Production Ready** - Enterprise IoT and commercial deployments
 - ⚙️ **Fully Configurable** - Adjustable intervals and feature toggles
 
-See [Phase 2 Guide](docs/PHASE2_GUIDE.md) for complete documentation.
+See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for complete documentation.
 
 #### 🔄 Automatic Bridge Failover (v1.8.0)
 
@@ -175,7 +175,7 @@ void bridgeRoleCallback(bool isBridge, String reason) {
 }
 ```
 
-See [Bridge Failover Guide](docs/BRIDGE_FAILOVER.md) and [bridge_failover example](examples/bridge_failover/) for complete documentation.
+See [bridge_failover example](examples/bridge_failover/) for complete documentation.
 
 #### 🌉 Multi-Bridge Coordination (v1.8.2)
 
@@ -209,7 +209,7 @@ mesh.setBridgeSelectionStrategy(ROUND_ROBIN);
 mesh.onBridgeCoordination(&bridgeCoordinationCallback);
 ```
 
-See [Multi-Bridge Implementation](docs/implementation/MULTI_BRIDGE_IMPLEMENTATION.md), [Issue #65 Verification](docs/internal/ISSUE_65_VERIFICATION.md), and [examples/multi_bridge/](examples/multi_bridge/) for complete documentation.
+See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for multi-bridge documentation.
 
 #### 📬 Message Queue for Offline Mode (v1.8.2)
 
@@ -244,7 +244,7 @@ mesh.onQueueFull(&queueFullCallback);
 mesh.onQueueFlushed(&queueFlushedCallback);
 ```
 
-See [Message Queue Implementation](docs/implementation/MESSAGE_QUEUE_IMPLEMENTATION.md), [Issue #66 Closure](docs/internal/ISSUE_66_CLOSURE.md), and [examples/queued_alarms/](examples/queued_alarms/) for complete documentation.
+See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for message queue documentation.
 
 #### 🌐 Shared Gateway Mode (v1.9.0+)
 
@@ -287,7 +287,7 @@ mesh.onGatewayChanged([](uint32_t newGateway) {
 });
 ```
 
-See [Shared Gateway API Reference](docs/api/shared-gateway.md), [Shared Gateway Design](docs/design/SHARED_GATEWAY_DESIGN.md), and [examples/sharedGateway/](examples/sharedGateway/) for complete documentation.
+See [sharedGateway example](examples/sharedGateway/) for complete documentation.
 
 #### MQTT Bridge Commands
 
@@ -300,12 +300,11 @@ The MQTT bridge enables bidirectional communication between MQTT brokers and mes
 
 **Documentation:**
 
-- 📖 [MQTT Bridge Commands Reference](docs/MQTT_BRIDGE_COMMANDS.md) - Complete command API documentation
-- 🔧 [OTA Commands Reference](docs/OTA_COMMANDS_REFERENCE.md) - Over-the-air firmware updates
+See [mqttBridge example](examples/mqttBridge/) for MQTT integration.
 
 **Examples:**
 
-- 🌉 [MQTT Command Bridge](examples/mqttCommandBridge/mqttCommandBridge.ino) - Gateway bridge with bidirectional MQTT-mesh routing
+- 🌉 [MQTT Bridge](examples/mqttBridge/mqttBridge.ino) - Gateway bridge with bidirectional MQTT-mesh routing
 - 📡 [Alteriom Sensor Node](examples/alteriom/alteriom.ino) - Example node using SensorPackage, CommandPackage, and StatusPackage
 
 ### 🌐 Core Features
@@ -339,11 +338,6 @@ painlessMesh does not create a TCP/IP network of nodes. Rather each of the nodes
 
 ### Arduino Library Manager
 
-> **✅ FIXED**: Library name restored to match Arduino Library Manager registry.  
-> **Status**: New releases (v1.8.3+) will now be indexed automatically within 24-48 hours.  
-> **Issue**: Versions v1.7.0-v1.8.1 had incorrect library name and were not indexed.  
-> See [Arduino Library Manager Documentation](docs/ARDUINO_LIBRARY_MANAGER_SUBMISSION.md) for details.
-
 **Once registered**, installation will be available via Arduino IDE:
 
 1. Open Arduino IDE
@@ -358,34 +352,18 @@ The library includes the header file `AlteriomPainlessMesh.h` which provides acc
 **Option 1: Download ZIP from GitHub Release**
 
 1. Go to [Releases](https://github.com/Alteriom/painlessMesh/releases/latest)
-2. Download `painlessMesh-v1.8.3.zip` (or latest version)
+2. Download the latest release ZIP file
 3. In Arduino IDE: **Sketch** → **Include Library** → **Add .ZIP Library...**
 4. Select the downloaded ZIP file
 5. Restart Arduino IDE
 
-**Option 2: Create ZIP from Repository**
-
-If you need to create a ZIP file from source (e.g., for testing unreleased versions):
-
-```bash
-# Clone and create ZIP
-git clone https://github.com/Alteriom/painlessMesh.git
-cd painlessMesh
-./scripts/create-arduino-zip.sh
-
-# Output: dist/painlessMesh-vX.X.X.zip
-# Import this ZIP in Arduino IDE
-```
-
-**Option 3: Git Clone**
+**Option 2: Git Clone**
 
 ```bash
 cd ~/Arduino/libraries/
 git clone https://github.com/Alteriom/painlessMesh.git AlteriomPainlessMesh
 # Restart Arduino IDE
 ```
-
-📖 **Detailed Guide**: See [Manual Arduino IDE Installation](docs/getting-started/arduino-manual-install.md) for complete instructions, troubleshooting, and ZIP creation details.
 
 ### PlatformIO
 
@@ -401,8 +379,6 @@ painlessMesh makes use of the following libraries, which can be installed throug
 - [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) (ESP32) - v3.3.0+ required for ESP32-C6
 
 If platformio is used to install the library, then the dependencies will be installed automatically.
-
-> **⚠️ ESP32-C6 Users:** If you experience crashes with `tcp_alloc` errors, you need AsyncTCP v3.3.0+ with LWIP locking support. Use the [ESP32Async/AsyncTCP](https://github.com/ESP32Async/AsyncTCP) library or see the [ESP32-C6 Compatibility Guide](docs/troubleshooting/ESP32_C6_COMPATIBILITY.md) for details.
 
 ## Quick Start with Alteriom Packages
 
@@ -718,29 +694,17 @@ If you like the library please consider supporting its development. Your contrib
 - **[📁 File Structure](https://alteriom.github.io/painlessMesh/#/api/doxygen/files)** - Source code organization
 - **[❓ FAQ](https://alteriom.github.io/painlessMesh/#/troubleshooting/faq)** - Frequently asked questions
 
-**📖 Tutorials & Examples:**
+**📖 Examples:**
 
-- **[Basic Examples](docs/tutorials/basic-examples.md)** - Essential patterns and techniques
-- **[Custom Packages](docs/tutorials/custom-packages.md)** - Type-safe message handling
-- **[Sensor Networks](docs/tutorials/sensor-networks.md)** - IoT sensor network patterns
-
-**🚀 Alteriom Extensions:**
-
-- **[Alteriom Overview](docs/alteriom/overview.md)** - Production-ready IoT packages
-- **[Sensor Packages](docs/alteriom/sensor-packages.md)** - Environmental monitoring
-- **[Command System](docs/alteriom/command-system.md)** - Device control and automation
-
-**🔧 Troubleshooting:**
-
-- **[Common Issues](docs/troubleshooting/common-issues.md)** - Solutions to frequent problems
-- **[FAQ](docs/troubleshooting/faq.md)** - Frequently asked questions
-- **[Debugging Guide](docs/troubleshooting/debugging.md)** - Tools and techniques
+- **[Basic Example](examples/basic/basic.ino)** - Essential patterns and techniques
+- **[Alteriom Sensor Node](examples/alteriom/alteriom.ino)** - IoT sensor packages
+- **[Bridge Example](examples/bridge/bridge.ino)** - Connect mesh to Internet
 
 **📋 Complete Documentation Index:** [docs/README.md](docs/README.md)
 
 ## painlessMesh API Summary
 
-Here's a quick API overview. **For complete documentation, see [Core API Reference](docs/api/core-api.md)**
+Here's a quick API overview.
 
 ```cpp
 #include "painlessMesh.h"
