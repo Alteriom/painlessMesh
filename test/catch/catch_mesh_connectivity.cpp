@@ -215,3 +215,40 @@ SCENARIO("Bridge list management with getLastKnownBridge") {
   }
 }
 
+SCENARIO("getPrimaryBridge uses last known bridge when disconnected from mesh") {
+  GIVEN("A disconnected mesh node with known bridges") {
+    Scheduler scheduler;
+    Mesh<Connection> mesh;
+    uint32_t nodeId = 1234567;
+    mesh.init(&scheduler, nodeId);
+    
+    // Node has no active connections (disconnected from mesh)
+    REQUIRE(mesh.hasActiveMeshConnections() == false);
+    
+    // Add a known bridge
+    mesh.updateBridgeStatus(
+      555,      // nodeId
+      true,     // internetConnected
+      -45,      // routerRSSI
+      6,        // routerChannel
+      1000,     // uptime
+      "10.0.0.1",
+      0
+    );
+    
+    THEN("getPrimaryBridge returns the last known bridge even if status is stale") {
+      // When disconnected, getPrimaryBridge should return last known bridge
+      // because stale info is better than no info when trying to reconnect
+      auto primary = mesh.getPrimaryBridge();
+      REQUIRE(primary != nullptr);
+      REQUIRE(primary->nodeId == 555);
+      REQUIRE(primary->routerRSSI == -45);
+    }
+    
+    THEN("hasInternetConnection returns true based on last known state") {
+      // When disconnected, hasInternetConnection should use last known state
+      REQUIRE(mesh.hasInternetConnection() == true);
+    }
+  }
+}
+
