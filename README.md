@@ -1,8 +1,10 @@
 # AlteriomPainlessMesh
 
-> **📚 [Complete Documentation](https://alteriom.github.io/painlessMesh/)** | **📖 [API Reference](https://alteriom.github.io/painlessMesh/#/api/doxygen)** | **🎯 [Examples](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples)** | **🗂️ [Documentation Index](DOCUMENTATION_INDEX.md)**
+> **📚 [Complete Documentation](https://alteriom.github.io/painlessMesh/)** | **📖 [API Reference](https://alteriom.github.io/painlessMesh/#/api/doxygen)** | **🎯 [Examples](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples)** | **📋 [Changelog](CHANGELOG.md)**
 
 <div align="center">
+
+**Version 1.9.0** - Major update with improved bridge detection, consolidated examples, and cleaned documentation
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -575,112 +577,28 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.8.4 (November 12, 2025)
+## Latest Release: v1.9.0 (November 30, 2025)
 
-**Bridge Discovery Timing Fix for Instant Node Discovery**:
+**Major Update: Improved Bridge Detection, Consolidated Examples & Documentation**
 
-- 🚀 **Instant Bridge Discovery** - Bridge nodes now discoverable in <1 second (was up to 30 seconds)
-- 🔧 **Immediate Status Broadcast** - Bridge sends status immediately on initialization
-- 🔗 **Connection-Triggered Broadcast** - Status broadcast when new nodes join mesh
-- ✅ **Fixes "No Primary Bridge Available"** - Eliminates discovery delays in bridge_failover example
-- 🔧 **100% Backward Compatible** - No breaking changes, enhanced timing only
+- 🔍 **Mesh Connectivity Detection** - New `hasActiveMeshConnections()` and `getLastKnownBridge()` APIs
+- 🌉 **Improved Bridge Detection** - `getPrimaryBridge()` returns last known bridge when disconnected
+- ⚡ **Election Guard** - Skip election trigger when node is disconnected from mesh
+- 📦 **Consolidated Examples** - Reduced from 32 to 14 essential examples
+- 📚 **Cleaned Documentation** - Removed obsolete docs, kept only essentials
+- ⚙️ **Configurable Election Timing** - Prevent split-brain with `setElectionStartupDelay()` and `setElectionRandomDelay()`
 
-**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.4.md)** | **[📋 Full CHANGELOG](CHANGELOG.md)**
-
-## Previous Release: v1.8.3 (November 11, 2025)
-
-**ZIP File Integrity Fix for Arduino IDE Installation**:
-
-- 🐛 **Critical Bug Fix** - Resolved Arduino IDE installation crashes caused by symlink in release archives
-- 📦 **Clean ZIP Packages** - 50% smaller packages (420K) with only essential files
-- 📝 **Version Documentation** - Added version timestamp to main header file
-- ✅ **Verified Installation** - Tested and working in Arduino IDE "Add .ZIP Library"
-- 🔧 **100% Backward Compatible** - No code changes, packaging fix only
-
-**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.3.md)**
-
-## Previous Release: v1.8.2 (November 11, 2025)
-
-**Multi-Bridge Coordination & Message Queue for Critical Systems**:
-
-- 🌉 **Multi-Bridge Load Balancing** - Enterprise-grade coordination for geographic redundancy and traffic distribution
-- 📬 **Message Queue for Offline Mode** - Zero data loss during Internet outages with priority-based queuing
-- ⚖️ **Three Load Balancing Strategies** - Priority-Based, Round-Robin, Best Signal (RSSI)
-- 🛡️ **Production Ready** - Battle-tested features for critical deployments (Issues #65 & #66)
-- 📊 **230+ New Test Assertions** - Comprehensive test coverage for both features
-
-**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.2.md)**
-
-## Previous Release: v1.8.1 (November 10, 2025)
-
-**GitHub Copilot Integration & Developer Experience**:
-
-- 🤖 **GitHub Copilot Custom Agent** - AI-assisted release management with `@release-agent`
-- 📚 **Enhanced Developer Context** - Improved repository context for all Copilot users
-- ✅ **Release Automation** - 21+ automated validation checks for quality assurance
-- 🔧 **Zero Breaking Changes** - Purely additive developer experience improvements
-- 📖 **Complete Documentation** - Agent setup guides and knowledge sources
-
-**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.1.md)**
-
-## Previous Release: v1.8.0 (November 9, 2025)
-
-**Bridge-Centric Architecture & Comprehensive Monitoring**:
-
-- ✅ **Bridge Auto-Detection** - One-line bridge setup with automatic channel detection
-- 📊 **Diagnostics API** - Comprehensive monitoring and debugging tools
-- 🕐 **RTC Integration** - Hardware RTC support for offline timekeeping
-- 🔄 **Bridge Failover** - Automatic bridge election and high availability
-- ⚡ **Production Ready** - All features tested, documented, and backward compatible
-
-**[📋 Full Release Notes](docs/releases/RELEASE_NOTES_v1.8.0.md)**
+**[📋 Full CHANGELOG](CHANGELOG.md)**
 
 ## Getting Help
 
 - **[FAQ](docs/troubleshooting/faq.md)** - Common questions and solutions
 - **[Common Issues](docs/troubleshooting/common-issues.md)** - Troubleshooting guide
-- **[Common Architecture Mistakes](docs/troubleshooting/common-architecture-mistakes.md)** - Design patterns and pitfalls
-- **[Version Numbers FAQ](docs/FAQ_VERSION_NUMBERS.md)** - Understanding version numbers in header files
-- **[Version Management Guide](docs/VERSION_MANAGEMENT.md)** - Complete versioning documentation
 - **[GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)** - Bug reports and feature requests  
 - **[Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)** - Community support
 - **[API Documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)** - Generated API docs
 
 ## Development
-
-### GitHub Copilot Integration (v1.8.1+)
-
-AlteriomPainlessMesh includes GitHub Copilot custom agent support for AI-assisted development:
-
-- **🤖 Release Agent** - AI assistant for release management and quality assurance
-- **📚 Enhanced Context** - Repository knowledge available to all Copilot users
-- **🎯 Enterprise Features** - Use `@release-agent` in Copilot Chat (Enterprise)
-
-**For GitHub Copilot Enterprise Users:**
-```
-@release-agent How do I prepare a release?
-@release-agent Check version consistency
-@release-agent Validate release readiness
-```
-
-**Configuration:** The custom agent is defined in `copilot-agents.json` at the repository root.
-
-**Documentation:** [Copilot Agent Setup](.github/COPILOT_AGENT_SETUP.md) | [Agent Index](.github/AGENTS_INDEX.md)
-
-### Release Agent & Automation
-
-AlteriomPainlessMesh includes a comprehensive release automation system:
-
-- **📋 [Release Agent Documentation](.github/agents/release-agent.md)** - Complete release process specification
-- **🤖 Release Validation Script**: `./scripts/release-agent.sh` - Automated pre-release checks
-- **⚙️ CI/CD Integration**: Workflows validate every release automatically
-
-**Quick Release Validation:**
-```bash
-./scripts/release-agent.sh  # Run all pre-release checks
-```
-
-See [Release Agent Guide](.github/agents/README.md) for complete documentation.
 
 ### Building from Source
 
