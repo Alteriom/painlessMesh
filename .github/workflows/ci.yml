@@ -161,10 +161,9 @@ jobs:
 
       - name: Run PlatformIO tests
         run: |
-          # Test critical examples instead of random to ensure reliability
+          # Test critical examples to ensure reliability
           bash test/ci/test_platformio.sh --example basic
-          bash test/ci/test_platformio.sh --example alteriomSensorNode
-          bash test/ci/test_platformio.sh --example alteriomMetricsHealth
+          bash test/ci/test_platformio.sh --example alteriom
 
   simulator-tests:
     name: Simulator Integration Tests

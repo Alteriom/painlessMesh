@@ -202,6 +202,7 @@ void loop() {
     Serial.println("\n--- Bridge Status ---");
     Serial.printf("I am bridge: %s\n", mesh.isBridge() ? "YES" : "NO");
     Serial.printf("Internet available: %s\n", mesh.hasInternetConnection() ? "YES" : "NO");
+    Serial.printf("Mesh connections active: %s\n", mesh.hasActiveMeshConnections() ? "YES" : "NO");
     
     auto bridges = mesh.getBridges();
     Serial.printf("Known bridges: %d\n", bridges.size());
@@ -219,7 +220,21 @@ void loop() {
       Serial.printf("Primary bridge: %u (RSSI: %d dBm)\n", 
                     primary->nodeId, primary->routerRSSI);
     } else {
-      Serial.println("No primary bridge available!");
+      // Provide more context about why no primary bridge
+      if (!mesh.hasActiveMeshConnections()) {
+        Serial.println("No primary bridge: This node is disconnected from mesh");
+        // Show last known bridge info if available
+        auto lastKnown = mesh.getLastKnownBridge();
+        if (lastKnown) {
+          Serial.printf("  Last known bridge: %u (RSSI: %d dBm, last seen %u ms ago)\n",
+                        lastKnown->nodeId, lastKnown->routerRSSI,
+                        millis() - lastKnown->lastSeen);
+        }
+      } else if (bridges.empty()) {
+        Serial.println("No primary bridge: No bridges discovered yet");
+      } else {
+        Serial.println("No primary bridge: Known bridges timed out or lost Internet");
+      }
     }
     Serial.println("--------------------\n");
   }
