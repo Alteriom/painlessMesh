@@ -5,9 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.9.0] - 2025-11-30
 
 ### Added
+
+- **Mesh Connectivity Detection** - New APIs to detect mesh connection state
+  - `hasActiveMeshConnections()` - Check if node has active mesh connections
+  - `getLastKnownBridge()` - Get last known bridge regardless of timeout
+  - Allows distinguishing between "bridge unavailable" vs "disconnected from mesh"
+
+- **Improved Bridge Detection** - Enhanced `getPrimaryBridge()` behavior
+  - When disconnected from mesh, returns last known bridge instead of nullptr
+  - Stale bridge info is better than no info for reconnection scenarios
+  - `hasInternetConnection()` now uses last known state when disconnected
+
+- **Election Guard** - Skip election trigger when node is disconnected from mesh
+  - Prevents unnecessary elections when issue is local connectivity
+  - More accurate diagnosis of bridge availability problems
 
 - **Configurable Bridge Election Timing** - New API methods to prevent split-brain scenarios
   - `setElectionStartupDelay(delayMs)` - Configure startup delay before first election (default: 60s, min: 10s)
@@ -40,6 +54,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Documentation**: Added comprehensive troubleshooting section to bridge_failover README
   - **Recommended Settings**: 90s startup delay + 10-30s random delay for simultaneous startups
   - **Alternative**: Stagger node startup by 10-20 seconds or use pre-designated bridge mode
+
+### Changed
+
+- **Examples Consolidated** - Reduced from 32 to 14 essential examples
+  - Removed 18 redundant/developmental examples
+  - Kept: alteriom, basic, bridge, bridge_failover, logClient/Server, mqttBridge, namedMesh, otaReceiver/Sender, priority, sharedGateway, startHere, webServer
+  - Cleaner, more maintainable example set focusing on core functionality
+
+- **Documentation Consolidated** - Cleaned up repository documentation
+  - Removed obsolete release notes, issue resolution docs, and development artifacts
+  - Retained: README.md, CHANGELOG.md, CONTRIBUTING.md, RELEASE_GUIDE.md, BRIDGE_TO_INTERNET.md
+  - Cleaner root directory with only essential documentation
 
 ## [1.8.15] - 2025-11-23
 
