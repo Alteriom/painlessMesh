@@ -483,6 +483,38 @@ evaluateElection(): 1 candidates
 - Ensure bridge timeout passed (60 seconds)
 - Verify nodes can see router (RSSI scan)
 
+### Isolated Node Never Retries Bridge Connection (Fixed in v1.9.1)
+
+**Symptoms**: Node with `INITIAL_BRIDGE=true` fails to connect to router at startup, then endlessly logs "Bridge monitor: Skipping - no active mesh connections" without ever retrying to become a bridge.
+
+**Root Cause (Before v1.9.1)**: 
+When a node configured as `INITIAL_BRIDGE=true` failed to connect to the router during setup(), it correctly fell back to regular node mode with failover enabled. However, the bridge monitor task skipped isolated nodes (those with no mesh connections) to prevent split-brain scenarios. This prevented the node from ever retrying to become a bridge.
+
+**Solution (Automatic in v1.9.1+)**:
+A new isolated bridge retry mechanism now handles this case:
+1. Periodic task runs every 60 seconds when the node is isolated
+2. After 6 consecutive empty mesh scans, retry is triggered
+3. Node scans for router signal and checks minimum RSSI threshold (-80 dBm)
+4. If router is visible with adequate signal, attempts direct bridge promotion
+5. Limited to 5 retry attempts before 5-minute cooldown
+6. Counter resets on success, mesh reconnection, or after cooldown
+
+**Expected Behavior** (v1.9.1+):
+```
+Isolated bridge retry: Node isolated with 6 empty scans, attempting bridge promotion
+=== Isolated Bridge Promotion Attempt ===
+Attempt 1 of 5
+attemptIsolatedBridgePromotion(): Router visible with RSSI -45 dBm
+Attempting direct bridge promotion (bypassing election)
+✓ Isolated bridge promotion complete on channel 6
+```
+
+**Manual Solutions**:
+- Update to painlessMesh v1.9.1 or later
+- Ensure router credentials are configured: `mesh.setRouterCredentials()`
+- Ensure failover is enabled: `mesh.enableBridgeFailover(true)`
+- Check router is visible and signal strength is adequate (>= -80 dBm)
+
 ### Multiple Nodes Claim Bridge Role
 
 **Symptoms**: Split-brain scenario with multiple bridges
