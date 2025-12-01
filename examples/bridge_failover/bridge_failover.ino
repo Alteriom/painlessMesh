@@ -16,6 +16,10 @@
 // To send data to the Internet from a regular node:
 //   1. Use mesh.sendToInternet() to route through a gateway
 //   2. Use initAsSharedGateway() so all nodes have router access
+//      NOTE: initAsSharedGateway() requires ROUTER credentials:
+//      mesh.initAsSharedGateway(MESH_PREFIX, MESH_PASSWORD,
+//                               ROUTER_SSID, ROUTER_PASSWORD,  // Router creds required!
+//                               &userScheduler, MESH_PORT);
 //   3. Send mesh messages to bridge node which handles Internet comms
 //
 // DON'T DO THIS on regular mesh nodes:

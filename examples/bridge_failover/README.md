@@ -11,7 +11,7 @@ Regular mesh nodes do NOT have direct IP routing to the Internet. They only comm
 **To send data to the Internet from a regular mesh node, you must:**
 
 1. **Use `sendToInternet()`** - Routes data through a gateway node
-2. **Use `initAsSharedGateway()`** - Configures all nodes with direct router access
+2. **Use `initAsSharedGateway()`** - Configures all nodes with direct router access (requires router credentials - see below)
 3. **Send mesh messages to the bridge** - Bridge node handles Internet communication
 
 **DON'T do this on regular mesh nodes:**
@@ -37,6 +37,20 @@ if (mesh.hasInternetConnection()) {
 ```
 
 For use cases where all nodes need direct Internet access, see the [sharedGateway example](../sharedGateway/).
+
+**Note on `initAsSharedGateway()` usage:**
+```cpp
+// initAsSharedGateway() requires ROUTER credentials since all nodes connect to router
+// Signature: initAsSharedGateway(meshSSID, meshPassword, ROUTER_SSID, ROUTER_PASSWORD, scheduler, port)
+mesh.initAsSharedGateway(
+  MESH_PREFIX,      // Mesh network name
+  MESH_PASSWORD,    // Mesh network password
+  ROUTER_SSID,      // Your WiFi router SSID (required!)
+  ROUTER_PASSWORD,  // Your WiFi router password (required!)
+  &userScheduler,   // Task scheduler
+  MESH_PORT         // TCP port for mesh
+);
+```
 
 ## Problem Statement
 

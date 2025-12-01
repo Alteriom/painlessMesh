@@ -884,7 +884,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * 
    * Regular mesh nodes do NOT have direct IP routing to the Internet. They only
    * communicate via the painlessMesh protocol. To send data to the Internet from
-   * a regular node, you must use sendToInternet() which routes through a gateway.
+   * a regular node, you must use sendToInternet() which routes through a gateway,
+   * or use initAsSharedGateway(meshSSID, meshPwd, ROUTER_SSID, ROUTER_PWD, scheduler, port)
+   * to give all nodes direct router access (requires router credentials).
    * 
    * Override of base class method to also check if THIS node is a bridge
    * with Internet connectivity, not just other bridges in the mesh.
@@ -903,6 +905,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * @return true if at least one bridge (including this node) has Internet
    * @see hasLocalInternet() to check if THIS node has direct Internet access
    * @see sendToInternet() to send data to Internet via gateway
+   * @see initAsSharedGateway() requires router credentials (ROUTER_SSID, ROUTER_PASSWORD)
    */
   bool hasInternetConnection() {
     // First check if THIS node is a bridge with Internet

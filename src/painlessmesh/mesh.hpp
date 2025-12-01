@@ -616,7 +616,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * a regular node, you must either:
    * 
    * 1. Use sendToInternet() to route data through a gateway node
-   * 2. Use initAsSharedGateway() so all nodes have direct router access
+   * 2. Use initAsSharedGateway(meshSSID, meshPwd, ROUTER_SSID, ROUTER_PWD, scheduler, port)
+   *    to give all nodes direct router access (requires router credentials)
    * 3. Send mesh messages to a bridge node that handles Internet communication
    * 
    * Use hasLocalInternet() to check if THIS specific node has direct Internet access.
@@ -640,7 +641,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return true if at least one gateway/bridge reports Internet connection
    * @see hasLocalInternet() to check if THIS node has direct Internet access
    * @see sendToInternet() to send data to Internet via gateway
-   * @see initAsSharedGateway() to give all nodes direct Internet access
+   * @see initAsSharedGateway() to give all nodes direct Internet access (requires router credentials)
    */
   bool hasInternetConnection() {
     bool hasConnections = hasActiveMeshConnections();
