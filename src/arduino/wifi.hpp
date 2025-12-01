@@ -205,6 +205,60 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       }
     });
 
+    // Add separate periodic task for isolated bridge retry
+    // This handles the case where a node:
+    // - Has router credentials configured
+    // - Is isolated (no mesh connections)
+    // - Should attempt to become a bridge directly
+    // This is different from the election mechanism which requires mesh connectivity
+    this->addTask(isolatedBridgeRetryIntervalMs, TASK_FOREVER, [this]() {
+      // Only retry if failover is enabled and we have credentials
+      if (!bridgeFailoverEnabled || !routerCredentialsConfigured) {
+        return;
+      }
+      
+      // Don't retry if we're already a bridge
+      if (this->isBridge()) {
+        return;
+      }
+      
+      // Skip during startup period
+      if (millis() < electionStartupDelayMs) {
+        return;
+      }
+      
+      // Only retry when isolated (no mesh connections found)
+      if (this->hasActiveMeshConnections()) {
+        // Reset retry counter when mesh is active
+        _isolatedBridgeRetryAttempts = 0;
+        return;
+      }
+      
+      // Limit retry attempts with exponential backoff
+      if (_isolatedBridgeRetryAttempts >= MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS) {
+        Log(CONNECTION, "Isolated bridge retry: Max attempts (%d) reached, waiting for mesh\n",
+            MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS);
+        return;
+      }
+      
+      // Check if mesh network exists on any channel before trying to become bridge
+      // If mesh exists but we can't connect, don't try to become bridge
+      uint16_t emptyScans = stationScan.getConsecutiveEmptyScans();
+      if (emptyScans < ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD) {
+        Log(CONNECTION, "Isolated bridge retry: Only %d empty scans, waiting for more scans\n",
+            emptyScans);
+        return;
+      }
+      
+      Log(CONNECTION, "Isolated bridge retry: Node isolated with %d empty scans, attempting bridge promotion\n",
+          emptyScans);
+      
+      _isolatedBridgeRetryAttempts++;
+      
+      // Attempt to become bridge directly (bypassing election since we're isolated)
+      this->attemptIsolatedBridgePromotion();
+    });
+
     tcpServerInit();
     eventHandleInit();
 
@@ -1530,6 +1584,91 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
+   * Attempt to promote an isolated node to bridge
+   * 
+   * This method handles the case where a node is isolated (no mesh connections)
+   * but has router credentials. Unlike the election-based promotion, this
+   * directly attempts to connect to the router without requiring mesh connectivity.
+   * 
+   * This is useful for:
+   * - Nodes that failed initial bridge setup and need to retry
+   * - Nodes that are the first to start and no mesh exists yet
+   * - Recovery scenarios where mesh network is unavailable
+   */
+  void attemptIsolatedBridgePromotion() {
+    using namespace logger;
+    
+    Log(CONNECTION, "=== Isolated Bridge Promotion Attempt ===\n");
+    Log(CONNECTION, "Attempt %d of %d\n", _isolatedBridgeRetryAttempts, MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS);
+    
+    // First, scan for router to check if it's visible
+    int8_t routerRSSI = scanRouterSignalStrength(routerSSID);
+    
+    if (routerRSSI == 0) {
+      Log(CONNECTION, "attemptIsolatedBridgePromotion(): Router %s not visible\n", routerSSID.c_str());
+      return;
+    }
+    
+    // Check minimum RSSI threshold for isolated promotion
+    if (routerRSSI < minimumBridgeRSSI) {
+      Log(CONNECTION, "attemptIsolatedBridgePromotion(): Router RSSI %d dBm below threshold %d dBm\n",
+          routerRSSI, minimumBridgeRSSI);
+      return;
+    }
+    
+    Log(CONNECTION, "attemptIsolatedBridgePromotion(): Router visible with RSSI %d dBm\n", routerRSSI);
+    Log(CONNECTION, "Attempting direct bridge promotion (bypassing election)\n");
+    
+    // Save current mesh configuration
+    uint8_t savedChannel = _meshChannel;
+    
+    // Stop current mesh operations
+    this->stop();
+    delay(1000);
+    
+    // Attempt to initialize as bridge
+    bool bridgeInitSuccess = this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                                                 mScheduler, _meshPort);
+    
+    if (!bridgeInitSuccess) {
+      Log(ERROR, "✗ Isolated bridge promotion failed - router unreachable\n");
+      Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
+      
+      // Re-initialize as regular node on the original channel
+      this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
+                 savedChannel, _meshHidden, MAX_CONN);
+      
+      // Re-configure router credentials for future retry attempts
+      this->setRouterCredentials(routerSSID, routerPassword);
+      this->enableBridgeFailover(true);
+      
+      // Notify via callback
+      if (bridgeRoleChangedCallback) {
+        bridgeRoleChangedCallback(false, "Isolated bridge promotion failed - router unreachable");
+      }
+      
+      return;
+    }
+    
+    // Success! Reset retry counter
+    _isolatedBridgeRetryAttempts = 0;
+    lastRoleChangeTime = millis();
+    
+    Log(STARTUP, "✓ Isolated bridge promotion complete on channel %d\n", _meshChannel);
+    
+    // Notify via callback
+    if (bridgeRoleChangedCallback) {
+      bridgeRoleChangedCallback(true, "Isolated node promoted to bridge");
+    }
+    
+    // Send bridge status announcement to attract other nodes
+    this->addTask(3000, TASK_ONCE, [this]() {
+      Log(STARTUP, "Sending bridge status announcement on channel %d\n", _meshChannel);
+      this->sendBridgeStatus();
+    });
+  }
+
+  /**
    * Handle received bridge election package
    * Called by package handler when election message arrives
    */
@@ -1759,6 +1898,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   uint32_t electionDeadline = 0;
   std::vector<BridgeCandidate> electionCandidates;
   std::function<void(bool isBridge, TSTRING reason)> bridgeRoleChangedCallback;
+
+  // Isolated bridge retry state and configuration
+  uint8_t _isolatedBridgeRetryAttempts = 0;
+  static const uint8_t MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS = 5;  // Max retry attempts before waiting for mesh
+  static const uint32_t isolatedBridgeRetryIntervalMs = 60000;  // Retry every 60 seconds
+  static const uint16_t ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD = 6;  // Require 6 empty scans before retrying
 
   // Multi-bridge coordination state and configuration
  protected:

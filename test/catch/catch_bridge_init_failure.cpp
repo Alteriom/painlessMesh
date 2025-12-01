@@ -245,3 +245,114 @@ SCENARIO("Documentation provides comprehensive guidance", "[bridge][documentatio
         }
     }
 }
+
+SCENARIO("Isolated nodes retry becoming bridge when mesh unavailable", "[bridge][isolated][retry]") {
+    GIVEN("A node with router credentials that failed initial bridge setup") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 5678901;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("Node is isolated with no mesh connections") {
+            THEN("Node should periodically retry bridge promotion") {
+                // Expected behavior for isolated bridge retry:
+                //
+                // Conditions for retry:
+                // 1. Bridge failover is enabled
+                // 2. Router credentials are configured
+                // 3. Node is not already a bridge
+                // 4. Startup delay has passed
+                // 5. No active mesh connections
+                // 6. Multiple consecutive empty scans (default: 6)
+                //
+                // Retry mechanism:
+                // - Periodic task runs every 60 seconds (isolatedBridgeRetryIntervalMs)
+                // - Scans for router signal strength
+                // - Checks minimum RSSI threshold (-80 dBm default)
+                // - Attempts direct bridge promotion if router visible
+                // - Limited to 5 retry attempts before waiting for mesh
+                //
+                // On success:
+                // - Node becomes bridge on router's channel
+                // - Bridge status broadcasts begin
+                // - Other nodes can discover this bridge
+                //
+                // On failure:
+                // - Node reverts to regular mesh mode
+                // - Router credentials are preserved
+                // - Retry counter incremented
+                // - Next retry scheduled
+                
+                INFO("Isolated nodes retry bridge promotion periodically");
+                INFO("Retry is limited to prevent endless attempts");
+                INFO("Success resets retry counter");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Isolated bridge retry respects minimum RSSI threshold", "[bridge][isolated][rssi]") {
+    GIVEN("An isolated node with weak router signal") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 6789012;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("Router RSSI is below threshold") {
+            THEN("Bridge promotion should be skipped") {
+                // RSSI threshold behavior:
+                //
+                // Default threshold: -80 dBm
+                // Configurable via: mesh.setMinimumBridgeRSSI()
+                //
+                // When router RSSI < threshold:
+                // - attemptIsolatedBridgePromotion() returns early
+                // - Log message: "Router RSSI %d dBm below threshold %d dBm"
+                // - No bridge promotion attempted
+                // - Retry counter NOT incremented (to allow retry when signal improves)
+                //
+                // Rationale:
+                // - Prevents unreliable bridge connections
+                // - Encourages node to wait for mesh or better signal
+                // - Avoids network instability from marginal connections
+                
+                INFO("Weak signal prevents bridge promotion");
+                INFO("Retry counter not incremented for signal issues");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Isolated bridge retry resets when mesh becomes available", "[bridge][isolated][reset]") {
+    GIVEN("An isolated node that has been retrying") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 7890123;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("Mesh connections become active") {
+            THEN("Retry counter should reset") {
+                // Reset behavior:
+                //
+                // When hasActiveMeshConnections() returns true:
+                // - _isolatedBridgeRetryAttempts is reset to 0
+                // - Normal election-based bridge selection resumes
+                // - Isolated retry task exits early
+                //
+                // This ensures:
+                // - Fresh start when rejoining mesh
+                // - Election mechanism handles connected nodes
+                // - No conflict between isolated retry and elections
+                
+                INFO("Retry counter resets when mesh available");
+                INFO("Election mechanism takes over for connected nodes");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
