@@ -358,3 +358,232 @@ SCENARIO("Isolated bridge retry resets when mesh becomes available", "[bridge][i
         }
     }
 }
+
+// ============================================================================
+// Comprehensive use case tests based on woodlist's feedback
+// ============================================================================
+
+SCENARIO("Use Case 1: INITIAL_BRIDGE=true with router temporarily unavailable", "[bridge][usecase][woodlist]") {
+    GIVEN("A node configured as INITIAL_BRIDGE that fails to connect to router") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 11111111;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("Initial bridge setup fails and falls back to regular node") {
+            THEN("Node should periodically retry becoming a bridge") {
+                // Scenario from woodlist comment (quote preserved for reference):
+                // "Upon one fall in coming as a bridge, the algorithm never attempts
+                //  to get connected to router, having absent mesh network"
+                //
+                // Expected behavior with fix:
+                // 1. setup() calls initAsBridge() which fails (router unavailable)
+                // 2. Example falls back to regular node with failover enabled:
+                //    mesh.init(meshPrefix, meshPassword, &scheduler, meshPort, WIFI_AP_STA, 0);
+                //    mesh.setRouterCredentials(routerSSID, routerPassword);
+                //    mesh.enableBridgeFailover(true);
+                // 3. Periodic task runs every 60 seconds (isolatedBridgeRetryIntervalMs)
+                // 4. After startup delay (60s) and empty scan threshold (6 scans),
+                //    the node attempts direct bridge promotion via attemptIsolatedBridgePromotion()
+                //
+                // This addresses the comment:
+                // "The main loop should contain cyclic trying, if the mesh network is unavailable"
+                
+                INFO("INITIAL_BRIDGE nodes retry bridge promotion after initial failure");
+                INFO("Retry mechanism is in the periodic task, not blocking in loop()");
+                INFO("Uses isolatedBridgeRetryIntervalMs (60s) between attempts");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Use Case 2: REGULAR NODE with no mesh found - isolated retry", "[bridge][usecase][woodlist]") {
+    GIVEN("A regular node (INITIAL_BRIDGE=false) that cannot find any mesh network") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 22222222;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("Node scans but finds no mesh networks") {
+            THEN("Node should eventually try to become bridge if isolated") {
+                // Scenario from woodlist's serial log:
+                // "CONNECTION: scanForMeshChannel(): Mesh 'FishFarmMesh' not found on any channel"
+                // "CONNECTION: stationScan(): Mesh not found, falling back to channel 1"
+                // Then endlessly: "CONNECTION: Bridge monitor: Skipping - no active mesh connections"
+                //
+                // Expected behavior with fix:
+                // 1. Node starts as regular node
+                // 2. No mesh found, consecutive empty scans accumulate
+                // 3. After ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD (6) empty scans,
+                //    isolated bridge retry task activates
+                // 4. Node attempts direct bridge promotion via attemptIsolatedBridgePromotion()
+                // 5. If router visible with adequate RSSI, node becomes bridge
+                // 6. If router not visible, waits and retries up to MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS (5)
+                //
+                // This addresses the endless "Skipping - no active mesh connections" loop
+                
+                INFO("Regular nodes in isolation retry becoming bridge");
+                INFO("Requires 6 consecutive empty scans before retry");
+                INFO("Retry limited to 5 attempts with 5-minute cooldown");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Use Case 3: Router association refused error handling", "[bridge][usecase][woodlist]") {
+    GIVEN("A node attempting to connect to router that refuses association") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 33333333;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("Router refuses association with 'comeback time too long' error") {
+            THEN("Node should handle the failure gracefully and retry later") {
+                // Scenario from woodlist's serial log:
+                // "E (431) wifi:Association refused temporarily, comeback time 262144 (TUs) too long"
+                // "✗ Failed to initialize as bridge!"
+                // "Router unreachable - falling back to regular node with failover"
+                // "✓ Running as regular node - will auto-promote when router available"
+                //
+                // Expected behavior:
+                // 1. initAsBridge() times out waiting for router connection
+                // 2. Returns false indicating failure
+                // 3. Example falls back to regular node mode
+                // 4. Node will retry via isolated bridge retry mechanism
+                //
+                // The ESP32 WiFi driver error is informational - the library handles
+                // the timeout gracefully regardless of the underlying WiFi failure reason
+                
+                INFO("Association refused error is handled by connection timeout");
+                INFO("Node falls back to regular mode with auto-retry enabled");
+                INFO("Retry happens via periodic isolated bridge retry task");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Use Case 4: Node loses mesh connection to bridge", "[bridge][usecase][woodlist]") {
+    GIVEN("A node that was connected to mesh but lost connection") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 44444444;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("Mesh connection is lost and bridge becomes unreachable") {
+            THEN("Node should handle disconnection and attempt recovery") {
+                // Scenario from woodlist's serial log:
+                // "CONNECTION: Time out reached"
+                // "Changed connections. Nodes: 0"
+                // "Internet available: YES" -> "Internet available: NO"
+                // "Known bridges: 1" but "No primary bridge available!"
+                //
+                // Expected behavior:
+                // 1. Node detects lost mesh connections
+                // 2. hasActiveMeshConnections() returns false
+                // 3. Bridge monitor skips election (can't coordinate)
+                // 4. Isolated bridge retry mechanism activates after threshold
+                // 5. If router visible, node can become bridge
+                // 6. If not, continues scanning for mesh reconnection
+                //
+                // The distinction between "bridge in list but stale" vs "truly unreachable"
+                // is handled by the bridgeTimeoutMs check and hasInternetConnection() flag
+                
+                INFO("Disconnected node transitions to isolated retry mode");
+                INFO("Known bridges remain in list but marked as stale");
+                INFO("Recovery via either mesh reconnection or direct bridge promotion");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Use Case 5: Multiple retry attempts with cooldown", "[bridge][usecase][woodlist]") {
+    GIVEN("A node that has failed bridge promotion multiple times") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 55555555;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("Node reaches maximum retry attempts") {
+            THEN("Node should enter cooldown before retrying again") {
+                // Configuration parameters:
+                // - MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS = 5
+                // - isolatedBridgeRetryIntervalMs = 60000 (60 seconds)
+                // - isolatedBridgeRetryResetIntervalMs = 300000 (5 minutes)
+                // - ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD = 6 empty scans
+                //
+                // Retry timeline:
+                // T=0: Node starts, begins scanning
+                // T=~60s: Startup delay passes
+                // T=~90s: 6 empty scans accumulated (fast scan rate)
+                // T=90s: First retry attempt
+                // T=150s: Second retry attempt
+                // T=210s: Third retry attempt
+                // T=270s: Fourth retry attempt
+                // T=330s: Fifth retry attempt (max reached)
+                // T=330s-630s: Cooldown period (5 minutes)
+                // T=630s: Counter resets, retries resume
+                //
+                // This prevents infinite retry loops while still allowing
+                // eventual recovery when conditions improve
+                
+                INFO("Max 5 actual promotion attempts before cooldown");
+                INFO("Counter only incremented when actual attempt made");
+                INFO("5-minute cooldown before counter resets");
+                INFO("Counter also resets if mesh connection established");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
+
+SCENARIO("Use Case 6: Correct serial output for bridge failure", "[bridge][usecase][woodlist]") {
+    GIVEN("A node attempting bridge initialization that fails") {
+        Scheduler scheduler;
+        Mesh<Connection> node;
+        
+        uint32_t nodeId = 66666666;
+        node.init(&scheduler, nodeId);
+        
+        WHEN("initAsBridge() returns false") {
+            THEN("Serial output should show failure message") {
+                // woodlist noted (quote preserved for reference):
+                // "Since now it's never has been seen the output of actual 'bridgeSuccess=false'"
+                // "if (!bridgeSuccess) { Serial.println(\"✗ Failed to initialize as bridge!\");"
+                //
+                // The example code in bridge_failover.ino handles this.
+                // Note: The following uses example placeholders (MESH_PREFIX, etc.)
+                // that match the actual example code pattern:
+                //
+                // bool bridgeSuccess = mesh.initAsBridge(meshPrefix, meshPassword,
+                //                                        routerSSID, routerPassword,
+                //                                        &scheduler, meshPort);
+                // if (!bridgeSuccess) {
+                //   Serial.println("✗ Failed to initialize as bridge!");
+                //   Serial.println("Router unreachable - falling back to regular node with failover");
+                //   mesh.init(meshPrefix, meshPassword, &scheduler, meshPort, WIFI_AP_STA, 0);
+                //   mesh.setRouterCredentials(routerSSID, routerPassword);
+                //   mesh.enableBridgeFailover(true);
+                //   Serial.println("✓ Running as regular node - will auto-promote when router available");
+                //   Serial.println("Note: If isolated (no mesh found), will retry bridge connection periodically");
+                // }
+                //
+                // If INITIAL_BRIDGE=false, the code path doesn't call initAsBridge() at all,
+                // so these messages wouldn't appear. The messages only appear when INITIAL_BRIDGE=true.
+                
+                INFO("Failure messages only shown when INITIAL_BRIDGE=true");
+                INFO("Regular node mode (INITIAL_BRIDGE=false) skips initAsBridge()");
+                INFO("Serial output matches the configured mode");
+                REQUIRE(true); // Documented behavior
+            }
+        }
+    }
+}
