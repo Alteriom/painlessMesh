@@ -606,14 +606,41 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
   /**
-   * Check if any bridge in the mesh has Internet connectivity
+   * Check if any bridge/gateway in the mesh has Internet connectivity
+   * 
+   * IMPORTANT: This method checks if a GATEWAY node (bridge) in the mesh has
+   * Internet access, NOT whether THIS node can directly make HTTP/HTTPS requests.
+   * 
+   * Regular mesh nodes do NOT have direct IP routing to the Internet - they only
+   * communicate over the painlessMesh protocol. To send data to the Internet from
+   * a regular node, you must either:
+   * 
+   * 1. Use sendToInternet() to route data through a gateway node
+   * 2. Use initAsSharedGateway() so all nodes have direct router access
+   * 3. Send mesh messages to a bridge node that handles Internet communication
+   * 
+   * Use hasLocalInternet() to check if THIS specific node has direct Internet access.
    * 
    * When connected to mesh, requires recent bridge status (within timeout).
    * When disconnected from mesh, returns true if any bridge previously
    * reported Internet connectivity - allowing operations to be queued for
    * when mesh connectivity is restored.
    * 
-   * @return true if at least one bridge reports Internet connection
+   * \code
+   * if (mesh.hasInternetConnection()) {
+   *   // A gateway exists with Internet - use sendToInternet() to reach Internet
+   *   mesh.sendToInternet("https://api.example.com/data", jsonPayload, callback);
+   * }
+   * 
+   * // DON'T DO THIS - regular mesh nodes cannot make direct HTTP requests:
+   * // HTTPClient http;
+   * // http.begin("https://api.example.com");  // Will fail with "connection refused"
+   * \endcode
+   * 
+   * @return true if at least one gateway/bridge reports Internet connection
+   * @see hasLocalInternet() to check if THIS node has direct Internet access
+   * @see sendToInternet() to send data to Internet via gateway
+   * @see initAsSharedGateway() to give all nodes direct Internet access
    */
   bool hasInternetConnection() {
     bool hasConnections = hasActiveMeshConnections();

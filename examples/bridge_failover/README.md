@@ -2,6 +2,42 @@
 
 This example demonstrates automatic bridge failover with RSSI-based election in painlessMesh networks.
 
+## ⚠️ Important: Understanding Internet Connectivity
+
+**`hasInternetConnection()` indicates a GATEWAY has Internet access, NOT that this node can make HTTP requests!**
+
+Regular mesh nodes do NOT have direct IP routing to the Internet. They only communicate via the painlessMesh protocol (node-to-node messages). When `hasInternetConnection()` returns `true`, it means a bridge/gateway node in the mesh has Internet access.
+
+**To send data to the Internet from a regular mesh node, you must:**
+
+1. **Use `sendToInternet()`** - Routes data through a gateway node
+2. **Use `initAsSharedGateway()`** - Configures all nodes with direct router access
+3. **Send mesh messages to the bridge** - Bridge node handles Internet communication
+
+**DON'T do this on regular mesh nodes:**
+```cpp
+// This will FAIL with "connection refused" on regular mesh nodes!
+HTTPClient http;
+http.begin("https://api.example.com");
+int httpCode = http.GET();  // FAILS!
+```
+
+**DO this instead:**
+```cpp
+// Check if a gateway is available, then use sendToInternet()
+if (mesh.hasInternetConnection()) {
+  mesh.sendToInternet(
+    "https://api.example.com/data",
+    jsonPayload,
+    [](bool success, uint16_t status, String error) {
+      Serial.printf("Delivery: %s\n", success ? "OK" : error.c_str());
+    }
+  );
+}
+```
+
+For use cases where all nodes need direct Internet access, see the [sharedGateway example](../sharedGateway/).
+
 ## Problem Statement
 
 In a typical mesh network with a bridge node connecting to the Internet, the bridge represents a single point of failure. If the bridge loses Internet connectivity or goes offline, the entire mesh loses its gateway to the Internet.

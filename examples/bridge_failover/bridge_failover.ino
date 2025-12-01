@@ -5,6 +5,23 @@
 // When the primary bridge loses Internet connectivity, nodes automatically
 // hold an election to select a new bridge based on router signal strength.
 //
+// IMPORTANT - UNDERSTANDING INTERNET CONNECTIVITY:
+// ================================================
+// The mesh.hasInternetConnection() method checks if a GATEWAY (bridge) node
+// has Internet access - it does NOT mean THIS node can make HTTP requests!
+//
+// Regular mesh nodes do NOT have direct IP routing to the Internet.
+// They only communicate via the painlessMesh protocol (node-to-node).
+//
+// To send data to the Internet from a regular node:
+//   1. Use mesh.sendToInternet() to route through a gateway
+//   2. Use initAsSharedGateway() so all nodes have router access
+//   3. Send mesh messages to bridge node which handles Internet comms
+//
+// DON'T DO THIS on regular mesh nodes:
+//   HTTPClient http;
+//   http.begin("https://api.example.com");  // FAILS with "connection refused"
+//
 // Hardware Required:
 // - ESP32 or ESP8266
 // - WiFi router with Internet connection
@@ -204,7 +221,11 @@ void loop() {
     
     Serial.println("\n--- Bridge Status ---");
     Serial.printf("I am bridge: %s\n", mesh.isBridge() ? "YES" : "NO");
-    Serial.printf("Internet available: %s\n", mesh.hasInternetConnection() ? "YES" : "NO");
+    
+    // NOTE: "Internet available" means a GATEWAY node has Internet access.
+    // This does NOT mean THIS node can make direct HTTP requests!
+    // Regular mesh nodes must use sendToInternet() to reach the Internet.
+    Serial.printf("Internet available via gateway: %s\n", mesh.hasInternetConnection() ? "YES" : "NO");
     Serial.printf("Mesh connections active: %s\n", mesh.hasActiveMeshConnections() ? "YES" : "NO");
     
     auto bridges = mesh.getBridges();
