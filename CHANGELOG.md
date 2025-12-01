@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2025-12-01
+
+### Added
+
+- **Isolated Bridge Retry Mechanism** - Nodes that fail initial bridge setup can now retry automatically
+  - New `attemptIsolatedBridgePromotion()` method for direct bridge promotion when isolated
+  - Periodic retry task runs every 60 seconds when node is isolated (no mesh connections)
+  - Requires 6 consecutive empty mesh scans before attempting retry
+  - Limited to 5 actual retry attempts before 5-minute cooldown
+  - Counter resets on success, mesh reconnection, or after cooldown
+  - **Impact**: Fixes issue where nodes with `INITIAL_BRIDGE=true` that fail router connection
+    would never retry becoming a bridge (endless "Bridge monitor: Skipping - no active mesh connections")
+
+- **Comprehensive Test Coverage** - Added tests for all woodlist use cases
+  - Use Case 1: INITIAL_BRIDGE=true with router temporarily unavailable
+  - Use Case 2: Regular node with no mesh found - isolated retry
+  - Use Case 3: Router association refused error handling
+  - Use Case 4: Node loses mesh connection to bridge
+  - Use Case 5: Multiple retry attempts with cooldown
+  - Use Case 6: Correct serial output for bridge failure
+
+### Fixed
+
+- **Bridge Retry for Isolated Nodes** (#212) - Fixed nodes not retrying bridge connection
+  - **Root Cause**: Bridge monitor task skips isolated nodes to prevent split-brain scenarios,
+    but this prevented retry when initial bridge setup fails
+  - **Symptom**: Endless "Bridge monitor: Skipping - no active mesh connections" log messages
+  - **Solution**: Added separate isolated bridge retry mechanism that activates when:
+    - Node has router credentials configured
+    - Node is isolated (no mesh connections)
+    - Multiple empty scans have occurred (mesh not found)
+  - **Behavior**: Node scans for router, checks RSSI, and attempts direct bridge promotion
+  - Addresses feedback from @woodlist regarding failed initial bridge setup scenarios
+
+### Changed
+
+- **Updated bridge_failover Example** - Added documentation about automatic retry behavior
+  - Example now notes that isolated nodes will retry bridge connection periodically
+  - Clearer messaging about fallback and retry mechanisms
+
 ## [1.9.0] - 2025-11-30
 
 ### Added

@@ -35,6 +35,8 @@
 // - Seamless promotion to bridge role
 // - Bridge takeover announcements
 // - Automatic mesh channel detection for bridge discovery
+// - Isolated node retry: Nodes that fail initial bridge setup will
+//   periodically retry connecting to the router when no mesh is found
 //
 // Important Note:
 // Regular nodes MUST use channel auto-detection (channel=0) to discover
@@ -145,6 +147,7 @@ void setup() {
       mesh.setElectionTimeout(5000);
       
       Serial.println("✓ Running as regular node - will auto-promote when router available");
+      Serial.println("Note: If isolated (no mesh found), will retry bridge connection periodically");
     }
   } else {
     Serial.println("Mode: REGULAR NODE (Failover Enabled)");
