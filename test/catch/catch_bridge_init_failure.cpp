@@ -271,22 +271,24 @@ SCENARIO("Isolated nodes retry becoming bridge when mesh unavailable", "[bridge]
                 // - Scans for router signal strength
                 // - Checks minimum RSSI threshold (-80 dBm default)
                 // - Attempts direct bridge promotion if router visible
-                // - Limited to 5 retry attempts before waiting for mesh
+                // - Limited to 5 actual attempts before cooldown
+                // - Counter resets after 5 minutes (isolatedBridgeRetryResetIntervalMs)
                 //
                 // On success:
                 // - Node becomes bridge on router's channel
                 // - Bridge status broadcasts begin
                 // - Other nodes can discover this bridge
+                // - Retry counter resets
                 //
                 // On failure:
                 // - Node reverts to regular mesh mode
                 // - Router credentials are preserved
-                // - Retry counter incremented
+                // - Retry counter incremented (only for actual attempts)
                 // - Next retry scheduled
                 
                 INFO("Isolated nodes retry bridge promotion periodically");
                 INFO("Retry is limited to prevent endless attempts");
-                INFO("Success resets retry counter");
+                INFO("Counter resets after 5 minute cooldown or on success");
                 REQUIRE(true); // Documented behavior
             }
         }

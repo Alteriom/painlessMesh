@@ -234,11 +234,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         return;
       }
       
-      // Limit retry attempts with exponential backoff
+      // Limit retry attempts with reset after timeout
       if (_isolatedBridgeRetryAttempts >= MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS) {
-        Log(CONNECTION, "Isolated bridge retry: Max attempts (%d) reached, waiting for mesh\n",
-            MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS);
-        return;
+        // Check if enough time has passed to reset the counter
+        if (millis() > _isolatedBridgeRetryResetTime) {
+          Log(CONNECTION, "Isolated bridge retry: Reset timeout reached, resetting attempt counter\n");
+          _isolatedBridgeRetryAttempts = 0;
+        } else {
+          Log(CONNECTION, "Isolated bridge retry: Max attempts (%d) reached, reset in %u seconds\n",
+              MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS, (_isolatedBridgeRetryResetTime - millis()) / 1000);
+          return;
+        }
       }
       
       // Check if mesh network exists on any channel before trying to become bridge
@@ -253,10 +259,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       Log(CONNECTION, "Isolated bridge retry: Node isolated with %d empty scans, attempting bridge promotion\n",
           emptyScans);
       
-      _isolatedBridgeRetryAttempts++;
-      
       // Attempt to become bridge directly (bypassing election since we're isolated)
-      this->attemptIsolatedBridgePromotion();
+      // Only increment retry counter if we actually attempted promotion
+      if (this->attemptIsolatedBridgePromotion()) {
+        _isolatedBridgeRetryAttempts++;
+        // Set reset time when reaching max attempts
+        if (_isolatedBridgeRetryAttempts >= MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS) {
+          _isolatedBridgeRetryResetTime = millis() + isolatedBridgeRetryResetIntervalMs;
+        }
+      }
     });
 
     tcpServerInit();
@@ -1594,26 +1605,28 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * - Nodes that failed initial bridge setup and need to retry
    * - Nodes that are the first to start and no mesh exists yet
    * - Recovery scenarios where mesh network is unavailable
+   *
+   * @return true if promotion was attempted (regardless of success), false if skipped
    */
-  void attemptIsolatedBridgePromotion() {
+  bool attemptIsolatedBridgePromotion() {
     using namespace logger;
     
     Log(CONNECTION, "=== Isolated Bridge Promotion Attempt ===\n");
-    Log(CONNECTION, "Attempt %d of %d\n", _isolatedBridgeRetryAttempts, MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS);
+    Log(CONNECTION, "Attempt %d of %d\n", _isolatedBridgeRetryAttempts + 1, MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS);
     
     // First, scan for router to check if it's visible
     int8_t routerRSSI = scanRouterSignalStrength(routerSSID);
     
     if (routerRSSI == 0) {
       Log(CONNECTION, "attemptIsolatedBridgePromotion(): Router %s not visible\n", routerSSID.c_str());
-      return;
+      return false;  // Don't count as an attempt - router not visible
     }
     
     // Check minimum RSSI threshold for isolated promotion
     if (routerRSSI < minimumBridgeRSSI) {
       Log(CONNECTION, "attemptIsolatedBridgePromotion(): Router RSSI %d dBm below threshold %d dBm\n",
           routerRSSI, minimumBridgeRSSI);
-      return;
+      return false;  // Don't count as an attempt - signal too weak
     }
     
     Log(CONNECTION, "attemptIsolatedBridgePromotion(): Router visible with RSSI %d dBm\n", routerRSSI);
@@ -1647,7 +1660,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         bridgeRoleChangedCallback(false, "Isolated bridge promotion failed - router unreachable");
       }
       
-      return;
+      return true;  // Count as an attempt - we tried but failed
     }
     
     // Success! Reset retry counter
@@ -1666,6 +1679,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       Log(STARTUP, "Sending bridge status announcement on channel %d\n", _meshChannel);
       this->sendBridgeStatus();
     });
+    
+    return true;  // Count as an attempt - we succeeded
   }
 
   /**
@@ -1901,8 +1916,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
   // Isolated bridge retry state and configuration
   uint8_t _isolatedBridgeRetryAttempts = 0;
-  static const uint8_t MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS = 5;  // Max retry attempts before waiting for mesh
+  uint32_t _isolatedBridgeRetryResetTime = 0;  // Time when retry counter can be reset
+  static const uint8_t MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS = 5;  // Max retry attempts before waiting
   static const uint32_t isolatedBridgeRetryIntervalMs = 60000;  // Retry every 60 seconds
+  static const uint32_t isolatedBridgeRetryResetIntervalMs = 300000;  // Reset counter after 5 minutes
   static const uint16_t ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD = 6;  // Require 6 empty scans before retrying
 
   // Multi-bridge coordination state and configuration
