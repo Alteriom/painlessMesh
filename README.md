@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.1** - Isolated bridge retry mechanism for failed initial bridge setup
+**Version 1.9.2** - Consolidated release across all distribution channels
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
