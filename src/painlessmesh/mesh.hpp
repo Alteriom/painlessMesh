@@ -3038,6 +3038,19 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return plugin::PackageHandler<T>::addTask((*this->mScheduler), aCallback);
   }
 
+  /**
+   * Add a one-shot delayed task
+   *
+   * @param aCallback Function to call after the delay
+   * @param delayMs Delay in milliseconds before executing the callback
+   * @return Shared pointer to the task
+   */
+  inline std::shared_ptr<Task> addTask(std::function<void()> aCallback,
+                                       unsigned long delayMs) {
+    return plugin::PackageHandler<T>::addTask((*this->mScheduler), delayMs,
+                                              TASK_ONCE, aCallback);
+  }
+
   ~Mesh() {
     this->stop();
     if (!isExternalScheduler) delete mScheduler;

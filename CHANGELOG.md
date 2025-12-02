@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.3] - 2025-12-02
+
+### Fixed
+
+- **sendToInternet Example Compilation** - Fixed two compilation errors in the sendToInternet example:
+  - Added missing `addTask(callback, delay)` overload in mesh.hpp for one-shot delayed tasks
+  - Fixed `sendWithPriority` template functions in router.hpp to use `Variant(&package)` instead of `Variant(package)`, enabling proper construction from any PackageInterface-derived class including GatewayDataPackage
+  - **Impact**: The sendToInternet example now compiles correctly with Arduino IDE
+
+### Added
+
+- **sendToInternet Example** - Added to library.json examples list for better discoverability
+
 ## [1.9.2] - 2025-12-01
 
 ### Changed

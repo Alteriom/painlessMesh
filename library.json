@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/Alteriom/painlessMesh"
   },
-  "version": "1.9.2",
+  "version": "1.9.3",
   "frameworks": [
     "arduino"
   ],
@@ -88,6 +88,7 @@
     "examples/otaReceiver/otaReceiver.ino",
     "examples/otaSender/otaSender.ino",
     "examples/priority/priority_basic_example.ino",
+    "examples/sendToInternet/sendToInternet.ino",
     "examples/sharedGateway/sharedGateway.ino",
     "examples/startHere/startHere.ino",
     "examples/webServer/webServer.ino"
