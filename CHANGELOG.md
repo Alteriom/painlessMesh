@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.4] - 2025-12-03
+
+### Fixed
+
+- **TCP Server Initialization Order** (#219) - Fixed TCP connection error -14 when mesh nodes connect to bridge
+  - **Root Cause**: TCP server was being initialized before the AP interface was configured in `init()`, causing it to bind incorrectly and reject incoming connections from mesh nodes
+  - **Symptom**: Regular mesh nodes could discover the bridge AP and get an IP, but TCP connections failed with error -14 (connection refused)
+  - **Solution**: Reordered initialization in `init()` to start TCP server after AP is configured:
+    - `eventHandleInit()` → `apInit(nodeId)` → `tcpServerInit()` (previously tcpServerInit was first)
+  - Added 100ms stabilization delay in `initAsBridge()` and `initAsSharedGateway()` after mesh init
+  - **Impact**: Fixes `sendToInternet` not working because nodes couldn't establish mesh connections to the bridge
+
 ## [1.9.3] - 2025-12-02
 
 ### Fixed
