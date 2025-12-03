@@ -1129,6 +1129,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       // Small delay to ensure connection is fully stable, then send directly to the new node
       // This avoids issues with time sync blocking broadcast messages
       this->addTask(500, TASK_ONCE, [this, nodeId]() {
+        // Check if the connection is still valid - the node may have disconnected
+        // during the 500ms delay (e.g., due to timeout or network issues)
+        // This prevents attempting to send messages to dropped connections
+        // findRoute returns nullptr if node is not in the routing table
+        auto conn = router::findRoute<Connection>((*this), nodeId);
+        if (!conn || !conn->connected()) {
+          Log(CONNECTION, "Bridge status send cancelled: Node %u no longer connected\n", nodeId);
+          return;
+        }
+        
         // Create bridge status message
         JsonDocument doc;
         JsonObject obj = doc.to<JsonObject>();
@@ -1154,10 +1164,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         Log(CONNECTION, "Sending bridge status directly to node %u (Internet: %s)\n",
             nodeId, hasInternet ? "YES" : "NO");
         
-        // Send directly to the new node using raw message to preserve type BRIDGE_STATUS
-        // Using sendSingle() would wrap it in type 1 (SINGLE) and hide type BRIDGE_STATUS
-        protocol::Variant variant(msg);
-        router::send<Connection>(variant, (*this));
+        // Send directly to the connection with high priority
+        // This ensures the message is sent immediately rather than queued
+        // The JSON message format is the same as what router::send() produces
+        // (Variant serializes to the same JSON format we built manually)
+        conn->addMessage(msg, true);
       });
     });
     

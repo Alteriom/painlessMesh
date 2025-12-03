@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.5] - 2025-12-03
+
+### Fixed
+
+- **Bridge Status Send Race Condition** (#224) - Fixed sendToInternet failures caused by race condition
+  - **Root Cause**: Bridge would attempt to send status messages to nodes that had already disconnected during the 500ms delay after `changedConnectionCallbacks`
+  - **Symptom**: Silent failures when the connection times out before the delayed task executes, causing sendToInternet to fail
+  - **Solution**: Added connection validation before sending bridge status:
+    - Check `findRoute()` and `conn->connected()` before attempting to send
+    - Use direct high-priority send via `conn->addMessage(msg, true)` to avoid redundant routing lookup
+    - Added debug logging for cancelled sends to aid troubleshooting
+  - **Impact**: Improved reliability of sendToInternet by ensuring bridge status is only sent to active connections
+
+- **Isolated Bridge Retry Mechanism** (#225) - Fixed isolated bridge retry when mesh network not found
+  - Nodes that fail initial bridge setup can now retry automatically via mesh connection monitoring
+  - **Impact**: More reliable bridge establishment in challenging network conditions
+
 ## [1.9.4] - 2025-12-03
 
 ### Fixed
