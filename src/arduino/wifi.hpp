@@ -270,7 +270,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       }
     });
 
-    tcpServerInit();
     eventHandleInit();
 
     _apIp = IPAddress(0, 0, 0, 0);
@@ -278,6 +277,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     if (connectMode & WIFI_AP) {
       apInit(nodeId);  // setup AP
     }
+    
+    // Initialize TCP server AFTER AP is configured
+    // This ensures the network interfaces are ready when the server starts
+    // Fixes TCP connection error -14 when nodes try to connect to bridge
+    tcpServerInit();
+    
     if (connectMode & WIFI_STA) {
       this->initStation();
     }
@@ -393,6 +398,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Step 2: Initialize mesh on detected channel
     init(meshSSID, meshPassword, baseScheduler, port, WIFI_AP_STA, 
          detectedChannel, 0, MAX_CONN);
+    
+    // Allow network stack to stabilize after AP and TCP server initialization
+    // This prevents TCP connection errors (-14) when nodes connect
+    delay(100);
     
     Log(STARTUP, "Step 3: Establishing bridge connection...\n");
     
@@ -564,6 +573,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Set scheduler before init
     this->setScheduler(userScheduler);
     init(meshPrefix, meshPassword, port, WIFI_AP_STA, detectedChannel, 0, MAX_CONN);
+    
+    // Allow network stack to stabilize after AP and TCP server initialization
+    // This prevents TCP connection errors (-14) when nodes connect
+    delay(100);
     
     Log(STARTUP, "Step 3: Establishing router connection in shared gateway mode...\n");
     
