@@ -239,13 +239,24 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
           mesh->apInit(mesh->getNodeId());
           Log(CONNECTION, "connectToAP(): AP restarted on channel %d\n", detectedChannel);
         }
+        // Reset counter only when mesh is found on a new channel
+        // This allows isolated bridge retry to continue when mesh is truly absent
+        consecutiveEmptyScans = 0;
       } else if (detectedChannel == 0) {
         Log(CONNECTION,
             "connectToAP(): Mesh not found on any channel during re-scan\n");
+        // Do NOT reset consecutiveEmptyScans here - mesh is still absent
+        // This allows isolated bridge retry mechanism to trigger when
+        // the counter exceeds ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD
+      } else {
+        // detectedChannel == mesh->_meshChannel
+        // Mesh found on same channel we're already on - no channel change needed
+        // Reset counter since mesh exists, nodes may appear in subsequent scans
+        Log(CONNECTION,
+            "connectToAP(): Mesh found on current channel %d, no channel change needed\n",
+            detectedChannel);
+        consecutiveEmptyScans = 0;
       }
-      
-      // Reset counter after re-scan attempt
-      consecutiveEmptyScans = 0;
     }
     
     if (WiFi.status() == WL_CONNECTED &&
