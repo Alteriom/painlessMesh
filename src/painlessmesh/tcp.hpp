@@ -94,17 +94,24 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
           Log(CONNECTION, "tcp_err(): Retrying TCP connection...\n");
           
           // Create a new AsyncClient for the retry
+          // Note: On success, the client is managed by the Connection object
+          // On failure, the onError handler for the new client will handle cleanup
           AsyncClient *pRetryConn = new AsyncClient();
           connect<T, M>((*pRetryConn), ip, port, mesh, retryCount + 1);
         });
+        
+        // Delete the current failed client to prevent memory leak
+        // The AsyncClient is no longer needed after connection failure
+        delete client;
         
         mesh.semaphoreGive();
         return;
       }
       
-      // All retries exhausted, trigger full reconnection
+      // All retries exhausted - clean up the failed client and trigger full reconnection
       Log(CONNECTION, "tcp_err(): All %d retries exhausted, triggering WiFi reconnection\n",
           TCP_CONNECT_MAX_RETRIES + 1);
+      delete client;
 #endif
       mesh.droppedConnectionCallbacks.execute(0, true);
       mesh.semaphoreGive();
