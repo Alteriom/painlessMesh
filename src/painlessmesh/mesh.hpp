@@ -3238,7 +3238,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       Mesh &, protocol::NodeTree, std::shared_ptr<T> conn);
   friend void painlessmesh::tcp::initServer<T, Mesh>(AsyncServer &, Mesh &);
   friend void painlessmesh::tcp::connect<T, Mesh>(AsyncClient &, IPAddress,
-                                                  uint16_t, Mesh &);
+                                                  uint16_t, Mesh &, uint8_t);
 };
 
 class Connection : public painlessmesh::layout::Neighbour,

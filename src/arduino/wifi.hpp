@@ -703,6 +703,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * - Needs access to mesh state and callbacks
    * - Moving it would increase complexity without clear benefits
    * - The existing design keeps connection logic cohesive with WiFi management
+   * 
+   * TCP Connection Retry:
+   * The TCP connection now includes automatic retry with exponential backoff.
+   * If the initial connection fails (error -14 ERR_CONN or other errors), 
+   * the system will retry up to TCP_CONNECT_MAX_RETRIES times before 
+   * triggering a full WiFi reconnection cycle. This helps handle:
+   * - Timing issues where TCP server is not ready immediately
+   * - Network stack stabilization after IP acquisition
+   * - Transient network conditions
    */
   void tcpConnect() {
     using namespace logger;
@@ -715,9 +724,26 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       IPAddress targetIP = stationScan.manualIP ? stationScan.manualIP : WiFi.gatewayIP();
       uint16_t targetPort = stationScan.port;
       
-      AsyncClient *pConn = new AsyncClient();
-      painlessmesh::tcp::connect<Connection, painlessmesh::Mesh<Connection>>(
-          (*pConn), targetIP, targetPort, (*this));
+      Log(CONNECTION, "tcpConnect(): Connecting to %s:%d\n", 
+          targetIP.toString().c_str(), targetPort);
+      
+      // Add a small stabilization delay before attempting TCP connection
+      // This helps prevent error -14 (ERR_CONN) by allowing the network stack
+      // and TCP server to be fully ready. The delay is added via task scheduler
+      // to avoid blocking the event loop.
+      this->addTask(painlessmesh::tcp::TCP_CONNECT_STABILIZATION_DELAY_MS, TASK_ONCE, 
+          [this, targetIP, targetPort]() {
+            // Verify WiFi is still connected after the delay
+            if (WiFi.status() != WL_CONNECTED || !WiFi.localIP()) {
+              Log(CONNECTION, "tcpConnect(): WiFi disconnected during stabilization delay\n");
+              return;
+            }
+            
+            Log(CONNECTION, "tcpConnect(): Starting TCP connection after stabilization\n");
+            AsyncClient *pConn = new AsyncClient();
+            painlessmesh::tcp::connect<Connection, painlessmesh::Mesh<Connection>>(
+                (*pConn), targetIP, targetPort, (*this));
+          });
     } else {
       Log(ERROR, "tcpConnect(): err Something unexpected in tcpConnect()\n");
     }
