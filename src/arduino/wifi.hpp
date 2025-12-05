@@ -229,8 +229,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       
       // Only retry when isolated (no mesh connections found)
       if (this->hasActiveMeshConnections()) {
-        // Reset retry counter when mesh is active
+        // Reset retry counter and pending flag when mesh is active
         _isolatedBridgeRetryAttempts = 0;
+        _isolatedRetryPending = false;
         return;
       }
       
@@ -249,12 +250,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       
       // Check if mesh network exists on any channel before trying to become bridge
       // If mesh exists but we can't connect, don't try to become bridge
+      // Skip this check if we already confirmed isolation from a previous failed attempt
       uint16_t emptyScans = stationScan.getConsecutiveEmptyScans();
-      if (emptyScans < ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD) {
+      if (!_isolatedRetryPending && emptyScans < ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD) {
         Log(CONNECTION, "Isolated bridge retry: Only %d empty scans, waiting for more scans\n",
             emptyScans);
         return;
       }
+      
+      // Clear the pending flag now that we're proceeding
+      _isolatedRetryPending = false;
       
       Log(CONNECTION, "Isolated bridge retry: Node isolated with %d empty scans, attempting bridge promotion\n",
           emptyScans);
@@ -1728,6 +1733,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       this->setRouterCredentials(routerSSID, routerPassword);
       this->enableBridgeFailover(true);
       
+      // Set flag to skip empty scan check on next retry attempt
+      // since we already confirmed isolation before this failed attempt
+      _isolatedRetryPending = true;
+      
       // Notify via callback
       if (bridgeRoleChangedCallback) {
         bridgeRoleChangedCallback(false, "Isolated bridge promotion failed - router unreachable");
@@ -1990,6 +1999,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   // Isolated bridge retry state and configuration
   uint8_t _isolatedBridgeRetryAttempts = 0;
   uint32_t _isolatedBridgeRetryResetTime = 0;  // Time when retry counter can be reset
+  bool _isolatedRetryPending = false;  // Flag to skip empty scan check after failed promotion
   static const uint8_t MAX_ISOLATED_BRIDGE_RETRY_ATTEMPTS = 5;  // Max retry attempts before waiting
   static const uint32_t isolatedBridgeRetryIntervalMs = 60000;  // Retry every 60 seconds
   static const uint32_t isolatedBridgeRetryResetIntervalMs = 300000;  // Reset counter after 5 minutes

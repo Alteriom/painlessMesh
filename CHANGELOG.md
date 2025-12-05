@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Nodes that fail initial bridge setup can now retry automatically via mesh connection monitoring
   - **Impact**: More reliable bridge establishment in challenging network conditions
 
+- **Isolated Bridge Retry Delay After Failed Promotion** - Fixed slow retry after failed bridge promotion
+  - **Root Cause**: When bridge promotion fails, `init()` is called which resets `consecutiveEmptyScans` to 0. The isolated retry task would then wait for 6+ new empty scans (90 seconds) before retrying.
+  - **Symptom**: After a failed bridge promotion, retries only happen every ~2 minutes instead of ~60 seconds
+  - **Solution**: Added `_isolatedRetryPending` flag that is set when promotion fails. This flag allows the next retry attempt to skip the empty scan threshold check.
+  - **Impact**: Faster retry after failed promotion - retries happen at the normal 60 second interval instead of waiting for scan accumulation
+
 ## [1.9.4] - 2025-12-03
 
 ### Fixed
