@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.6] - 2025-12-05
+
+### Fixed
+
+- **TCP Connection Retry Improvements** (#231) - Improved TCP connection reliability with increased retries and exponential backoff
+  - **Root Cause**: Nodes experience endless loop of WiFi connect → TCP error -14 → WiFi disconnect because the TCP retry mechanism wasn't sufficient for real-world mesh conditions
+  - **Symptom**: Mesh connections never fully establish; nodes can discover and get IP from bridge but TCP connection consistently fails
+  - **Solution**: Improved TCP connection retry parameters and added exponential backoff:
+    - Increased `TCP_CONNECT_STABILIZATION_DELAY_MS` from 100ms to 500ms (more time for network stack to stabilize after IP acquisition)
+    - Increased `TCP_CONNECT_RETRY_DELAY_MS` from 500ms to 1000ms (base delay between retries)
+    - Increased `TCP_CONNECT_MAX_RETRIES` from 3 to 5 (more retry attempts before giving up)
+    - Added exponential backoff: retry delays are 1s, 2s, 4s, 8s, 8s (capped) for attempts 1-5
+  - **Impact**: More reliable mesh connection establishment, especially when bridge TCP server is temporarily busy or network is congested
+
 ## [1.9.5] - 2025-12-03
 
 ### Fixed
