@@ -29,6 +29,10 @@ test/ci/*.json
 test/ci/*.yaml
 test/ci/*.sig
 
+# Test dependencies (cloned for building tests)
+test/ArduinoJson/
+test/TaskScheduler/
+
 # Node.js dependencies
 node_modules/
 npm-debug.log*
