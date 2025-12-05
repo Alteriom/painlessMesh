@@ -13,9 +13,13 @@ namespace tcp {
 
 // TCP connection retry configuration
 // These can be tuned for different network conditions
-static const uint8_t TCP_CONNECT_MAX_RETRIES = 3;      // Max retry attempts before giving up
-static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 500; // Delay between retry attempts
-static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 100; // Delay after IP acquisition
+// Increased values to better handle real-world mesh network conditions where:
+// - TCP server may need more time to be ready after AP initialization
+// - Network stack stabilization takes longer on some hardware
+// - Multiple nodes connecting simultaneously can cause temporary overload
+static const uint8_t TCP_CONNECT_MAX_RETRIES = 5;       // Max retry attempts before giving up
+static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 1000; // Delay between retry attempts (1 second)
+static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500; // Delay after IP acquisition (500ms)
 
 inline uint32_t encodeNodeId(const uint8_t *hwaddr) {
   using namespace painlessmesh::logger;
@@ -49,7 +53,7 @@ void initServer(AsyncServer &server, M &mesh) {
 }
 
 /**
- * Establish TCP connection with retry mechanism
+ * Establish TCP connection with retry mechanism and exponential backoff
  * 
  * This function attempts to connect to the mesh network via TCP.
  * If the connection fails (error -14 ERR_CONN or other errors), it will
@@ -60,6 +64,12 @@ void initServer(AsyncServer &server, M &mesh) {
  * - The TCP server may not be immediately ready after AP initialization
  * - Network stack may need time to stabilize after IP acquisition
  * - Transient network conditions may cause temporary connection failures
+ * - Multiple nodes connecting simultaneously may cause temporary overload
+ * 
+ * Exponential backoff is used to increase delay between retries, which:
+ * - Gives the TCP server more time to recover from overload
+ * - Reduces network contention when multiple nodes are retrying
+ * - Improves overall connection success rate in congested networks
  * 
  * @param client AsyncClient to use for connection
  * @param ip Target IP address
@@ -89,15 +99,22 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
       (void)port;
 #if !defined(PAINLESSMESH_BOOST) && (defined(ESP32) || defined(ESP8266))
       if (retryCount < TCP_CONNECT_MAX_RETRIES) {
-        Log(CONNECTION, "tcp_err(): Scheduling retry in %u ms\n", TCP_CONNECT_RETRY_DELAY_MS);
+        // Calculate delay with exponential backoff: base_delay * 2^retryCount
+        // This gives more time between retries as failures accumulate
+        // Cap the multiplier to prevent overflow (2^3 = 8 is max)
+        uint8_t backoffMultiplier = (retryCount < 3) ? (1 << retryCount) : 8;
+        uint32_t retryDelay = TCP_CONNECT_RETRY_DELAY_MS * backoffMultiplier;
+        
+        Log(CONNECTION, "tcp_err(): Scheduling retry in %u ms (backoff x%d)\n", 
+            retryDelay, backoffMultiplier);
         
         // Schedule a retry after a delay using the mesh's task scheduler
         // Note: &mesh is captured by reference because:
         // 1. Mesh is a singleton that lives for the program's lifetime
         // 2. The task scheduler belongs to the mesh, so mesh is always valid when task runs
         // 3. Copying the mesh object is not possible/allowed
-        // Recursion depth is strictly bounded by TCP_CONNECT_MAX_RETRIES (default: 3)
-        mesh.addTask(TCP_CONNECT_RETRY_DELAY_MS, TASK_ONCE, [&mesh, ip, port, retryCount]() {
+        // Recursion depth is strictly bounded by TCP_CONNECT_MAX_RETRIES (default: 5)
+        mesh.addTask(retryDelay, TASK_ONCE, [&mesh, ip, port, retryCount]() {
           Log(CONNECTION, "tcp_err(): Retrying TCP connection...\n");
           
           // Create a new AsyncClient for the retry
