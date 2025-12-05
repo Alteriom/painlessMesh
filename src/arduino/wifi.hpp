@@ -229,7 +229,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       
       // Only retry when isolated (no mesh connections found)
       if (this->hasActiveMeshConnections()) {
-        // Reset retry counter and pending flag when mesh is active
+        // Reset retry counter and pending flag when mesh is active (no longer isolated)
         _isolatedBridgeRetryAttempts = 0;
         _isolatedRetryPending = false;
         return;
