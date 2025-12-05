@@ -84,6 +84,9 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
       
       // Check if we have retries left - retry logic only works on real hardware
       // In test environment (PAINLESSMESH_BOOST), fall through to dropped connection
+      // Note: ip and port are used in retry logic below, suppress unused warnings for test builds
+      (void)ip;
+      (void)port;
 #if !defined(PAINLESSMESH_BOOST) && (defined(ESP32) || defined(ESP8266))
       if (retryCount < TCP_CONNECT_MAX_RETRIES) {
         Log(CONNECTION, "tcp_err(): Scheduling retry in %u ms\n", TCP_CONNECT_RETRY_DELAY_MS);
