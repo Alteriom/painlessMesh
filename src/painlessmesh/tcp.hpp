@@ -100,9 +100,14 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
 #if !defined(PAINLESSMESH_BOOST) && (defined(ESP32) || defined(ESP8266))
       if (retryCount < TCP_CONNECT_MAX_RETRIES) {
         // Calculate delay with exponential backoff: base_delay * 2^retryCount
-        // This gives more time between retries as failures accumulate
-        // Cap the multiplier to prevent overflow (2^3 = 8 is max)
-        uint8_t backoffMultiplier = (retryCount < 3) ? (1 << retryCount) : 8;
+        // This gives increasing time between retries as failures accumulate:
+        // - retryCount=0: 1000ms * 1 = 1s
+        // - retryCount=1: 1000ms * 2 = 2s
+        // - retryCount=2: 1000ms * 4 = 4s
+        // - retryCount=3: 1000ms * 8 = 8s (capped at 8)
+        // - retryCount=4: 1000ms * 8 = 8s (capped at 8)
+        // Cap multiplier at 8 to prevent excessive delays
+        uint8_t backoffMultiplier = (retryCount < 3) ? (1U << retryCount) : 8;
         uint32_t retryDelay = TCP_CONNECT_RETRY_DELAY_MS * backoffMultiplier;
         
         Log(CONNECTION, "tcp_err(): Scheduling retry in %u ms (backoff x%d)\n", 
