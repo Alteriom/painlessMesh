@@ -149,6 +149,81 @@ void checkMemory() {
 }
 ```
 
+### TCP Connection Error -14 (ERR_CONN)
+
+**Symptoms:**
+- Serial output shows: `tcp_err(): error trying to connect -14`
+- Nodes get an IP address but fail to establish mesh connection
+- Connection attempts keep failing and retrying
+
+**Cause:**
+
+The error -14 (ERR_CONN in LwIP) indicates a TCP connection failure. This typically occurs when:
+1. The TCP server on the target node is not ready when the connection is attempted
+2. There's a timing issue between WiFi association and TCP readiness
+3. Network stack hasn't fully stabilized after IP acquisition
+4. The target node is overloaded or has resource constraints
+
+**Solutions:**
+
+#### 1. Update AsyncTCP Library (Most Common Fix)
+The error often occurs with older AsyncTCP versions that don't have proper thread safety for ESP32 Arduino Core 3.x:
+
+For PlatformIO:
+```ini
+lib_deps =
+    esp32async/AsyncTCP @ ^3.4.7
+```
+
+For Arduino IDE, install manually from: https://github.com/ESP32Async/AsyncTCP
+
+#### 2. Built-in Retry Mechanism
+painlessMesh now includes automatic TCP connection retry with the following behavior:
+- Up to 3 retry attempts with 500ms delay between each
+- 100ms stabilization delay after IP acquisition before first connection attempt
+- Full WiFi reconnection only triggered after all retries are exhausted
+
+This helps handle transient timing issues automatically.
+
+#### 3. Check Node Resource Usage
+Monitor memory and ensure nodes aren't overloaded:
+
+```cpp
+void loop() {
+    mesh.update();
+    
+    // Monitor health periodically
+    static unsigned long lastCheck = 0;
+    if (millis() - lastCheck > 10000) {
+        lastCheck = millis();
+        Serial.printf("Free heap: %d, WiFi RSSI: %d\n", 
+                      ESP.getFreeHeap(), WiFi.RSSI());
+    }
+}
+```
+
+#### 4. Ensure Proper Initialization Order
+Make sure the mesh is properly initialized before connections are attempted:
+
+```cpp
+void setup() {
+    Serial.begin(115200);
+    delay(100);  // Let serial initialize
+    
+    mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
+    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+    // Add callbacks after init
+    mesh.onReceive(&receivedCallback);
+    mesh.onNewConnection(&newConnectionCallback);
+}
+```
+
+#### 5. Check WiFi Signal Strength
+Poor signal can cause connection timing issues:
+- Ensure nodes are within good WiFi range
+- Check for interference from other 2.4GHz devices
+- Monitor RSSI values (should be above -80 dBm for reliable connections)
+
 ## Message Delivery Issues
 
 ### Messages Not Being Received
