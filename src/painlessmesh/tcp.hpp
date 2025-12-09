@@ -119,7 +119,7 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
         // 2. The task scheduler belongs to the mesh, so mesh is always valid when task runs
         // 3. Copying the mesh object is not possible/allowed
         // Recursion depth is strictly bounded by TCP_CONNECT_MAX_RETRIES (default: 5)
-        mesh.addTask(retryDelay, TASK_ONCE, [&mesh, ip, port, retryCount]() {
+        mesh.addTask([&mesh, ip, port, retryCount]() {
           Log(CONNECTION, "tcp_err(): Retrying TCP connection...\n");
           
           // Create a new AsyncClient for the retry
@@ -127,7 +127,7 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
           // On failure, the onError handler for the new client will handle cleanup
           AsyncClient *pRetryConn = new AsyncClient();
           connect<T, M>((*pRetryConn), ip, port, mesh, retryCount + 1);
-        });
+        }, retryDelay);
         
         // Delete the current failed client to prevent memory leak
         // The AsyncClient is no longer needed after connection failure
