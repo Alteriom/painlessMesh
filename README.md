@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.7** - Latest release with TCP connection improvements and documentation updates
+**Version 1.9.6** - Latest release with TCP connection improvements and documentation updates
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -553,19 +553,18 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.9.7 (December 10, 2025)
+## Latest Release: v1.9.6 (December 10, 2025)
 
-**Documentation Update & Version Alignment**
+**TCP Connection Improvements & Documentation Update**
 
+- ⚡ **TCP Connection Retry Improvements** - Enhanced reliability with exponential backoff (#231)
+  - Increased stabilization delay (100ms → 500ms)
+  - Increased retry delay (500ms → 1000ms) with exponential backoff
+  - More retry attempts (3 → 5) for better connection establishment
 - 📚 **Comprehensive Documentation Review** - Updated README.md for completeness and accuracy
 - 🔄 **Version Consistency** - Aligned version numbers across all distribution channels
-- ✅ **Latest Fixes Included** - Incorporates all improvements from v1.9.6 and v1.9.5
-  - TCP Connection Retry Improvements with exponential backoff (v1.9.6)
-  - Bridge Status Send Race Condition fixes (v1.9.5)
-  - Isolated Bridge Retry improvements (v1.9.5, v1.9.4)
-  - TCP Server Initialization Order fixes (v1.9.4)
 
-**Recent Key Features (v1.9.0 - v1.9.6):**
+**Recent Key Features (v1.9.0 - v1.9.5):**
 
 - 🔍 **Mesh Connectivity Detection** - New `hasActiveMeshConnections()` and `getLastKnownBridge()` APIs
 - 🌉 **Improved Bridge Detection** - `getPrimaryBridge()` returns last known bridge when disconnected
