@@ -24,9 +24,27 @@
 // - Smart home sensors reporting to home automation servers
 //
 // Prerequisites:
-// - At least one node must be a bridge/gateway with Internet access
-// - OR use initAsSharedGateway() so all nodes have Internet
-// - Enable sendToInternet() after mesh.init(): mesh.enableSendToInternet()
+//
+// 1. GATEWAY SETUP (Choose one approach):
+//
+//    Option A - Dedicated Bridge (Recommended):
+//    - Use initAsBridge() on ONE node (see examples/bridge/bridge.ino)
+//    - The bridge node automatically handles Internet routing
+//
+//    Option B - Shared Gateway (All nodes have router access):
+//    - Use initAsSharedGateway() on ALL nodes (see examples/sharedGateway/sharedGateway.ino)
+//    - Requires ROUTER_SSID and ROUTER_PASSWORD on every node
+//    - All nodes connect directly to the router for Internet access
+//
+//    Option C - Failover Bridge (High Availability):
+//    - Use bridge_failover example unchanged (see examples/bridge_failover/bridge_failover.ino)
+//    - Automatically elects backup bridges if primary fails
+//    - Works as-is without any modifications needed!
+//
+// 2. SENDING NODE SETUP:
+//    - Call mesh.enableSendToInternet() AFTER mesh.init() on nodes that will SEND requests
+//    - Bridge nodes do NOT need to call enableSendToInternet() - they route automatically
+//    - This example shows how to enable it in the setup() function below
 //
 // For Callmebot WhatsApp API:
 // - Get your API key from https://www.callmebot.com/blog/free-api-whatsapp-messages/
