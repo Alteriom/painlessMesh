@@ -115,7 +115,7 @@ Welcome to the comprehensive documentation for the Alteriom fork of painlessMesh
 ## Quick Links
 
 - **[GitHub Repository](https://github.com/Alteriom/painlessMesh)**
-- **[API Documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)**
+- **[API Documentation](https://alteriom.github.io/painlessMesh/#/api/doxygen)**
 - **[Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)**
 - **[Issue Tracker](https://github.com/Alteriom/painlessMesh/issues)**
 
