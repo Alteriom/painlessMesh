@@ -1,29 +1,246 @@
-# Release Agents for AlteriomPainlessMesh
+# Alteriom AI Agents for painlessMesh
 
-This directory contains agent specifications that automate and standardize various aspects of the AlteriomPainlessMesh project lifecycle.
+This directory contains the AI agent specifications for the AlteriomPainlessMesh project, implementing a two-tier architecture for maximum effectiveness.
 
-## What are Release Agents?
+## Two-Tier Agent Architecture
 
-Release agents are automated systems that ensure consistency, quality, and completeness in project releases. They implement comprehensive validation checks, automate repetitive tasks, and provide clear guidance throughout the release process.
+### Tier 1: Organization-Level Agent
+
+**Alteriom AI Agent** (`@alteriom-ai-agent`) - The "Holy Grail"
+- **Scope:** All Alteriom repositories
+- **Tools:** Full access to all tools via MCP (Model Context Protocol)
+- **Capabilities:** Unlimited - can perform any task in any repository
+- **Purpose:** Universal problem solver with complete tool access
+
+**When to use:**
+- Cross-repository tasks
+- Complex multi-step implementations
+- Tasks requiring full tool access
+- Anything requiring execution capability
+
+### Tier 2: Repository-Level Coordinators
+
+**painlessMesh Coordinator** (`@painlessmesh-coordinator`)
+- **Scope:** This repository only
+- **Tools:** Read and search (specialized context, not execution)
+- **Capabilities:** Deep repository knowledge, task decomposition
+- **Purpose:** Ensure complete task execution, catch missing components
+
+**When to use:**
+- Need complete checklist for a feature
+- Verify all related tasks are identified
+- Ensure repository conventions are followed
+- Coordinate with Alteriom AI Agent for execution
+
+### How They Work Together
+
+```
+User: "Add GPS support to painlessMesh"
+  ↓
+@painlessmesh-coordinator: Analyzes request, creates complete checklist
+  - GpsPackage class (type 203)
+  - Test cases
+  - Example sketch
+  - Documentation
+  - Type registry update
+  ↓
+@alteriom-ai-agent: Executes with full tool access
+  - Creates all files
+  - Runs tests
+  - Builds examples
+  - Commits changes
+  ↓
+@painlessmesh-coordinator: Verifies completeness
+  ✓ All components implemented
+  ✓ Tests pass
+  ✓ Documentation complete
+```
 
 ## Available Agents
 
-### Release Agent v1.0
+### Tier 1: Organization-Level
 
+#### Alteriom AI Agent (`@alteriom-ai-agent`)
+**Location**: `alteriom-ai-agent.md`  
+**Scope**: All Alteriom repositories  
+**Tools**: Full MCP access (filesystem, bash, git, GitHub, PostgreSQL, Docker, Python)
+
+The universal Alteriom agent with unlimited capabilities:
+- ✅ Works in any Alteriom repository
+- ✅ Has access to all tools via MCP servers
+- ✅ Can execute any command or modification
+- ✅ Coordinates cross-repository tasks
+- ✅ Delegates to repo coordinators for deep context
+
+**When to use:** Any task requiring execution, file modification, or tool usage
+
+### Tier 2: Repository Coordinators
+
+#### painlessMesh Coordinator (`@painlessmesh-coordinator`)
+**Location**: `painlessmesh-coordinator.md`  
+**Scope**: This repository only  
+**Tools**: Read, search (context specialist, not executor)
+
+The repository expert who ensures complete task execution:
+- ✅ Deep knowledge of painlessMesh structure
+- ✅ Identifies all related tasks for any change
+- ✅ Creates comprehensive checklists
+- ✅ Ensures nothing is forgotten (tests, docs, examples)
+- ✅ Verifies repository conventions are followed
+- ✅ Coordinates with Alteriom AI Agent for execution
+
+**When to use:** Planning features, verifying completeness, understanding what's needed
+
+### Specialized Agents
+
+#### Release Agent (`@release-agent`)
 **Location**: `release-agent.md`  
 **Script**: `../../scripts/release-agent.sh`  
-**Purpose**: Comprehensive release management and validation
+**Purpose**: Release management and validation
 
-The Release Agent ensures every release meets quality standards by:
+Ensures every release meets quality standards:
+- ✅ Validates version consistency across all package files
+- ✅ Checks CHANGELOG completeness and format
+- ✅ Verifies build system configuration
+- ✅ Validates dependencies
+- ✅ Checks git status and tags
+- ✅ Ensures release workflows are properly configured
+- ✅ Validates documentation and links
+- ✅ Runs test suites
 
-- ✅ Validating version consistency across all package files
-- ✅ Checking CHANGELOG completeness and format
-- ✅ Verifying build system configuration
-- ✅ Validating dependencies
-- ✅ Checking git status and tags
-- ✅ Ensuring release workflows are properly configured
-- ✅ Validating documentation and links
-- ✅ Running test suites (when available)
+**When to use:** Preparing releases, validating release readiness
+
+#### Mesh Development Agent (`@mesh-dev-agent`)
+**Location**: `mesh-dev-agent.md`  
+**Purpose**: ESP32/ESP8266 mesh networking development
+
+Expert in embedded mesh development:
+- ✅ ESP8266/ESP32 platform knowledge
+- ✅ Memory optimization for constrained devices
+- ✅ Alteriom package development
+- ✅ Mesh networking patterns
+- ✅ Platform-specific debugging
+
+**When to use:** Developing mesh features, optimizing memory, creating Alteriom packages
+
+#### Documentation Agent (`@docs-agent`)
+**Location**: `docs-agent.md`  
+**Purpose**: Documentation maintenance and creation
+
+Specialized in technical documentation:
+- ✅ Creates comprehensive README files
+- ✅ Writes tested code examples
+- ✅ Maintains API documentation
+- ✅ Ensures documentation accuracy
+- ✅ Manages Docusaurus/Docsify sites
+
+**When to use:** Creating or updating documentation, writing examples
+
+#### Testing Agent (`@testing-agent`)
+**Location**: `testing-agent.md`  
+**Purpose**: Catch2 unit testing
+
+Expert in C++ unit testing:
+- ✅ Generates Catch2 test cases
+- ✅ Debugs test failures
+- ✅ Ensures test coverage
+- ✅ Validates package serialization
+- ✅ Maintains test infrastructure
+
+**When to use:** Creating tests, debugging test failures, ensuring coverage
+
+#### Other Specialized Agents
+- **test-specialist** - Alternative testing specialist
+- **release-validator** - Release validation focused
+- **docs-writer** - Documentation writer
+- **mesh-developer** - Alternative mesh developer
+
+## Quick Start Guide
+
+### For Simple Tasks
+```bash
+# Just use Alteriom AI Agent directly
+@alteriom-ai-agent Fix the typo in README.md
+```
+
+### For Complete Features
+```bash
+# 1. Ask coordinator what's needed
+@painlessmesh-coordinator What's needed to add GPS support?
+
+# Coordinator responds with checklist...
+
+# 2. Execute with Alteriom AI Agent
+@alteriom-ai-agent Implement GPS feature per coordinator checklist
+
+# 3. Verify completeness
+@painlessmesh-coordinator Verify GPS implementation is complete
+```
+
+### For Releases
+```bash
+# Run release agent validation
+./scripts/release-agent.sh
+
+# Or ask via agent
+@release-agent Am I ready to release?
+```
+
+### For Specialized Tasks
+```bash
+# Use domain-specific agents
+@mesh-dev-agent Optimize memory usage for ESP8266
+@docs-agent Document the new GPS package
+@testing-agent Create tests for GPS serialization
+```
+
+## Usage Patterns
+
+### Pattern 1: Direct Execution (Simple)
+**Best for:** Typo fixes, small changes, simple tasks
+
+```
+User → @alteriom-ai-agent → Done
+```
+
+Example:
+```
+@alteriom-ai-agent Update version to 1.9.3
+```
+
+### Pattern 2: Coordinated Feature (Recommended)
+**Best for:** New features, complex changes, anything with multiple components
+
+```
+User → @painlessmesh-coordinator → Checklist
+     → @alteriom-ai-agent → Execute checklist
+     → @painlessmesh-coordinator → Verify
+```
+
+Example:
+```
+User: @painlessmesh-coordinator What's needed for GPS?
+Coordinator: [Provides complete checklist]
+User: @alteriom-ai-agent Implement per checklist
+Agent: [Implements all items]
+User: @painlessmesh-coordinator Verify GPS complete
+Coordinator: ✓ All items implemented
+```
+
+### Pattern 3: Specialized Consultation
+**Best for:** Domain-specific optimization, specialized knowledge
+
+```
+User → @specialized-agent → Recommendations
+     → @alteriom-ai-agent → Execute
+```
+
+Example:
+```
+User: @mesh-dev-agent How to optimize memory for ESP8266?
+Mesh Dev: [Provides strategies]
+User: @alteriom-ai-agent Apply these optimizations
+```
 
 **Quick Start:**
 
