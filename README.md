@@ -418,7 +418,7 @@ void loop() {
 }
 
 void receivedCallback(uint32_t from, String& msg) {
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;  // ArduinoJson v7
     deserializeJson(doc, msg);
     
     if (doc["type"] == 200) { // SensorPackage
@@ -736,7 +736,7 @@ Initialize the mesh network. This routine does the following things.
 `ssid` = the name of your mesh.  All nodes share same AP ssid. They are distinguished by BSSID.
 `password` = wifi password to your mesh.
 `port` = the TCP port that you want the mesh server to run on. Defaults to 5555 if not specified.
-[`connectMode`](https://gitlab.com/painlessMesh/painlessMesh/wikis/connect-mode:-WIFI_AP,-WIFI_STA,-WIFI_AP_STA-mode) = switch between WIFI_AP, WIFI_STA and WIFI_AP_STA (default) mode
+`connectMode` = switch between WIFI_AP, WIFI_STA and WIFI_AP_STA (default) mode
 
 #### void painlessMesh::stop()
 
@@ -823,7 +823,7 @@ Return the chipId of the node that we are running on.
 
 Returns the mesh timebase microsecond counter. Rolls over 71 minutes from startup of the first node.
 
-Nodes try to keep a common time base synchronizing to each other using [an SNTP based protocol](https://gitlab.com/painlessMesh/painlessMesh/wikis/mesh-protocol#time-sync)
+Nodes try to keep a common time base synchronizing to each other using an SNTP based protocol
 
 #### bool painlessMesh::startDelayMeas(uint32_t nodeId)
 
