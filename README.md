@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.2** - Consolidated release across all distribution channels
+**Version 1.9.7** - Latest release with TCP connection improvements and documentation updates
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -553,15 +553,25 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.9.0 (November 30, 2025)
+## Latest Release: v1.9.7 (December 10, 2025)
 
-**Major Update: Improved Bridge Detection, Consolidated Examples & Documentation**
+**Documentation Update & Version Alignment**
+
+- 📚 **Comprehensive Documentation Review** - Updated README.md for completeness and accuracy
+- 🔄 **Version Consistency** - Aligned version numbers across all distribution channels
+- ✅ **Latest Fixes Included** - Incorporates all improvements from v1.9.6 and v1.9.5
+  - TCP Connection Retry Improvements with exponential backoff (v1.9.6)
+  - Bridge Status Send Race Condition fixes (v1.9.5)
+  - Isolated Bridge Retry improvements (v1.9.5, v1.9.4)
+  - TCP Server Initialization Order fixes (v1.9.4)
+
+**Recent Key Features (v1.9.0 - v1.9.6):**
 
 - 🔍 **Mesh Connectivity Detection** - New `hasActiveMeshConnections()` and `getLastKnownBridge()` APIs
 - 🌉 **Improved Bridge Detection** - `getPrimaryBridge()` returns last known bridge when disconnected
-- ⚡ **Election Guard** - Skip election trigger when node is disconnected from mesh
-- 📦 **Consolidated Examples** - Reduced from 32 to 14 essential examples
-- 📚 **Cleaned Documentation** - Removed obsolete docs, kept only essentials
+- ⚡ **Enhanced TCP Reliability** - Exponential backoff and increased retries for mesh connections
+- 🛡️ **Race Condition Fixes** - Improved bridge status and connection validation
+- 📦 **Consolidated Examples** - Streamlined to 14 essential examples
 - ⚙️ **Configurable Election Timing** - Prevent split-brain with `setElectionStartupDelay()` and `setElectionRandomDelay()`
 
 **[📋 Full CHANGELOG](CHANGELOG.md)**
@@ -572,7 +582,7 @@ These are the message types used by applications built on painlessMesh:
 - **[Common Issues](docs/troubleshooting/common-issues.md)** - Troubleshooting guide
 - **[GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)** - Bug reports and feature requests  
 - **[Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)** - Community support
-- **[API Documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)** - Generated API docs
+- **[API Documentation](https://alteriom.github.io/painlessMesh/#/api/doxygen)** - Generated API docs
 
 ## Development
 
@@ -590,7 +600,7 @@ run-parts --regex catch_ bin/  # Run tests
 ### Requirements
 
 - **ESP32/ESP8266**: Arduino Core 2.0.0+
-- **Dependencies**: ArduinoJson 6.x, TaskScheduler 3.x  
+- **Dependencies**: ArduinoJson 7.x, TaskScheduler 4.x  
 - **Development**: CMake, Ninja, Boost (for desktop testing)
 
 ### CI/CD Pipeline
@@ -628,7 +638,7 @@ See [RELEASE_GUIDE.md](RELEASE_GUIDE.md) for complete release documentation.
 
 ## Contributing
 
-We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `master` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `master` branch. For more details see the [CONTRIBUTING](https://gitlab.com/painlessMesh/painlessMesh/blob/master/CONTRIBUTING.md) file.
+We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `main` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `main` branch. For more details see the [CONTRIBUTING.md](CONTRIBUTING.md) file.
 
 ## Funding
 

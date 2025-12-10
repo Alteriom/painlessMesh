@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.7] - 2025-12-10
+
+### Documentation
+
+- **README.md Comprehensive Review** - Updated main README for completeness and accuracy
+  - Updated version references from 1.9.2 to 1.9.7
+  - Verified all documentation links and references
+  - Confirmed package type documentation accuracy
+  - Validated installation instructions
+  - Updated "Latest Release" section with current features
+  - Ensured alignment with latest CHANGELOG entries (v1.9.6, v1.9.5)
+
+### Changed
+
+- **Version Consistency** - Synchronized version numbers across all distribution files
+  - Updated library.properties to v1.9.7
+  - Updated library.json to v1.9.7
+  - Updated package.json to v1.9.7
+  - Ensures consistent versioning for NPM, PlatformIO, and Arduino Library Manager
+
 ## [1.9.6] - 2025-12-05
 
 ### Fixed
