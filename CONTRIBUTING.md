@@ -1,6 +1,6 @@
 # Contributing
 
-We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `master` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `master` branch.
+We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `main` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `main` branch.
 
 ## Git flow
 
@@ -8,9 +8,9 @@ If you would like to use [git flow tools](http://danielkummer.github.io/git-flow
 
 ## Submit a pull request:
 
-* If your push triggered a 'you just pushed...' message from GitLab then click on the button provided by that pop up to create a pull request.
+* If your push triggered a 'you just pushed...' message from GitHub then click on the button provided by that pop up to create a pull request.
 * If not, then create a pull request and point it to your branch.
-* Make sure that you're attempting to merge into `develop` and not `master`.
+* Make sure that you're attempting to merge into `develop` and not `main`.
 * Get your code reviewed by another contributor. If there are no contributors who possess the same set of skills then get them to review it anyway but explain what the code does beforehand and why. Use it as an opportunity for discussion around the feature set, to transfer knowledge, and to possibly [rubber duck](https://en.wikipedia.org/wiki/Rubber_duck_debugging) your code.
 * Once the code is reviewed then have your reviewer merge your code.
 

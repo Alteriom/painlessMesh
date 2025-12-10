@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.6] - 2025-12-05
+## [1.9.6] - 2025-12-10
 
 ### Fixed
 
@@ -18,6 +18,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Increased `TCP_CONNECT_MAX_RETRIES` from 3 to 5 (more retry attempts before giving up)
     - Added exponential backoff: retry delays are 1s, 2s, 4s, 8s, 8s (capped) for attempts 1-5
   - **Impact**: More reliable mesh connection establishment, especially when bridge TCP server is temporarily busy or network is congested
+
+### Documentation
+
+- **README.md Comprehensive Review** - Updated main README for completeness and accuracy
+  - Updated version references from 1.9.2 to 1.9.6
+  - Verified all documentation links and references
+  - Confirmed package type documentation accuracy
+  - Validated installation instructions
+  - Updated "Latest Release" section with current features
+  - Fixed ArduinoJson v7 code examples (DynamicJsonDocument → JsonDocument)
+  - Updated dependency versions in documentation (ArduinoJson 6.x→7.x, TaskScheduler 3.x→4.x)
+  - Corrected API Documentation links (GitLab → GitHub Pages)
+  - Fixed Contributing section references (master→main, GitLab→GitHub)
+
+### Changed
+
+- **Version Consistency** - Synchronized version numbers across all distribution files
+  - Updated library.properties to v1.9.6
+  - Updated library.json to v1.9.6
+  - Updated package.json to v1.9.6
+  - Ensures consistent versioning for NPM, PlatformIO, and Arduino Library Manager
 
 ## [1.9.5] - 2025-12-03
 
