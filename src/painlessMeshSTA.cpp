@@ -233,10 +233,19 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
           Log(CONNECTION,
               "connectToAP(): Restarting AP from channel %d to channel %d\n",
               oldChannel, detectedChannel);
-          WiFi.softAPdisconnect(false);
-          delay(100);
+          
+          // Disconnect AP and allow WiFi stack to fully reset
+          // Using true parameter ensures DHCP server is properly stopped
+          WiFi.softAPdisconnect(true);
+          delay(200);  // Increased delay to ensure complete WiFi stack reset
+          
           // Call apInit via friend class access (StationScan is friend of wifi::Mesh)
           mesh->apInit(mesh->getNodeId());
+          
+          // Additional stabilization delay after AP restart
+          // This ensures DHCP server is fully initialized before clients connect
+          delay(100);
+          
           Log(CONNECTION, "connectToAP(): AP restarted on channel %d\n", detectedChannel);
         }
         // Reset counter only when mesh is found on a new channel

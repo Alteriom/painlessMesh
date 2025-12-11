@@ -16,6 +16,29 @@
 //   - Enables nodes to implement failover and queueing logic
 //
 // For more details, see BRIDGE_TO_INTERNET.md
+//
+// EXTERNAL DEVICE CONNECTIONS:
+// ----------------------------
+// External devices (phones, computers) can connect to the bridge's WiFi
+// AP for debugging and testing purposes. The AP will broadcast the mesh
+// SSID (e.g., "whateverYouLike") with the configured password.
+//
+// Connection details:
+// - SSID: Your MESH_PREFIX value
+// - Password: Your MESH_PASSWORD value
+// - IP Range: 10.x.x.x (automatically assigned via DHCP)
+// - Gateway: 10.x.x.1 (the bridge node itself)
+//
+// Note: ESP32 AP mode supports up to 10 concurrent connections by default,
+// ESP8266 supports up to 4. If mesh nodes are already connected, fewer
+// slots will be available for external devices.
+//
+// Troubleshooting external connections:
+// 1. Ensure the bridge has successfully initialized (check serial output)
+// 2. Wait a few seconds after boot for the AP to fully start
+// 3. Check for channel conflicts with other WiFi networks
+// 4. Try forgetting the network on your device and reconnecting
+// 5. Monitor serial output with CONNECTION debug level enabled
 //************************************************************
 #include "painlessMesh.h"
 

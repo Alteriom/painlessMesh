@@ -60,6 +60,32 @@ For Arduino IDE, download and install manually from: https://github.com/ESP32Asy
 
 ## Connection Issues
 
+### External Devices Cannot Connect to Mesh AP
+
+**Symptoms:**
+- Phone or computer can't see the mesh WiFi network
+- Can see network but can't connect
+- Connected but no IP address assigned
+- Connection drops frequently
+
+**Solution:**
+
+See the dedicated guide for connecting external devices:
+
+📖 **[Connecting External Devices Guide](external-device-connection.md)**
+
+**Quick Summary:**
+
+External devices (phones, computers, test equipment) can connect to the bridge node's WiFi AP for debugging:
+- **SSID**: Your MESH_PREFIX value
+- **Password**: Your MESH_PASSWORD value  
+- **IP Range**: 10.x.x.x/24 (DHCP automatic)
+- **Limits**: ESP32 supports 10 devices, ESP8266 supports 4
+
+Common issues are DHCP timing, channel changes, and connection limits.
+
+---
+
 ### Nodes Not Connecting
 
 **Symptoms:**
