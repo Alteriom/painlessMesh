@@ -1093,12 +1093,28 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   void init(uint32_t id) { painlessmesh::Mesh<Connection>::init(id); }
 
   void apInit(uint32_t nodeId) {
+    using namespace logger;
     _apIp = IPAddress(10, (nodeId & 0xFF00) >> 8, (nodeId & 0xFF), 1);
     IPAddress netmask(255, 255, 255, 0);
 
     WiFi.softAPConfig(_apIp, _apIp, netmask);
+    
+#ifdef ESP32
+    // ESP32: Explicitly enable AP mode to ensure DHCP server starts properly
+    // This is particularly important after channel changes or AP restarts
+    WiFi.enableAP(true);
+#endif
+    
     WiFi.softAP(_meshSSID.c_str(), _meshPassword.c_str(), _meshChannel,
                 _meshHidden, _meshMaxConn);
+    
+    Log(STARTUP, "apInit(): AP configured - SSID: %s, Channel: %d, IP: %s\n",
+        _meshSSID.c_str(), _meshChannel, _apIp.toString().c_str());
+    
+    // Verify AP is running and log status for debugging
+    if (WiFi.softAPgetStationNum() >= 0) {
+      Log(STARTUP, "apInit(): AP active - Max connections: %d\n", _meshMaxConn);
+    }
   }
 
   /**

@@ -5,6 +5,30 @@
 // When the primary bridge loses Internet connectivity, nodes automatically
 // hold an election to select a new bridge based on router signal strength.
 //
+// EXTERNAL DEVICE CONNECTIONS FOR DEBUGGING:
+// -------------------------------------------
+// You can connect phones, computers, or test devices to the mesh network
+// for debugging purposes. The bridge node broadcasts the mesh SSID as a
+// WiFi Access Point.
+//
+// Connection details:
+// - SSID: "FishFarmMesh" (or your MESH_PREFIX value)
+// - Password: "securepass" (or your MESH_PASSWORD value)
+// - IP Range: 10.x.x.x/24 (automatically assigned via DHCP)
+// - Gateway: 10.x.x.1 (the bridge node itself)
+//
+// Important notes:
+// 1. ESP32 supports up to 10 concurrent AP connections (ESP8266: 4)
+// 2. Each mesh node connection uses one slot, leaving fewer for external devices
+// 3. After boot, wait 5-10 seconds for the AP to fully initialize
+// 4. If you can't connect, try these troubleshooting steps:
+//    - Check serial output for "AP configured" message
+//    - Verify the channel matches (bridge auto-detects router's channel)
+//    - Forget the network on your device and reconnect
+//    - Check for WiFi channel conflicts with other networks
+// 5. External devices get DHCP but have no internet routing by default
+//    (they can only communicate with the mesh network itself)
+//
 // IMPORTANT - UNDERSTANDING INTERNET CONNECTIVITY:
 // ================================================
 // The mesh.hasInternetConnection() method checks if a GATEWAY (bridge) node
