@@ -1110,11 +1110,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     Log(STARTUP, "apInit(): AP configured - SSID: %s, Channel: %d, IP: %s\n",
         _meshSSID.c_str(), _meshChannel, _apIp.toString().c_str());
-    
-    // Verify AP is running and log status for debugging
-    if (WiFi.softAPgetStationNum() >= 0) {
-      Log(STARTUP, "apInit(): AP active - Max connections: %d\n", _meshMaxConn);
-    }
+    Log(STARTUP, "apInit(): AP active - Max connections: %d\n", _meshMaxConn);
   }
 
   /**

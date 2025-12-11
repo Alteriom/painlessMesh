@@ -267,7 +267,6 @@ If you encounter issues after applying this fix:
 ## Credits
 
 - Issue reported by: @woodlist (#231)
-- Fix implemented by: GitHub Copilot
 - Tested on: ESP32 and ESP8266 platforms
 
 ## Version

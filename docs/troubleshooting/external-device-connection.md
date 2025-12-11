@@ -278,6 +278,6 @@ nc -v 10.26.43.1 5555
 
 ## Changelog
 
-- **v1.x.x** (2024-12-11): Initial documentation for external device connections
+- **Unreleased**: Initial documentation for external device connections
 - Added DHCP server initialization fixes for ESP32
 - Improved AP restart timing for channel changes
