@@ -1,7 +1,7 @@
 # Dockerfile for painlessMesh Testing
 # Provides a consistent build environment with all required tools
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Prevent interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive

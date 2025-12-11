@@ -28,7 +28,7 @@ jobs:
     # Runs on push to main/develop or manual trigger
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: recursive
