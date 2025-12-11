@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **External Device WiFi AP Connection** (#231) - Fixed DHCP and AP initialization issues preventing phones and computers from connecting to bridge
+  - **Root Cause**: When AP was restarted during channel changes, DHCP server was not properly reinitialized due to incomplete WiFi stack reset
+  - **Symptom**: External devices (Android phones, Windows 11 computers) cannot connect to mesh WiFi AP or fail to receive IP addresses via DHCP
+  - **Solution**: Improved AP restart sequence and DHCP initialization:
+    - Added explicit `WiFi.enableAP(true)` for ESP32 to ensure DHCP server starts
+    - Changed `softAPdisconnect(false)` to `softAPdisconnect(true)` for proper DHCP shutdown
+    - Increased timing delays: 200ms before AP restart + 100ms stabilization after
+    - Added logging for AP configuration to aid debugging
+  - **Impact**: External devices can now reliably connect to bridge AP for debugging and testing
+
+### Documentation
+
+- **External Device Connection Guide** - New comprehensive guide for connecting phones/computers to mesh AP
+  - Complete connection instructions for Android, Windows, macOS, Linux
+  - Troubleshooting section for common connection issues
+  - Security best practices and warnings
+  - Example debug sessions with network tools
+  - Added to bridge examples with detailed setup notes
+
 ## [1.9.6] - 2025-12-10
 
 ### Fixed
