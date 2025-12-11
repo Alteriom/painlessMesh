@@ -3134,7 +3134,11 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     using namespace logger;
     Log(CONNECTION, "eraseClosedConnections():\n");
     this->subs.remove_if(
-        [](const std::shared_ptr<T> &conn) { return !conn->connected(); });
+        [](const std::shared_ptr<T> &conn) { 
+          // Null check for safety - should never happen but prevents crashes
+          if (!conn) return true;
+          return !conn->connected(); 
+        });
   }
 
  public:  // Windows MSVC: TCP lambdas need access to droppedConnectionCallbacks
