@@ -647,199 +647,66 @@ If you like the library please consider supporting its development. Your contrib
 
 **[Donate via PayPal](https://www.paypal.com/paypalme/domlavoie)** • [dominic.lavoie@gmail.com](mailto:dominic.lavoie@gmail.com)
 
-## 📚 Complete Documentation
+## 📚 Documentation
 
-> **� [Visit the Full Documentation Website](https://alteriom.github.io/painlessMesh/)**
+### 📖 Essential Guides
 
-### 🚀 Getting Started
+| Document | Description |
+|----------|-------------|
+| **[📘 User Guide](USER_GUIDE.md)** | **Complete comprehensive guide** - Everything you need to know |
+| **[🌉 Bridge Guide](BRIDGE_TO_INTERNET.md)** | Connect mesh to Internet, MQTT, and cloud services |
+| **[📋 Documentation Hub](.github/DOCUMENTATION.md)** | Central navigation for all documentation resources |
+| **[🌐 Online Docs](https://alteriom.github.io/painlessMesh/)** | Interactive documentation website with API reference |
 
-**New to AlteriomPainlessMesh?** Start with these essential guides:
+### 🚀 Quick Links
 
-| Guide | Description | Link |
-|-------|-------------|------|
-| **🎯 Quick Start** | Get your first mesh running in 5 minutes | [📖 Start Here](https://alteriom.github.io/painlessMesh/#/getting-started/quickstart) |
-| **💾 Installation** | Arduino IDE, PlatformIO, and more | [📖 Install Guide](https://alteriom.github.io/painlessMesh/#/getting-started/installation) |
-| **🌐 First Mesh** | Build a real multi-node network | [📖 Build Now](https://alteriom.github.io/painlessMesh/#/getting-started/first-mesh) |
+**New to AlteriomPainlessMesh?**
+- [Quick Start](docs/getting-started/quickstart.md) - Get your first mesh running in 5 minutes
+- [Installation](docs/getting-started/installation.md) - Arduino IDE and PlatformIO setup
+- [First Mesh](docs/getting-started/first-mesh.md) - Build a multi-node network
 
-### 📖 API Documentation
+**Reference Documentation:**
+- [Core API](docs/api/core-api.md) - painlessMesh class methods
+- [Alteriom Extensions](docs/alteriom/overview.md) - SensorPackage, CommandPackage, StatusPackage
+- [Examples](examples/) - 14 working examples for common scenarios
 
-**Complete reference for all classes, functions, and features:**
+**Need Help?**
+- [FAQ](docs/troubleshooting/faq.md) - Frequently asked questions
+- [Common Issues](docs/troubleshooting/common-issues.md) - Troubleshooting guide
+- [GitHub Issues](https://github.com/Alteriom/painlessMesh/issues) - Bug reports and support
 
-| Section | Description | Link |
-|---------|-------------|------|
-| **🔧 Core API** | painlessMesh class reference and methods | [📖 Core API](https://alteriom.github.io/painlessMesh/#/api/core-api) |
-| **📦 Doxygen API** | Auto-generated complete API documentation | [📖 Browse API](https://alteriom.github.io/painlessMesh/#/api/doxygen) |
-| **⚙️ Configuration** | All mesh configuration options | [📖 Configure](https://alteriom.github.io/painlessMesh/#/api/configuration) |
-| **🔄 Callbacks** | Event handling and callback patterns | [📖 Events](https://alteriom.github.io/painlessMesh/#/api/callbacks) |
+## 🔧 Quick API Reference
 
-### 🎯 Alteriom Extensions
-
-**IoT-ready packages for production applications:**
-
-| Package | Purpose | Documentation |
-|---------|---------|---------------|
-| **📊 SensorPackage** | Environmental data collection | [📖 Sensor Docs](https://alteriom.github.io/painlessMesh/#/alteriom/overview) |
-| **⚡ CommandPackage** | Device control and automation | [📖 Command Docs](https://alteriom.github.io/painlessMesh/#/alteriom/overview) |
-| **📈 StatusPackage** | Health monitoring and diagnostics | [📖 Status Docs](https://alteriom.github.io/painlessMesh/#/alteriom/overview) |
-
-### 🏗️ Advanced Topics
-
-**Deep dive into architecture and advanced usage:**
-
-| Topic | Description | Link |
-|-------|-------------|------|
-| **🌳 Architecture** | How painlessMesh works internally | [📖 Architecture](https://alteriom.github.io/painlessMesh/#/architecture/mesh-architecture) |
-| **🌉 Bridge to Internet** | Connect mesh to WiFi/Internet/MQTT | [📖 Bridge Guide](BRIDGE_TO_INTERNET.md) |
-| **🔌 Plugin System** | Create custom message packages | [📖 Plugins](https://alteriom.github.io/painlessMesh/#/architecture/plugin-system) |
-| **🎓 Tutorials** | Step-by-step examples and patterns | [📖 Tutorials](https://alteriom.github.io/painlessMesh/#/tutorials/basic-examples) |
-| **🛠️ Troubleshooting** | Common issues and solutions | [📖 Help](https://alteriom.github.io/painlessMesh/#/troubleshooting/common-issues) |
-
-### 📝 Quick Reference
-
-**Bookmark these for daily development:**
-
-- **[📋 Class Index](https://alteriom.github.io/painlessMesh/#/api/doxygen/classes)** - All classes with methods
-- **[⚙️ Function Index](https://alteriom.github.io/painlessMesh/#/api/doxygen/functions)** - All functions and globals  
-- **[📁 File Structure](https://alteriom.github.io/painlessMesh/#/api/doxygen/files)** - Source code organization
-- **[❓ FAQ](https://alteriom.github.io/painlessMesh/#/troubleshooting/faq)** - Frequently asked questions
-
-**📖 Examples:**
-
-- **[Basic Example](examples/basic/basic.ino)** - Essential patterns and techniques
-- **[Alteriom Sensor Node](examples/alteriom/alteriom.ino)** - IoT sensor packages
-- **[Bridge Example](examples/bridge/bridge.ino)** - Connect mesh to Internet
-
-**📋 Complete Documentation Index:** [docs/README.md](docs/README.md)
-
-## painlessMesh API Summary
-
-Here's a quick API overview.
-
+**Core Methods:**
 ```cpp
 #include "painlessMesh.h"
 
 painlessMesh mesh;
+
+// Initialize mesh
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+
+// Main loop - call this in loop()
+mesh.update();
+
+// Send messages
+mesh.sendBroadcast("Hello everyone!");
+mesh.sendSingle(nodeId, "Hello specific node");
+
+// Get information
+uint32_t myId = mesh.getNodeId();
+std::list<uint32_t> nodes = mesh.getNodeList();
+
+// Register callbacks
+mesh.onReceive(&receivedCallback);
+mesh.onNewConnection(&newConnectionCallback);
+mesh.onChangedConnections(&changedConnectionCallback);
+
+// Debug configuration
+mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
 ```
 
-### Member Functions
-
-#### void painlessMesh::init(String ssid, String password, uint16_t port = 5555, WiFiMode_t connectMode = WIFI_AP_STA, _auth_mode authmode = AUTH_WPA2_PSK, uint8_t channel = 1, phy_mode_t phymode = PHY_MODE_11G, uint8_t maxtpw = 82, uint8_t hidden = 0, uint8_t maxconn = 4)
-
-Add this to your setup() function.
-Initialize the mesh network. This routine does the following things.
-
-- Starts a wifi network
-- Begins searching for other wifi networks that are part of the mesh
-- Logs on to the best mesh network node it finds… if it doesn’t find anything, it starts a new search in 5 seconds.
-
-`ssid` = the name of your mesh.  All nodes share same AP ssid. They are distinguished by BSSID.
-`password` = wifi password to your mesh.
-`port` = the TCP port that you want the mesh server to run on. Defaults to 5555 if not specified.
-`connectMode` = switch between WIFI_AP, WIFI_STA and WIFI_AP_STA (default) mode
-
-#### void painlessMesh::stop()
-
-Stop the node. This will cause the node to disconnect from all other nodes and stop/sending messages.
-
-#### void painlessMesh::update( void )
-
-Add this to your loop() function
-This routine runs various maintenance tasks... Not super interesting, but things don't work without it.
-
-#### void painlessMesh::onReceive( &amp;receivedCallback )
-
-Set a callback routine for any messages that are addressed to this node. Callback routine has the following structure.
-
-`void receivedCallback( uint32_t from, String &amp;msg )`
-
-Every time this node receives a message, this callback routine will the called. “from” is the id of the original sender of the message, and “msg” is a string that contains the message. The message can be anything. A JSON, some other text string, or binary data.
-
-#### void painlessMesh::onNewConnection( &amp;newConnectionCallback )
-
-This fires every time the local node makes a new connection. The callback has the following structure.
-
-`void newConnectionCallback( uint32_t nodeId )`
-
-`nodeId` is new connected node ID in the mesh.
-
-#### void painlessMesh::onChangedConnections( &amp;changedConnectionsCallback )
-
-This fires every time there is a change in mesh topology. Callback has the following structure.
-
-`void onChangedConnections()`
-
-There are no parameters passed. This is a signal only.
-
-#### bool painlessMesh::isConnected( nodeId )
-
-Returns if a given node is currently connected to the mesh.
-
-`nodeId` is node ID that the request refers to.
-
-#### void painlessMesh::onNodeTimeAdjusted( &amp;nodeTimeAdjustedCallback )
-
-This fires every time local time is adjusted to synchronize it with mesh time. Callback has the following structure.
-
-`void onNodeTimeAdjusted(int32_t offset)`
-
-`offset` is the adjustment delta that has been calculated and applied to local clock.
-
-#### void onNodeDelayReceived(nodeDelayCallback_t onDelayReceived)
-
-This fires when a time delay measurement response is received, after a request was sent. Callback has the following structure.
-
-`void onNodeDelayReceived(uint32_t nodeId, int32_t delay)`
-
-`nodeId` The node that originated response.
-
-`delay` One way network trip delay in microseconds.
-
-#### bool painlessMesh::sendBroadcast( String &amp;msg, bool includeSelf = false)
-
-Sends msg to every node on the entire mesh network. By default the current node is excluded from receiving the message (`includeSelf = false`). `includeSelf = true` overrides this behavior, causing the `receivedCallback` to be called when sending a broadcast message.
-
-returns true if everything works, false if not. Prints an error message to Serial.print, if there is a failure.
-
-#### bool painlessMesh::sendSingle(uint32_t dest, String &amp;msg)
-
-Sends msg to the node with Id == dest.
-
-returns true if everything works, false if not.  Prints an error message to Serial.print, if there is a failure.
-
-#### String painlessMesh::subConnectionJson()
-
-Returns mesh topology in JSON format.
-
-#### std::list<uint32_t> painlessMesh::getNodeList()
-
-Get a list of all known nodes. This includes nodes that are both directly and indirectly connected to the current node.
-
-#### uint32_t painlessMesh::getNodeId( void )
-
-Return the chipId of the node that we are running on.
-
-#### uint32_t painlessMesh::getNodeTime( void )
-
-Returns the mesh timebase microsecond counter. Rolls over 71 minutes from startup of the first node.
-
-Nodes try to keep a common time base synchronizing to each other using an SNTP based protocol
-
-#### bool painlessMesh::startDelayMeas(uint32_t nodeId)
-
-Sends a node a packet to measure network trip delay to that node. Returns true if nodeId is connected to the mesh, false otherwise. After calling this function, user program have to wait to the response in the form of a callback specified by `void painlessMesh::onNodeDelayReceived(nodeDelayCallback_t onDelayReceived)`.
-
-nodeDelayCallback_t is a function in the form of `void (uint32_t nodeId, int32_t delay)`.
-
-#### void painlessMesh::stationManual( String ssid, String password, uint16_t port, uint8_t *remote_ip )
-
-Connects the node to an AP outside the mesh. When specifying a `remote_ip` and `port`, the node opens a TCP connection after establishing the WiFi connection.
-
-Note: The mesh must be on the same WiFi channel as the AP.
-
-#### void painlessMesh::setDebugMsgTypes( uint16_t types )
-
-Change the internal log level. List of types defined in Logger.hpp:
-ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE
+**For complete API documentation, see [USER_GUIDE.md](USER_GUIDE.md#api-reference) or [online docs](https://alteriom.github.io/painlessMesh/#/api/core-api).**
 
 # Funding
 
