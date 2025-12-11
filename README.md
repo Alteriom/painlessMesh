@@ -668,7 +668,7 @@ If you like the library please consider supporting its development. Your contrib
 **Reference Documentation:**
 - [Core API](docs/api/core-api.md) - painlessMesh class methods
 - [Alteriom Extensions](docs/alteriom/overview.md) - SensorPackage, CommandPackage, StatusPackage
-- [Examples](examples/) - 14 working examples for common scenarios
+- [Examples](examples/) - 16 working examples for common scenarios
 
 **Need Help?**
 - [FAQ](docs/troubleshooting/faq.md) - Frequently asked questions

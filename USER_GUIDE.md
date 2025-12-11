@@ -278,6 +278,8 @@ if (mesh.isConnected(nodeId)) {
 }
 ```
 
+**Note:** Connection status can change rapidly in dynamic mesh networks. This method reflects the current state at the moment of the call.
+
 ---
 
 ## API Reference
@@ -1122,14 +1124,30 @@ void loop() {
 
 ### More Examples
 
-Complete examples are available in the repository:
+Complete examples are available in the repository (16 examples total):
 
-- [Basic Example](examples/basic/basic.ino) - Essential patterns
+**Getting Started:**
+- [Start Here](examples/startHere/startHere.ino) - Best starting point for beginners
+- [Basic Example](examples/basic/basic.ino) - Essential patterns and techniques
+
+**IoT & Sensors:**
 - [Alteriom Sensor Node](examples/alteriom/alteriom.ino) - IoT sensor packages
-- [Bridge Example](examples/bridge/bridge.ino) - Internet connectivity
-- [Bridge Failover](examples/bridge_failover/) - High availability
+- [Named Mesh](examples/namedMesh/namedMesh.ino) - Using node names instead of IDs
+
+**Internet Connectivity:**
+- [Bridge Example](examples/bridge/bridge.ino) - Basic Internet bridge
+- [Bridge Failover](examples/bridge_failover/) - High availability bridge
 - [Shared Gateway](examples/sharedGateway/) - All nodes as gateways
+- [Send to Internet](examples/sendToInternet/) - Direct Internet communication
 - [MQTT Bridge](examples/mqttBridge/) - MQTT integration
+
+**Advanced Features:**
+- [Priority Queue](examples/priority/) - Message priority handling
+- [OTA Sender](examples/otaSender/) - Firmware update distribution
+- [OTA Receiver](examples/otaReceiver/) - Firmware update reception
+- [Log Server](examples/logServer/) - Centralized logging
+- [Log Client](examples/logClient/) - Log forwarding
+- [Web Server](examples/webServer/) - Embedded web interface
 
 ---
 

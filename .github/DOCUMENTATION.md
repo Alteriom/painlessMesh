@@ -53,11 +53,14 @@ This document serves as the central navigation point for all AlteriomPainlessMes
 | Tutorial | Description |
 |----------|-------------|
 | [Basic Examples](../docs/tutorials/basic-examples.md) | Simple mesh networking patterns |
-| [Examples Directory](../examples/) | Complete working examples |
+| [Examples Directory](../examples/) | 16 complete working examples |
 | [Alteriom Sensor Node](../examples/alteriom/) | IoT sensor implementation |
 | [Bridge Example](../examples/bridge/) | Internet bridge implementation |
 | [Bridge Failover](../examples/bridge_failover/) | High availability setup |
 | [Shared Gateway](../examples/sharedGateway/) | Shared gateway mode |
+| [Start Here](../examples/startHere/) | Best starting point for beginners |
+| [Named Mesh](../examples/namedMesh/) | Using node names instead of IDs |
+| [Priority Queue](../examples/priority/) | Message priority examples |
 
 ### Troubleshooting
 
