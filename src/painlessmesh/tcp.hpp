@@ -142,7 +142,11 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
           TCP_CONNECT_MAX_RETRIES + 1);
       delete client;
 #endif
-      mesh.droppedConnectionCallbacks.execute(0, true);
+      // Defer callback execution to avoid crashes in error handler context
+      // Execute callbacks after semaphore is released and error handler completes
+      mesh.addTask([&mesh]() {
+        mesh.droppedConnectionCallbacks.execute(0, true);
+      });
       mesh.semaphoreGive();
     }
   });
