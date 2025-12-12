@@ -13,6 +13,14 @@
 #include "painlessmesh/router.hpp"
 #include "painlessmesh/tcp.hpp"
 
+#ifdef ESP32
+  #include <HTTPClient.h>
+  #include <WiFiClientSecure.h>
+#elif defined(ESP8266)
+  #include <ESP8266HTTPClient.h>
+  #include <WiFiClientSecure.h>
+#endif
+
 extern painlessmesh::logger::LogClass Log;
 
 namespace painlessmesh {
@@ -420,6 +428,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Step 5: Setup bridge status broadcasting
     initBridgeStatusBroadcast();
     
+    // Step 6: Setup gateway Internet handler
+    initGatewayInternetHandler();
+    
     Log(STARTUP, "=== Bridge Mode Active ===\n");
     Log(STARTUP, "  Mesh SSID: %s\n", meshSSID.c_str());
     Log(STARTUP, "  Mesh Channel: %d (matches router)\n", detectedChannel);
@@ -591,6 +602,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     
     // Step 4: Setup router connection monitoring and reconnection logic
     initSharedGatewayMonitoring();
+    
+    // Step 5: Setup gateway Internet handler
+    initGatewayInternetHandler();
     
     // Store router credentials for reconnection
     setRouterCredentials(routerSSID, routerPassword);
@@ -1870,6 +1884,107 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     protocol::Variant variant(msg);
     router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
   }
+
+  /**
+   * Helper method to send gateway acknowledgment
+   */
+  void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
+                      uint16_t httpStatus, const TSTRING& error) {
+    using namespace logger;
+    
+    gateway::GatewayAckPackage ack;
+    ack.from = this->nodeId;
+    ack.dest = request.originNode;
+    ack.messageId = request.messageId;
+    ack.originNode = request.originNode;
+    ack.success = success;
+    ack.httpStatus = httpStatus;
+    ack.error = error;
+    ack.timestamp = this->getNodeTime();
+    
+    auto conn = router::findRoute<Connection>((*this), request.originNode);
+    if (conn) {
+      router::send(ack, conn);
+      Log(COMMUNICATION, "Sent GATEWAY_ACK to node %u (success=%d, http=%d)\n",
+          request.originNode, success, httpStatus);
+    } else {
+      Log(ERROR, "Failed to send GATEWAY_ACK: no route to node %u\n",
+          request.originNode);
+    }
+  }
+
+  /**
+   * Initialize gateway Internet handler
+   * Registers GATEWAY_DATA package handler for bridge/gateway nodes
+   */
+  void initGatewayInternetHandler() {
+    using namespace logger;
+    Log(STARTUP, "initGatewayInternetHandler(): Registering GATEWAY_DATA handler\n");
+    
+    this->callbackList.onPackage(
+      protocol::GATEWAY_DATA,
+      [this](protocol::Variant& variant, std::shared_ptr<Connection>, uint32_t) {
+        auto pkg = variant.to<gateway::GatewayDataPackage>();
+        
+        Log(COMMUNICATION, "Gateway received Internet request: msgId=%u dest=%s\n",
+            pkg.messageId, pkg.destination.c_str());
+        
+        // Check Internet connectivity
+        if (WiFi.status() != WL_CONNECTED) {
+          sendGatewayAck(pkg, false, 0, "Gateway not connected to Internet");
+          return false;
+        }
+        
+#if defined(ESP32) || defined(ESP8266)
+        // Make HTTP/HTTPS request
+        HTTPClient http;
+        http.setTimeout(30000); // 30 second timeout
+        
+        bool success = false;
+        uint16_t httpCode = 0;
+        TSTRING error = "";
+        
+        if (pkg.destination.startsWith("https://")) {
+          #ifdef ESP32
+            http.begin(pkg.destination.c_str());
+          #elif defined(ESP8266)
+            WiFiClientSecure client;
+            client.setInsecure();
+            http.begin(client, pkg.destination.c_str());
+          #endif
+        } else {
+          http.begin(pkg.destination.c_str());
+        }
+        
+        // Make request (GET if no payload, POST if payload)
+        if (pkg.payload.length() > 0) {
+          http.addHeader("Content-Type", pkg.contentType.c_str());
+          httpCode = http.POST(pkg.payload.c_str());
+        } else {
+          httpCode = http.GET();
+        }
+        
+        if (httpCode > 0) {
+          success = (httpCode >= 200 && httpCode < 300);
+          Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
+        } else {
+          error = http.errorToString(httpCode);
+          Log(ERROR, "HTTP request failed: %s\n", error.c_str());
+        }
+        
+        http.end();
+        
+        // Send acknowledgment back
+        sendGatewayAck(pkg, success, httpCode, error);
+#else
+        // Non-ESP platform - send error
+        sendGatewayAck(pkg, false, 0, "HTTP client not available on this platform");
+#endif
+        
+        return false;
+      });
+  }
+
   void eventHandleInit() {
     using namespace logger;
 #ifdef ESP32
