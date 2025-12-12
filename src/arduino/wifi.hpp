@@ -1946,7 +1946,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         // Check Internet connectivity
         if (WiFi.status() != WL_CONNECTED) {
           sendGatewayAck(pkg, false, 0, "Gateway not connected to Internet");
-          return false;  // Don't consume package - allow other handlers to process
+          return true;  // Consume package - we handled it (with error)
         }
         
 #if defined(ESP32) || defined(ESP8266)
@@ -2000,7 +2000,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         sendGatewayAck(pkg, false, 0, "HTTP client not available on this platform");
 #endif
         
-        return false;  // Don't consume package - allow other handlers to process
+        return true;  // Consume package - we have processed it and sent acknowledgment
       });
   }
 
