@@ -1916,6 +1916,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Initialize gateway Internet handler
    * Registers GATEWAY_DATA package handler for bridge/gateway nodes
+   * 
+   * This handler processes GATEWAY_DATA packages from mesh nodes requesting
+   * HTTP/HTTPS requests to Internet destinations. It validates connectivity,
+   * makes the request, and sends back a GATEWAY_ACK with the result.
+   * 
+   * Security notes:
+   * - HTTPS on ESP8266 uses setInsecure() which disables SSL certificate validation
+   *   to reduce memory overhead. This makes connections vulnerable to MITM attacks.
+   * - ESP32 uses default SSL settings with certificate validation.
+   * 
+   * Limitations:
+   * - HTTP redirects (3xx) are not automatically followed
+   * - Only 2xx status codes are treated as success
+   * - Request timeout is fixed at 30 seconds
    */
   void initGatewayInternetHandler() {
     using namespace logger;
@@ -1932,13 +1946,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         // Check Internet connectivity
         if (WiFi.status() != WL_CONNECTED) {
           sendGatewayAck(pkg, false, 0, "Gateway not connected to Internet");
-          return false;
+          return false;  // Don't consume package - allow other handlers to process
         }
         
 #if defined(ESP32) || defined(ESP8266)
         // Make HTTP/HTTPS request
         HTTPClient http;
-        http.setTimeout(30000); // 30 second timeout
+        http.setTimeout(GATEWAY_HTTP_TIMEOUT_MS);
         
         bool success = false;
         uint16_t httpCode = 0;
@@ -1946,8 +1960,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         
         if (pkg.destination.startsWith("https://")) {
           #ifdef ESP32
+            // ESP32: Use default SSL settings with certificate validation
             http.begin(pkg.destination.c_str());
           #elif defined(ESP8266)
+            // ESP8266: Use insecure mode to reduce memory overhead
+            // WARNING: This disables SSL certificate validation
             WiFiClientSecure client;
             client.setInsecure();
             http.begin(client, pkg.destination.c_str());
@@ -1965,6 +1982,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         }
         
         if (httpCode > 0) {
+          // Only 2xx status codes are treated as success
+          // 3xx redirects are not automatically followed
           success = (httpCode >= 200 && httpCode < 300);
           Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
         } else {
@@ -1981,7 +2000,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         sendGatewayAck(pkg, false, 0, "HTTP client not available on this platform");
 #endif
         
-        return false;
+        return false;  // Don't consume package - allow other handlers to process
       });
   }
 
@@ -2157,6 +2176,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   static const int ROUTER_CONNECTION_TIMEOUT_SECONDS = 30;      // Router connection timeout
   static const uint8_t MIN_WIFI_CHANNEL = 1;
   static const uint8_t MAX_WIFI_CHANNEL = 14;  // Support channels 1-14 for regions that allow it
+  static const uint32_t GATEWAY_HTTP_TIMEOUT_MS = 30000;        // 30 second timeout for gateway HTTP requests
 
   /**
    * Initialize shared gateway monitoring
