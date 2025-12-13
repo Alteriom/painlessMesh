@@ -2020,7 +2020,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     auto conn = router::findRoute<Connection>((*this), request.originNode);
     if (conn) {
-      router::send(ack, conn);
+      protocol::Variant variant(&ack);
+      router::send(std::move(variant), conn);
       Log(COMMUNICATION, "Sent GATEWAY_ACK to node %u (success=%d, http=%d)\n",
           request.originNode, success, httpStatus);
     } else {
