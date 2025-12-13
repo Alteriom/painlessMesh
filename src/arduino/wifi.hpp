@@ -2078,6 +2078,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           uint16_t httpCode = 0;
           TSTRING error = "";
 
+#ifdef ESP8266
+          // ESP8266: Declare WiFiClientSecure at function scope to ensure
+          // it survives until after the HTTP request completes
+          WiFiClientSecure secureClient;
+#endif
+
           if (pkg.destination.startsWith("https://")) {
 #ifdef ESP32
             // ESP32: Use default SSL settings with certificate validation
@@ -2085,9 +2091,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 #elif defined(ESP8266)
             // ESP8266: Use insecure mode to reduce memory overhead
             // WARNING: This disables SSL certificate validation
-            WiFiClientSecure client;
-            client.setInsecure();
-            http.begin(client, pkg.destination.c_str());
+            secureClient.setInsecure();
+            http.begin(secureClient, pkg.destination.c_str());
 #endif
           } else {
             http.begin(pkg.destination.c_str());
