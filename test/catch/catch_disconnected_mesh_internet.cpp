@@ -52,8 +52,6 @@ SCENARIO("hasInternetConnection() returns false when mesh is disconnected with s
                 // In test environment with epoch millis(), bridge appears stale immediately
                 // In real Arduino environment, bridge becomes stale after timeout period
                 
-                bool hasInternet = node.hasInternetConnection();
-                
                 // With the fix, stale bridge data is not used
                 INFO("Stale bridge status should not indicate Internet availability");
                 INFO("This prevents false positives when mesh is disconnected");
@@ -106,7 +104,7 @@ SCENARIO("sendToInternet() fails early when no active mesh connections", "[issue
             TSTRING callbackError = "";
             
             // Attempt to send (should fail immediately)
-            uint32_t msgId = node.sendToInternet(
+            node.sendToInternet(
                 "https://api.callmebot.com/whatsapp.php?test=1",
                 "",
                 [&](bool success, uint16_t httpStatus, TSTRING error) {
@@ -116,6 +114,12 @@ SCENARIO("sendToInternet() fails early when no active mesh connections", "[issue
                     callbackError = error;
                 }
             );
+            
+            // Suppress unused variable warnings for callback capture variables
+            (void)callbackInvoked;
+            (void)callbackSuccess;
+            (void)callbackHttpStatus;
+            (void)callbackError;
             
             THEN("sendToInternet() should fail with proper error") {
                 // The fix adds early validation that checks hasActiveMeshConnections()
@@ -158,7 +162,7 @@ SCENARIO("getPrimaryBridge() returns nullptr for stale bridges", "[issue254][mes
         );
         
         WHEN("Getting primary bridge with stale data") {
-            BridgeInfo* primary = node.getPrimaryBridge();
+            node.getPrimaryBridge();
             
             THEN("getPrimaryBridge() should require healthy status") {
                 // With the fix, getPrimaryBridge() ALWAYS checks isHealthy()
@@ -256,7 +260,7 @@ SCENARIO("getLastKnownBridge() still provides fallback option", "[mesh][bridge][
         );
         
         WHEN("Using getLastKnownBridge() instead of getPrimaryBridge()") {
-            BridgeInfo* lastKnown = node.getLastKnownBridge();
+            node.getLastKnownBridge();
             
             THEN("getLastKnownBridge() ignores health check") {
                 INFO("getLastKnownBridge() is for special cases:");
