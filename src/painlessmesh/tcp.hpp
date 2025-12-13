@@ -136,8 +136,9 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
         // Defer deletion of the failed AsyncClient to prevent heap corruption
         // Deleting from within the error callback can cause use-after-free issues
         // as the AsyncTCP library may still be referencing the object
+        // Note: client is captured by value (pointer copy) and we are the sole owner
         mesh.addTask([client]() {
-          Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient after error handler completion\n");
+          Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient (retry path)\n");
           delete client;
         }, 0);
         
@@ -154,8 +155,9 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
       // Defer deletion of the failed AsyncClient to prevent heap corruption
       // Deleting from within the error callback can cause use-after-free issues
       // as the AsyncTCP library may still be referencing the object
+      // Note: client is captured by value (pointer copy) and we are the sole owner
       mesh.addTask([client]() {
-        Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient after error handler completion\n");
+        Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient (exhaustion path)\n");
         delete client;
       }, 0);
 #endif
