@@ -622,10 +622,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * 
    * Use hasLocalInternet() to check if THIS specific node has direct Internet access.
    * 
-   * When connected to mesh, requires recent bridge status (within timeout).
-   * When disconnected from mesh, returns true if any bridge previously
-   * reported Internet connectivity - allowing operations to be queued for
-   * when mesh connectivity is restored.
+   * This method now ALWAYS requires healthy (recent) bridge status to prevent
+   * false positives when mesh connectivity is lost. Without active mesh connections,
+   * stale bridge data cannot be relied upon, as the bridge may have lost Internet
+   * connectivity or become unreachable.
    * 
    * \code
    * if (mesh.hasInternetConnection()) {
@@ -644,16 +644,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @see initAsSharedGateway() to give all nodes direct Internet access (requires router credentials)
    */
   bool hasInternetConnection() {
-    bool hasConnections = hasActiveMeshConnections();
-    
+    // Always require healthy bridge status to prevent false positives
+    // when mesh is disconnected. Stale bridge data is unreliable.
     for (const auto& bridge : knownBridges) {
-      // When connected: require fresh status
-      // When disconnected: use last known state
-      bool isUsable = hasConnections 
-          ? (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected)
-          : bridge.internetConnected;
-      
-      if (isUsable) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
         return true;
       }
     }
@@ -698,14 +692,17 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * Get the primary (best) bridge node
    * 
    * Primary bridge is selected based on:
-   * 1. Must be healthy (seen within timeout) - unless node is disconnected
+   * 1. Must be healthy (seen within timeout)
    * 2. Must have Internet connection
    * 3. Best WiFi RSSI to router
    * 
-   * When this node is disconnected from the mesh (no active connections),
-   * returns the last known bridge even if lastSeen is stale. This allows
-   * nodes to attempt routing through the last known bridge once mesh
-   * connectivity is restored.
+   * This method now ALWAYS requires healthy (recent) bridge status to prevent
+   * routing messages to unreachable or outdated bridges when mesh connectivity
+   * is lost. Without active mesh connections and fresh status, we cannot reliably
+   * route messages to any bridge.
+   * 
+   * If you need access to the last known bridge regardless of health status,
+   * use getLastKnownBridge() instead.
    * 
    * @return pointer to BridgeInfo of primary bridge, or nullptr if no suitable bridge
    */
@@ -713,17 +710,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     BridgeInfo* primary = nullptr;
     int8_t bestRSSI = -127;  // Worst possible RSSI
     
-    // Check if we have active mesh connections
-    bool hasConnections = hasActiveMeshConnections();
-    
+    // Always require healthy bridge status to prevent routing to stale/unreachable bridges
     for (auto& bridge : knownBridges) {
-      // When connected to mesh: require healthy (recent) bridge status
-      // When disconnected: use any bridge that reported Internet (stale info is better than none)
-      bool isUsable = hasConnections 
-          ? (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected)
-          : bridge.internetConnected;
-      
-      if (isUsable) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
         if (bridge.routerRSSI > bestRSSI) {
           bestRSSI = bridge.routerRSSI;
           primary = &bridge;
@@ -1288,6 +1277,18 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // A future optimization could bypass the mesh for nodes with direct Internet access.
     if (hasLocalInternet()) {
       Log(COMMUNICATION, "sendToInternet(): Local Internet available, using gateway protocol for consistency\n");
+    }
+
+    // Validate mesh connectivity before attempting to send
+    if (!hasActiveMeshConnections()) {
+      Log(ERROR, "sendToInternet(): No active mesh connections\n");
+      if (callback) {
+        // Schedule callback to avoid blocking
+        this->addTask([callback]() {
+          callback(false, 0, "No mesh connections - cannot route to gateway");
+        });
+      }
+      return 0;
     }
 
     // Find the best gateway to route through
