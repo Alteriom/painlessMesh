@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- TBD
+
+### Changed
+
+- TBD
+
+### Fixed
+
+- TBD
+
+## [1.9.7] - 2025-12-13
+
 ### Fixed
 
 - **External Device WiFi AP Connection** (#231) - Fixed DHCP and AP initialization issues preventing phones and computers from connecting to bridge
