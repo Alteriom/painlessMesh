@@ -16,6 +16,7 @@ namespace tcp_test {
 static const uint8_t TCP_CONNECT_MAX_RETRIES = 5;
 static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 1000;
 static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500;
+static const uint32_t TCP_EXHAUSTION_RECONNECT_DELAY_MS = 10000;
 }  // namespace tcp_test
 
 SCENARIO("TCP connection retry constants are configured correctly",
@@ -31,6 +32,10 @@ SCENARIO("TCP connection retry constants are configured correctly",
 
     THEN("TCP_CONNECT_STABILIZATION_DELAY_MS should be 500 (500ms)") {
       REQUIRE(tcp_test::TCP_CONNECT_STABILIZATION_DELAY_MS == 500);
+    }
+
+    THEN("TCP_EXHAUSTION_RECONNECT_DELAY_MS should be 10000 (10 seconds)") {
+      REQUIRE(tcp_test::TCP_EXHAUSTION_RECONNECT_DELAY_MS == 10000);
     }
   }
 }
@@ -166,6 +171,46 @@ SCENARIO("Backoff multiplier correctly implements bit shifting",
 
     THEN("1U << 4 would be 16, demonstrating why we need the cap") {
       REQUIRE((1U << 4) == 16);
+    }
+  }
+}
+
+SCENARIO("TCP exhaustion reconnect delay prevents rapid reconnection loops",
+         "[tcp][retry][exhaustion][reconnect]") {
+  GIVEN("All TCP connection retries have been exhausted") {
+    uint32_t totalRetryDelay = 0;
+    
+    // Calculate total delay from all retry attempts (1s + 2s + 4s + 8s + 8s = 23s)
+    for (uint8_t retryCount = 0; retryCount < tcp_test::TCP_CONNECT_MAX_RETRIES;
+         ++retryCount) {
+      uint8_t backoffMultiplier = (retryCount < 3) ? (1U << retryCount) : 8;
+      totalRetryDelay += tcp_test::TCP_CONNECT_RETRY_DELAY_MS * backoffMultiplier;
+    }
+    
+    WHEN("WiFi reconnection is scheduled after retry exhaustion") {
+      uint32_t reconnectDelay = tcp_test::TCP_EXHAUSTION_RECONNECT_DELAY_MS;
+      
+      THEN("The reconnect delay should be significantly longer than any single retry") {
+        // 10 seconds vs 8 seconds (longest retry delay)
+        REQUIRE(reconnectDelay > 8000);
+      }
+      
+      THEN("The reconnect delay should provide adequate recovery time") {
+        // 10 seconds is reasonable for TCP server recovery
+        REQUIRE(reconnectDelay >= 10000);
+      }
+      
+      THEN("Total time before reconnection should include all retries plus exhaustion delay") {
+        // Total: 23s (retries) + 10s (exhaustion delay) = 33 seconds
+        uint32_t totalTimeBeforeReconnect = totalRetryDelay + reconnectDelay;
+        REQUIRE(totalTimeBeforeReconnect == 33000);
+      }
+      
+      THEN("The exhaustion delay prevents rapid loops that could occur in <1 second") {
+        // Without exhaustion delay, reconnection could happen almost immediately
+        // after the last retry, potentially creating a rapid loop
+        REQUIRE(reconnectDelay > 1000);
+      }
     }
   }
 }

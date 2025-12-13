@@ -20,6 +20,10 @@ namespace tcp {
 static const uint8_t TCP_CONNECT_MAX_RETRIES = 5;       // Max retry attempts before giving up
 static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 1000; // Delay between retry attempts (1 second)
 static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500; // Delay after IP acquisition (500ms)
+// Delay before WiFi reconnection after all TCP retries are exhausted
+// This prevents rapid reconnection loops when TCP server is persistently unavailable
+// Gives the TCP server more time to recover and reduces network congestion
+static const uint32_t TCP_EXHAUSTION_RECONNECT_DELAY_MS = 10000; // 10 seconds before reconnection
 
 inline uint32_t encodeNodeId(const uint8_t *hwaddr) {
   using namespace painlessmesh::logger;
@@ -137,16 +141,21 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
         return;
       }
       
-      // All retries exhausted - clean up the failed client and trigger full reconnection
-      Log(CONNECTION, "tcp_err(): All %d retries exhausted, triggering WiFi reconnection\n",
-          TCP_CONNECT_MAX_RETRIES + 1);
+      // All retries exhausted - clean up the failed client and schedule delayed reconnection
+      // Adding a significant delay before reconnection prevents rapid reconnection loops
+      // when the TCP server is persistently unavailable or overloaded
+      Log(CONNECTION, "tcp_err(): All %d retries exhausted, scheduling WiFi reconnection in %u ms\n",
+          TCP_CONNECT_MAX_RETRIES + 1, TCP_EXHAUSTION_RECONNECT_DELAY_MS);
       delete client;
 #endif
       // Defer callback execution to avoid crashes in error handler context
       // Execute callbacks after semaphore is released and error handler completes
+      // The delay helps prevent endless rapid reconnection loops by giving the TCP server
+      // more time to recover and reducing network congestion from multiple retrying nodes
       mesh.addTask([&mesh]() {
+        Log(CONNECTION, "tcp_err(): Executing delayed WiFi reconnection after retry exhaustion\n");
         mesh.droppedConnectionCallbacks.execute(0, true);
-      });
+      }, TCP_EXHAUSTION_RECONNECT_DELAY_MS);
       mesh.semaphoreGive();
     }
   });
