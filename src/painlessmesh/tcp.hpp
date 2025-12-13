@@ -133,20 +133,31 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
           connect<T, M>((*pRetryConn), ip, port, mesh, retryCount + 1);
         }, retryDelay);
         
-        // Delete the current failed client to prevent memory leak
-        // The AsyncClient is no longer needed after connection failure
-        delete client;
+        // Defer deletion of the failed AsyncClient to prevent heap corruption
+        // Deleting from within the error callback can cause use-after-free issues
+        // as the AsyncTCP library may still be referencing the object
+        mesh.addTask([client]() {
+          Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient after error handler completion\n");
+          delete client;
+        }, 0);
         
         mesh.semaphoreGive();
         return;
       }
       
-      // All retries exhausted - clean up the failed client and schedule delayed reconnection
+      // All retries exhausted - schedule delayed reconnection
       // Adding a significant delay before reconnection prevents rapid reconnection loops
       // when the TCP server is persistently unavailable or overloaded
       Log(CONNECTION, "tcp_err(): All %d retries exhausted, scheduling WiFi reconnection in %u ms\n",
           TCP_CONNECT_MAX_RETRIES + 1, TCP_EXHAUSTION_RECONNECT_DELAY_MS);
-      delete client;
+      
+      // Defer deletion of the failed AsyncClient to prevent heap corruption
+      // Deleting from within the error callback can cause use-after-free issues
+      // as the AsyncTCP library may still be referencing the object
+      mesh.addTask([client]() {
+        Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient after error handler completion\n");
+        delete client;
+      }, 0);
 #endif
       // Defer callback execution to avoid crashes in error handler context
       // Execute callbacks after semaphore is released and error handler completes
