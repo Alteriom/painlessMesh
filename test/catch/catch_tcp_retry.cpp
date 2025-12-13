@@ -181,6 +181,8 @@ SCENARIO("TCP exhaustion reconnect delay prevents rapid reconnection loops",
     uint32_t totalRetryDelay = 0;
     
     // Calculate total delay from all retry attempts (1s + 2s + 4s + 8s + 8s = 23s)
+    // Note: This backoff logic is duplicated from tcp.hpp to validate behavior
+    // Future: Consider extracting to shared utility function for consistency
     for (uint8_t retryCount = 0; retryCount < tcp_test::TCP_CONNECT_MAX_RETRIES;
          ++retryCount) {
       uint8_t backoffMultiplier = (retryCount < 3) ? (1U << retryCount) : 8;
@@ -192,7 +194,8 @@ SCENARIO("TCP exhaustion reconnect delay prevents rapid reconnection loops",
       
       THEN("The reconnect delay should be significantly longer than any single retry") {
         // 10 seconds vs 8 seconds (longest retry delay)
-        REQUIRE(reconnectDelay > 8000);
+        uint32_t maxSingleRetryDelay = tcp_test::TCP_CONNECT_RETRY_DELAY_MS * 8;
+        REQUIRE(reconnectDelay > maxSingleRetryDelay);
       }
       
       THEN("The reconnect delay should provide adequate recovery time") {
