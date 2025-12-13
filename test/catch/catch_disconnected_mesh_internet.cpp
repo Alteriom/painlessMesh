@@ -98,20 +98,12 @@ SCENARIO("sendToInternet() fails early when no active mesh connections", "[issue
         node.enableSendToInternet();
         
         WHEN("Attempting to send data via sendToInternet() with no mesh connections") {
-            bool callbackInvoked = false;
-            bool callbackSuccess = false;
-            uint16_t callbackHttpStatus = 0;
-            TSTRING callbackError = "";
-            
             // Attempt to send (should fail immediately)
             node.sendToInternet(
                 "https://api.callmebot.com/whatsapp.php?test=1",
                 "",
-                [&](bool success, uint16_t httpStatus, TSTRING error) {
-                    callbackInvoked = true;
-                    callbackSuccess = success;
-                    callbackHttpStatus = httpStatus;
-                    callbackError = error;
+                [](bool, uint16_t, TSTRING) {
+                    // Callback may be invoked with error
                 }
             );
             
