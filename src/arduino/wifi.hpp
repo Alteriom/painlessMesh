@@ -2079,8 +2079,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           TSTRING error = "";
 
 #ifdef ESP8266
-          // ESP8266: Declare WiFiClientSecure at function scope to ensure
-          // it survives until after the HTTP request completes
+          // ESP8266: Declare clients at function scope to ensure
+          // they survive until after the HTTP request completes
+          WiFiClient client;
           WiFiClientSecure secureClient;
 #endif
 
@@ -2095,7 +2096,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             http.begin(secureClient, pkg.destination.c_str());
 #endif
           } else {
+#ifdef ESP32
             http.begin(pkg.destination.c_str());
+#elif defined(ESP8266)
+            // ESP8266: begin() requires a client parameter
+            http.begin(client, pkg.destination.c_str());
+#endif
           }
 
           // Make request (GET if no payload, POST if payload)
