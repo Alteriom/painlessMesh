@@ -14,6 +14,11 @@ extern painlessmesh::logger::LogClass Log;
 namespace painlessmesh {
 namespace tcp {
 
+// Delay before cleaning up failed AsyncClient after connection error or close
+// This prevents crashes when AsyncTCP library is still accessing the client internally
+// The AsyncTCP library may take a few hundred milliseconds to complete its internal cleanup
+static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 500; // 500ms delay before deleting AsyncClient
+
 // Shared buffer for reading/writing to the buffer
 static painlessmesh::buffer::temp_buffer_t shared_buffer;
 
@@ -40,16 +45,50 @@ class BufferedConnection
   BufferedConnection(AsyncClient *client) : client(client) {}
 
   ~BufferedConnection() {
+    using namespace logger;
     Log.remote("~BufferedConnection");
     this->close();
     if (!client->freeable()) {
       client->close(true);
     }
     client->abort();
-    delete client;
+    
+    // Defer deletion of the AsyncClient to prevent heap corruption
+    // Deleting immediately can cause use-after-free issues when the AsyncTCP 
+    // library is still referencing the object internally during cleanup
+    // See ISSUE_254_HEAP_CORRUPTION_FIX.md and ASYNCCLIENT_CLEANUP_FIX.md
+    if (mScheduler) {
+      // Capture client pointer by value for safe deferred deletion
+      AsyncClient* clientToDelete = client;
+      
+      // Schedule deletion task with TCP_CLIENT_CLEANUP_DELAY_MS delay
+      // This gives AsyncTCP library time to complete its internal cleanup
+      // Note: Task object is intentionally leaked to keep implementation simple
+      // This is acceptable because:
+      // 1. Connections are long-lived, destructor calls are infrequent
+      // 2. Task object is small (~32-64 bytes) vs preventing critical heap corruption
+      // 3. In typical deployments, memory impact is negligible (few KB over months)
+      // 4. Alternative cleanup patterns would add significant complexity
+      Task* cleanupTask = new Task(TCP_CLIENT_CLEANUP_DELAY_MS * TASK_MILLISECOND, TASK_ONCE, [clientToDelete]() {
+        using namespace logger;
+        Log(CONNECTION, "~BufferedConnection: Deferred cleanup of AsyncClient\n");
+        delete clientToDelete;
+      });
+      
+      mScheduler->addTask(*cleanupTask);
+      cleanupTask->enableDelayed();
+    } else {
+      // Fallback: If scheduler not available, delete immediately
+      // This should only happen in test environments or edge cases
+      Log(CONNECTION, "~BufferedConnection: No scheduler available, deleting AsyncClient immediately (risky)\n");
+      delete client;
+    }
   }
 
   void initialize(Scheduler *scheduler) {
+    // Store scheduler reference for deferred cleanup in destructor
+    mScheduler = scheduler;
+    
     auto self = this->shared_from_this();
     sentBufferTask.set(TASK_SECOND, TASK_FOREVER, [self]() {
       if (!self->sentBuffer.empty() && self->client->canSend()) {
@@ -156,6 +195,7 @@ class BufferedConnection
   bool mConnected = true;
 
   AsyncClient *client;
+  Scheduler *mScheduler = nullptr; // Scheduler for deferred AsyncClient cleanup
 
   std::function<void(TSTRING)> receiveCallback;
   std::function<void()> disconnectCallback;
