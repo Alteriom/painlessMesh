@@ -7,17 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Fixed
 
-- TBD
+- **Heap Corruption on TCP Connection Errors** (#254) - Fixed ESP32 heap corruption crashes during AsyncClient deletion
+  - **Root Cause**: AsyncClient objects were being deleted synchronously from within their own error callback handlers, causing heap corruption and use-after-free crashes
+  - **Symptom**: ESP32 devices crash with "CORRUPT HEAP: Bad head at 0x4083a398. Expected 0xabba1234 got 0xfefefefe" during TCP connection error handling
+  - **Solution**: Deferred AsyncClient deletion using task scheduler to execute after error handler completes
+    - Changed from synchronous `delete client` to deferred deletion via `mesh.addTask([client]() { delete client; }, 0)`
+    - Deletion now occurs microseconds after error handler returns, preventing use-after-free
+    - Added logging for cleanup operations to aid debugging
+  - **Impact**: Eliminates heap corruption crashes on ESP32 during TCP connection retries and error conditions
+  - **Files Modified**: `src/painlessmesh/tcp.hpp` (lines 138, 149)
 
 ### Changed
 
-- TBD
-
-### Fixed
-
-- TBD
+- **README Version Reference** - Updated version banner from 1.9.6 to 1.9.7 for consistency with current release
 
 ## [1.9.7] - 2025-12-13
 

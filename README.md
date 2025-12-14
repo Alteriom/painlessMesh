@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.6** - Latest release with TCP connection improvements and documentation updates
+**Version 1.9.7** - Latest release with external device WiFi AP connection fixes and comprehensive documentation
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
