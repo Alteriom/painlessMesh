@@ -72,7 +72,7 @@ void setup() {
   // Set debug message types before init() to see startup messages
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
 
-  // NEW: Single call to initialize as bridge with auto channel detection
+  // Single call to initialize as bridge with auto channel detection
   // This will:
   // 1. Attempt to connect to router and detect its channel
   // 2. Initialize mesh on the detected channel (or default if router unavailable)
@@ -84,12 +84,12 @@ void setup() {
   // The bridge will successfully initialize even if the router is unavailable
   // at boot time. It will:
   // - Establish the mesh network immediately on a default channel
-  // - Accept connections from mesh nodes
+  // - Accept connections from mesh nodes right away
   // - Retry router connection automatically in the background
   // - Update bridge status when router becomes available
   //
-  // This solves the power-up order issue where bridge initialization would
-  // fail if the router wasn't ready yet.
+  // This solves the power-up order issue (Issue #268) where bridge
+  // initialization would fail if the router wasn't ready yet.
   mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
                     ROUTER_SSID, ROUTER_PASSWORD,
                     &userScheduler, MESH_PORT);

@@ -481,7 +481,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       Log(STARTUP, "ℹ Router connection will be established automatically when available\n");
     }
     
-    return true;  // Always return true - bridge is functional even without router
+    // Return true - bridge mesh functionality is active even without router
+    // The mesh network is operational and nodes can connect
+    // Router connection will be retried automatically via stationManual
+    return true;
   }
 
   /**
