@@ -16,6 +16,7 @@ namespace tcp_test {
 static const uint8_t TCP_CONNECT_MAX_RETRIES = 5;
 static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 1000;
 static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500;
+static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 500;
 static const uint32_t TCP_EXHAUSTION_RECONNECT_DELAY_MS = 10000;
 }  // namespace tcp_test
 
@@ -32,6 +33,10 @@ SCENARIO("TCP connection retry constants are configured correctly",
 
     THEN("TCP_CONNECT_STABILIZATION_DELAY_MS should be 500 (500ms)") {
       REQUIRE(tcp_test::TCP_CONNECT_STABILIZATION_DELAY_MS == 500);
+    }
+
+    THEN("TCP_CLIENT_CLEANUP_DELAY_MS should be 500 (500ms)") {
+      REQUIRE(tcp_test::TCP_CLIENT_CLEANUP_DELAY_MS == 500);
     }
 
     THEN("TCP_EXHAUSTION_RECONNECT_DELAY_MS should be 10000 (10 seconds)") {

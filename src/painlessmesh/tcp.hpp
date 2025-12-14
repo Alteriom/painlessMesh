@@ -20,6 +20,10 @@ namespace tcp {
 static const uint8_t TCP_CONNECT_MAX_RETRIES = 5;       // Max retry attempts before giving up
 static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 1000; // Delay between retry attempts (1 second)
 static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500; // Delay after IP acquisition (500ms)
+// Delay before cleaning up failed AsyncClient after connection error
+// This prevents crashes when AsyncTCP library is still accessing the client internally
+// The AsyncTCP library may take a few hundred milliseconds to complete its internal cleanup
+static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 500; // 500ms delay before deleting AsyncClient
 // Delay before WiFi reconnection after all TCP retries are exhausted
 // This prevents rapid reconnection loops when TCP server is persistently unavailable
 // Gives the TCP server more time to recover and reduces network congestion
@@ -136,11 +140,13 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
         // Defer deletion of the failed AsyncClient to prevent heap corruption
         // Deleting from within the error callback can cause use-after-free issues
         // as the AsyncTCP library may still be referencing the object
+        // Use TCP_CLIENT_CLEANUP_DELAY_MS to give AsyncTCP library time to complete
+        // its internal cleanup before we delete the object
         // Note: client is captured by value (pointer copy) and we are the sole owner
         mesh.addTask([client]() {
           Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient (retry path)\n");
           delete client;
-        }, 0);
+        }, TCP_CLIENT_CLEANUP_DELAY_MS);
         
         mesh.semaphoreGive();
         return;
@@ -155,11 +161,13 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
       // Defer deletion of the failed AsyncClient to prevent heap corruption
       // Deleting from within the error callback can cause use-after-free issues
       // as the AsyncTCP library may still be referencing the object
+      // Use TCP_CLIENT_CLEANUP_DELAY_MS to give AsyncTCP library time to complete
+      // its internal cleanup before we delete the object
       // Note: client is captured by value (pointer copy) and we are the sole owner
       mesh.addTask([client]() {
         Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient (exhaustion path)\n");
         delete client;
-      }, 0);
+      }, TCP_CLIENT_CLEANUP_DELAY_MS);
 #endif
       // Defer callback execution to avoid crashes in error handler context
       // Execute callbacks after semaphore is released and error handler completes
