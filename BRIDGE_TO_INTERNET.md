@@ -4,7 +4,20 @@ You can bridge your mesh network to the Internet by creating a **gateway node** 
 
 ## Quick Start (Recommended: Auto Channel Detection)
 
-The **new bridge-centric approach** automatically detects your router's channel and configures the mesh accordingly. No manual channel configuration required!
+The **bridge-centric approach** automatically detects your router's channel and configures the mesh accordingly. No manual channel configuration required!
+
+### Resilient Initialization (v1.9.7+)
+
+**Power-up order no longer matters!** The bridge will initialize successfully even if:
+- Router is not yet powered on
+- Internet connection is unavailable
+- Router is temporarily offline
+
+The bridge will:
+- Establish the mesh network immediately
+- Accept connections from mesh nodes right away
+- Retry router connection automatically in the background
+- Update status when router/Internet becomes available
 
 ```cpp
 #include "painlessMesh.h"
@@ -25,10 +38,10 @@ void setup() {
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
   
   // Single call does everything:
-  // 1. Connects to router and detects its channel
-  // 2. Initializes mesh on detected channel
+  // 1. Attempts to connect to router and detect its channel
+  // 2. Initializes mesh on detected channel (or default if router unavailable)
   // 3. Sets node as root/bridge
-  // 4. Maintains router connection
+  // 4. Maintains/retries router connection automatically
   mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
                     ROUTER_SSID, ROUTER_PASSWORD,
                     &userScheduler, MESH_PORT);
@@ -46,10 +59,10 @@ void receivedCallback(uint32_t from, String& msg) {
 }
 ```
 
-**Expected Output:**
+**Expected Output (Router Available):**
 ```
 === Bridge Mode Initialization ===
-Step 1: Connecting to router YourRouterSSID...
+Step 1: Attempting to connect to router YourRouterSSID...
 ✓ Router connected on channel 6
 ✓ Router IP: 192.168.1.100
 Step 2: Initializing mesh on channel 6...
@@ -58,8 +71,29 @@ Step 3: Establishing bridge connection...
 === Bridge Mode Active ===
   Mesh SSID: MyMeshNetwork
   Mesh Channel: 6 (matches router)
-  Router: YourRouterSSID
+  Router: YourRouterSSID (connected)
   Port: 5555
+```
+
+**Expected Output (Router Unavailable):**
+```
+=== Bridge Mode Initialization ===
+Step 1: Attempting to connect to router YourRouterSSID...
+⚠ Router connection unavailable during initialization
+⚠ Proceeding with bridge setup on default channel 1
+⚠ Bridge will retry router connection in background
+Step 2: Initializing mesh on channel 1...
+STARTUP: init(): Mesh channel set to 1
+Step 3: Establishing bridge connection...
+=== Bridge Mode Active ===
+  Mesh SSID: MyMeshNetwork
+  Mesh Channel: 1 (default, router pending)
+  Router: YourRouterSSID (will retry)
+  Port: 5555
+
+ℹ Bridge initialized without router connection
+ℹ Mesh network is active and accepting node connections
+ℹ Router connection will be established automatically when available
 ```
 
 ### Regular Nodes with Auto-Detection

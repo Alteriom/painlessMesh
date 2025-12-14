@@ -386,9 +386,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     using namespace logger;
 
     Log(STARTUP, "=== Bridge Mode Initialization ===\n");
-    Log(STARTUP, "Step 1: Connecting to router %s...\n", routerSSID.c_str());
+    Log(STARTUP, "Step 1: Attempting to connect to router %s...\n", routerSSID.c_str());
 
-    // Step 1: Connect to router first to detect its channel
+    // Store router credentials for future connection attempts
+    setRouterCredentials(routerSSID, routerPassword);
+
+    // Step 1: Attempt to connect to router first to detect its channel
     // Shut Wifi down and start with a blank slate
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
@@ -413,6 +416,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
 
     uint8_t detectedChannel = 1;  // Default fallback
+    bool routerConnected = false;
 
     if (WiFi.status() == WL_CONNECTED) {
       detectedChannel = WiFi.channel();
@@ -425,18 +429,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       } else {
         Log(STARTUP, "\n✓ Router connected on channel %d\n", detectedChannel);
         Log(STARTUP, "✓ Router IP: %s\n", WiFi.localIP().toString().c_str());
+        routerConnected = true;
       }
     } else {
-      Log(ERROR, "\n✗ Failed to connect to router\n");
-      Log(ERROR, "Cannot become bridge without router connection\n");
-      Log(ERROR, "Bridge initialization aborted - remaining as regular node\n");
-      return false;
+      Log(STARTUP, "\n⚠ Router connection unavailable during initialization\n");
+      Log(STARTUP, "⚠ Proceeding with bridge setup on default channel %d\n", detectedChannel);
+      Log(STARTUP, "⚠ Bridge will retry router connection in background\n");
     }
 
     Log(STARTUP, "Step 2: Initializing mesh on channel %d...\n",
         detectedChannel);
 
-    // Step 2: Initialize mesh on detected channel
+    // Step 2: Initialize mesh on detected/default channel
+    // This allows the bridge to establish the mesh network even without router
     init(meshSSID, meshPassword, baseScheduler, port, WIFI_AP_STA,
          detectedChannel, 0, MAX_CONN);
 
@@ -446,10 +451,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     Log(STARTUP, "Step 3: Establishing bridge connection...\n");
 
-    // Step 3: Re-establish router connection using stationManual
+    // Step 3: Establish/re-establish router connection using stationManual
+    // If router wasn't available initially, this will be retried automatically
     stationManual(routerSSID, routerPassword, 0);
 
     // Step 4: Configure as root/bridge node
+    // Bridge role is established regardless of router connectivity
+    // This ensures mesh nodes can connect and the bridge can provide mesh services
     this->setRoot(true);
     this->setContainsRoot(true);
 
@@ -461,10 +469,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     Log(STARTUP, "=== Bridge Mode Active ===\n");
     Log(STARTUP, "  Mesh SSID: %s\n", meshSSID.c_str());
-    Log(STARTUP, "  Mesh Channel: %d (matches router)\n", detectedChannel);
-    Log(STARTUP, "  Router: %s\n", routerSSID.c_str());
+    Log(STARTUP, "  Mesh Channel: %d%s\n", detectedChannel, 
+        routerConnected ? " (matches router)" : " (default, router pending)");
+    Log(STARTUP, "  Router: %s%s\n", routerSSID.c_str(),
+        routerConnected ? " (connected)" : " (will retry)");
     Log(STARTUP, "  Port: %d\n", port);
-    return true;
+    
+    if (!routerConnected) {
+      Log(STARTUP, "\nℹ Bridge initialized without router connection\n");
+      Log(STARTUP, "ℹ Mesh network is active and accepting node connections\n");
+      Log(STARTUP, "ℹ Router connection will be established automatically when available\n");
+    }
+    
+    return true;  // Always return true - bridge is functional even without router
   }
 
   /**
