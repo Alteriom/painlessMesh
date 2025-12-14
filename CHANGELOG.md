@@ -17,7 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- TBD
+- **Node Crash During TCP Connection Retries** - Fixed device crashes that occurred after 2-3 TCP connection retry attempts
+  - **Root Cause**: AsyncClient objects were being deleted too quickly (0ms delay) after connection errors. The AsyncTCP library needs 200-400ms to complete internal cleanup operations, and accessing the deleted object caused crashes
+  - **Symptom**: Device crashes or hangs after 2-3 TCP retry attempts, serial log stops abruptly during retry sequence
+  - **Solution**: Increased AsyncClient cleanup delay from 0ms to 500ms
+    - Added new constant `TCP_CLIENT_CLEANUP_DELAY_MS = 500` to give AsyncTCP library time to complete internal cleanup
+    - Updated both cleanup paths (retry and exhaustion) to use this delay
+    - Provides sufficient time for AsyncTCP to finish processing before object deletion
+  - **Impact**: Eliminates crashes during TCP connection retries, allows full retry sequence to complete
+  - **Files Modified**: `src/painlessmesh/tcp.hpp` (lines 26, 149, 170)
+  - **Documentation**: See `ASYNCCLIENT_CLEANUP_FIX.md` for detailed analysis
 
 ## [1.9.8] - 2025-12-14
 
