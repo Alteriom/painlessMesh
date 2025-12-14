@@ -40,6 +40,7 @@ class BufferedConnection
   BufferedConnection(AsyncClient *client) : client(client) {}
 
   ~BufferedConnection() {
+    using namespace logger;
     Log.remote("~BufferedConnection");
     this->close();
     if (!client->freeable()) {
@@ -74,7 +75,6 @@ class BufferedConnection
     } else {
       // Fallback: If scheduler not available, delete immediately
       // This should only happen in test environments or edge cases
-      using namespace logger;
       Log(CONNECTION, "~BufferedConnection: No scheduler available, deleting AsyncClient immediately (risky)\n");
       delete client;
     }
