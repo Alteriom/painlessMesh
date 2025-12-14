@@ -1,19 +1,28 @@
 //************************************************************
-// Bridge Node Example - Automatic Channel Detection
+// Bridge Node Example - Automatic Channel Detection & Resilient Initialization
 //
-// This example demonstrates the new bridge-centric architecture that
+// This example demonstrates the bridge-centric architecture that
 // automatically detects the router's WiFi channel and configures the
 // mesh network accordingly.
 //
 // Features:
-// - Connects to router FIRST and auto-detects its channel
-// - Creates mesh network on the same channel as router
+// - Resilient initialization: Works even if router is unavailable at boot
+// - Automatically detects router channel when available
+// - Creates mesh network immediately (default channel if needed)
 // - No manual channel configuration required
 // - Automatically sets itself as root node
+// - Retries router connection in background if initially unavailable
 // - Broadcasts bridge status to mesh (Type 610 - BRIDGE_STATUS)
 //   - Reports Internet connectivity status
 //   - Updates every 30 seconds by default
 //   - Enables nodes to implement failover and queueing logic
+//
+// POWER-UP ORDER INDEPENDENCE (v1.9.7+):
+// The bridge now initializes successfully regardless of power-up order:
+// - Bridge can boot before router is ready
+// - Mesh nodes can connect immediately to bridge
+// - Router connection is established automatically when available
+// - No need to restart bridge when router becomes ready
 //
 // For more details, see BRIDGE_TO_INTERNET.md
 //
@@ -63,29 +72,27 @@ void setup() {
   // Set debug message types before init() to see startup messages
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
 
-  // NEW: Single call to initialize as bridge with auto channel detection
+  // Single call to initialize as bridge with auto channel detection
   // This will:
-  // 1. Connect to router and detect its channel
-  // 2. Initialize mesh on the detected channel
-  // 3. Set this node as root
-  // 4. Maintain router connection
+  // 1. Attempt to connect to router and detect its channel
+  // 2. Initialize mesh on the detected channel (or default if router unavailable)
+  // 3. Set this node as root/bridge
+  // 4. Maintain/retry router connection automatically
   // 5. Start broadcasting bridge status (Type 610) every 30 seconds
-  bool bridgeSuccess = mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
-                                         ROUTER_SSID, ROUTER_PASSWORD,
-                                         &userScheduler, MESH_PORT);
-
-  if (!bridgeSuccess) {
-    Serial.println("✗ Failed to initialize as bridge!");
-    Serial.println("Router unreachable - falling back to regular mesh node");
-    Serial.println("The node will join the mesh without bridge functionality");
-    
-    // Fallback: Initialize as regular mesh node
-    // This allows the device to still participate in the mesh
-    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
-    
-    Serial.println("✓ Initialized as regular mesh node");
-    Serial.println("Note: To function as a bridge, fix router connectivity and restart");
-  }
+  //
+  // RESILIENT INITIALIZATION (v1.9.7+):
+  // The bridge will successfully initialize even if the router is unavailable
+  // at boot time. It will:
+  // - Establish the mesh network immediately on a default channel
+  // - Accept connections from mesh nodes right away
+  // - Retry router connection automatically in the background
+  // - Update bridge status when router becomes available
+  //
+  // This solves the power-up order issue (Issue #268) where bridge
+  // initialization would fail if the router wasn't ready yet.
+  mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                    ROUTER_SSID, ROUTER_PASSWORD,
+                    &userScheduler, MESH_PORT);
 
   // Optional: Configure bridge status broadcasting
   // mesh.setBridgeStatusInterval(60000);  // Change to 60 seconds
@@ -98,6 +105,8 @@ void setup() {
   mesh.onReceive(&receivedCallback);
   
   Serial.println("✓ Bridge node initialized and ready!");
+  Serial.println("Mesh network active - accepting node connections");
+  Serial.println("Router connection will be established automatically when available");
   Serial.println("Broadcasting bridge status to mesh every 30 seconds");
 }
 

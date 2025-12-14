@@ -9,7 +9,7 @@ using namespace painlessmesh;
 // Declare logger for test environment
 painlessmesh::logger::LogClass Log;
 
-SCENARIO("initAsBridge returns false when router connection fails", "[bridge][init][failure]") {
+SCENARIO("initAsBridge initializes mesh even when router is unavailable (v1.9.7+)", "[bridge][init][resilient]") {
     GIVEN("A mesh node attempting to become a bridge") {
         Scheduler scheduler;
         Mesh<Connection> node;
@@ -17,32 +17,33 @@ SCENARIO("initAsBridge returns false when router connection fails", "[bridge][in
         uint32_t nodeId = 1234567;
         node.init(&scheduler, nodeId);
         
-        WHEN("Bridge initialization fails due to unreachable router") {
-            THEN("The behavior should prevent channel mismatch") {
+        WHEN("Router connection is unavailable during initialization") {
+            THEN("Bridge should initialize mesh network successfully") {
                 // In the test environment, we can't actually test WiFi connection,
-                // but we document the expected behavior:
+                // but we document the expected behavior (v1.9.7+):
                 //
-                // 1. If router connection fails in initAsBridge():
-                //    - Function returns false
-                //    - Node does NOT become a bridge
-                //    - Node does NOT switch to channel 1
-                //    - Node remains on original mesh channel
+                // 1. When router connection fails in initAsBridge():
+                //    - Function still returns true (mesh is operational)
+                //    - Node DOES become a bridge (mesh functionality active)
+                //    - Mesh AP initializes on default channel 1
+                //    - Node is set as root/bridge
+                //    - Bridge status broadcasting starts
+                //    - Router connection is retried automatically via stationManual
                 //
-                // 2. If promoteToBridge() receives false from initAsBridge():
-                //    - Node reverts to regular node mode
-                //    - Node re-initializes on original mesh channel
-                //    - Election state is reset to IDLE
-                //    - Bridge role callback is called with success=false
+                // 2. Power-up order no longer matters:
+                //    - Bridge can boot before router is ready
+                //    - Mesh nodes can connect to bridge immediately
+                //    - Router connection established when available
+                //    - No need to restart bridge when router comes online
                 //
-                // This prevents the scenario where:
-                // - Node tries to become bridge with unreachable router
-                // - Switches to channel 1 (default fallback)
-                // - Loses mesh connectivity (other nodes on different channel)
-                // - Cannot receive bridge status updates from real bridge
-                // - Creates confusing state where bridge appears in list but is stale
+                // This solves Issue #268 where:
+                // - Bridge initialization would fail completely without router
+                // - Power-up order determined success/failure
+                // - Mesh nodes couldn't connect to bridge without Internet
                 
-                INFO("initAsBridge() return value prevents channel mismatch");
-                INFO("promoteToBridge() handles failure by reverting to regular node");
+                INFO("initAsBridge() returns true even without router (v1.9.7+)");
+                INFO("Mesh network is operational immediately");
+                INFO("Router connection retried automatically in background");
                 REQUIRE(true); // Documented behavior
             }
         }
@@ -83,67 +84,70 @@ SCENARIO("promoteToBridge handles router connection failure gracefully", "[bridg
     }
 }
 
-SCENARIO("Bridge initialization provides clear success/failure indication", "[bridge][init][api]") {
+SCENARIO("Bridge initialization provides operational mesh regardless of router (v1.9.7+)", "[bridge][init][api]") {
     GIVEN("Code that calls initAsBridge()") {
         WHEN("Router connection succeeds") {
-            THEN("initAsBridge() returns true") {
+            THEN("initAsBridge() returns true with full bridge functionality") {
                 // When router connection succeeds:
                 // - WiFi.status() == WL_CONNECTED
                 // - Channel is detected from router
                 // - Mesh is initialized on detected channel
                 // - Node is set as root/bridge
                 // - Bridge status broadcasting starts
+                // - Router connection is active
                 // - Function returns true
                 
-                INFO("Success case returns true");
+                INFO("Success case returns true with router connected");
                 REQUIRE(true);
             }
         }
         
         WHEN("Router connection fails") {
-            THEN("initAsBridge() returns false") {
-                // When router connection fails:
+            THEN("initAsBridge() still returns true with mesh operational (v1.9.7+)") {
+                // When router connection fails (v1.9.7+):
                 // - WiFi.status() != WL_CONNECTED after timeout
-                // - Error logged: "Failed to connect to router"
-                // - Error logged: "Cannot become bridge without router connection"
-                // - Error logged: "Bridge initialization aborted - remaining as regular node"
-                // - Function returns false immediately
-                // - Node does NOT become bridge
-                // - No partial initialization
+                // - Warning logged: "Router connection unavailable during initialization"
+                // - Warning logged: "Proceeding with bridge setup on default channel"
+                // - Warning logged: "Bridge will retry router connection in background"
+                // - Mesh is initialized on default channel 1
+                // - Node IS set as root/bridge (mesh functionality active)
+                // - Bridge status broadcasting starts (reports no Internet)
+                // - Function returns true (mesh is operational)
+                // - Router connection retried automatically via stationManual
                 
-                INFO("Failure case returns false and logs errors");
+                INFO("Router unavailable case returns true (mesh operational)");
+                INFO("Router connection retried automatically");
                 REQUIRE(true);
             }
         }
     }
 }
 
-SCENARIO("Examples handle bridge initialization failure appropriately", "[bridge][examples]") {
+SCENARIO("Examples use simplified bridge initialization (v1.9.7+)", "[bridge][examples]") {
     GIVEN("Bridge example code in setup()") {
         WHEN("initAsBridge() is called") {
-            THEN("Return value should be checked with graceful fallback") {
-                // Updated examples check return value and fallback gracefully:
+            THEN("No fallback logic needed - mesh is always operational (v1.9.7+)") {
+                // Updated examples (v1.9.7+) use simplified initialization:
                 //
-                // bool bridgeSuccess = mesh.initAsBridge(...);
-                // if (!bridgeSuccess) {
-                //   Serial.println("✗ Failed to initialize as bridge!");
-                //   Serial.println("Router unreachable - falling back to regular mesh node");
-                //   
-                //   // Fallback: Initialize as regular mesh node
-                //   mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
-                //   
-                //   Serial.println("✓ Initialized as regular mesh node");
-                // }
+                // mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
+                //                   ROUTER_SSID, ROUTER_PASSWORD,
+                //                   &userScheduler, MESH_PORT);
                 //
-                // This approach:
-                // - Gives control to library users (no forced restart)
-                // - Allows device to participate in mesh
-                // - Provides clear feedback about state
-                // - Enables flexible recovery strategies
+                // No fallback needed because:
+                // - Mesh network is always established (regardless of router)
+                // - Nodes can connect to bridge immediately
+                // - Router connection is retried automatically
+                // - Bridge status reflects current Internet connectivity
+                //
+                // This simplifies user code:
+                // - No need to check return value for mesh functionality
+                // - No need for fallback initialization logic
+                // - No need to manually retry router connection
+                // - Clear separation: mesh (always works) vs Internet (best effort)
                 
-                INFO("Examples check initAsBridge() return value");
-                INFO("Graceful fallback to regular node maintains mesh connectivity");
-                INFO("No forced restart - user maintains control");
+                INFO("Examples don't need fallback logic (v1.9.7+)");
+                INFO("Mesh is operational regardless of router availability");
+                INFO("Router connection retried automatically");
                 REQUIRE(true); // Documented behavior
             }
         }
