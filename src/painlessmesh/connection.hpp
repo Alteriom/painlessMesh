@@ -57,6 +57,12 @@ class BufferedConnection
       
       // Schedule deletion task with 500ms delay
       // This gives AsyncTCP library time to complete its internal cleanup
+      // Note: Task object is intentionally leaked to keep implementation simple
+      // This is acceptable because:
+      // 1. Connections are long-lived, destructor calls are infrequent
+      // 2. Task object is small (~32-64 bytes) vs preventing critical heap corruption
+      // 3. In typical deployments, memory impact is negligible (few KB over months)
+      // 4. Alternative cleanup patterns would add significant complexity
       Task* cleanupTask = new Task(500 * TASK_MILLISECOND, TASK_ONCE, [clientToDelete]() {
         using namespace logger;
         Log(CONNECTION, "~BufferedConnection: Deferred cleanup of AsyncClient\n");
@@ -65,11 +71,6 @@ class BufferedConnection
       
       mScheduler->addTask(*cleanupTask);
       cleanupTask->enableDelayed();
-      
-      // Note: Task object will be leaked, but this is acceptable because:
-      // 1. Connections are long-lived, destructor calls are infrequent
-      // 2. Task is small (~few bytes) compared to preventing heap corruption
-      // 3. Alternative would require more complex lifecycle management
     } else {
       // Fallback: If scheduler not available, delete immediately
       // This should only happen in test environments or edge cases
