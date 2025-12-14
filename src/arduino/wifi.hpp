@@ -433,7 +433,33 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       }
     } else {
       Log(STARTUP, "\n⚠ Router connection unavailable during initialization\n");
-      Log(STARTUP, "⚠ Proceeding with bridge setup on default channel %d\n", detectedChannel);
+      
+      // Scan for router to detect its channel even though we can't connect
+      // This minimizes channel mismatch when router becomes available later
+      Log(STARTUP, "⚠ Scanning for router '%s' to detect channel...\n", routerSSID.c_str());
+      
+      int16_t numNetworks = WiFi.scanNetworks(false, false, false, 300U, 0);
+      
+      if (numNetworks > 0) {
+        for (int16_t i = 0; i < numNetworks; i++) {
+          if (WiFi.SSID(i) == routerSSID) {
+            uint8_t scannedChannel = WiFi.channel(i);
+            if (scannedChannel >= 1 && scannedChannel <= 13) {
+              detectedChannel = scannedChannel;
+              Log(STARTUP, "✓ Router found on channel %d (not connected, will retry)\n", 
+                  detectedChannel);
+              break;
+            }
+          }
+        }
+        WiFi.scanDelete();
+      }
+      
+      if (detectedChannel == 1) {
+        Log(STARTUP, "⚠ Router not found in scan, using default channel %d\n", detectedChannel);
+      }
+      
+      Log(STARTUP, "⚠ Proceeding with bridge setup on channel %d\n", detectedChannel);
       Log(STARTUP, "⚠ Bridge will retry router connection in background\n");
     }
 

@@ -216,14 +216,16 @@ Step 3: Establishing bridge connection...
 === Bridge Mode Initialization ===
 Step 1: Attempting to connect to router YourRouterSSID...
 ⚠ Router connection unavailable during initialization
-⚠ Proceeding with bridge setup on default channel 1
+⚠ Scanning for router 'YourRouterSSID' to detect channel...
+✓ Router found on channel 6 (not connected, will retry)
+⚠ Proceeding with bridge setup on channel 6
 ⚠ Bridge will retry router connection in background
-Step 2: Initializing mesh on channel 1...
-STARTUP: init(): Mesh channel set to 1
+Step 2: Initializing mesh on channel 6...
+STARTUP: init(): Mesh channel set to 6
 Step 3: Establishing bridge connection...
 === Bridge Mode Active ===
   Mesh SSID: MyMeshNetwork
-  Mesh Channel: 1 (default, router pending)
+  Mesh Channel: 6 (default, router pending)
   Router: YourRouterSSID (will retry)
   Port: 5555
 
@@ -244,12 +246,15 @@ The router connection is retried automatically via the existing `stationManual()
 4. When router becomes available, connection established automatically
 5. Bridge status broadcasts update to reflect Internet connectivity
 
-### Channel Selection Logic
+### Channel Selection Logic (v1.9.7+)
 
-1. **Router available:** Detect and use router's channel
-2. **Router unavailable:** Use default channel 1
-3. **Router becomes available later:** Connection established, but mesh stays on current channel
-4. **Channel change needed:** Handled by existing channel synchronization mechanisms
+1. **Router available:** Detect and use router's channel via connection
+2. **Router unavailable but visible:** Scan WiFi networks to detect router's channel
+3. **Router completely invisible:** Use default channel 1
+4. **Router becomes available later:** Connection established on detected channel
+5. **Channel mismatch:** Existing channel synchronization handles AP restart if needed
+
+**Why this matters:** By scanning for the router's channel even when we can't connect, we minimize the need for channel switching later. This reduces disruption to existing mesh connections when the router becomes connectable.
 
 ### Bridge Status Broadcasting
 

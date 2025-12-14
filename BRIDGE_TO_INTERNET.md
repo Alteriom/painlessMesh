@@ -75,26 +75,30 @@ Step 3: Establishing bridge connection...
   Port: 5555
 ```
 
-**Expected Output (Router Unavailable):**
+**Expected Output (Router Unavailable but Visible):**
 ```
 === Bridge Mode Initialization ===
 Step 1: Attempting to connect to router YourRouterSSID...
 ⚠ Router connection unavailable during initialization
-⚠ Proceeding with bridge setup on default channel 1
+⚠ Scanning for router 'YourRouterSSID' to detect channel...
+✓ Router found on channel 6 (not connected, will retry)
+⚠ Proceeding with bridge setup on channel 6
 ⚠ Bridge will retry router connection in background
-Step 2: Initializing mesh on channel 1...
-STARTUP: init(): Mesh channel set to 1
+Step 2: Initializing mesh on channel 6...
+STARTUP: init(): Mesh channel set to 6
 Step 3: Establishing bridge connection...
 === Bridge Mode Active ===
   Mesh SSID: MyMeshNetwork
-  Mesh Channel: 1 (default, router pending)
+  Mesh Channel: 6 (default, router pending)
   Router: YourRouterSSID (will retry)
   Port: 5555
 
-ℹ Bridge initialized without router connection
-ℹ Mesh network is active and accepting node connections
-ℹ Router connection will be established automatically when available
+INFO: Bridge initialized without router connection
+INFO: Mesh network is active and accepting node connections
+INFO: Router connection will be established automatically when available
 ```
+
+**Note:** If the router cannot connect but is visible in a WiFi scan, the bridge detects its channel and uses it for the mesh. This minimizes channel switching when the router becomes connectable. If the router is completely invisible (powered off), channel 1 is used as default.
 
 ### Regular Nodes with Auto-Detection
 
