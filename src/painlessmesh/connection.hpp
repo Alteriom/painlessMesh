@@ -14,6 +14,11 @@ extern painlessmesh::logger::LogClass Log;
 namespace painlessmesh {
 namespace tcp {
 
+// Delay before cleaning up failed AsyncClient after connection error or close
+// This prevents crashes when AsyncTCP library is still accessing the client internally
+// The AsyncTCP library may take a few hundred milliseconds to complete its internal cleanup
+static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 500; // 500ms delay before deleting AsyncClient
+
 // Shared buffer for reading/writing to the buffer
 static painlessmesh::buffer::temp_buffer_t shared_buffer;
 
@@ -52,11 +57,11 @@ class BufferedConnection
     // Deleting immediately can cause use-after-free issues when the AsyncTCP 
     // library is still referencing the object internally during cleanup
     // See ISSUE_254_HEAP_CORRUPTION_FIX.md and ASYNCCLIENT_CLEANUP_FIX.md
-    if (mScheduler != nullptr) {
+    if (mScheduler) {
       // Capture client pointer by value for safe deferred deletion
       AsyncClient* clientToDelete = client;
       
-      // Schedule deletion task with 500ms delay
+      // Schedule deletion task with TCP_CLIENT_CLEANUP_DELAY_MS delay
       // This gives AsyncTCP library time to complete its internal cleanup
       // Note: Task object is intentionally leaked to keep implementation simple
       // This is acceptable because:
@@ -64,7 +69,7 @@ class BufferedConnection
       // 2. Task object is small (~32-64 bytes) vs preventing critical heap corruption
       // 3. In typical deployments, memory impact is negligible (few KB over months)
       // 4. Alternative cleanup patterns would add significant complexity
-      Task* cleanupTask = new Task(500 * TASK_MILLISECOND, TASK_ONCE, [clientToDelete]() {
+      Task* cleanupTask = new Task(TCP_CLIENT_CLEANUP_DELAY_MS * TASK_MILLISECOND, TASK_ONCE, [clientToDelete]() {
         using namespace logger;
         Log(CONNECTION, "~BufferedConnection: Deferred cleanup of AsyncClient\n");
         delete clientToDelete;

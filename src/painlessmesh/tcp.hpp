@@ -20,10 +20,7 @@ namespace tcp {
 static const uint8_t TCP_CONNECT_MAX_RETRIES = 5;       // Max retry attempts before giving up
 static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 1000; // Delay between retry attempts (1 second)
 static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500; // Delay after IP acquisition (500ms)
-// Delay before cleaning up failed AsyncClient after connection error
-// This prevents crashes when AsyncTCP library is still accessing the client internally
-// The AsyncTCP library may take a few hundred milliseconds to complete its internal cleanup
-static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 500; // 500ms delay before deleting AsyncClient
+// TCP_CLIENT_CLEANUP_DELAY_MS is defined in connection.hpp since it's used in the destructor
 // Delay before WiFi reconnection after all TCP retries are exhausted
 // This prevents rapid reconnection loops when TCP server is persistently unavailable
 // Gives the TCP server more time to recover and reduces network congestion
