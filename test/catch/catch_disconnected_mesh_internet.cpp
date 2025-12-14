@@ -107,12 +107,6 @@ SCENARIO("sendToInternet() fails early when no active mesh connections", "[issue
                 }
             );
             
-            // Suppress unused variable warnings for callback capture variables
-            (void)callbackInvoked;
-            (void)callbackSuccess;
-            (void)callbackHttpStatus;
-            (void)callbackError;
-            
             THEN("sendToInternet() should fail with proper error") {
                 // The fix adds early validation that checks hasActiveMeshConnections()
                 // If no connections, it should return 0 or invoke callback with error
