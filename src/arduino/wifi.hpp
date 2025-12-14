@@ -476,9 +476,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(STARTUP, "  Port: %d\n", port);
     
     if (!routerConnected) {
-      Log(STARTUP, "\nℹ Bridge initialized without router connection\n");
-      Log(STARTUP, "ℹ Mesh network is active and accepting node connections\n");
-      Log(STARTUP, "ℹ Router connection will be established automatically when available\n");
+      Log(STARTUP, "\nINFO: Bridge initialized without router connection\n");
+      Log(STARTUP, "INFO: Mesh network is active and accepting node connections\n");
+      Log(STARTUP, "INFO: Router connection will be established automatically when available\n");
     }
     
     // Return true - bridge mesh functionality is active even without router
