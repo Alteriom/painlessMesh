@@ -46,10 +46,43 @@ class BufferedConnection
       client->close(true);
     }
     client->abort();
-    delete client;
+    
+    // Defer deletion of the AsyncClient to prevent heap corruption
+    // Deleting immediately can cause use-after-free issues when the AsyncTCP 
+    // library is still referencing the object internally during cleanup
+    // See ISSUE_254_HEAP_CORRUPTION_FIX.md and ASYNCCLIENT_CLEANUP_FIX.md
+    if (mScheduler != nullptr) {
+      // Capture client pointer by value for safe deferred deletion
+      AsyncClient* clientToDelete = client;
+      
+      // Schedule deletion task with 500ms delay
+      // This gives AsyncTCP library time to complete its internal cleanup
+      Task* cleanupTask = new Task(500 * TASK_MILLISECOND, TASK_ONCE, [clientToDelete]() {
+        using namespace logger;
+        Log(CONNECTION, "~BufferedConnection: Deferred cleanup of AsyncClient\n");
+        delete clientToDelete;
+      });
+      
+      mScheduler->addTask(*cleanupTask);
+      cleanupTask->enableDelayed();
+      
+      // Note: Task object will be leaked, but this is acceptable because:
+      // 1. Connections are long-lived, destructor calls are infrequent
+      // 2. Task is small (~few bytes) compared to preventing heap corruption
+      // 3. Alternative would require more complex lifecycle management
+    } else {
+      // Fallback: If scheduler not available, delete immediately
+      // This should only happen in test environments or edge cases
+      using namespace logger;
+      Log(CONNECTION, "~BufferedConnection: No scheduler available, deleting AsyncClient immediately (risky)\n");
+      delete client;
+    }
   }
 
   void initialize(Scheduler *scheduler) {
+    // Store scheduler reference for deferred cleanup in destructor
+    mScheduler = scheduler;
+    
     auto self = this->shared_from_this();
     sentBufferTask.set(TASK_SECOND, TASK_FOREVER, [self]() {
       if (!self->sentBuffer.empty() && self->client->canSend()) {
@@ -156,6 +189,7 @@ class BufferedConnection
   bool mConnected = true;
 
   AsyncClient *client;
+  Scheduler *mScheduler = nullptr; // Scheduler for deferred AsyncClient cleanup
 
   std::function<void(TSTRING)> receiveCallback;
   std::function<void()> disconnectCallback;

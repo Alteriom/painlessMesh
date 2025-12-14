@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hard Reset from Heap Corruption in Connection Destructor** - Fixed ESP32/ESP8266 hard resets caused by heap corruption when connections were closed
+  - **Root Cause**: AsyncClient objects were being deleted immediately in `~BufferedConnection()` destructor when `eraseClosedConnections()` removed closed connections. The AsyncTCP library was still referencing these objects internally, causing heap corruption and hard resets
+  - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x408388a4. Expected 0xabba1234 got 0xfefefefe" and "assert failed: multi_heap_free multi_heap_poisoning.c:279" when connections are removed from the mesh
+  - **Solution**: Deferred AsyncClient deletion in destructor using task scheduler with 500ms delay
+    - Store scheduler reference in `BufferedConnection` for use in destructor
+    - Schedule AsyncClient deletion with 500ms delay to give AsyncTCP time to complete internal cleanup
+    - Use same deferred deletion pattern as error handler fixes (Issues #254, #269)
+    - Added fallback for test environments where scheduler may not be available
+  - **Impact**: Eliminates hard resets and heap corruption when mesh connections are closed, allows stable mesh network operation
+  - **Files Modified**: `src/painlessmesh/connection.hpp` (lines 42-81, 89-91, 192)
+  - **Documentation**: See `ISSUE_HARD_RESET_FIX.md` for detailed analysis
+
 - **Node Crash During TCP Connection Retries** - Fixed device crashes that occurred after 2-3 TCP connection retry attempts
   - **Root Cause**: AsyncClient objects were being deleted too quickly (0ms delay) after connection errors. The AsyncTCP library needs 200-400ms to complete internal cleanup operations, and accessing the deleted object caused crashes
   - **Symptom**: Device crashes or hangs after 2-3 TCP retry attempts, serial log stops abruptly during retry sequence
