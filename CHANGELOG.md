@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- TBD
+
+### Changed
+
+- TBD
+
+### Fixed
+
+- TBD
+
+## [1.9.8] - 2025-12-14
+
 ### Fixed
 
 - **Heap Corruption on TCP Connection Errors** (#254) - Fixed ESP32 heap corruption crashes during AsyncClient deletion
@@ -21,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **README Version Reference** - Updated version banner from 1.9.6 to 1.9.7 for consistency with current release
+- **README Version Reference** - Updated version banner to 1.9.7 for consistency with release history
 
 ## [1.9.7] - 2025-12-13
 

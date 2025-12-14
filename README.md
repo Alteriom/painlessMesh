@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.7** - Latest release with external device WiFi AP connection fixes and comprehensive documentation
+**Version 1.9.8** - Latest release with ESP32 heap corruption fix and improved TCP error handling
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
