@@ -438,7 +438,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       // This minimizes channel mismatch when router becomes available later
       Log(STARTUP, "⚠ Scanning for router '%s' to detect channel...\n", routerSSID.c_str());
       
+      // ESP32 and ESP8266 have different scanNetworks signatures
+#ifdef ESP32
       int16_t numNetworks = WiFi.scanNetworks(false, false, false, 300U, 0);
+#elif defined(ESP8266)
+      int16_t numNetworks = WiFi.scanNetworks(false, false, 0);
+#endif
       
       if (numNetworks > 0) {
         for (int16_t i = 0; i < numNetworks; i++) {
