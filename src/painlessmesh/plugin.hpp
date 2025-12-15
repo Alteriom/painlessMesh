@@ -228,7 +228,13 @@ class PackageHandler : public layout::Layout<T> {
     for (auto&& task : taskList) {
       if (task.use_count() == 1 && !task->isEnabled()) {
         task->set(aInterval, aIterations, aCallback, NULL, NULL);
-        task->enable();
+        // Use enableDelayed() for delayed one-shot tasks to prevent immediate execution
+        // This ensures tasks with intervals execute after the delay, not immediately
+        if (aInterval > 0 && aIterations == TASK_ONCE) {
+          task->enableDelayed();
+        } else {
+          task->enable();
+        }
         return task;
       }
     }
@@ -236,7 +242,13 @@ class PackageHandler : public layout::Layout<T> {
     std::shared_ptr<Task> task =
         std::make_shared<Task>(aInterval, aIterations, aCallback);
     scheduler.addTask((*task));
-    task->enable();
+    // Use enableDelayed() for delayed one-shot tasks to prevent immediate execution
+    // This ensures tasks with intervals execute after the delay, not immediately
+    if (aInterval > 0 && aIterations == TASK_ONCE) {
+      task->enableDelayed();
+    } else {
+      task->enable();
+    }
     taskList.push_front(task);
     return task;
   }
