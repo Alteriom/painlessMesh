@@ -144,7 +144,7 @@ void bridgeStatusCallback(uint32_t bridgeNodeId, bool hasInternet) {
   }
 }
 
-void bridgeRoleCallback(bool isBridge, String reason) {
+void bridgeRoleCallback(bool isBridge, const String& reason) {
   if (isBridge) {
     Serial.printf("🎯 PROMOTED TO BRIDGE: %s\n", reason.c_str());
     Serial.println("This node is now the primary bridge!");
