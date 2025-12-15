@@ -12,28 +12,49 @@ This agent ensures consistency and quality in all releases of the AlteriomPainle
 
 The agent performing release tasks MUST have access to:
 
-1. **File Editing Tools**
-   - `replace_string_in_file` - Update version numbers, dates, and content
-   - `multi_replace_string_in_file` - Batch update multiple files efficiently
+1. **File Editing Tools** (CRITICAL for implementation)
+   - `replace_string_in_file` - Update version numbers, dates, and content in single files
+   - `multi_replace_string_in_file` - Batch update multiple files efficiently (preferred)
    - `create_file` - Generate release documentation if needed
    - `read_file` - Verify file contents before and after changes
+   - `file_search` - Locate files by glob pattern
+   - `grep_search` - Search file contents by regex or text
+   - `semantic_search` - Search codebase by semantic meaning
 
-2. **Git and GitHub Tools**
-   - `get_changed_files` - Review pending changes
-   - `run_in_terminal` - Execute git commands (commit, push, tag)
-   - GitHub API tools - Create releases, manage issues/PRs
+2. **Git and GitHub Tools** (CRITICAL for release workflow)
+   - `get_changed_files` - Review pending changes and diffs
+   - `run_in_terminal` - Execute git commands (add, commit, push, tag, status)
+   - `mcp_github_*` tools - Create releases, manage issues/PRs, create branches
+   - GitHub API read access - Fetch PR details, release info
 
-3. **Build and Validation Tools**
-   - `run_in_terminal` - Execute validation scripts, run tests
-   - `get_errors` - Check for build or lint errors
+3. **Build and Validation Tools** (CRITICAL for quality assurance)
+   - `run_in_terminal` - Execute validation scripts (`./scripts/release-agent.sh`), run tests, cmake, ninja
+   - `get_errors` - Check for build or lint errors in files or workspace
+   - `get_terminal_output` - Review command output from background processes
+
+### Agent Configuration
+
+**Both release-agent and release-validator MUST have `tools` configured with full access:**
+
+```yaml
+tools: ["read", "search", "run_terminal", "edit", "multi_edit", "create", "git"]
+```
+
+Without these tools, the agent can only document what needs to be done, not implement it.
 
 ### Agent Selection for Releases
+
+**✅ Use: release-validator agent (`@release-validator`)**
+- NOW has full tool access including file editing
+- Can edit files, run commands, create commits
+- Can execute entire release workflow end-to-end
+- **Preferred agent for release operations**
 
 **✅ Use: Alteriom AI Agent (`@alteriom-ai-agent`)**
 - Has full tool access via MCP (Model Context Protocol)
 - Can edit files, run commands, create commits
 - Can execute entire release workflow end-to-end
-- **This is the correct agent for release operations**
+- **Alternative agent with full capabilities**
 
 **❌ Do NOT use: painlessMesh Coordinator (`@painlessmesh-coordinator`)**
 - Repository coordinator lacks file editing tools

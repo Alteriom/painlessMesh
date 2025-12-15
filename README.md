@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.9** - Latest release with AsyncClient cleanup fixes for improved stability
+**Version 1.9.10** - Latest release with critical bug fixes for TCP retry and bridge failover
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
