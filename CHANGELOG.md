@@ -17,7 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- TBD
+- **Hard Reset on Bridge Failover Election Winner** - Fixed ESP32 hard reset (Guru Meditation Error: Load access fault) when node becomes bridge after election
+  - **Root Cause**: The `bridgeRoleChangedCallback` signature used pass-by-value for the String parameter (`TSTRING reason`), causing temporary String object creation from const char* literals. On memory-constrained ESP32/ESP8266, this could trigger heap allocation failures and memory access faults
+  - **Symptom**: Device crashes with "Guru Meditation Error: Core 0 panic'ed (Load access fault)" immediately after logging "🎯 PROMOTED TO BRIDGE: Election winner - best router signal"
+  - **Solution**: Changed callback signature to use const reference (`const TSTRING& reason`) instead of pass-by-value
+    - Eliminates unnecessary String object copying and temporary creation
+    - Reduces memory pressure during callback invocation
+    - String literals are now directly bound to const references without heap allocation
+  - **Impact**: Eliminates hard resets during bridge promotion, allows stable failover operation
+  - **Breaking Change**: Users must update their callback function signatures from `void callback(bool, String)` to `void callback(bool, const String&)`
+  - **Files Modified**: 
+    - `src/arduino/wifi.hpp` (lines 970, 2326)
+    - `examples/bridge_failover/bridge_failover.ino` (line 147)
+    - `README.md` (line 171)
+    - `USER_GUIDE.md` (line 731)
 
 ## [1.9.9] - 2025-12-14
 
