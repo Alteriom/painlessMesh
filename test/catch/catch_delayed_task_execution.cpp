@@ -135,8 +135,7 @@ inline void verifyEnableMethodBehavior(bool useEnableDelayed, bool isDelayedTask
 SCENARIO("Task scheduling behavior differences between enable() and enableDelayed()",
          "[task][scheduler]") {
   GIVEN("A TASK_ONCE task with an interval") {
-    uint32_t aInterval = test_constants::TCP_RETRY_DELAY_BASE_MS;
-    long aIterations = TASK_ONCE;
+    // Testing the behavior when aInterval > 0 and aIterations == TASK_ONCE
     
     WHEN("Using enable() on the task") {
       THEN("The task would execute immediately (wrong for delayed retry)") {
@@ -147,7 +146,7 @@ SCENARIO("Task scheduling behavior differences between enable() and enableDelaye
     }
     
     WHEN("Using enableDelayed() on the task") {
-      THEN("The task would wait for aInterval before executing (correct)") {
+      THEN("The task would wait for the interval before executing (correct)") {
         // This is the fixed behavior
         // Retry tasks now wait for their delay before executing
         verifyEnableMethodBehavior(true, true);
@@ -156,8 +155,7 @@ SCENARIO("Task scheduling behavior differences between enable() and enableDelaye
   }
   
   GIVEN("A TASK_FOREVER task with an interval") {
-    uint32_t aInterval = test_constants::TCP_RETRY_DELAY_BASE_MS;
-    long aIterations = TASK_FOREVER;
+    // Testing the behavior when aInterval > 0 and aIterations == TASK_FOREVER
     
     WHEN("Using enable() on the task") {
       THEN("The task executes immediately then repeats (correct for periodic tasks)") {
