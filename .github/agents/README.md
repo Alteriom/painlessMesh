@@ -98,8 +98,10 @@ The repository expert who ensures complete task execution:
 **Script**: `../../scripts/release-agent.sh`  
 **Purpose**: Release management and validation
 
+**⚠️ IMPORTANT: Requires Alteriom AI Agent (`@alteriom-ai-agent`) with full tool access for file editing and execution.**
+
 Ensures every release meets quality standards:
-- ✅ Validates version consistency across all package files
+- ✅ Validates version consistency across all 7 package files
 - ✅ Checks CHANGELOG completeness and format
 - ✅ Verifies build system configuration
 - ✅ Validates dependencies
@@ -107,8 +109,22 @@ Ensures every release meets quality standards:
 - ✅ Ensures release workflows are properly configured
 - ✅ Validates documentation and links
 - ✅ Runs test suites
+- ✅ Edits files: Updates versions, dates, and CHANGELOG structure
+- ✅ Executes commands: Runs validation scripts, commits, and pushes
 
-**When to use:** Preparing releases, validating release readiness
+**Files updated for each release:**
+1. library.properties
+2. library.json
+3. package.json
+4. src/painlessMesh.h
+5. src/AlteriomPainlessMesh.h
+6. README.md
+7. CHANGELOG.md
+
+**When to use:** 
+- Preparing releases with `@alteriom-ai-agent`
+- Validating release readiness with validation script
+- **DO NOT** use with repository coordinator (lacks file editing tools)
 
 #### Mesh Development Agent (`@mesh-dev-agent`)
 **Location**: `mesh-dev-agent.md`  
