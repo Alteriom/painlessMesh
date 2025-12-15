@@ -967,7 +967,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * @param callback Function to call when role changes
    */
   void onBridgeRoleChanged(
-      std::function<void(bool isBridge, TSTRING reason)> callback) {
+      std::function<void(bool isBridge, const TSTRING& reason)> callback) {
     bridgeRoleChangedCallback = callback;
   }
 
@@ -2323,7 +2323,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   ElectionState electionState = ELECTION_IDLE;
   uint32_t electionDeadline = 0;
   std::vector<BridgeCandidate> electionCandidates;
-  std::function<void(bool isBridge, TSTRING reason)> bridgeRoleChangedCallback;
+  std::function<void(bool isBridge, const TSTRING& reason)> bridgeRoleChangedCallback;
 
   // Isolated bridge retry state and configuration
   uint8_t _isolatedBridgeRetryAttempts = 0;
