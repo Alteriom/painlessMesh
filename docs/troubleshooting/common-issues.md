@@ -205,11 +205,12 @@ For Arduino IDE, install manually from: https://github.com/ESP32Async/AsyncTCP
 
 #### 2. Built-in Retry Mechanism
 painlessMesh now includes automatic TCP connection retry with the following behavior:
-- Up to 3 retry attempts with 500ms delay between each
-- 100ms stabilization delay after IP acquisition before first connection attempt
-- Full WiFi reconnection only triggered after all retries are exhausted
+- Up to 6 total connection attempts (initial + 5 retries)
+- Exponential backoff delays between retries: 1s, 2s, 4s, 8s, 8s (total ~23s)
+- 500ms stabilization delay after IP acquisition before first connection attempt
+- Full WiFi reconnection with 10s delay only triggered after all retries are exhausted
 
-This helps handle transient timing issues automatically.
+This exponential backoff helps handle transient timing issues automatically while reducing network congestion from multiple retrying nodes.
 
 #### 3. Check Node Resource Usage
 Monitor memory and ensure nodes aren't overloaded:
