@@ -168,7 +168,7 @@ mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);
 mesh.enableBridgeFailover(true);
 mesh.onBridgeRoleChanged(&bridgeRoleCallback);
 
-void bridgeRoleCallback(bool isBridge, String reason) {
+void bridgeRoleCallback(bool isBridge, const String& reason) {
   if (isBridge) {
     Serial.printf("🎯 Promoted to bridge: %s\n", reason.c_str());
   }
