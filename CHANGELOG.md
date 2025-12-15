@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- TBD
+
+## [1.9.10] - 2025-12-15
+
+### Fixed
+
 - **TCP Connection Retry Immediate Execution** - Fixed mesh connection failures where TCP retries executed immediately instead of with exponential backoff delays
   - **Root Cause**: `PackageHandler::addTask()` was calling `task->enable()` instead of `task->enableDelayed()` for one-shot delayed tasks, causing immediate execution
   - **Symptom**: Nodes unable to establish mesh connection - TCP error -14 (ERR_CONN) with all retry attempts happening immediately rather than with 1s, 2s, 4s, 8s, 8s delays
