@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **TCP Connection Retry Immediate Execution** - Fixed mesh connection failures where TCP retries executed immediately instead of with exponential backoff delays
+  - **Root Cause**: `PackageHandler::addTask()` was calling `task->enable()` instead of `task->enableDelayed()` for one-shot delayed tasks, causing immediate execution
+  - **Symptom**: Nodes unable to establish mesh connection - TCP error -14 (ERR_CONN) with all retry attempts happening immediately rather than with 1s, 2s, 4s, 8s, 8s delays
+  - **Solution**: Modified `PackageHandler::addTask()` to use `enableDelayed()` for `TASK_ONCE` tasks with intervals > 0
+    - Retry tasks now properly wait for their scheduled delays before executing
+    - Exponential backoff mechanism now works as designed (total ~23s before WiFi reconnection)
+    - Reduces network congestion from multiple simultaneously retrying nodes
+  - **Impact**: Enables successful mesh connection establishment with proper retry timing
+  - **Files Modified**: 
+    - `src/painlessmesh/plugin.hpp` (lines 231, 239, 245-251)
+    - `docs/troubleshooting/common-issues.md` (lines 206-212)
+    - `test/catch/catch_delayed_task_execution.cpp` (new test file)
+    - `ISSUE_TCP_RETRY_FIX.md` (new documentation)
+
 - **Hard Reset on Bridge Failover Election Winner** - Fixed ESP32 hard reset (Guru Meditation Error: Load access fault) when node becomes bridge after election
   - **Root Cause**: The `bridgeRoleChangedCallback` signature used pass-by-value for the String parameter (`TSTRING reason`), causing temporary String object creation from const char* literals. On memory-constrained ESP32/ESP8266, this could trigger heap allocation failures and memory access faults
   - **Symptom**: Device crashes with "Guru Meditation Error: Core 0 panic'ed (Load access fault)" immediately after logging "🎯 PROMOTED TO BRIDGE: Election winner - best router signal"
