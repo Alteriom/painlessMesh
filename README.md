@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.8** - Latest release with ESP32 heap corruption fix and improved TCP error handling
+**Version 1.9.9** - Latest release with AsyncClient cleanup fixes for improved stability
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)

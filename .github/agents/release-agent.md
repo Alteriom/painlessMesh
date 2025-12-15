@@ -4,6 +4,86 @@
 
 This agent ensures consistency and quality in all releases of the AlteriomPainlessMesh library. It automates validation, verification, and documentation tasks to maintain high standards across all release channels.
 
+## Important: Agent Tool Requirements
+
+**This release agent REQUIRES full tool access to perform its duties.**
+
+### Required Tools for Release Management
+
+The agent performing release tasks MUST have access to:
+
+1. **File Editing Tools**
+   - `replace_string_in_file` - Update version numbers, dates, and content
+   - `multi_replace_string_in_file` - Batch update multiple files efficiently
+   - `create_file` - Generate release documentation if needed
+   - `read_file` - Verify file contents before and after changes
+
+2. **Git and GitHub Tools**
+   - `get_changed_files` - Review pending changes
+   - `run_in_terminal` - Execute git commands (commit, push, tag)
+   - GitHub API tools - Create releases, manage issues/PRs
+
+3. **Build and Validation Tools**
+   - `run_in_terminal` - Execute validation scripts, run tests
+   - `get_errors` - Check for build or lint errors
+
+### Agent Selection for Releases
+
+**✅ Use: Alteriom AI Agent (`@alteriom-ai-agent`)**
+- Has full tool access via MCP (Model Context Protocol)
+- Can edit files, run commands, create commits
+- Can execute entire release workflow end-to-end
+- **This is the correct agent for release operations**
+
+**❌ Do NOT use: painlessMesh Coordinator (`@painlessmesh-coordinator`)**
+- Repository coordinator lacks file editing tools
+- Cannot execute release workflow tasks
+- Can only provide context and planning
+- Will document what needs to be done but cannot implement
+
+**✅ Use: Release Validation Script (`./scripts/release-agent.sh`)**
+- Automated bash script for pre-release validation
+- Checks version consistency, tests, documentation
+- Can be run manually or in CI/CD pipelines
+- Does not require agent interaction
+
+### Workflow Example
+
+```
+User: "Prepare release v1.9.9"
+  ↓
+@alteriom-ai-agent (with full tools):
+  ✅ Updates library.properties version
+  ✅ Updates library.json version
+  ✅ Updates package.json version
+  ✅ Updates painlessMesh.h @version and @date
+  ✅ Updates AlteriomPainlessMesh.h VERSION constants
+  ✅ Updates README.md version banner
+  ✅ Restructures CHANGELOG.md with release section
+  ✅ Runs validation: ./scripts/release-agent.sh
+  ✅ Commits: "release: v1.9.9 - Description"
+  ✅ Pushes to trigger automated workflows
+  ✓ Complete release prepared
+```
+
+### Files Requiring Updates for Each Release
+
+The following 7 files MUST be updated for every release:
+
+1. **library.properties** - `version=X.Y.Z`
+2. **library.json** - `"version": "X.Y.Z"`
+3. **package.json** - `"version": "X.Y.Z"`
+4. **src/painlessMesh.h** - `@version X.Y.Z` and `@date YYYY-MM-DD`
+5. **src/AlteriomPainlessMesh.h** - Version string and VERSION_PATCH constant
+6. **README.md** - Version banner (optional but recommended)
+7. **CHANGELOG.md** - Move [Unreleased] items to [X.Y.Z] section with date
+
+**Version Synchronization Tool:**
+```bash
+# Use bump-version.sh for consistent updates
+./scripts/bump-version.sh patch X.Y.Z
+```
+
 ## Agent Responsibilities
 
 ### Pre-Release Validation
@@ -216,19 +296,32 @@ permissions:
 
 Use this checklist for every release:
 
+### Pre-Release Preparation
+- [ ] **Verify agent has file editing tools** (`replace_string_in_file`, `multi_replace_string_in_file`)
+- [ ] **Verify agent has git/terminal tools** (`run_in_terminal`, `get_changed_files`)
 - [ ] All tests pass locally (`cmake -G Ninja . && ninja && run-parts --regex catch_ bin/`)
-- [ ] Version bumped in all three files (`./scripts/bump-version.sh patch`)
-- [ ] CHANGELOG.md updated with changes and release date
+- [ ] Version bumped in all 7 files (see "Files Requiring Updates" section above)
+  - [ ] library.properties
+  - [ ] library.json
+  - [ ] package.json
+  - [ ] src/painlessMesh.h (@version and @date)
+  - [ ] src/AlteriomPainlessMesh.h (VERSION string and PATCH)
+  - [ ] README.md (version banner)
+  - [ ] CHANGELOG.md (release section with date)
 - [ ] No uncommitted changes or build artifacts
-- [ ] README.md version references updated (if needed)
 - [ ] Documentation reviewed and up to date
-- [ ] Release validation passed (`./scripts/validate-release.sh`)
+- [ ] Release validation passed (`./scripts/release-agent.sh`)
+
+### Release Execution
 - [ ] Commit with `release: vX.Y.Z` prefix
 - [ ] Push to main branch
 - [ ] Monitor GitHub Actions workflows
+
+### Post-Release Verification
 - [ ] Verify GitHub release created
 - [ ] Verify NPM package published
 - [ ] Verify Wiki updated
+- [ ] Monitor PlatformIO Registry (automatic indexing, may take hours)
 - [ ] Submit to Arduino Library Manager (first release only)
 
 ## Error Recovery

@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- TBD
+
+## [1.9.9] - 2025-12-14
+
+### Fixed
+
 - **Hard Reset from Heap Corruption in Connection Destructor** - Fixed ESP32/ESP8266 hard resets caused by heap corruption when connections were closed
   - **Root Cause**: AsyncClient objects were being deleted immediately in `~BufferedConnection()` destructor when `eraseClosedConnections()` removed closed connections. The AsyncTCP library was still referencing these objects internally, causing heap corruption and hard resets
   - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x408388a4. Expected 0xabba1234 got 0xfefefefe" and "assert failed: multi_heap_free multi_heap_poisoning.c:279" when connections are removed from the mesh

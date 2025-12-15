@@ -2,9 +2,52 @@
 
 This document provides comprehensive instructions for releasing new versions of the Alteriom painlessMesh library across all distribution channels.
 
+## ⚠️ Important: Agent Requirements for Releases
+
+**Releases MUST be performed by Alteriom AI Agent (`@alteriom-ai-agent`) with full tool access.**
+
+### Why This Matters
+
+A release requires updating 7 files consistently:
+1. library.properties
+2. library.json  
+3. package.json
+4. src/painlessMesh.h
+5. src/AlteriomPainlessMesh.h
+6. README.md
+7. CHANGELOG.md
+
+**✅ Correct Agent:** `@alteriom-ai-agent`
+- Has file editing tools (`replace_string_in_file`, `multi_replace_string_in_file`)
+- Can run terminal commands (`run_in_terminal`)
+- Can execute git operations
+- **Use this for release preparation**
+
+**❌ Wrong Agent:** `@painlessmesh-coordinator` or specialized agents without tools
+- Lack file editing capabilities
+- Can only provide documentation/checklists
+- Cannot actually perform releases
+- Will result in manual work
+
+### Agent-Assisted Release (Recommended)
+
+```bash
+# Ask Alteriom AI Agent to prepare release
+@alteriom-ai-agent Prepare release v1.9.9 with these changes:
+- Fixed ESP8266 WiFiClientSecure scope issue  
+- Fixed TCP retry crash with AsyncClient cleanup
+
+# Agent will:
+# ✅ Update all 7 version files
+# ✅ Restructure CHANGELOG.md
+# ✅ Run validation: ./scripts/release-agent.sh
+# ✅ Commit: "release: v1.9.9 - Description"
+# ✅ Push to trigger automation
+```
+
 ## 🚀 Quick Release Process
 
-### Standard Release (Recommended)
+### Standard Release (Manual)
 
 ```bash
 # 1. Update version using the bump script
@@ -21,7 +64,7 @@ This document provides comprehensive instructions for releasing new versions of 
 ./scripts/release-agent.sh
 
 # 5. If all checks pass, commit and trigger release
-git add library.properties library.json package.json CHANGELOG.md src/*.h
+git add library.properties library.json package.json CHANGELOG.md src/*.h README.md
 git commit -m "release: v1.7.9 - Brief description"
 git push origin main
 ```
