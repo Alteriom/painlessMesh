@@ -40,7 +40,7 @@ jobs:
           fetch-depth: 0
       
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           # Focus on security queries for Arduino/embedded code
@@ -51,7 +51,7 @@ jobs:
       # For Arduino libraries, we analyze source without building
       # since the build requires Arduino framework and platform-specific setup
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
           # Upload results even if there are no vulnerabilities found
