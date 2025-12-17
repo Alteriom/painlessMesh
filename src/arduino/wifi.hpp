@@ -1812,38 +1812,24 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(STARTUP, "✓ Bridge promotion complete on channel %d\n", _meshChannel);
 
     // Notify via callback
+    // Use explicit TSTRING construction to ensure string lifetime safety
     if (bridgeRoleChangedCallback) {
-      bridgeRoleChangedCallback(true, "Election winner - best router signal");
+      TSTRING reason = "Election winner - best router signal";
+      bridgeRoleChangedCallback(true, reason);
     }
 
-    // Send a follow-up announcement on the new channel
-    // This helps nodes that have already switched channels to discover the new
-    // bridge Schedule it after a delay to ensure mesh is fully initialized
-    this->addTask(3000, TASK_ONCE, [this, previousBridgeId]() {
-      Log(STARTUP,
-          "Sending follow-up takeover announcement on new channel %d\n",
-          _meshChannel);
-      JsonDocument doc2;
-      JsonObject obj2 = doc2.to<JsonObject>();
-      obj2["type"] = protocol::BRIDGE_TAKEOVER;
-      obj2["from"] = this->nodeId;
-      obj2["routing"] = 2;  // BROADCAST
-      obj2["previousBridge"] = previousBridgeId;
-      obj2["reason"] = "Election winner - best router signal";
-      obj2["routerRSSI"] = WiFi.RSSI();
-      obj2["timestamp"] = this->getNodeTime();
-      obj2["message_type"] = protocol::BRIDGE_TAKEOVER;
-
-      String msg2;
-      serializeJson(doc2, msg2);
-
-      // Send follow-up takeover using raw broadcast to preserve type
-      // BRIDGE_TAKEOVER
-      protocol::Variant variant2(msg2);
-      router::broadcast<protocol::Variant, Connection>(variant2, (*this), 0);
-
-      Log(STARTUP, "✓ Follow-up takeover announcement sent\n");
-    });
+    // Note: The initial takeover announcement was already sent on line 1771
+    // before the channel switch. The follow-up announcement that was previously
+    // scheduled here has been removed to avoid potential crashes from scheduling
+    // tasks immediately after stop()/reinit cycle.
+    //
+    // The bridge status broadcast system (initialized by initAsBridge) will
+    // continue to inform nodes about the new bridge through periodic broadcasts.
+    // Nodes that switched channels will discover the new bridge through these
+    // status broadcasts at line 1277-1280.
+    Log(STARTUP,
+        "Bridge takeover complete. Status broadcasts will announce bridge to "
+        "network.\n");
   }
 
   /**
