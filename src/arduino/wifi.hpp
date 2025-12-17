@@ -1740,8 +1740,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(STARTUP, "=== Becoming Bridge Node ===\n");
 
     // Store previous bridge (if any)
-    auto primaryBridge = this->getPrimaryBridge();
-    uint32_t previousBridgeId = primaryBridge ? primaryBridge->nodeId : 0;
+    // SAFETY: Get the primary bridge nodeId safely to avoid crashes from
+    // dangling pointers. The getPrimaryBridge() returns a pointer to a vector 
+    // element which can become invalid if the vector is modified between the 
+    // pointer retrieval and its use. Instead of holding the pointer, we immediately
+    // copy the value we need or use a safer method that doesn't involve pointers.
+    uint32_t previousBridgeId = 0;
+    
+    // Use getPrimaryGateway() which returns the nodeId value directly instead of a pointer
+    // This avoids any potential issues with dangling pointers to vector elements
+    previousBridgeId = this->getPrimaryGateway();
 
     // IMPORTANT: Send takeover announcement BEFORE switching channels
     // This ensures other nodes on the current channel receive the announcement
