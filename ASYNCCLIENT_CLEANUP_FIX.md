@@ -172,7 +172,7 @@ If you still experience crashes after this fix:
 
 1. **Check AsyncTCP Version**: Ensure you have the latest AsyncTCP library
 2. **Monitor Memory**: Use `ESP.getFreeHeap()` to check for memory leaks
-3. **Increase Delay**: Try increasing `TCP_CLIENT_CLEANUP_DELAY_MS` to 1000ms
+3. **Note**: `TCP_CLIENT_CLEANUP_DELAY_MS` was increased to 1000ms in v1.9.11 to handle high-churn scenarios (see `ISSUE_HARD_RESET_SENDTOINTERNET_FIX.md`)
 4. **Check Other Tasks**: Ensure your user tasks aren't blocking the scheduler
 5. **Enable Debug Logging**: Use `mesh.setDebugMsgTypes(ERROR | CONNECTION)` to see detailed logs
 
