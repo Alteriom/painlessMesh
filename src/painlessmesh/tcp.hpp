@@ -135,15 +135,9 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
         }, retryDelay);
         
         // Defer deletion of the failed AsyncClient to prevent heap corruption
-        // Deleting from within the error callback can cause use-after-free issues
-        // as the AsyncTCP library may still be referencing the object
-        // Use TCP_CLIENT_CLEANUP_DELAY_MS to give AsyncTCP library time to complete
-        // its internal cleanup before we delete the object
-        // Note: client is captured by value (pointer copy) and we are the sole owner
-        mesh.addTask([client]() {
-          Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient (retry path)\n");
-          delete client;
-        }, TCP_CLIENT_CLEANUP_DELAY_MS);
+        // Use the centralized deletion scheduler to ensure proper spacing between deletions
+        // This prevents concurrent cleanup operations in the AsyncTCP library
+        scheduleAsyncClientDeletion(mesh.mScheduler, client, "tcp_err(retry)");
         
         mesh.semaphoreGive();
         return;
@@ -156,15 +150,9 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
           TCP_CONNECT_MAX_RETRIES + 1, TCP_EXHAUSTION_RECONNECT_DELAY_MS);
       
       // Defer deletion of the failed AsyncClient to prevent heap corruption
-      // Deleting from within the error callback can cause use-after-free issues
-      // as the AsyncTCP library may still be referencing the object
-      // Use TCP_CLIENT_CLEANUP_DELAY_MS to give AsyncTCP library time to complete
-      // its internal cleanup before we delete the object
-      // Note: client is captured by value (pointer copy) and we are the sole owner
-      mesh.addTask([client]() {
-        Log(CONNECTION, "tcp_err(): Cleaning up failed AsyncClient (exhaustion path)\n");
-        delete client;
-      }, TCP_CLIENT_CLEANUP_DELAY_MS);
+      // Use the centralized deletion scheduler to ensure proper spacing between deletions
+      // This prevents concurrent cleanup operations in the AsyncTCP library
+      scheduleAsyncClientDeletion(mesh.mScheduler, client, "tcp_err(exhaustion)");
 #endif
       // Defer callback execution to avoid crashes in error handler context
       // Execute callbacks after semaphore is released and error handler completes

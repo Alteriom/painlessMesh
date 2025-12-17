@@ -9,16 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Hard Reset During sendToInternet and High Connection Churn** - Fixed ESP32/ESP8266 hard resets caused by heap corruption when multiple AsyncClient cleanup operations occur in rapid succession
-  - **Root Cause**: The 500ms cleanup delay was insufficient when multiple connections are failing simultaneously (e.g., during mesh topology changes, sendToInternet operations, or bridge failover scenarios). The AsyncTCP library needs more time to process multiple cleanup operations safely.
-  - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x40838a7c. Expected 0xabba1234 got 0xfefefefe" during high connection churn, particularly when using sendToInternet()
-  - **Solution**: Increased `TCP_CLIENT_CLEANUP_DELAY_MS` from 500ms to 1000ms to provide adequate buffer time between AsyncClient deletion operations
-    - Prevents heap corruption when multiple connections are being cleaned up simultaneously
-    - Gives AsyncTCP library sufficient time to complete internal cleanup for all pending operations
-    - Minimal memory impact (~3KB additional peak in worst-case high-churn scenarios)
-  - **Testing**: All test suites pass (1000+ assertions), including TCP retry, connection, and gateway tests
-  - **Documentation**: Added ISSUE_HARD_RESET_SENDTOINTERNET_FIX.md with detailed analysis
-  - **Impact**: Fixes critical stability issue in production deployments with unstable network conditions
+- **Hard Reset During sendToInternet - Serialized AsyncClient Deletion** - Fixed ESP32/ESP8266 hard resets caused by heap corruption when multiple AsyncClient cleanup operations execute concurrently
+  - **Root Cause**: When multiple connections fail in rapid succession (e.g., during sendToInternet operations, mesh topology changes, or bridge failover), all AsyncClient deletions were scheduled with the same 1000ms delay, causing them to execute concurrently. The AsyncTCP library's internal cleanup routines cannot handle concurrent operations, leading to heap corruption.
+  - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x40831da0. Expected 0xabba1234 got 0x4081faa4" even with 1000ms cleanup delay. Error occurs when multiple "Deferred cleanup of AsyncClient" messages appear nearly simultaneously.
+  - **Solution**: Implemented serialized deletion with 250ms spacing between consecutive AsyncClient deletions
+    - Added `TCP_CLIENT_DELETION_SPACING_MS` constant (250ms) to ensure deletions don't overlap
+    - Added global `lastScheduledDeletionTime` tracker to coordinate deletion timing
+    - Implemented `scheduleAsyncClientDeletion()` function that calculates proper spacing
+    - Updated `BufferedConnection` destructor and tcp.hpp error handlers to use centralized scheduler
+    - Ensures each AsyncClient deletion completes before the next one starts
+    - Handles millis() rollover and multiple concurrent deletion requests
+  - **Performance Impact**: 
+    - Single deletion: No change (1000ms)
+    - Multiple concurrent deletions: Spaced by 250ms each (total spread <1 second for typical scenarios)
+    - High-churn scenario (10 failures): Spread over ~3 seconds (still acceptable)
+  - **Testing**: All test suites pass (1000+ assertions), including new deletion spacing tests (47 assertions in tcp_retry)
+  - **Documentation**: Added ISSUE_HARD_RESET_SENDTOINTERNET_SERIALIZED_DELETION_FIX.md with detailed analysis
+  - **Impact**: Fixes critical stability issue in production deployments with high connection churn, particularly affecting sendToInternet and bridge failover scenarios
 
 ### Added
 
