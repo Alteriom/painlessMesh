@@ -42,8 +42,8 @@
 //    - Works as-is without any modifications needed!
 //
 // 2. SENDING NODE SETUP:
-//    - Call mesh.enableSendToInternet() AFTER mesh.init() on nodes that will SEND requests
-//    - Bridge nodes do NOT need to call enableSendToInternet() - they route automatically
+//    - Call mesh.enableSendToInternet() AFTER mesh.init() on ALL nodes
+//    - This enables both sending (regular nodes) AND routing (bridge nodes)
 //    - This example shows how to enable it in the setup() function below
 //
 // For Callmebot WhatsApp API:

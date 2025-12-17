@@ -11,6 +11,8 @@ Regular mesh nodes do NOT have direct IP routing to the Internet. They only comm
 **To send data to the Internet from a regular mesh node, you must:**
 
 1. **Use `sendToInternet()`** - Routes data through a gateway node
+   - Call `mesh.enableSendToInternet()` on ALL nodes after mesh.init()
+   - This enables both sending (regular nodes) AND routing (bridge nodes)
 2. **Use `initAsSharedGateway()`** - Configures all nodes with direct router access (requires router credentials - see below)
 3. **Send mesh messages to the bridge** - Bridge node handles Internet communication
 

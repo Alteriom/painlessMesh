@@ -39,8 +39,8 @@
 //
 // To send data to the Internet from a regular node:
 //   1. Use mesh.sendToInternet() to route through a gateway
-//      - Call mesh.enableSendToInternet() on the sending node after mesh.init()
-//      - Bridge nodes (this example) do NOT need enableSendToInternet() - they route automatically
+//      - Call mesh.enableSendToInternet() AFTER mesh.init() on ALL nodes
+//      - This enables both sending (regular nodes) AND routing (bridge nodes)
 //      - See examples/sendToInternet/sendToInternet.ino for complete usage
 //   2. Use initAsSharedGateway() so all nodes have router access
 //      NOTE: initAsSharedGateway() requires ROUTER credentials:
@@ -222,6 +222,11 @@ void setup() {
     // Longer delays provide more mesh discovery time when multiple nodes detect missing bridge
     // mesh.setElectionRandomDelay(10000, 30000);  // 10-30 seconds (default: 1-3 seconds)
   }
+
+  // Enable sendToInternet() API for gateway routing
+  // IMPORTANT: Must be called on ALL nodes (regular AND bridges) to enable
+  // gateway functionality. Regular nodes can send requests, bridge nodes route them.
+  mesh.enableSendToInternet();
 
   // Register callbacks
   mesh.onReceive(&receivedCallback);
