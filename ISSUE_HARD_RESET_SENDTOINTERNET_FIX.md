@@ -168,7 +168,7 @@ The increased delay means AsyncClient objects are retained in memory an addition
 
 ## Credits
 
-Fix developed by GitHub Copilot based on analysis of crash logs and heap corruption patterns reported in the sendToInternet issue.
+Fix developed based on analysis of crash logs and heap corruption patterns reported in the sendToInternet issue.
 
 ## References
 

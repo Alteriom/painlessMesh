@@ -12,7 +12,8 @@ ESPClass ESP;
 // because including tcp.hpp requires complex template resolution
 
 namespace tcp_test {
-// These should match the values in painlessmesh/tcp.hpp and connection.hpp
+// These should match the values in painlessmesh/tcp.hpp
+// TCP_CLIENT_CLEANUP_DELAY_MS is defined in painlessmesh/connection.hpp
 static const uint8_t TCP_CONNECT_MAX_RETRIES = 5;
 static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 1000;
 static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500;
