@@ -137,7 +137,7 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
         // Defer deletion of the failed AsyncClient to prevent heap corruption
         // Use the centralized deletion scheduler to ensure proper spacing between deletions
         // This prevents concurrent cleanup operations in the AsyncTCP library
-        scheduleAsyncClientDeletion(&mesh.mScheduler, client, "tcp_err(retry)");
+        scheduleAsyncClientDeletion(mesh.mScheduler, client, "tcp_err(retry)");
         
         mesh.semaphoreGive();
         return;
@@ -152,7 +152,7 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
       // Defer deletion of the failed AsyncClient to prevent heap corruption
       // Use the centralized deletion scheduler to ensure proper spacing between deletions
       // This prevents concurrent cleanup operations in the AsyncTCP library
-      scheduleAsyncClientDeletion(&mesh.mScheduler, client, "tcp_err(exhaustion)");
+      scheduleAsyncClientDeletion(mesh.mScheduler, client, "tcp_err(exhaustion)");
 #endif
       // Defer callback execution to avoid crashes in error handler context
       // Execute callbacks after semaphore is released and error handler completes
