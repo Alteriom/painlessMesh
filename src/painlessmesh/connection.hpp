@@ -30,6 +30,8 @@ static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 250; // 250ms spacing bet
 
 // Global state to track AsyncClient deletion scheduling
 // This ensures deletions are spaced out even when multiple deletion requests arrive simultaneously
+// Note: Thread safety is not required - ESP32/ESP8266 mesh runs single-threaded in Arduino framework
+// All mesh operations occur in the main loop or scheduler callbacks, never concurrently
 static uint32_t lastScheduledDeletionTime = 0; // Timestamp when last deletion was scheduled (milliseconds)
 
 // Shared buffer for reading/writing to the buffer
@@ -79,11 +81,17 @@ inline void scheduleAsyncClientDeletion(Scheduler* scheduler, AsyncClient* clien
     uint32_t nextAvailableSlot = lastScheduledDeletionTime + TCP_CLIENT_DELETION_SPACING_MS;
     
     // If our target deletion time is before the next available slot, push it out
-    // Handle millis() rollover by using signed arithmetic
+    // Handle millis() rollover: Use signed arithmetic to detect if nextAvailableSlot is "in the future"
+    // relative to targetDeletionTime. This works because:
+    // - If difference is positive and < 2^31: nextAvailableSlot is ahead, we need to wait
+    // - If difference is negative or > 2^31: nextAvailableSlot is in the past (or very far future after rollover), use targetDeletionTime
     int32_t timeUntilSlot = (int32_t)(nextAvailableSlot - targetDeletionTime);
-    if (timeUntilSlot > 0) {
+    if (timeUntilSlot > 0 && timeUntilSlot < (int32_t)(1U << 30)) {
+      // nextAvailableSlot is reasonably soon in the future (< ~12 days), space from it
       targetDeletionTime = nextAvailableSlot;
     }
+    // else: lastScheduledDeletionTime is too old (> baseDelay+spacing), or rollover occurred
+    // In this case, just use targetDeletionTime (currentTime + baseDelay) and reset spacing
   }
   
   // Calculate the actual delay from now
