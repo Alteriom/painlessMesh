@@ -16,8 +16,11 @@ namespace tcp {
 
 // Delay before cleaning up failed AsyncClient after connection error or close
 // This prevents crashes when AsyncTCP library is still accessing the client internally
-// The AsyncTCP library may take a few hundred milliseconds to complete its internal cleanup
-static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 500; // 500ms delay before deleting AsyncClient
+// The AsyncTCP library may take several hundred milliseconds to complete its internal cleanup
+// When multiple connections are failing simultaneously (e.g., during mesh connection issues),
+// the library needs even more time to safely process multiple cleanup operations
+// Increased from 500ms to 1000ms to handle high-churn scenarios more reliably
+static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 1000; // 1000ms delay before deleting AsyncClient
 
 // Shared buffer for reading/writing to the buffer
 static painlessmesh::buffer::temp_buffer_t shared_buffer;
