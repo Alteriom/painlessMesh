@@ -22,8 +22,95 @@ namespace tcp {
 // Increased from 500ms to 1000ms to handle high-churn scenarios more reliably
 static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 1000; // 1000ms delay before deleting AsyncClient
 
+// Minimum spacing between consecutive AsyncClient deletions to prevent concurrent cleanup
+// When multiple AsyncClients are deleted in rapid succession, the AsyncTCP library's
+// internal cleanup routines can interfere with each other, causing heap corruption
+// This spacing ensures each deletion completes before the next one begins
+static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 250; // 250ms spacing between deletions
+
+// Global state to track AsyncClient deletion scheduling
+// This ensures deletions are spaced out even when multiple deletion requests arrive simultaneously
+static uint32_t lastScheduledDeletionTime = 0; // Timestamp when last deletion was scheduled (milliseconds)
+
 // Shared buffer for reading/writing to the buffer
 static painlessmesh::buffer::temp_buffer_t shared_buffer;
+
+/**
+ * Schedule deletion of an AsyncClient with proper spacing to prevent concurrent cleanups
+ * 
+ * This function ensures that AsyncClient deletions are spaced out in time to prevent
+ * the AsyncTCP library's internal cleanup routines from interfering with each other.
+ * 
+ * When multiple AsyncClient objects need to be deleted (e.g., during high connection churn
+ * or sendToInternet scenarios), scheduling them all with the same delay can cause them to
+ * execute concurrently, leading to heap corruption.
+ * 
+ * This function maintains a global timestamp of when the last deletion was scheduled and
+ * calculates an appropriate delay for the new deletion to ensure adequate spacing.
+ * 
+ * @param scheduler The task scheduler to use for scheduling the deletion
+ * @param client The AsyncClient pointer to delete
+ * @param logPrefix Prefix for the log message (e.g., "~BufferedConnection" or "tcp_err")
+ */
+inline void scheduleAsyncClientDeletion(Scheduler* scheduler, AsyncClient* client, const char* logPrefix) {
+  using namespace logger;
+  
+  if (!scheduler) {
+    // Fallback: If scheduler not available, delete immediately (risky)
+    Log(CONNECTION, "%s: No scheduler available, deleting AsyncClient immediately (risky)\n", logPrefix);
+    delete client;
+    return;
+  }
+  
+  // Get current time in milliseconds
+  uint32_t currentTime = millis();
+  
+  // Calculate the earliest time this deletion should execute
+  // Base delay: TCP_CLIENT_CLEANUP_DELAY_MS (1000ms)
+  uint32_t baseDelay = TCP_CLIENT_CLEANUP_DELAY_MS;
+  
+  // Calculate when this deletion should execute relative to the last scheduled deletion
+  // If the last deletion was scheduled recently, we need to add additional spacing
+  uint32_t targetDeletionTime = currentTime + baseDelay;
+  
+  // If there's a recent deletion scheduled, ensure we space out from it
+  if (lastScheduledDeletionTime > 0) {
+    // Calculate when the next deletion slot is available
+    uint32_t nextAvailableSlot = lastScheduledDeletionTime + TCP_CLIENT_DELETION_SPACING_MS;
+    
+    // If our target deletion time is before the next available slot, push it out
+    // Handle millis() rollover by using signed arithmetic
+    int32_t timeUntilSlot = (int32_t)(nextAvailableSlot - targetDeletionTime);
+    if (timeUntilSlot > 0) {
+      targetDeletionTime = nextAvailableSlot;
+    }
+  }
+  
+  // Calculate the actual delay from now
+  uint32_t actualDelay = targetDeletionTime - currentTime;
+  
+  // Update the last scheduled deletion time
+  lastScheduledDeletionTime = targetDeletionTime;
+  
+  Log(CONNECTION, "%s: Scheduling AsyncClient deletion in %u ms (spaced from previous deletions)\n", 
+      logPrefix, actualDelay);
+  
+  // Schedule the deletion task
+  // Note: Task object is intentionally leaked to keep implementation simple
+  // This is acceptable because:
+  // 1. Connections are long-lived, destructor calls are infrequent
+  // 2. Task object is small (~32-64 bytes) vs preventing critical heap corruption
+  // 3. In typical deployments, memory impact is negligible (few KB over months)
+  // 4. Alternative cleanup patterns would add significant complexity
+  Task* cleanupTask = new Task(actualDelay * TASK_MILLISECOND, TASK_ONCE, [client, logPrefix]() {
+    using namespace logger;
+    Log(CONNECTION, "%s: Deferred cleanup of AsyncClient executing now\n", logPrefix);
+    delete client;
+  });
+  
+  scheduler->addTask(*cleanupTask);
+  cleanupTask->enableDelayed();
+}
 
 /**
  * Class that performs buffered read and write to the tcp connection
@@ -57,35 +144,9 @@ class BufferedConnection
     client->abort();
     
     // Defer deletion of the AsyncClient to prevent heap corruption
-    // Deleting immediately can cause use-after-free issues when the AsyncTCP 
-    // library is still referencing the object internally during cleanup
+    // Use the centralized deletion scheduler to ensure proper spacing between deletions
     // See ISSUE_254_HEAP_CORRUPTION_FIX.md and ASYNCCLIENT_CLEANUP_FIX.md
-    if (mScheduler) {
-      // Capture client pointer by value for safe deferred deletion
-      AsyncClient* clientToDelete = client;
-      
-      // Schedule deletion task with TCP_CLIENT_CLEANUP_DELAY_MS delay
-      // This gives AsyncTCP library time to complete its internal cleanup
-      // Note: Task object is intentionally leaked to keep implementation simple
-      // This is acceptable because:
-      // 1. Connections are long-lived, destructor calls are infrequent
-      // 2. Task object is small (~32-64 bytes) vs preventing critical heap corruption
-      // 3. In typical deployments, memory impact is negligible (few KB over months)
-      // 4. Alternative cleanup patterns would add significant complexity
-      Task* cleanupTask = new Task(TCP_CLIENT_CLEANUP_DELAY_MS * TASK_MILLISECOND, TASK_ONCE, [clientToDelete]() {
-        using namespace logger;
-        Log(CONNECTION, "~BufferedConnection: Deferred cleanup of AsyncClient\n");
-        delete clientToDelete;
-      });
-      
-      mScheduler->addTask(*cleanupTask);
-      cleanupTask->enableDelayed();
-    } else {
-      // Fallback: If scheduler not available, delete immediately
-      // This should only happen in test environments or edge cases
-      Log(CONNECTION, "~BufferedConnection: No scheduler available, deleting AsyncClient immediately (risky)\n");
-      delete client;
-    }
+    scheduleAsyncClientDeletion(mScheduler, client, "~BufferedConnection");
   }
 
   void initialize(Scheduler *scheduler) {
