@@ -1558,6 +1558,15 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
     PendingInternetRequest& request = it->second;
 
+    // Check mesh connectivity before attempting retry
+    // During bridge failover, connection may be temporarily lost
+    if (!hasActiveMeshConnections()) {
+      Log(logger::ERROR, "retryInternetRequest(): No active mesh connections for retry msgId=%u, rescheduling\n",
+          messageId);
+      scheduleInternetRetry(messageId);
+      return;
+    }
+
     // Find gateway (may have changed)
     BridgeInfo* gateway = getPrimaryBridge();
     if (gateway == nullptr) {
