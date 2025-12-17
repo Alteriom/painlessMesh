@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Bridge Failover & sendToInternet Retry Connectivity** - Fixed heap corruption and request timeouts when using bridge_failover with sendToInternet() during connection instability
+  - **Root Cause**: `retryInternetRequest()` did not check mesh connectivity before attempting retry, causing routing attempts through unreachable gateways during bridge disconnection
+  - **Symptom**: Nodes experience timeouts, heap corruption ("CORRUPT HEAP: Bad head at 0x40831da0"), and system instability during bridge failover cycles when messages are queued via sendToInternet()
+  - **Solution**: Added `hasActiveMeshConnections()` check at start of `retryInternetRequest()`
+    - Retry only proceeds if mesh connections are active
+    - If disconnected, reschedules retry instead of attempting to route
+    - Prevents routing to unreachable gateways during temporary disconnection
+    - Maintains existing retry logic and exponential backoff
+  - **Testing**: Added comprehensive test coverage (catch_sendtointernet_retry_no_mesh.cpp) with 31 assertions validating disconnected retry scenarios
+  - **Documentation**: Added BRIDGE_FAILOVER_RETRY_FIX.md with detailed analysis and usage notes
+  - **Impact**: Fixes critical stability issue during bridge failover, enabling reliable sendToInternet() usage in production deployments with unstable connections
+
 - **Hard Reset During sendToInternet - Serialized AsyncClient Deletion** - Fixed ESP32/ESP8266 hard resets caused by heap corruption when multiple AsyncClient cleanup operations execute concurrently
   - **Root Cause**: When multiple connections fail in rapid succession (e.g., during sendToInternet operations, mesh topology changes, or bridge failover), all AsyncClient deletions were scheduled with the same 1000ms delay, causing them to execute concurrently. The AsyncTCP library's internal cleanup routines cannot handle concurrent operations, leading to heap corruption.
   - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x40831da0. Expected 0xabba1234 got 0x4081faa4" even with 1000ms cleanup delay. Error occurs when multiple "Deferred cleanup of AsyncClient" messages appear nearly simultaneously.
