@@ -1814,19 +1814,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Notify via callback
     // Use explicit TSTRING construction to ensure string lifetime safety
     if (bridgeRoleChangedCallback) {
-      TSTRING reason = "Election winner - best router signal";
+      static const TSTRING reason = "Election winner - best router signal";
       bridgeRoleChangedCallback(true, reason);
     }
 
-    // Note: The initial takeover announcement was already sent on line 1771
+    // Note: The initial takeover announcement was already sent earlier
     // before the channel switch. The follow-up announcement that was previously
     // scheduled here has been removed to avoid potential crashes from scheduling
     // tasks immediately after stop()/reinit cycle.
     //
-    // The bridge status broadcast system (initialized by initAsBridge) will
-    // continue to inform nodes about the new bridge through periodic broadcasts.
-    // Nodes that switched channels will discover the new bridge through these
-    // status broadcasts at line 1277-1280.
+    // The bridge status broadcast system (initialized by initAsBridge via
+    // initBridgeStatusBroadcast) will continue to inform nodes about the new
+    // bridge through periodic broadcasts. Nodes that switched channels will
+    // discover the new bridge through these status broadcasts.
     Log(STARTUP,
         "Bridge takeover complete. Status broadcasts will announce bridge to "
         "network.\n");
@@ -1927,13 +1927,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Notify via callback
     // Use explicit TSTRING construction to ensure string lifetime safety
     if (bridgeRoleChangedCallback) {
-      TSTRING reason = "Isolated node promoted to bridge";
+      static const TSTRING reason = "Isolated node promoted to bridge";
       bridgeRoleChangedCallback(true, reason);
     }
 
     // Note: Bridge status announcement will be sent automatically by
     // initBridgeStatusBroadcast() which is called by initAsBridge().
-    // The immediate broadcast is scheduled there at line 1277-1280, so we don't
+    // The immediate broadcast is scheduled in that function, so we don't
     // need to schedule another one here. This avoids potential crashes from
     // scheduling tasks immediately after stop()/reinit cycle.
     // The initBridgeStatusBroadcast() also sets up periodic broadcasts.
