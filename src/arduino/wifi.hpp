@@ -1939,16 +1939,21 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         _meshChannel);
 
     // Notify via callback
+    // Use explicit TSTRING construction to ensure string lifetime safety
     if (bridgeRoleChangedCallback) {
-      bridgeRoleChangedCallback(true, "Isolated node promoted to bridge");
+      TSTRING reason = "Isolated node promoted to bridge";
+      bridgeRoleChangedCallback(true, reason);
     }
 
-    // Send bridge status announcement to attract other nodes
-    this->addTask(3000, TASK_ONCE, [this]() {
-      Log(STARTUP, "Sending bridge status announcement on channel %d\n",
-          _meshChannel);
-      this->sendBridgeStatus();
-    });
+    // Note: Bridge status announcement will be sent automatically by
+    // initBridgeStatusBroadcast() which is called by initAsBridge().
+    // The immediate broadcast is scheduled there at line 1277-1280, so we don't
+    // need to schedule another one here. This avoids potential crashes from
+    // scheduling tasks immediately after stop()/reinit cycle.
+    // The initBridgeStatusBroadcast() also sets up periodic broadcasts.
+    Log(STARTUP,
+        "Bridge status announcement will be sent by bridge status broadcast "
+        "system\n");
 
     return true;  // Count as an attempt - we succeeded
   }
