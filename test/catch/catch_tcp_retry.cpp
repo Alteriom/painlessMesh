@@ -351,9 +351,6 @@ SCENARIO("AsyncClient deletion spacing prevents concurrent cleanup operations",
         // T=10: Request deletion 2 -> scheduled at T+(baseDelay+spacing)
         uint32_t deletion2ScheduledTime = deletion1ScheduledTime + spacing;
         
-        // Deletion 1 executes at scheduled time (on time)
-        uint32_t deletion1ExecutionTime = deletion1ScheduledTime;
-        
         // Deletion 2 executes EARLY due to scheduler jitter (20ms before scheduled time)
         const uint32_t jitterMs = 20;  // Realistic scheduler jitter
         uint32_t deletion2ExecutionTime = deletion2ScheduledTime - jitterMs;
@@ -369,7 +366,6 @@ SCENARIO("AsyncClient deletion spacing prevents concurrent cleanup operations",
         // Calculate what the spacing would have been WITHOUT the fix
         // (spacing from scheduled time instead of execution time)
         uint32_t deletion3ScheduledTimeWithoutFix = deletion2ScheduledTime + spacing;
-        uint32_t actualSpacingWithoutFix = deletion3ScheduledTimeWithoutFix - deletion2ExecutionTime;
         
         // Without fix, actual spacing depends on jitter direction:
         // - If task executes early (as in this example): spacing increases beyond minimum (adequate)
