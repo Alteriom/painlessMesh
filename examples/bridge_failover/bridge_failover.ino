@@ -226,7 +226,7 @@ void setup() {
   // NOTE: Bridge nodes do NOT need to call mesh.enableSendToInternet()
   // The initAsBridge() method already sets up gateway routing via initGatewayInternetHandler()
   // which handles incoming sendToInternet() requests from regular nodes.
-  // 
+  //
   // Only call enableSendToInternet() on nodes that will SEND requests (regular nodes).
   // Bridge nodes only need to ROUTE requests, which is automatically configured.
 
