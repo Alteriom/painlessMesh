@@ -28,11 +28,13 @@ static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 1000; // 1000ms delay before
 // This spacing ensures each deletion completes before the next one begins
 static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 250; // 250ms spacing between deletions
 
-// Global state to track AsyncClient deletion scheduling
+// Global state to track AsyncClient deletion scheduling and execution
 // This ensures deletions are spaced out even when multiple deletion requests arrive simultaneously
+// The timestamp is updated both when a deletion is SCHEDULED and when it EXECUTES, providing
+// double protection against concurrent cleanup operations even with scheduler jitter
 // Note: Thread safety is not required - ESP32/ESP8266 mesh runs single-threaded in Arduino framework
 // All mesh operations occur in the main loop or scheduler callbacks, never concurrently
-static uint32_t lastScheduledDeletionTime = 0; // Timestamp when last deletion was scheduled (milliseconds)
+static uint32_t lastScheduledDeletionTime = 0; // Timestamp of last deletion scheduled/executed (milliseconds)
 
 // Shared buffer for reading/writing to the buffer
 static painlessmesh::buffer::temp_buffer_t shared_buffer;
@@ -98,6 +100,9 @@ inline void scheduleAsyncClientDeletion(Scheduler* scheduler, AsyncClient* clien
   uint32_t actualDelay = targetDeletionTime - currentTime;
   
   // Update the last scheduled deletion time
+  // IMPORTANT: We update this when scheduling, which provides a minimum guaranteed spacing
+  // between scheduled deletions. This ensures even with scheduler jitter, deletions won't
+  // be scheduled too close together.
   lastScheduledDeletionTime = targetDeletionTime;
   
   Log(CONNECTION, "%s: Scheduling AsyncClient deletion in %u ms (spaced from previous deletions)\n", 
@@ -113,6 +118,12 @@ inline void scheduleAsyncClientDeletion(Scheduler* scheduler, AsyncClient* clien
   Task* cleanupTask = new Task(actualDelay * TASK_MILLISECOND, TASK_ONCE, [client, logPrefix]() {
     using namespace logger;
     Log(CONNECTION, "%s: Deferred cleanup of AsyncClient executing now\n", logPrefix);
+    
+    // Update the last deletion time when the deletion actually executes
+    // This ensures subsequent deletions are spaced from the actual execution time,
+    // not just the scheduled time, preventing concurrent cleanup operations
+    lastScheduledDeletionTime = millis();
+    
     delete client;
   });
   
