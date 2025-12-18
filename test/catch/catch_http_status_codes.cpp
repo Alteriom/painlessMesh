@@ -21,7 +21,14 @@ painlessmesh::logger::LogClass Log;
 
 /**
  * Helper function to determine if an HTTP status code should be treated as success
- * This mirrors the logic in wifi.hpp initGatewayInternetHandler()
+ * 
+ * NOTE: This intentionally duplicates the logic in wifi.hpp initGatewayInternetHandler()
+ * to serve as:
+ * 1. A specification/documentation of the expected behavior
+ * 2. A regression test that will fail if the production code changes unexpectedly
+ * 
+ * If you change this logic, you MUST also update the production code in wifi.hpp
+ * and vice versa.
  */
 bool isHttpStatusSuccess(uint16_t httpCode) {
     // Only specific 2xx status codes indicate genuine success

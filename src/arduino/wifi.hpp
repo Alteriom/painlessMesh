@@ -2176,12 +2176,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
             } else if (httpCode >= 200 && httpCode < 300) {
               // Other 2xx codes - ambiguous success
-              error = "Ambiguous response - HTTP " + TSTRING(std::to_string(httpCode).c_str()) + 
-                     " may indicate cached/proxied response, not actual delivery";
+              char errorBuf[128];
+              snprintf(errorBuf, sizeof(errorBuf), 
+                      "Ambiguous response - HTTP %d may indicate cached/proxied response, not actual delivery", 
+                      httpCode);
+              error = TSTRING(errorBuf);
               Log(ERROR, "HTTP request ambiguous: code=%d (treated as failure)\n", httpCode);
             } else {
               // 1xx, 3xx, 4xx, 5xx
-              error = "HTTP " + TSTRING(std::to_string(httpCode).c_str());
+              char errorBuf[32];
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              error = TSTRING(errorBuf);
               Log(ERROR, "HTTP request failed: code=%d\n", httpCode);
             }
           } else {
