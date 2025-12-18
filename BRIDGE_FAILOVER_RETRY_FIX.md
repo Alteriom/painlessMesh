@@ -4,6 +4,8 @@
 
 When using the bridge_failover example with sendToInternet() functionality, regular mesh nodes experienced request timeouts and heap corruption during periods of connection instability. The issue manifested as cyclic disconnections between bridge and nodes, with messages timing out even when connectivity was briefly restored.
 
+**Note:** The HTTP 203 status code issue mentioned in the logs below (where `✅ WhatsApp message sent! HTTP Status: 203` appeared successful but messages weren't delivered) has been separately fixed. HTTP 203 is now correctly treated as a failure. See the "HTTP Status Code Fix" section at the bottom of this document.
+
 ## Problem Details
 
 ### Observed Symptoms
@@ -230,9 +232,48 @@ This fix addresses similar issues that may occur in:
 - [Bridge Failover Guide](examples/bridge_failover/README.md)
 - [Internet Connectivity Guide](BRIDGE_TO_INTERNET.md)
 
+## HTTP Status Code Fix
+
+The logs in this document show `✅ WhatsApp message sent! HTTP Status: 203` which appeared to indicate success but messages were not actually delivered. This was a separate bug that has now been fixed.
+
+### The Problem
+
+HTTP 203 (Non-Authoritative Information) means the response came from a cache or proxy, not from the actual destination server. For APIs like WhatsApp/Callmebot, this does NOT mean the message was delivered.
+
+The old code treated all 2xx status codes (200-299) as success:
+```cpp
+// OLD (incorrect)
+success = (httpCode >= 200 && httpCode < 300);
+```
+
+### The Fix
+
+Now only specific 2xx codes that indicate genuine success are accepted:
+```cpp
+// NEW (correct)
+success = (httpCode == 200 || httpCode == 201 || 
+          httpCode == 202 || httpCode == 204);
+```
+
+- **200 OK**: Standard success (most common)
+- **201 Created**: Resource created
+- **202 Accepted**: Request accepted for processing
+- **204 No Content**: Success with no response body
+
+HTTP 203 and other ambiguous 2xx codes now return `success = false` with an informative error message: "Ambiguous response - HTTP 203 may indicate cached/proxied response, not actual delivery"
+
+### Impact
+
+Users will now see accurate delivery status:
+- **Before:** `✅ WhatsApp message sent! HTTP Status: 203` (misleading)
+- **After:** `❌ Failed to send WhatsApp: Ambiguous response... (HTTP: 203)` (accurate)
+
+This prevents false positives where users believe messages were sent when they weren't.
+
 ## Credits
 
 - Issue reported by: User experiencing heap corruption with bridge_failover + sendToInternet
 - Root cause analysis: GitHub Copilot
 - Fix implemented: 2024-12-17
 - Testing: Comprehensive unit tests added
+- HTTP 203 fix: 2025-12-18

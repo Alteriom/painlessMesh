@@ -40,6 +40,8 @@ When using the bridge_failover example together with sendToInternet() functional
 23:10:01.110 -> ✅ WhatsApp message sent! HTTP Status: 203
 ```
 
+**Note:** The HTTP 203 shown above appeared as success but indicated a cached/proxied response, not actual delivery. This has been separately fixed - HTTP 203 is now correctly treated as failure.
+
 ### Original (Incorrect) Analysis
 
 The original analysis incorrectly concluded that bridge_failover needed `mesh.enableSendToInternet()` in setup(). The reasoning was:

@@ -2158,10 +2158,37 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           }
 
           if (httpCode > 0) {
-            // Only 2xx status codes are treated as success
+            // Only specific 2xx status codes indicate genuine success
+            // 200 OK: Standard successful response
+            // 201 Created: Resource successfully created
+            // 202 Accepted: Request accepted for processing
+            // 204 No Content: Successful with no response body
+            //
+            // Other 2xx codes like 203 (Non-Authoritative Information) often
+            // indicate cached/proxied responses that may not represent actual
+            // delivery to the destination service (e.g., WhatsApp API).
+            //
             // 3xx redirects are not automatically followed
-            success = (httpCode >= 200 && httpCode < 300);
-            Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
+            success = (httpCode == 200 || httpCode == 201 || 
+                      httpCode == 202 || httpCode == 204);
+            
+            if (success) {
+              Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
+            } else if (httpCode >= 200 && httpCode < 300) {
+              // Other 2xx codes - ambiguous success
+              char errorBuf[128];
+              snprintf(errorBuf, sizeof(errorBuf), 
+                      "Ambiguous response - HTTP %d may indicate cached/proxied response, not actual delivery", 
+                      httpCode);
+              error = TSTRING(errorBuf);
+              Log(ERROR, "HTTP request ambiguous: code=%d (treated as failure)\n", httpCode);
+            } else {
+              // 1xx, 3xx, 4xx, 5xx
+              char errorBuf[32];
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              error = TSTRING(errorBuf);
+              Log(ERROR, "HTTP request failed: code=%d\n", httpCode);
+            }
           } else {
             error = http.errorToString(httpCode);
             Log(ERROR, "HTTP request failed: %s\n", error.c_str());
