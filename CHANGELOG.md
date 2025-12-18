@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Root Cause**: The `scheduleAsyncClientDeletion()` function was updating `lastScheduledDeletionTime` at BOTH scheduling time (line 111) and execution time (line 130), creating a race condition where scheduler jitter could cause deletions to execute with insufficient spacing
   - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x40831d54. Expected 0xabba1234 got 0x4081fae4" even with 250ms spacing constant, particularly during network disruptions, TCP retries, or WiFi reconnection cycles
   - **Race Condition Scenario**: When Task A scheduled for time T1 executes late at T1+jitter, it updates `lastScheduledDeletionTime` to T1+jitter, potentially AFTER Task B's scheduled time (which was calculated based on T1), causing Task B to execute with less than 250ms spacing
-  - **Solution**: Removed the execution-time update (line 130) of `lastScheduledDeletionTime`, relying solely on scheduling-time update (line 111)
+  - **Solution**: Removed the execution-time update of `lastScheduledDeletionTime` in the task callback, relying solely on the scheduling-time update
     - Ensures consistent, predictable spacing based on planned execution times
     - Eliminates race condition where execution-time updates could "rewind" the timestamp
     - Makes spacing calculation immune to scheduler jitter

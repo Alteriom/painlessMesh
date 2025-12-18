@@ -124,7 +124,7 @@ inline void scheduleAsyncClientDeletion(Scheduler* scheduler, AsyncClient* clien
     using namespace logger;
     Log(CONNECTION, "%s: Deferred cleanup of AsyncClient executing now\n", logPrefix);
     
-    // Note: lastScheduledDeletionTime is updated at scheduling time (line 111), not here
+    // Note: lastScheduledDeletionTime is updated at scheduling time (before this task runs), not here
     // This ensures consistent spacing based on when deletions were scheduled, preventing
     // the race condition where execution-time updates could "rewind" the timestamp
     // and cause subsequent deletions to be scheduled too close together
