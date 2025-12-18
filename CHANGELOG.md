@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hard Reset on Bridge Promotion - Unsafe addTask After stop/reinit** - Fixed ESP32/ESP8266 hard resets (Guru Meditation Error: Load access fault) immediately after bridge promotion in both isolated and election winner paths
+  - **Root Cause**: Calling `addTask()` immediately after `stop()/initAsBridge()` cycle accessed unstable internal task scheduling structures before they were fully reinitialized in the new context
+  - **Symptom**: Device crashes with "Load access fault" at MTVAL 0xbaad59d4 (freed memory marker) immediately after "🎯 PROMOTED TO BRIDGE" message when node becomes bridge through either isolated promotion or election
+  - **Solution**: Removed redundant task scheduling calls that were unsafe after stop/reinit
+    - Removed `addTask()` call in `attemptIsolatedBridgePromotion()` (line 1947)
+    - Removed `addTask()` call in `promoteToBridge()` (line 1822)
+    - Relied on existing `initBridgeStatusBroadcast()` infrastructure which safely handles announcements
+    - Used explicit `TSTRING` construction in callback invocations for string lifetime safety
+  - **Why Safe**: The removed tasks were redundant - `initBridgeStatusBroadcast()` (called by `initAsBridge()`) already sends immediate and periodic bridge status broadcasts (lines 1277-1280), and election winner path sends initial takeover announcement before stop/reinit (line 1771)
+  - **Testing**: All test suites pass (1000+ assertions), including bridge election and promotion tests
+  - **Documentation**: Added ISSUE_HARD_RESET_BRIDGE_PROMOTION_FIX.md with detailed analysis of both affected code paths
+  - **Impact**: Eliminates critical crash during bridge promotion, allows stable bridge failover operation in both isolated and competitive election scenarios
+
 - **Bridge Failover & sendToInternet Retry Connectivity** - Fixed heap corruption and request timeouts when using bridge_failover with sendToInternet() during connection instability
   - **Root Cause**: `retryInternetRequest()` did not check mesh connectivity before attempting retry, causing routing attempts through unreachable gateways during bridge disconnection
   - **Symptom**: Nodes experience timeouts, heap corruption ("CORRUPT HEAP: Bad head at 0x40831da0"), and system instability during bridge failover cycles when messages are queued via sendToInternet()
