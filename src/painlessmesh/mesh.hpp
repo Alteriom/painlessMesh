@@ -1503,13 +1503,63 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
     PendingInternetRequest& request = it->second;
 
-    // Call user callback
-    if (request.callback) {
-      request.callback(ack.success, ack.httpStatus, ack.error);
+    // Check if this is a success response
+    if (ack.success) {
+      // Success - call callback and remove request
+      if (request.callback) {
+        request.callback(ack.success, ack.httpStatus, ack.error);
+      }
+      pendingInternetRequests.erase(it);
+      return;
     }
 
-    // Remove from pending
-    pendingInternetRequests.erase(it);
+    // Failure response - determine if retryable
+    bool isRetryable = false;
+    
+    // HTTP 203 (Non-Authoritative Information) indicates cached/proxied response
+    // This is often temporary and retrying may succeed when cache expires
+    if (ack.httpStatus == 203) {
+      isRetryable = true;
+      Log(COMMUNICATION, "handleGatewayAck(): HTTP 203 detected, marking as retryable\n");
+    }
+    // HTTP 5xx server errors are typically transient
+    else if (ack.httpStatus >= 500 && ack.httpStatus < 600) {
+      isRetryable = true;
+      Log(COMMUNICATION, "handleGatewayAck(): HTTP 5xx server error, marking as retryable\n");
+    }
+    // HTTP 429 (Too Many Requests) should be retried with backoff
+    else if (ack.httpStatus == 429) {
+      isRetryable = true;
+      Log(COMMUNICATION, "handleGatewayAck(): HTTP 429 rate limit, marking as retryable\n");
+    }
+    // Network errors (httpStatus == 0) are retryable
+    else if (ack.httpStatus == 0) {
+      isRetryable = true;
+      Log(COMMUNICATION, "handleGatewayAck(): Network error, marking as retryable\n");
+    }
+    // HTTP 4xx client errors (except 429) are NOT retryable
+    // HTTP 3xx redirects are NOT retryable (should be followed by HTTPClient)
+    // Other status codes are NOT retryable
+
+    // If retryable and have retries left, schedule retry
+    if (isRetryable && request.retryCount < request.maxRetries) {
+      Log(COMMUNICATION, "handleGatewayAck(): Scheduling retry for msgId=%u (attempt %u/%u)\n",
+          ack.messageId, request.retryCount + 1, request.maxRetries);
+      scheduleInternetRetry(ack.messageId);
+    } else {
+      // Not retryable or max retries reached - call callback and remove
+      if (request.retryCount >= request.maxRetries) {
+        Log(ERROR, "handleGatewayAck(): Max retries reached for msgId=%u\n", ack.messageId);
+      } else {
+        Log(COMMUNICATION, "handleGatewayAck(): Non-retryable failure for msgId=%u (HTTP %u)\n",
+            ack.messageId, ack.httpStatus);
+      }
+      
+      if (request.callback) {
+        request.callback(ack.success, ack.httpStatus, ack.error);
+      }
+      pendingInternetRequests.erase(it);
+    }
   }
 
   /**
