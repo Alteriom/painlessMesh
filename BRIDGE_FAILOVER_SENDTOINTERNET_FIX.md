@@ -1,8 +1,20 @@
-# Bridge Failover and sendToInternet Integration Fix
+# Bridge Failover and sendToInternet Integration - CORRECTED
 
-## Issue Summary
+## IMPORTANT: This document describes an INCORRECT fix that has been reverted
+
+The original fix (adding `mesh.enableSendToInternet()` to bridge nodes) was incorrect and caused TCP connection failures for regular nodes trying to connect to the mesh.
+
+**Issue Reported:** Upon adding `mesh.enableSendToInternet()` to bridge_failover, nodes experience endless TCP connection retries with error -14 (ERR_CONN).
+
+**Correct Behavior:** Bridge nodes should NOT call `enableSendToInternet()` - routing is automatically configured by `initAsBridge()` via `initGatewayInternetHandler()`.
+
+This document is kept for historical reference to prevent similar mistakes in the future.
+
+## Original Issue Summary (RESOLVED DIFFERENTLY)
 
 When using the bridge_failover example together with sendToInternet() functionality, regular nodes experienced request timeouts during bridge connection instability. The bridge would show cyclic disconnections, and messages sent via sendToInternet() would time out.
+
+## Why The Original "Fix" Was Wrong
 
 ## Problem Details
 
@@ -28,64 +40,63 @@ When using the bridge_failover example together with sendToInternet() functional
 23:10:01.110 -> ✅ WhatsApp message sent! HTTP Status: 203
 ```
 
-### Root Cause
+### Original (Incorrect) Analysis
 
-The bridge_failover example did **not** call `mesh.enableSendToInternet()` in setup(), which is required for proper gateway routing functionality. This caused:
+The original analysis incorrectly concluded that bridge_failover needed `mesh.enableSendToInternet()` in setup(). The reasoning was:
 
 1. **Missing Gateway Handlers**: No registered handler for GatewayAckPackage (Type 621)
 2. **No Timeout Cleanup**: Periodic cleanup of timed-out requests not enabled
 3. **Incomplete Routing Infrastructure**: Gateway routing not properly initialized
 
-While the documentation stated "Bridge nodes do NOT need enableSendToInternet() - they route automatically", this was misleading. Bridge nodes DO need to call `enableSendToInternet()` to:
-- Register acknowledgment handlers
-- Enable request tracking and timeout management
-- Complete the gateway routing infrastructure
+**This analysis was WRONG.** Bridge nodes do NOT need these handlers because:
+- Bridge nodes SEND acknowledgments (via `sendGatewayAck()`), they don't RECEIVE them
+- Bridge nodes don't track pending requests - they only execute and acknowledge
+- `initAsBridge()` already calls `initGatewayInternetHandler()` which sets up complete routing
 
-## Solution
+### Actual Root Cause (CORRECTED)
+
+Bridge nodes DO route automatically and correctly without calling `enableSendToInternet()`:
+- `initAsBridge()` calls `initGatewayInternetHandler()` which registers GATEWAY_DATA handler (Type 620)
+- This handler receives requests, executes HTTP calls, and sends GATEWAY_ACK back to sender
+- Bridge nodes don't need GATEWAY_ACK handlers - only SENDING nodes need those
+
+Calling `enableSendToInternet()` on bridges causes unnecessary overhead and can interfere with TCP connections.
+
+## Correct Solution (Implemented)
 
 ### Code Changes
 
 #### 1. examples/bridge_failover/bridge_failover.ino
 
-Added `mesh.enableSendToInternet()` call in setup():
+**REMOVED** the incorrect `mesh.enableSendToInternet()` call from bridge setup.
 
-```cpp
-// Enable sendToInternet() API for gateway routing
-// IMPORTANT: Must be called on ALL nodes (regular AND bridges) to enable
-// gateway functionality. Regular nodes can send requests, bridge nodes route them.
-mesh.enableSendToInternet();
-```
+Bridge nodes should NOT call this - routing is automatically enabled by `initAsBridge()`.
 
-Updated documentation comments:
+Updated documentation comments to clarify:
 
 ```cpp
 // To send data to the Internet from a regular node:
 //   1. Use mesh.sendToInternet() to route through a gateway
-//      - Call mesh.enableSendToInternet() AFTER mesh.init() on ALL nodes
-//      - This enables both sending (regular nodes) AND routing (bridge nodes)
+//      - Call mesh.enableSendToInternet() AFTER mesh.init() on SENDING nodes only
+//      - Bridge nodes automatically handle routing via initAsBridge()
 //      - See examples/sendToInternet/sendToInternet.ino for complete usage
 ```
 
-#### 2. examples/bridge_failover/README.md
-
-Updated usage instructions to clarify:
-
-```markdown
-**To send data to the Internet from a regular mesh node, you must:**
-
-1. **Use `sendToInternet()`** - Routes data through a gateway node
-   - Call `mesh.enableSendToInternet()` on ALL nodes after mesh.init()
-   - This enables both sending (regular nodes) AND routing (bridge nodes)
+Added clear note in setup():
+```cpp
+// NOTE: Bridge nodes do NOT need to call mesh.enableSendToInternet()
+// The initAsBridge() method already sets up gateway routing via initGatewayInternetHandler()
+// which handles incoming sendToInternet() requests from regular nodes.
 ```
 
-#### 3. examples/sendToInternet/sendToInternet.ino
+#### 2. examples/sendToInternet/sendToInternet.ino
 
-Fixed misleading comment:
+Fixed misleading comment to be accurate:
 
 ```cpp
 // 2. SENDING NODE SETUP:
-//    - Call mesh.enableSendToInternet() AFTER mesh.init() on ALL nodes
-//    - This enables both sending (regular nodes) AND routing (bridge nodes)
+//    - Call mesh.enableSendToInternet() AFTER mesh.init() on nodes that SEND requests
+//    - Bridge nodes automatically handle routing via initAsBridge()
 //    - This example shows how to enable it in the setup() function below
 ```
 
@@ -184,16 +195,17 @@ void setup() {
 }
 ```
 
-### When to Call enableSendToInternet()
+### When to Call enableSendToInternet() (CORRECTED)
 
 **Call on:**
 - ✅ Regular nodes that will **send** requests via sendToInternet()
-- ✅ Bridge nodes that will **route** requests from regular nodes
-- ✅ Any node in a bridge_failover setup (can become bridge via election)
+- ✅ Nodes that need to track pending requests and receive acknowledgments
 
 **Don't call on:**
+- ❌ Bridge nodes - routing is automatic via initAsBridge() 
+- ❌ Nodes in bridge_failover that only act as bridges (not sending requests)
 - ❌ Nodes that will never use sendToInternet() functionality
-- ❌ Nodes using only initAsSharedGateway() (has built-in routing)
+- ❌ Nodes using initAsSharedGateway() (has built-in routing)
 
 ## Related Documentation
 
