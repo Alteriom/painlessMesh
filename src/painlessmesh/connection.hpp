@@ -149,7 +149,12 @@ class BufferedConnection
     if (!client->freeable()) {
       client->close(true);
     }
-    client->abort();
+    // Note: client->abort() removed - calling it before deferred deletion
+    // can leave the client in an inconsistent state where AsyncTCP is still
+    // trying to clean up the aborted connection. The close() and close(true)
+    // calls above are sufficient for connection termination.
+    // See: AsyncTCP best practices - abort() should only be called immediately
+    // before delete, not before a deferred deletion.
     
     // Defer deletion of the AsyncClient to prevent heap corruption
     // Use the centralized deletion scheduler to ensure proper spacing between deletions
