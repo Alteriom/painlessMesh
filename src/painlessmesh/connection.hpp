@@ -32,8 +32,13 @@ static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 250; // 250ms spacing bet
 // This ensures deletions are spaced out even when multiple deletion requests arrive simultaneously
 // The timestamp is updated both when a deletion is SCHEDULED and when it EXECUTES, providing
 // double protection against concurrent cleanup operations even with scheduler jitter
-// Note: Thread safety is not required - ESP32/ESP8266 mesh runs single-threaded in Arduino framework
-// All mesh operations occur in the main loop or scheduler callbacks, never concurrently
+// 
+// THREAD SAFETY: No synchronization needed because:
+// - ESP32/ESP8266 Arduino framework is single-threaded by design
+// - TaskScheduler executes callbacks sequentially in the main loop
+// - The scheduler never runs tasks concurrently within the same mesh instance
+// - All mesh operations (including deletion callbacks) execute in the same thread
+// - Even when multiple tasks are ready, they execute one-at-a-time via scheduler->execute()
 static uint32_t lastScheduledDeletionTime = 0; // Timestamp of last deletion scheduled/executed (milliseconds)
 
 // Shared buffer for reading/writing to the buffer
