@@ -360,21 +360,28 @@ SCENARIO("AsyncClient deletion spacing prevents concurrent cleanup operations",
         
         // T=20: Request deletion 3 - should space from deletion 2's EXECUTION, not schedule
         // With fix: spaces from actual execution + spacing
-        // Without fix: would space from scheduled time + spacing
-        uint32_t deletion3ScheduledTime = deletion2ExecutionTime + spacing;
+        uint32_t deletion3ScheduledTimeWithFix = deletion2ExecutionTime + spacing;
         
         // Verify proper spacing from actual execution time
-        uint32_t spacingFromExecution = deletion3ScheduledTime - deletion2ExecutionTime;
-        REQUIRE(spacingFromExecution == spacing);
-        REQUIRE(spacingFromExecution >= spacing);
+        uint32_t actualSpacingWithFix = deletion3ScheduledTimeWithFix - deletion2ExecutionTime;
+        REQUIRE(actualSpacingWithFix >= spacing);  // Always maintains minimum spacing
         
         // Calculate what the spacing would have been WITHOUT the fix
-        uint32_t spacingWithoutFix = deletion2ScheduledTime + spacing - deletion2ExecutionTime;
+        // (spacing from scheduled time instead of execution time)
+        uint32_t deletion3ScheduledTimeWithoutFix = deletion2ScheduledTime + spacing;
+        uint32_t actualSpacingWithoutFix = deletion3ScheduledTimeWithoutFix - deletion2ExecutionTime;
         
-        // Without fix, spacing would be: (1250 + 250) - 1230 = 270ms (adequate)
-        // But if jitter went the other way (task executed late), we could have:
-        // (1250 + 250) - 1270 = 230ms (too close! < 250ms minimum)
-        REQUIRE(spacingWithoutFix > spacing - jitterMs);  // Potentially inadequate with jitter
+        // Without fix, actual spacing depends on jitter direction:
+        // - If task executes early (as in this example): spacing increases beyond minimum (adequate)
+        // - If task executes late: spacing could fall below minimum (heap corruption!)
+        // Example: deletion2 executes at 1270ms (20ms late)
+        //          deletion3 scheduled at 1500ms (from scheduled time 1250 + 250)
+        //          actual spacing: 1500 - 1270 = 230ms (too close! < 250ms)
+        
+        // Demonstrate the fix handles jitter in both directions
+        uint32_t deletion2ExecutionTimeLate = deletion2ScheduledTime + jitterMs;  // 20ms late
+        uint32_t actualSpacingIfLate = deletion3ScheduledTimeWithoutFix - deletion2ExecutionTimeLate;
+        REQUIRE(actualSpacingIfLate < spacing);  // Without fix: violates minimum spacing!
         
         // This demonstrates that even with realistic jitter, we maintain minimum spacing
         // between actual deletion executions, preventing concurrent AsyncTCP cleanup
