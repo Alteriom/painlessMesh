@@ -17,7 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- TBD
+- **Hard Reset During Bridge Operations - AsyncClient abort() Timing Issue** - Fixed ESP32/ESP8266 heap corruption crashes during TCP connection failures and bridge operations
+  - **Root Cause**: Calling `client->abort()` synchronously before scheduling deferred AsyncClient deletion (1000ms+ later) left the client in an inconsistent state where AsyncTCP's internal cleanup tried to access the aborted client
+  - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x40838cdc. Expected 0xabba1234 got 0x4200822e" and "assert failed: multi_heap_free multi_heap_poisoning.c:279" during connection cleanup
+  - **Solution**: Removed synchronous `abort()` call from `~BufferedConnection()` destructor
+    - The existing `close()` and `close(true)` calls are sufficient for connection termination
+    - According to AsyncTCP best practices, `abort()` should only be called immediately before `delete`, not before a deferred deletion
+    - Eliminates the 1000ms window where AsyncTCP tries to clean up an aborted but not-yet-deleted client
+  - **Testing**: All test suites pass (1000+ assertions), including TCP retry, connection, and mesh connectivity tests
+  - **Documentation**: Added ISSUE_ABORT_TIMING_FIX.md with detailed AsyncTCP best practices analysis
+  - **Impact**: Completes the AsyncClient lifecycle management improvements, eliminating the last known heap corruption scenario in connection cleanup
 
 ## [1.9.11] - 2025-12-18
 
