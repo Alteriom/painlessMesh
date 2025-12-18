@@ -146,6 +146,23 @@ mesh.sendToInternet("https://api.callmebot.com/...", "", callback);
 3. Check HTTP status code in callback (200 = success)
 4. URL-encode special characters in the message
 
+### Understanding HTTP Status Codes
+
+The callback provides `httpStatus` to indicate the result:
+
+**SUCCESS (success = true):**
+- `200 OK` - Standard success (most common for WhatsApp API)
+- `201 Created` - Resource successfully created
+- `202 Accepted` - Request accepted for processing
+- `204 No Content` - Successful with no response body
+
+**FAILURE (success = false):**
+- `203 Non-Authoritative Information` - **Cached/proxied response, NOT actual delivery**
+- `4xx` - Client error (bad request, unauthorized, not found, etc.)
+- `5xx` - Server error (service unavailable, gateway timeout, etc.)
+
+⚠️ **Important:** HTTP 203 is treated as **FAILURE** because it indicates the response came from a cache or proxy, not from the actual WhatsApp API server. If you see `HTTP Status: 203`, the message was **NOT delivered**.
+
 ## Files
 
 - `sendToInternet.ino` - Main example sketch

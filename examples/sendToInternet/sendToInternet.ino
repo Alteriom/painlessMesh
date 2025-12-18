@@ -184,6 +184,13 @@ void sendAlertToWhatsApp(String message) {
   
   // Use sendToInternet() to route the request through a gateway
   // The callback will be invoked when we get a response (or timeout)
+  // 
+  // SUCCESS CODES: Only specific HTTP codes indicate genuine delivery:
+  // - 200 OK: Standard success (most common for WhatsApp API)
+  // - 201 Created, 202 Accepted, 204 No Content
+  // 
+  // FAILURE: HTTP 203 (Non-Authoritative) is treated as FAILURE because
+  // it indicates a cached/proxied response, not actual delivery to WhatsApp.
   uint32_t msgId = mesh.sendToInternet(
     url,
     "",  // No payload needed for GET request - params are in URL
