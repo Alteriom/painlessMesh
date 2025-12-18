@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- TBD
+
+### Changed
+
+- TBD
+
+### Fixed
+
+- TBD
+
+## [1.9.11] - 2025-12-18
+
 ### Fixed
 
 - **Hard Reset on Bridge Promotion - Unsafe addTask After stop/reinit** - Fixed ESP32/ESP8266 hard resets (Guru Meditation Error: Load access fault) immediately after bridge promotion in both isolated and election winner paths
@@ -51,18 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Testing**: All test suites pass (1000+ assertions), including new deletion spacing tests (47 assertions in tcp_retry)
   - **Documentation**: Added ISSUE_HARD_RESET_SENDTOINTERNET_SERIALIZED_DELETION_FIX.md with detailed analysis
   - **Impact**: Fixes critical stability issue in production deployments with high connection churn, particularly affecting sendToInternet and bridge failover scenarios
-
-### Added
-
-- TBD
-
-### Changed
-
-- TBD
-
-### Fixed
-
-- TBD
 
 ## [1.9.10] - 2025-12-15
 
