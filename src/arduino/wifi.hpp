@@ -1246,9 +1246,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(STARTUP,
         "initBridgeStatusBroadcast(): Setting up bridge status broadcast\n");
 
+    // CRITICAL FIX: Schedule tasks with a small delay to avoid crashes when
+    // called immediately after stop()/init cycle. The delay allows the scheduler
+    // and internal task structures to stabilize before adding new tasks.
+    // This fixes the "Load access fault" Guru Meditation error that occurred
+    // when promoting to bridge role.
+    const uint32_t INIT_DELAY_MS = 100;
+
     // Register ourselves as a bridge in the knownBridges list
     // This ensures the bridge knows about itself and reports correct status
-    this->addTask([this]() {
+    this->addTask(INIT_DELAY_MS, TASK_ONCE, [this]() {
       // Check Internet connectivity: WiFi connected AND valid IP address
       bool hasInternet = (WiFi.status() == WL_CONNECTED) &&
                          (WiFi.localIP() != IPAddress(0, 0, 0, 0));
@@ -1269,12 +1276,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     });
 
     // Create periodic task to broadcast bridge status
-    bridgeStatusTask = this->addTask(this->bridgeStatusIntervalMs, TASK_FOREVER,
-                                     [this]() { this->sendBridgeStatus(); });
+    // Schedule with delay to avoid crashes during stop/init cycle
+    this->addTask(INIT_DELAY_MS, TASK_ONCE, [this]() {
+      bridgeStatusTask = this->addTask(this->bridgeStatusIntervalMs, TASK_FOREVER,
+                                       [this]() { this->sendBridgeStatus(); });
+    });
 
     // Send immediate broadcast so nodes can discover this bridge right away
     // This ensures bridge is discoverable before the first periodic broadcast
-    this->addTask([this]() {
+    // Use slightly larger delay to allow bridge status task to be set up first
+    this->addTask(INIT_DELAY_MS + 50, TASK_ONCE, [this]() {
       Log(STARTUP, "Sending initial bridge status broadcast\n");
       this->sendBridgeStatus();
     });
