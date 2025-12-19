@@ -89,6 +89,10 @@ class StationScan {
   // TCP failure blocklist to prevent infinite retry loops
   // Maps nodeId -> blockUntil timestamp (millis())
   std::map<uint32_t, uint32_t> tcpFailureBlocklist;
+  
+  // Threshold for detecting millis() rollover in time comparisons
+  // Using 2^30 (~12 days) as reasonable limit - any time difference larger is likely rollover
+  static constexpr int32_t MILLIS_ROLLOVER_THRESHOLD = (int32_t)(1U << 30);
 
   friend painlessMesh;
 };

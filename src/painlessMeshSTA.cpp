@@ -162,9 +162,9 @@ bool ICACHE_FLASH_ATTR StationScan::isNodeBlocked(uint32_t nodeId) const {
   uint32_t blockUntil = it->second;
   
   // Handle millis() rollover using signed arithmetic
-  // If blockUntil - now is positive and < 2^31, the block is still active
+  // If blockUntil - now is positive and < MILLIS_ROLLOVER_THRESHOLD, the block is still active
   int32_t timeRemaining = (int32_t)(blockUntil - now);
-  return (timeRemaining > 0 && timeRemaining < (int32_t)(1U << 30));
+  return (timeRemaining > 0 && timeRemaining < MILLIS_ROLLOVER_THRESHOLD);
 }
 
 void ICACHE_FLASH_ATTR StationScan::cleanupBlocklist() {
@@ -177,7 +177,7 @@ void ICACHE_FLASH_ATTR StationScan::cleanupBlocklist() {
     int32_t timeRemaining = (int32_t)(blockUntil - now);
     
     // Remove expired entries (timeRemaining <= 0 or in far future due to rollover)
-    if (timeRemaining <= 0 || timeRemaining >= (int32_t)(1U << 30)) {
+    if (timeRemaining <= 0 || timeRemaining >= MILLIS_ROLLOVER_THRESHOLD) {
       Log(CONNECTION, "cleanupBlocklist(): Removing expired entry for node %u\n", it->first);
       it = tcpFailureBlocklist.erase(it);
     } else {

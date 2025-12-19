@@ -51,8 +51,8 @@ inline uint32_t decodeNodeIdFromIP(IPAddress ip) {
   (void)ip;  // Suppress unused parameter warning
   return 0;
 #else
-  // Only valid for mesh network IPs (10.x.x.1)
-  if (ip[0] != 10) {
+  // Validate mesh network IP format: 10.x.x.1
+  if (ip[0] != 10 || ip[3] != 1) {
     return 0;  // Invalid mesh IP
   }
   
