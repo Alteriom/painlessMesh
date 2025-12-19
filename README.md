@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.12** - Latest release with AsyncClient abort() timing fix for heap corruption prevention
+**Version 1.9.13** - Latest release with HTTP 203 retry logic and AsyncClient deletion race condition fixes
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
