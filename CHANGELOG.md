@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Gateway Connection Timeout During Long HTTP Requests** - Fixed `sendToInternet()` timeouts with slow APIs like CallmeBot WhatsApp
+  - **Issue**: Mesh connections closed after 10s while HTTP requests could take 30s, causing "Request timed out" errors even when messages were successfully delivered
+  - **Fix**: Bridge now disables connection timeout during HTTP request processing, ensuring ACK delivery regardless of request duration
+  - **Impact**: WhatsApp/CallmeBot users and other slow API integrations now receive proper acknowledgments
+  - **Compatibility**: Fully backward compatible, no API changes required
+  - See GATEWAY_CONNECTION_TIMEOUT_FIX.md for detailed analysis
 - **Hard Reset on ESP32-C6 - Insufficient AsyncClient Deletion Spacing** - Fixed ESP32-C6 heap corruption crashes caused by insufficient spacing between AsyncClient deletions during network disruptions
   - **Root Cause**: The 250ms spacing between AsyncClient deletions was marginally insufficient for ESP32-C6 hardware, which uses AsyncTCP v3.3.0+ and has different timing characteristics due to RISC-V architecture and enhanced cleanup validation
   - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x40838a24. Expected 0xabba1234 got 0x4081fae4" even with deletions spaced 264ms apart (only 14ms above minimum), particularly during TCP retries, channel changes, and sendToInternet() operations
