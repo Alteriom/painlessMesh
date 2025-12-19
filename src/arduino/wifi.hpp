@@ -855,8 +855,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             Log(CONNECTION,
                 "tcpConnect(): Starting TCP connection after stabilization\n");
             AsyncClient* pConn = new AsyncClient();
-            painlessmesh::tcp::connect<Connection,
-                                       painlessmesh::Mesh<Connection>>(
+            // Use wifi::Mesh type to enable blocklist functionality
+            // This allows tcp::connect to call blockNodeAfterTCPFailure on retry exhaustion
+            painlessmesh::tcp::connect<Connection, wifi::Mesh>(
                 (*pConn), targetIP, targetPort, (*this));
           });
     } else {

@@ -35,10 +35,12 @@ inline uint32_t encodeNodeId(const uint8_t *hwaddr) {
   Log(GENERAL, "encodeNodeId():\n");
   uint32_t value = 0;
 
-  value |= hwaddr[2] << 24;  // Big endian (aka "network order"):
-  value |= hwaddr[3] << 16;
-  value |= hwaddr[4] << 8;
-  value |= hwaddr[5];
+  // Extract last 4 bytes of MAC address (skip first 2 bytes)
+  // Big endian (aka "network order") encoding
+  value |= hwaddr[2] << 24;  // Byte 2 -> bits 31-24
+  value |= hwaddr[3] << 16;  // Byte 3 -> bits 23-16
+  value |= hwaddr[4] << 8;   // Byte 4 -> bits 15-8
+  value |= hwaddr[5];        // Byte 5 -> bits 7-0
   return value;
 }
 
@@ -52,11 +54,17 @@ inline uint32_t decodeNodeIdFromIP(IPAddress ip) {
   return 0;
 #else
   // Validate mesh network IP format: 10.x.x.1
-  if (ip[0] != 10 || ip[3] != 1) {
+  // First octet must be 10, last octet must be 1
+  const uint8_t MESH_IP_FIRST_OCTET = 10;
+  const uint8_t MESH_IP_LAST_OCTET = 1;
+  if (ip[0] != MESH_IP_FIRST_OCTET || ip[3] != MESH_IP_LAST_OCTET) {
     return 0;  // Invalid mesh IP
   }
   
-  uint32_t nodeId = ((uint32_t)ip[1] << 8) | (uint32_t)ip[2];
+  // Extract nodeId from second and third octets
+  // NodeId = (octet2 << 8) | octet3
+  const uint8_t BYTE_SHIFT = 8;  // Bits per byte
+  uint32_t nodeId = ((uint32_t)ip[1] << BYTE_SHIFT) | (uint32_t)ip[2];
   return nodeId;
 #endif
 }
