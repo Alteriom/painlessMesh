@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- TBD
+
+## [1.9.14] - 2025-12-19
+
+### Fixed
+
 - **Gateway Connection Timeout During Long HTTP Requests** - Fixed `sendToInternet()` timeouts with slow APIs like CallmeBot WhatsApp
   - **Issue**: Mesh connections closed after 10s while HTTP requests could take 30s, causing "Request timed out" errors even when messages were successfully delivered
   - **Fix**: Bridge now disables connection timeout during HTTP request processing, ensuring ACK delivery regardless of request duration
