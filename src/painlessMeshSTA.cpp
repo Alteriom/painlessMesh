@@ -144,16 +144,72 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   });
 }
 
+void ICACHE_FLASH_ATTR StationScan::blockNodeAfterTCPFailure(uint32_t nodeId, uint32_t blockDurationMs) {
+  using namespace painlessmesh::logger;
+  uint32_t blockUntil = millis() + blockDurationMs;
+  tcpFailureBlocklist[nodeId] = blockUntil;
+  Log(CONNECTION, "blockNodeAfterTCPFailure(): Node %u blocked until %u (duration: %u ms)\n",
+      nodeId, blockUntil, blockDurationMs);
+}
+
+bool ICACHE_FLASH_ATTR StationScan::isNodeBlocked(uint32_t nodeId) const {
+  auto it = tcpFailureBlocklist.find(nodeId);
+  if (it == tcpFailureBlocklist.end()) {
+    return false;  // Not in blocklist
+  }
+  
+  uint32_t now = millis();
+  uint32_t blockUntil = it->second;
+  
+  // Handle millis() rollover using signed arithmetic
+  // If blockUntil - now is positive and < MILLIS_ROLLOVER_THRESHOLD, the block is still active
+  int32_t timeRemaining = (int32_t)(blockUntil - now);
+  return (timeRemaining > 0 && timeRemaining < MILLIS_ROLLOVER_THRESHOLD);
+}
+
+void ICACHE_FLASH_ATTR StationScan::cleanupBlocklist() {
+  using namespace painlessmesh::logger;
+  uint32_t now = millis();
+  
+  auto it = tcpFailureBlocklist.begin();
+  while (it != tcpFailureBlocklist.end()) {
+    uint32_t blockUntil = it->second;
+    int32_t timeRemaining = (int32_t)(blockUntil - now);
+    
+    // Remove expired entries (timeRemaining <= 0 or in far future due to rollover)
+    if (timeRemaining <= 0 || timeRemaining >= MILLIS_ROLLOVER_THRESHOLD) {
+      Log(CONNECTION, "cleanupBlocklist(): Removing expired entry for node %u\n", it->first);
+      it = tcpFailureBlocklist.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 void ICACHE_FLASH_ATTR StationScan::filterAPs() {
+  // First, clean up expired blocklist entries
+  cleanupBlocklist();
+  
   auto ap = aps.begin();
   while (ap != aps.end()) {
     auto apNodeId = painlessmesh::tcp::encodeNodeId(ap->bssid);
+    
+    // Filter out nodes we're already connected to
     if (painlessmesh::router::findRoute<painlessmesh::Connection>(
             (*mesh), apNodeId) != NULL) {
       ap = aps.erase(ap);
-    } else {
-      ap++;
+      continue;
     }
+    
+    // Filter out nodes that are temporarily blocked due to TCP failures
+    if (isNodeBlocked(apNodeId)) {
+      using namespace painlessmesh::logger;
+      Log(CONNECTION, "filterAPs(): Skipping blocked node %u (TCP server unresponsive)\n", apNodeId);
+      ap = aps.erase(ap);
+      continue;
+    }
+    
+    ap++;
   }
 }
 

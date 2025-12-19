@@ -26,16 +26,47 @@ static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500; // Delay after I
 // Gives the TCP server more time to recover and reduces network congestion
 static const uint32_t TCP_EXHAUSTION_RECONNECT_DELAY_MS = 10000; // 10 seconds before reconnection
 
+// Duration to block a node after TCP connection retry exhaustion (60 seconds)
+// This prevents repeatedly trying to connect to nodes with unresponsive TCP servers
+static const uint32_t TCP_FAILURE_BLOCK_DURATION_MS = 60000;
+
 inline uint32_t encodeNodeId(const uint8_t *hwaddr) {
   using namespace painlessmesh::logger;
   Log(GENERAL, "encodeNodeId():\n");
   uint32_t value = 0;
 
-  value |= hwaddr[2] << 24;  // Big endian (aka "network order"):
-  value |= hwaddr[3] << 16;
-  value |= hwaddr[4] << 8;
-  value |= hwaddr[5];
+  // Extract last 4 bytes of MAC address (skip first 2 bytes)
+  // Big endian (aka "network order") encoding
+  value |= hwaddr[2] << 24;  // Byte 2 -> bits 31-24
+  value |= hwaddr[3] << 16;  // Byte 3 -> bits 23-16
+  value |= hwaddr[4] << 8;   // Byte 4 -> bits 15-8
+  value |= hwaddr[5];        // Byte 5 -> bits 7-0
   return value;
+}
+
+// Decode nodeId from mesh IP address
+// Mesh IPs follow format: 10.(nodeId >> 8).(nodeId & 0xFF).1
+inline uint32_t decodeNodeIdFromIP(IPAddress ip) {
+#if defined(PAINLESSMESH_BOOST)
+  // In test environment, IPAddress doesn't support indexing
+  // Return 0 to indicate invalid/unknown node ID
+  (void)ip;  // Suppress unused parameter warning
+  return 0;
+#else
+  // Validate mesh network IP format: 10.x.x.1
+  // First octet must be 10, last octet must be 1
+  const uint8_t MESH_IP_FIRST_OCTET = 10;
+  const uint8_t MESH_IP_LAST_OCTET = 1;
+  if (ip[0] != MESH_IP_FIRST_OCTET || ip[3] != MESH_IP_LAST_OCTET) {
+    return 0;  // Invalid mesh IP
+  }
+  
+  // Extract nodeId from second and third octets
+  // NodeId = (octet2 << 8) | octet3
+  const uint8_t BYTE_SHIFT = 8;  // Bits per byte
+  uint32_t nodeId = ((uint32_t)ip[1] << BYTE_SHIFT) | (uint32_t)ip[2];
+  return nodeId;
+#endif
 }
 
 template <class T, class M>
@@ -146,8 +177,24 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
       // All retries exhausted - schedule delayed reconnection
       // Adding a significant delay before reconnection prevents rapid reconnection loops
       // when the TCP server is persistently unavailable or overloaded
-      Log(CONNECTION, "tcp_err(): All %d retries exhausted, scheduling WiFi reconnection in %u ms\n",
-          TCP_CONNECT_MAX_RETRIES + 1, TCP_EXHAUSTION_RECONNECT_DELAY_MS);
+      Log(CONNECTION, "tcp_err(): All %d retries exhausted for IP %s\n",
+          TCP_CONNECT_MAX_RETRIES + 1, ip.toString().c_str());
+      
+      // Block this node temporarily to prevent immediate reconnection to the same unresponsive node
+      // This helps when the bridge's TCP server is down but WiFi AP is still running
+      // The blocklist is only used during AP filtering, so it won't affect existing connections
+      #if !defined(PAINLESSMESH_BOOST)
+      // Try to decode nodeId from IP and block it
+      // Only works for mesh IPs (format: 10.x.x.1)
+      uint32_t failedNodeId = decodeNodeIdFromIP(ip);
+      if (failedNodeId != 0) {
+        // Note: This requires M to be wifi::Mesh which has blockNodeAfterTCPFailure
+        mesh.blockNodeAfterTCPFailure(ip, TCP_FAILURE_BLOCK_DURATION_MS);
+      }
+      #endif
+      
+      Log(CONNECTION, "tcp_err(): Scheduling WiFi reconnection in %u ms\n",
+          TCP_EXHAUSTION_RECONNECT_DELAY_MS);
       
       // Defer deletion of the failed AsyncClient to prevent heap corruption
       // Use the centralized deletion scheduler to ensure proper spacing between deletions
