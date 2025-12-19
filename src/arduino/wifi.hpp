@@ -2112,12 +2112,25 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->callbackList.onPackage(
         protocol::GATEWAY_DATA, [this](protocol::Variant& variant,
-                                       std::shared_ptr<Connection>, uint32_t) {
+                                       std::shared_ptr<Connection> connection, uint32_t) {
           auto pkg = variant.to<gateway::GatewayDataPackage>();
 
           Log(COMMUNICATION,
               "Gateway received Internet request: msgId=%u dest=%s\n",
               pkg.messageId, pkg.destination.c_str());
+
+          // Disable connection timeout during HTTP request processing
+          // HTTP requests can take up to 30 seconds (GATEWAY_HTTP_TIMEOUT_MS)
+          // but mesh connections timeout after 10 seconds (NODE_TIMEOUT).
+          // We disable the timeout here to prevent connection drop during
+          // long-running HTTP requests. The timeout will be automatically
+          // re-enabled when the next sync packet is received.
+          if (connection) {
+            connection->timeOutTask.disable();
+            Log(COMMUNICATION,
+                "Gateway disabled connection timeout for node %u during HTTP request\n",
+                connection->nodeId);
+          }
 
           // Check Internet connectivity
           if (WiFi.status() != WL_CONNECTED) {
