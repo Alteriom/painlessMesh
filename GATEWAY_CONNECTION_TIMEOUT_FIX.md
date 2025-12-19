@@ -340,7 +340,7 @@ mesh.sendToInternet(url, payload, callback);
 ## Credits
 
 - **Issue reported by**: User experiencing WhatsApp message timeouts
-- **Root cause analysis**: GitHub Copilot
+- **Root cause analysis**: painlessMesh development team
 - **Fix implemented**: 2024-12-19
 - **Testing**: Comprehensive unit test suite added
 
