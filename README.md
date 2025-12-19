@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.14** - Latest release with ESP32-C6 spacing fix and gateway timeout improvements
+**Version 1.9.15** - Consolidated release with ESP32-C6 spacing fix and gateway timeout improvements
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)

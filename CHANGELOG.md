@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.9.15] - 2025-12-19
+
+### Changed
+
+- **Release Consolidation** - Consolidated v1.9.13 and v1.9.14 fixes into unified v1.9.15 release
+  - Gateway Connection Timeout fix for slow HTTP APIs (WhatsApp/CallmeBot)
+  - ESP32-C6 AsyncClient deletion spacing fix for heap corruption prevention
+  - Both fixes fully tested and production-ready
+  - Complete backward compatibility maintained
+
 ## [1.9.14] - 2025-12-19
 
 ### Fixed
