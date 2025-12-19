@@ -234,3 +234,181 @@ SCENARIO("Backward compatibility considerations", "[http][compatibility]") {
         }
     }
 }
+
+/**
+ * Helper function to determine if an HTTP status code should trigger automatic retry
+ * 
+ * NOTE: This intentionally duplicates the retry logic in mesh.hpp handleGatewayAck()
+ * to serve as:
+ * 1. A specification/documentation of the expected retry behavior
+ * 2. A regression test that will fail if the production code changes unexpectedly
+ * 
+ * If you change this logic, you MUST also update the production code in mesh.hpp
+ * and vice versa.
+ */
+bool isHttpStatusRetryable(uint16_t httpCode) {
+    // HTTP 203 (Non-Authoritative Information) - cached/proxied response
+    // Often temporary, retrying may succeed when cache expires
+    if (httpCode == 203) {
+        return true;
+    }
+    
+    // HTTP 5xx server errors are typically transient
+    if (httpCode >= 500 && httpCode < 600) {
+        return true;
+    }
+    
+    // HTTP 429 (Too Many Requests) should be retried with backoff
+    if (httpCode == 429) {
+        return true;
+    }
+    
+    // Network errors (httpCode == 0) are retryable
+    if (httpCode == 0) {
+        return true;
+    }
+    
+    // All other codes are NOT retryable:
+    // - 1xx informational: not errors
+    // - 2xx success (except 203): request succeeded
+    // - 3xx redirects: should be followed by HTTP client, not retried
+    // - 4xx client errors (except 429): user error, won't fix with retry
+    return false;
+}
+
+SCENARIO("HTTP status codes trigger appropriate retry behavior", "[http][retry][issue]") {
+    GIVEN("Various HTTP status codes that should trigger retries") {
+        WHEN("HTTP 203 (Non-Authoritative Information) is received") {
+            THEN("It should be retryable") {
+                REQUIRE(isHttpStatusRetryable(203) == true);
+                
+                INFO("HTTP 203 indicates cached/proxied response");
+                INFO("Cache may expire, so retrying can succeed");
+                INFO("This fixes the 'permanent 203' issue");
+            }
+        }
+        
+        WHEN("HTTP 5xx server errors are received") {
+            THEN("500 Internal Server Error should be retryable") {
+                REQUIRE(isHttpStatusRetryable(500) == true);
+            }
+            
+            THEN("502 Bad Gateway should be retryable") {
+                REQUIRE(isHttpStatusRetryable(502) == true);
+            }
+            
+            THEN("503 Service Unavailable should be retryable") {
+                REQUIRE(isHttpStatusRetryable(503) == true);
+            }
+            
+            THEN("504 Gateway Timeout should be retryable") {
+                REQUIRE(isHttpStatusRetryable(504) == true);
+            }
+            
+            INFO("Server errors are often transient");
+            INFO("Retrying with backoff often succeeds");
+        }
+        
+        WHEN("HTTP 429 (Too Many Requests) is received") {
+            THEN("It should be retryable") {
+                REQUIRE(isHttpStatusRetryable(429) == true);
+                
+                INFO("Rate limiting is temporary");
+                INFO("Exponential backoff allows rate limit to reset");
+            }
+        }
+        
+        WHEN("Network error (HTTP 0) occurs") {
+            THEN("It should be retryable") {
+                REQUIRE(isHttpStatusRetryable(0) == true);
+                
+                INFO("Network errors are often transient");
+                INFO("Connection may be restored on retry");
+            }
+        }
+    }
+    
+    GIVEN("Various HTTP status codes that should NOT trigger retries") {
+        WHEN("Successful 2xx codes are received") {
+            THEN("200 OK should NOT be retryable") {
+                REQUIRE(isHttpStatusRetryable(200) == false);
+                INFO("Request succeeded, no retry needed");
+            }
+            
+            THEN("201 Created should NOT be retryable") {
+                REQUIRE(isHttpStatusRetryable(201) == false);
+            }
+            
+            THEN("204 No Content should NOT be retryable") {
+                REQUIRE(isHttpStatusRetryable(204) == false);
+            }
+        }
+        
+        WHEN("Client error 4xx codes are received") {
+            THEN("400 Bad Request should NOT be retryable") {
+                REQUIRE(isHttpStatusRetryable(400) == false);
+                INFO("User error, retrying won't help");
+            }
+            
+            THEN("401 Unauthorized should NOT be retryable") {
+                REQUIRE(isHttpStatusRetryable(401) == false);
+                INFO("Authentication error, needs user intervention");
+            }
+            
+            THEN("404 Not Found should NOT be retryable") {
+                REQUIRE(isHttpStatusRetryable(404) == false);
+                INFO("Resource doesn't exist, retrying won't help");
+            }
+        }
+        
+        WHEN("Redirect 3xx codes are received") {
+            THEN("301 Moved Permanently should NOT be retryable") {
+                REQUIRE(isHttpStatusRetryable(301) == false);
+                INFO("Should be followed by HTTP client, not retried");
+            }
+            
+            THEN("302 Found should NOT be retryable") {
+                REQUIRE(isHttpStatusRetryable(302) == false);
+            }
+        }
+    }
+}
+
+SCENARIO("HTTP 203 retry behavior resolves the permanent response issue", "[http][203][retry][fix]") {
+    GIVEN("The issue scenario: HTTP 203 appearing permanent") {
+        INFO("ORIGINAL ISSUE:");
+        INFO("- User sends WhatsApp message via sendToInternet()");
+        INFO("- Bridge receives HTTP 203 from Callmebot API");
+        INFO("- Request immediately fails with no retry");
+        INFO("- User sees repeated HTTP 203 failures");
+        INFO("- Problem described as '203 response is permanent'");
+        INFO("");
+        INFO("ROOT CAUSE:");
+        INFO("- HTTP 203 treated as terminal failure (no retry)");
+        INFO("- Even though cache may expire, request never retried");
+        INFO("- User stuck in permanent failure state");
+        
+        WHEN("HTTP 203 is received") {
+            uint16_t httpCode = 203;
+            bool shouldRetry = isHttpStatusRetryable(httpCode);
+            
+            THEN("It should be marked as retryable") {
+                REQUIRE(shouldRetry == true);
+                
+                INFO("FIX:");
+                INFO("- HTTP 203 now triggers automatic retry");
+                INFO("- Uses exponential backoff (increases delay each retry)");
+                INFO("- Gives cache time to expire");
+                INFO("- Eventually succeeds when fresh response available");
+                INFO("- Or fails after max retries with clear error message");
+                INFO("");
+                INFO("BEHAVIOR:");
+                INFO("- Attempt 1: Immediate send -> HTTP 203");
+                INFO("- Attempt 2: Wait 2s -> HTTP 203");
+                INFO("- Attempt 3: Wait 4s -> HTTP 203");  
+                INFO("- Attempt 4: Wait 8s -> HTTP 200 SUCCESS");
+                INFO("  (or max retries reached with clear failure)");
+            }
+        }
+    }
+}

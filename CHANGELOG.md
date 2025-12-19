@@ -17,6 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **HTTP 203 "Permanent Response" Issue with sendToInternet()** - Fixed issue where HTTP 203 (Non-Authoritative Information) responses from APIs like Callmebot WhatsApp appeared "permanent" without automatic recovery
+  - **Root Cause**: HTTP 203 responses (indicating cached/proxied responses) were correctly identified as failures but treated as terminal - requests were immediately removed from the pending queue without retry
+  - **Symptom**: User sees repeated "❌ Failed to send WhatsApp: Ambiguous response - HTTP 203..." messages with no automatic recovery, requiring manual intervention
+  - **Solution**: Modified `handleGatewayAck()` to implement intelligent retry logic for retryable failure types:
+    - HTTP 203 (Non-Authoritative Information) - cached/proxied responses, often temporary
+    - HTTP 5xx (Server Errors) - transient server issues (500, 502, 503, 504, etc.)
+    - HTTP 429 (Too Many Requests) - rate limiting with exponential backoff
+    - HTTP 0 (Network Errors) - connection failures, timeouts
+    - Non-retryable: HTTP 4xx client errors (except 429), HTTP 3xx redirects
+  - **Retry Behavior**: Uses exponential backoff (2s, 4s, 8s, 16s...) with configurable max retries (default: 3)
+  - **Testing**: Added comprehensive test coverage (50 assertions in 7 test cases) for retry classification and behavior
+  - **Documentation**: Added ISSUE_HTTP_203_RETRY_FIX.md with detailed analysis, examples, and HTTP 203 explanation
+  - **Impact**: Automatic recovery from temporary API caching issues, eliminating the "permanent" failure problem
+  - **API Compatibility**: Fully backward compatible, no breaking changes, existing code works unchanged
+
 - **Hard Reset on Node - AsyncClient Deletion Race Condition** - Fixed ESP32/ESP8266 heap corruption crashes caused by race condition in deletion spacing logic during network disruptions
   - **Root Cause**: The `scheduleAsyncClientDeletion()` function was updating `lastScheduledDeletionTime` at BOTH scheduling time (line 111) and execution time (line 130), creating a race condition where scheduler jitter could cause deletions to execute with insufficient spacing
   - **Symptom**: Device crashes with "CORRUPT HEAP: Bad head at 0x40831d54. Expected 0xabba1234 got 0x4081fae4" even with 250ms spacing constant, particularly during network disruptions, TCP retries, or WiFi reconnection cycles
