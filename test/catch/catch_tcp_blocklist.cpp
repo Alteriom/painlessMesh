@@ -221,6 +221,11 @@ SCENARIO("Blocklist cleanup removes expired entries",
   GIVEN("A blocklist with multiple entries") {
     // Simulated blocklist state with node IDs
     
+    // Suppress unused variable warnings - these are just for documentation
+    (void)node1;
+    (void)node2;
+    (void)node3;
+    
     WHEN("Some entries expire while others remain active") {
       uint32_t currentTime = millis();
       
