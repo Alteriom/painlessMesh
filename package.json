@@ -1,6 +1,6 @@
 {
   "name": "@alteriom/painlessmesh",
-  "version": "1.9.12",
+  "version": "1.9.13",
   "description": "painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices. This Alteriom fork includes additional packages for sensor data (SensorPackage), device commands (CommandPackage), and status monitoring (StatusPackage). It handles routing and network management automatically, so you can focus on your application. The library uses JSON-based messaging and syncs time across all nodes, making it ideal for coordinated behaviour like synchronized light displays or sensor networks reporting to a central node.",
   "keywords": [
     "arduino",

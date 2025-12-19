@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- TBD
+
+## [1.9.13] - 2025-12-19
+
+### Fixed
+
 - **HTTP 203 "Permanent Response" Issue with sendToInternet()** - Fixed issue where HTTP 203 (Non-Authoritative Information) responses from APIs like Callmebot WhatsApp appeared "permanent" without automatic recovery
   - **Root Cause**: HTTP 203 responses (indicating cached/proxied responses) were correctly identified as failures but treated as terminal - requests were immediately removed from the pending queue without retry
   - **Symptom**: User sees repeated "❌ Failed to send WhatsApp: Ambiguous response - HTTP 203..." messages with no automatic recovery, requiring manual intervention
