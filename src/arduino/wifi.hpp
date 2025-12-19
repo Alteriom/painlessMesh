@@ -864,6 +864,32 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
   }
 
+  /**
+   * Block a node after TCP connection failure
+   * 
+   * This prevents the node from being repeatedly selected for connection attempts
+   * when its TCP server is unresponsive. The block is temporary and will expire
+   * after the configured duration.
+   * 
+   * @param ip The IP address of the failed node
+   * @param blockDurationMs Duration to block the node in milliseconds (default: 60s)
+   */
+  void blockNodeAfterTCPFailure(IPAddress ip, uint32_t blockDurationMs = painlessmesh::tcp::TCP_FAILURE_BLOCK_DURATION_MS) {
+    using namespace logger;
+    uint32_t nodeId = painlessmesh::tcp::decodeNodeIdFromIP(ip);
+    
+    if (nodeId == 0) {
+      Log(CONNECTION, "blockNodeAfterTCPFailure(): Invalid mesh IP %s, cannot block\n",
+          ip.toString().c_str());
+      return;
+    }
+    
+    Log(CONNECTION, "blockNodeAfterTCPFailure(): Blocking node %u (IP: %s) for %u ms\n",
+        nodeId, ip.toString().c_str(), blockDurationMs);
+    
+    stationScan.blockNodeAfterTCPFailure(nodeId, blockDurationMs);
+  }
+
   bool setHostname(const char* hostname) {
 #ifdef ESP8266
     return WiFi.hostname(hostname);
