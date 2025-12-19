@@ -219,10 +219,7 @@ SCENARIO("Blocklist allows other nodes to be tried",
 SCENARIO("Blocklist cleanup removes expired entries",
          "[tcp][blocklist][cleanup]") {
   GIVEN("A blocklist with multiple entries") {
-    // Simulated blocklist state
-    uint32_t node1 = 11111;
-    uint32_t node2 = 22222;
-    uint32_t node3 = 33333;
+    // Simulated blocklist state with node IDs
     
     WHEN("Some entries expire while others remain active") {
       uint32_t currentTime = millis();
