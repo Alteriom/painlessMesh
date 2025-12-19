@@ -26,7 +26,9 @@ static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 1000; // 1000ms delay before
 // When multiple AsyncClients are deleted in rapid succession, the AsyncTCP library's
 // internal cleanup routines can interfere with each other, causing heap corruption
 // This spacing ensures each deletion completes before the next one begins
-static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 250; // 250ms spacing between deletions
+// Increased from 250ms to 500ms to support ESP32-C6 and other ESP32 variants which
+// require more time for AsyncTCP internal cleanup operations
+static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 500; // 500ms spacing between deletions
 
 // Global state to track AsyncClient deletion scheduling and execution
 // This ensures deletions are spaced out even when multiple deletion requests arrive simultaneously
