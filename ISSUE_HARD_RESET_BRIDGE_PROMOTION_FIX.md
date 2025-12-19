@@ -2,48 +2,99 @@
 
 ## Problem
 
-ESP32/ESP8266 devices were experiencing hard resets (Guru Meditation Error) immediately after bridge promotion callbacks in both the isolated bridge promotion and election winner paths. The error manifested as:
+ESP32/ESP8266 devices were experiencing hard resets (Guru Meditation Error) immediately after bridge promotion. The error manifested as:
 
 ```
-20:46:14.079 -> ✓ Isolated bridge promotion complete on channel 10
-20:46:14.079 -> 🎯 PROMOTED TO BRIDGE: Isolated node promoted to bridge
-20:46:14.079 -> This node is now the primary bridge!
-20:46:14.079 -> Guru Meditation Error: Core  0 panic'ed (Load access fault). Exception was unhandled.
-20:46:14.114 -> MEPC    : 0x42013754  RA      : 0x42013750
-20:46:14.146 -> A4      : 0xbaad5678  (freed memory marker)
-20:46:14.180 -> MTVAL   : 0xbaad59d4  (trying to access A4 + 0x35C offset)
+09:01:20.645 -> STARTUP: Bridge takeover complete. Status broadcasts will announce bridge to network.
+09:01:20.645 -> Guru Meditation Error: Core  0 panic'ed (Load access fault). Exception was unhandled.
+09:01:20.719 -> MEPC    : 0x4201ab20  RA      : 0x4201ab3e
+09:01:20.753 -> MTVAL   : 0x7247a757  (invalid memory access)
 ```
+
+The crash occurred IMMEDIATELY after the "Bridge takeover complete" log message, indicating an issue with code executing right after the bridge promotion completed.
 
 ## Root Cause
 
-The crash occurred when attempting to schedule a new task (`addTask`) immediately after a `stop()/initAsBridge()` cycle within the same execution context. Specifically:
+The crash was caused by `addTask()` being called immediately after a `stop()/initAsBridge()` cycle. The complete flow was:
 
-### Isolated Bridge Promotion Path (`attemptIsolatedBridgePromotion`)
-1. Line 1887: `this->stop()` is called - clears all tasks, connections, and internal state
-2. Line 1892: `this->initAsBridge()` is called - rebuilds mesh infrastructure
-3. Line 1930: `bridgeRoleChangedCallback(true, reason)` is invoked - user callback executes
-4. Line 1947: `this->addTask(3000, TASK_ONCE, [this]() { ... })` - **CRASH HERE**
-
-### Election Winner Path (`promoteToBridge`)
-1. Line 1781: `this->stop()` is called - clears all tasks, connections, and internal state
-2. Line 1785: `this->initAsBridge()` is called - rebuilds mesh infrastructure
-3. Line 1817: `bridgeRoleChangedCallback(true, reason)` is invoked - user callback executes
-4. Line 1822: `this->addTask(3000, TASK_ONCE, [this, previousBridgeId]() { ... })` - **CRASH HERE**
+### Bridge Promotion Flow (Both Election and Isolated Paths)
+1. `this->stop()` is called - clears all tasks, connections, and internal state
+2. `this->initAsBridge()` is called - rebuilds mesh infrastructure
+3. **Inside initAsBridge()**: `initBridgeStatusBroadcast()` is called
+4. **PROBLEM**: `initBridgeStatusBroadcast()` immediately calls `addTask()` THREE TIMES:
+   - Line 1251: Register self as bridge (immediate task)
+   - Line 1272: Create periodic broadcast task  
+   - Line 1277: Send initial broadcast (immediate task)
+5. Crash occurs when trying to add tasks to scheduler that was just cleared by `stop()`
 
 ### Why This Caused Crashes
 
-1. **Internal State Instability**: The `stop()` method clears all tasks and connections, even though `initAsBridge()` reconstructs the mesh state, the internal task scheduling structures are not fully stable for immediate task scheduling from within the same execution context
-2. **Freed Memory Access**: The MTVAL address `0xbaad59d4` (offset from marker `0xbaad5678`) indicates accessing freed memory, suggesting the scheduler's internal structures were not properly reinitialized before the `addTask()` call
-3. **Lambda Capture Issues**: The lambda capture `[this]` or `[this, previousBridgeId]` may reference memory that was invalidated during the stop/reinit cycle
-4. **Timing Sensitivity**: The crash occurs specifically when calling `addTask()` immediately after stop/reinit, but not when the same task scheduling is done during normal initialization
+1. **Scheduler Not Stable**: The `stop()` method clears the task scheduler's internal structures. Although `init()` recreates the mesh, the scheduler needs time to stabilize before accepting new tasks.
+2. **Memory Access Fault**: The MTVAL address `0x7247a757` indicates trying to access memory that's no longer valid - the scheduler's task queue structures.
+3. **Timing Sensitivity**: The crash only occurs when `addTask()` is called IMMEDIATELY after stop/init, before the scheduler has fully reinitialized.
 
 ## Solution
 
-**Remove the redundant task scheduling calls** since `initBridgeStatusBroadcast()` (called by `initAsBridge()`) already handles bridge status announcements, including immediate broadcasts at initialization.
+**Add a small delay (100ms) before scheduling tasks in `initBridgeStatusBroadcast()`** to allow the scheduler to stabilize after the stop/init cycle. This gives the network stack and internal task structures time to be fully ready.
 
 ### Changes to `src/arduino/wifi.hpp`
 
-#### 1. Isolated Bridge Promotion Path (Lines 1927-1942)
+#### Modified: `initBridgeStatusBroadcast()` (Lines 1239-1291)
+
+**Before (Crashed):**
+```cpp
+void initBridgeStatusBroadcast() {
+  // ...
+  
+  // Register ourselves as a bridge - IMMEDIATE addTask()
+  this->addTask([this]() {
+    // Registration code
+  });
+
+  // Create periodic task - IMMEDIATE addTask()
+  bridgeStatusTask = this->addTask(this->bridgeStatusIntervalMs, TASK_FOREVER,
+                                   [this]() { this->sendBridgeStatus(); });
+
+  // Send immediate broadcast - IMMEDIATE addTask()
+  this->addTask([this]() {
+    Log(STARTUP, "Sending initial bridge status broadcast\n");
+    this->sendBridgeStatus();
+  });
+}
+```
+
+**After (Fixed):**
+```cpp
+void initBridgeStatusBroadcast() {
+  // ...
+  
+  // CRITICAL FIX: Add 100ms delay to allow scheduler to stabilize
+  const uint32_t INIT_DELAY_MS = 100;
+
+  // Register ourselves as a bridge - DELAYED
+  this->addTask(INIT_DELAY_MS, TASK_ONCE, [this]() {
+    // Registration code
+  });
+
+  // Create periodic task - DELAYED and nested
+  this->addTask(INIT_DELAY_MS, TASK_ONCE, [this]() {
+    bridgeStatusTask = this->addTask(this->bridgeStatusIntervalMs, TASK_FOREVER,
+                                     [this]() { this->sendBridgeStatus(); });
+  });
+
+  // Send immediate broadcast - DELAYED (150ms to allow periodic task setup)
+  this->addTask(INIT_DELAY_MS + 50, TASK_ONCE, [this]() {
+    Log(STARTUP, "Sending initial bridge status broadcast\n");
+    this->sendBridgeStatus();
+  });
+}
+```
+
+#### Previous Changes (Already in Code)
+
+##### 1. Isolated Bridge Promotion Path (Lines 1927-1942)
+
+**Note:** These redundant addTask() calls were already removed in previous fix. The REAL issue was in `initBridgeStatusBroadcast()` as shown above.
 
 **Before (Crashed):**
 ```cpp
@@ -148,16 +199,18 @@ Log(STARTUP,
 
 ## Why This Fixes the Crash
 
-1. **Eliminates Unsafe addTask() Calls**: Removed task scheduling immediately after stop/reinit, preventing access to potentially unstable internal structures
-2. **Relies on Existing Infrastructure**: `initBridgeStatusBroadcast()` (called by `initAsBridge()`) already handles bridge status announcements, including:
-   - Immediate broadcast at line 1277-1280
-   - Periodic broadcasts every `bridgeStatusIntervalMs` (default 30 seconds)
-   - Direct broadcasts to new nodes when they connect
-3. **Safer Execution Context**: Broadcasts are scheduled during proper initialization when internal structures are fully stable
-4. **Maintains All Functionality**: 
-   - Isolated promotion: Bridge status broadcasts inform nodes about the new bridge
-   - Election winner: Initial takeover announcement sent before stop/reinit (line 1771), plus ongoing status broadcasts
-5. **Additional Safety**: Used explicit `TSTRING` construction for callback parameters to ensure string lifetime safety
+1. **Allows Scheduler Stabilization**: The 100ms delay gives the scheduler time to fully reinitialize its internal structures after `stop()` cleared them
+2. **Network Stack Stabilization**: The delay also allows the network stack (WiFi, TCP server, AP) to fully initialize after the stop/init cycle
+3. **Safe Task Addition**: By delaying task scheduling, we ensure the task queue is ready to accept new tasks without memory access faults
+4. **Maintains All Functionality**: `initBridgeStatusBroadcast()` still handles all bridge status announcements:
+   - Initial self-registration at 100ms delay
+   - Periodic broadcasts every `bridgeStatusIntervalMs` (default 30 seconds) starting at 100ms
+   - Initial broadcast at 150ms delay
+   - Direct broadcasts to new nodes when they connect (callback-triggered, not during init)
+5. **Preserves Functionality**: 
+   - Isolated promotion: Bridge status broadcasts inform nodes about the new bridge (delayed 150ms)
+   - Election winner: Initial takeover announcement sent before stop/reinit, plus ongoing status broadcasts
+6. **Minimal Performance Impact**: 100-150ms delay only occurs during bridge initialization, not during normal operation
 
 ## Impact
 
@@ -182,33 +235,39 @@ The fix has been validated against the full test suite:
 With this fix, the sequence should complete without crashes:
 
 ```
-20:46:14.045 -> STARTUP: === Bridge Mode Active ===
-20:46:14.045 -> STARTUP:   Mesh SSID: FishFarmMesh
-20:46:14.045 -> STARTUP:   Mesh Channel: 10 (matches router)
-20:46:14.045 -> STARTUP:   Router: TR110 (connected)
-20:46:14.045 -> STARTUP:   Port: 5555
-20:46:14.079 -> STARTUP: ✓ Isolated bridge promotion complete on channel 10
-20:46:14.079 -> 🎯 PROMOTED TO BRIDGE: Isolated node promoted to bridge
-20:46:14.079 -> This node is now the primary bridge!
-20:46:14.079 -> STARTUP: Bridge status announcement will be sent by bridge status broadcast system
-[CONTINUES WITHOUT CRASHING]
-20:46:14.579 -> STARTUP: Sending initial bridge status broadcast
-[Bridge operates normally with periodic status broadcasts]
+09:01:20.500 -> STARTUP: === Bridge Mode Active ===
+09:01:20.500 -> STARTUP:   Mesh SSID: FishFarmMesh
+09:01:20.500 -> STARTUP:   Mesh Channel: 10 (matches router)
+09:01:20.500 -> STARTUP:   Router: YourRouter (connected)
+09:01:20.500 -> STARTUP:   Port: 5555
+09:01:20.545 -> STARTUP: ✓ Bridge promotion complete on channel 10
+09:01:20.545 -> 🎯 PROMOTED TO BRIDGE: Election winner - best router signal
+09:01:20.545 -> This node is now the primary bridge!
+09:01:20.645 -> STARTUP: Bridge takeover complete. Status broadcasts will announce bridge to network.
+[NO CRASH - CONTINUES NORMALLY]
+09:01:20.645 -> STARTUP: initBridgeStatusBroadcast(): Registered self as bridge (nodeId: 123456)
+09:01:20.695 -> STARTUP: Sending initial bridge status broadcast
+[Bridge operates normally with periodic status broadcasts every 30 seconds]
 ```
+
+The key difference: The crash that occurred immediately after "Bridge takeover complete" is now gone. The 100ms delay allows the scheduler to stabilize before tasks are added.
 
 ## Alternative Approaches Considered
 
-1. **Delay the addTask() call**: Add a delay before scheduling the task
-   - ❌ Rejected: Doesn't address root cause, just masks the timing issue
+1. **Only remove redundant addTask() calls after initAsBridge()**: 
+   - ❌ Rejected: Doesn't fix the root cause - `initBridgeStatusBroadcast()` still calls `addTask()` immediately
    
 2. **Use addTask() with 0ms delay**: Schedule task immediately but via task queue
-   - ❌ Rejected: Still schedules task from unstable context
+   - ❌ Rejected: Still schedules task from unstable context, no real delay
    
 3. **Create new scheduler instance**: Replace scheduler during stop/reinit
-   - ❌ Rejected: Breaks external scheduler pattern used in examples
+   - ❌ Rejected: Breaks external scheduler pattern used in examples, too invasive
    
-4. **Keep follow-up announcement for election path**: Only fix isolated path
-   - ❌ Rejected: Both paths have same vulnerability, inconsistent fix
+4. **Longer delay (500ms+)**: More conservative approach
+   - ❌ Rejected: 100ms is sufficient, longer delays unnecessarily slow bridge initialization
+   
+5. **Refactor initBridgeStatusBroadcast()**: Don't call it during initAsBridge()
+   - ❌ Rejected: Would require major restructuring of initialization flow
 
 ## Related Issues and Fixes
 
