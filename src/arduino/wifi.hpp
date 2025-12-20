@@ -2263,20 +2263,35 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
             } else if (httpCode >= 200 && httpCode < 300) {
               // Other 2xx codes - ambiguous success
+              // HTTP 203 is retryable, so log at COMMUNICATION level to reduce noise
               char errorBuf[128];
               snprintf(errorBuf, sizeof(errorBuf), 
                       "Ambiguous response - HTTP %d may indicate cached/proxied response, not actual delivery", 
                       httpCode);
               error = TSTRING(errorBuf);
-              Log(ERROR, "HTTP request ambiguous: code=%d (treated as failure)\n", httpCode);
+              Log(COMMUNICATION, "HTTP request ambiguous: code=%d (treated as failure, will retry)\n", httpCode);
+            } else if (httpCode >= 500 && httpCode < 600) {
+              // 5xx server errors are retryable, log at COMMUNICATION level
+              char errorBuf[32];
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              error = TSTRING(errorBuf);
+              Log(COMMUNICATION, "HTTP server error: code=%d (will retry)\n", httpCode);
+            } else if (httpCode == 429) {
+              // HTTP 429 rate limit is retryable, log at COMMUNICATION level
+              char errorBuf[32];
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              error = TSTRING(errorBuf);
+              Log(COMMUNICATION, "HTTP rate limit: code=%d (will retry)\n", httpCode);
             } else {
-              // 1xx, 3xx, 4xx, 5xx
+              // 1xx, 3xx, 4xx (except 429) - non-retryable, log at ERROR level
               char errorBuf[32];
               snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
               error = TSTRING(errorBuf);
               Log(ERROR, "HTTP request failed: code=%d\n", httpCode);
             }
           } else {
+            // Network errors (httpCode <= 0) are retryable but indicate serious issues
+            // Keep at ERROR level as they may indicate gateway connectivity problems
             error = http.errorToString(httpCode);
             Log(ERROR, "HTTP request failed: %s\n", error.c_str());
           }
