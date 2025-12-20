@@ -1827,8 +1827,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // CRITICAL FIX: Schedule the stop/reinit work to run after current task completes
     // This prevents use-after-free crash when stop() clears taskList while
     // evaluateElection() task is still executing
-    // Use minimal delay (10ms) to allow current task to complete first
-    this->addTask(10, TASK_ONCE, [this, savedChannel, previousBridgeId]() {
+    // Use minimal delay to allow current task to complete first
+    this->addTask(ASYNC_PROMOTION_DELAY_MS, TASK_ONCE, [this, savedChannel]() {
       using namespace logger;
       
       Log(STARTUP, "Executing bridge promotion (stop/reinit cycle)\n");
@@ -1950,8 +1950,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // CRITICAL FIX: Schedule the stop/reinit work to run after current task completes
     // This prevents use-after-free crash when stop() clears taskList while
     // the retry task is still executing
-    // Use minimal delay (10ms) to allow current task to complete first
-    this->addTask(10, TASK_ONCE, [this, savedChannel]() {
+    // Use minimal delay to allow current task to complete first
+    this->addTask(ASYNC_PROMOTION_DELAY_MS, TASK_ONCE, [this, savedChannel]() {
       using namespace logger;
       
       Log(CONNECTION, "Executing isolated bridge promotion (stop/reinit cycle)\n");
@@ -2447,6 +2447,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       300000;  // Reset counter after 5 minutes
   static const uint16_t ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD =
       6;  // Require 6 empty scans before retrying
+  static const uint32_t ASYNC_PROMOTION_DELAY_MS =
+      10;  // Delay for async bridge promotion to allow current task to complete
 
   // Multi-bridge coordination state and configuration
  protected:
