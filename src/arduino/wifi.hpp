@@ -1771,11 +1771,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Promote this node to bridge role
    * Called when node wins election
+   * 
+   * CRITICAL: This function is called from within evaluateElection() which
+   * runs as a scheduled task. We MUST NOT call stop() synchronously here
+   * because that would clear the taskList while the current task is executing,
+   * causing a use-after-free crash when the task tries to return to scheduler.
+   * 
+   * Instead, we schedule the actual promotion work to run after the current
+   * task completes, allowing safe cleanup of task structures.
    */
   void promoteToBridge() {
     using namespace logger;
 
     Log(STARTUP, "=== Becoming Bridge Node ===\n");
+    Log(STARTUP, "Scheduling bridge promotion (async to avoid task corruption)\n");
 
     // Store previous bridge (if any)
     // SAFETY: Use getPrimaryGateway() which returns the nodeId value directly
@@ -1815,59 +1824,69 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Save current mesh configuration to restore if bridge init fails
     uint8_t savedChannel = _meshChannel;
 
-    // Now reconfigure as bridge (this will switch to router's channel)
-    this->stop();
-    delay(1000);
+    // CRITICAL FIX: Schedule the stop/reinit work to run after current task completes
+    // This prevents use-after-free crash when stop() clears taskList while
+    // evaluateElection() task is still executing
+    // Use minimal delay (10ms) to allow current task to complete first
+    this->addTask(10, TASK_ONCE, [this, savedChannel, previousBridgeId]() {
+      using namespace logger;
+      
+      Log(STARTUP, "Executing bridge promotion (stop/reinit cycle)\n");
+      
+      // Now reconfigure as bridge (this will switch to router's channel)
+      this->stop();
+      delay(1000);
 
-    bool bridgeInitSuccess =
-        this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                           mScheduler, _meshPort);
+      bool bridgeInitSuccess =
+          this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                             mScheduler, _meshPort);
 
-    if (!bridgeInitSuccess) {
-      Log(ERROR, "✗ Bridge promotion failed - router unreachable\n");
-      Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
+      if (!bridgeInitSuccess) {
+        Log(ERROR, "✗ Bridge promotion failed - router unreachable\n");
+        Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
 
-      // Re-initialize as regular node on the original channel
-      this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
-                 savedChannel, _meshHidden, MAX_CONN);
+        // Re-initialize as regular node on the original channel
+        this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
+                   savedChannel, _meshHidden, MAX_CONN);
 
-      // Reset election state and clear candidates (consistent with normal
-      // election completion)
-      electionState = ELECTION_IDLE;
-      electionCandidates.clear();
+        // Reset election state and clear candidates (consistent with normal
+        // election completion)
+        electionState = ELECTION_IDLE;
+        electionCandidates.clear();
 
-      // Notify via callback
-      if (bridgeRoleChangedCallback) {
-        bridgeRoleChangedCallback(
-            false, "Bridge promotion failed - router unreachable");
+        // Notify via callback
+        if (bridgeRoleChangedCallback) {
+          bridgeRoleChangedCallback(
+              false, "Bridge promotion failed - router unreachable");
+        }
+
+        return;
       }
 
-      return;
-    }
+      lastRoleChangeTime = millis();
 
-    lastRoleChangeTime = millis();
+      Log(STARTUP, "✓ Bridge promotion complete on channel %d\n", _meshChannel);
 
-    Log(STARTUP, "✓ Bridge promotion complete on channel %d\n", _meshChannel);
+      // Notify via callback
+      // Use explicit TSTRING construction to ensure string lifetime safety
+      if (bridgeRoleChangedCallback) {
+        static const TSTRING reason = "Election winner - best router signal";
+        bridgeRoleChangedCallback(true, reason);
+      }
 
-    // Notify via callback
-    // Use explicit TSTRING construction to ensure string lifetime safety
-    if (bridgeRoleChangedCallback) {
-      static const TSTRING reason = "Election winner - best router signal";
-      bridgeRoleChangedCallback(true, reason);
-    }
-
-    // Note: The initial takeover announcement was already sent earlier
-    // before the channel switch. The follow-up announcement that was previously
-    // scheduled here has been removed to avoid potential crashes from scheduling
-    // tasks immediately after stop()/reinit cycle.
-    //
-    // The bridge status broadcast system (initialized by initAsBridge via
-    // initBridgeStatusBroadcast) will continue to inform nodes about the new
-    // bridge through periodic broadcasts. Nodes that switched channels will
-    // discover the new bridge through these status broadcasts.
-    Log(STARTUP,
-        "Bridge takeover complete. Status broadcasts will announce bridge to "
-        "network.\n");
+      // Note: The initial takeover announcement was already sent earlier
+      // before the channel switch. The follow-up announcement that was previously
+      // scheduled here has been removed to avoid potential crashes from scheduling
+      // tasks immediately after stop()/reinit cycle.
+      //
+      // The bridge status broadcast system (initialized by initAsBridge via
+      // initBridgeStatusBroadcast) will continue to inform nodes about the new
+      // bridge through periodic broadcasts. Nodes that switched channels will
+      // discover the new bridge through these status broadcasts.
+      Log(STARTUP,
+          "Bridge takeover complete. Status broadcasts will announce bridge to "
+          "network.\n");
+    });
   }
 
   /**
@@ -1882,6 +1901,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * - Nodes that failed initial bridge setup and need to retry
    * - Nodes that are the first to start and no mesh exists yet
    * - Recovery scenarios where mesh network is unavailable
+   *
+   * CRITICAL: This function is called from within a scheduled task (isolated
+   * bridge retry task). We MUST NOT call stop() synchronously here because
+   * that would clear the taskList while the current task is executing, causing
+   * a use-after-free crash when the task tries to return to scheduler.
    *
    * @return true if promotion was attempted (regardless of success), false if
    * skipped
@@ -1917,69 +1941,81 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         routerRSSI);
     Log(CONNECTION,
         "Attempting direct bridge promotion (bypassing election)\n");
+    Log(CONNECTION,
+        "Scheduling stop/reinit (async to avoid task corruption)\n");
 
     // Save current mesh configuration
     uint8_t savedChannel = _meshChannel;
 
-    // Stop current mesh operations
-    this->stop();
-    delay(1000);
+    // CRITICAL FIX: Schedule the stop/reinit work to run after current task completes
+    // This prevents use-after-free crash when stop() clears taskList while
+    // the retry task is still executing
+    // Use minimal delay (10ms) to allow current task to complete first
+    this->addTask(10, TASK_ONCE, [this, savedChannel]() {
+      using namespace logger;
+      
+      Log(CONNECTION, "Executing isolated bridge promotion (stop/reinit cycle)\n");
+      
+      // Stop current mesh operations
+      this->stop();
+      delay(1000);
 
-    // Attempt to initialize as bridge
-    bool bridgeInitSuccess =
-        this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                           mScheduler, _meshPort);
+      // Attempt to initialize as bridge
+      bool bridgeInitSuccess =
+          this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                             mScheduler, _meshPort);
 
-    if (!bridgeInitSuccess) {
-      Log(ERROR, "✗ Isolated bridge promotion failed - router unreachable\n");
-      Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
+      if (!bridgeInitSuccess) {
+        Log(ERROR, "✗ Isolated bridge promotion failed - router unreachable\n");
+        Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
 
-      // Re-initialize as regular node on the original channel
-      this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
-                 savedChannel, _meshHidden, MAX_CONN);
+        // Re-initialize as regular node on the original channel
+        this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
+                   savedChannel, _meshHidden, MAX_CONN);
 
-      // Re-configure router credentials for future retry attempts
-      this->setRouterCredentials(routerSSID, routerPassword);
-      this->enableBridgeFailover(true);
+        // Re-configure router credentials for future retry attempts
+        this->setRouterCredentials(routerSSID, routerPassword);
+        this->enableBridgeFailover(true);
 
-      // Set flag to skip empty scan check on next retry attempt
-      // since we already confirmed isolation before this failed attempt
-      _isolatedRetryPending = true;
+        // Set flag to skip empty scan check on next retry attempt
+        // since we already confirmed isolation before this failed attempt
+        _isolatedRetryPending = true;
 
-      // Notify via callback
-      if (bridgeRoleChangedCallback) {
-        bridgeRoleChangedCallback(
-            false, "Isolated bridge promotion failed - router unreachable");
+        // Notify via callback
+        if (bridgeRoleChangedCallback) {
+          bridgeRoleChangedCallback(
+              false, "Isolated bridge promotion failed - router unreachable");
+        }
+
+        return;
       }
 
-      return true;  // Count as an attempt - we tried but failed
-    }
+      // Success! Reset retry counter
+      _isolatedBridgeRetryAttempts = 0;
+      lastRoleChangeTime = millis();
 
-    // Success! Reset retry counter
-    _isolatedBridgeRetryAttempts = 0;
-    lastRoleChangeTime = millis();
+      Log(STARTUP, "✓ Isolated bridge promotion complete on channel %d\n",
+          _meshChannel);
 
-    Log(STARTUP, "✓ Isolated bridge promotion complete on channel %d\n",
-        _meshChannel);
+      // Notify via callback
+      // Use explicit TSTRING construction to ensure string lifetime safety
+      if (bridgeRoleChangedCallback) {
+        static const TSTRING reason = "Isolated node promoted to bridge";
+        bridgeRoleChangedCallback(true, reason);
+      }
 
-    // Notify via callback
-    // Use explicit TSTRING construction to ensure string lifetime safety
-    if (bridgeRoleChangedCallback) {
-      static const TSTRING reason = "Isolated node promoted to bridge";
-      bridgeRoleChangedCallback(true, reason);
-    }
+      // Note: Bridge status announcement will be sent automatically by
+      // initBridgeStatusBroadcast() which is called by initAsBridge().
+      // The immediate broadcast is scheduled in that function, so we don't
+      // need to schedule another one here. This avoids potential crashes from
+      // scheduling tasks immediately after stop()/reinit cycle.
+      // The initBridgeStatusBroadcast() also sets up periodic broadcasts.
+      Log(STARTUP,
+          "Bridge status announcement will be sent by bridge status broadcast "
+          "system\n");
+    });
 
-    // Note: Bridge status announcement will be sent automatically by
-    // initBridgeStatusBroadcast() which is called by initAsBridge().
-    // The immediate broadcast is scheduled in that function, so we don't
-    // need to schedule another one here. This avoids potential crashes from
-    // scheduling tasks immediately after stop()/reinit cycle.
-    // The initBridgeStatusBroadcast() also sets up periodic broadcasts.
-    Log(STARTUP,
-        "Bridge status announcement will be sent by bridge status broadcast "
-        "system\n");
-
-    return true;  // Count as an attempt - we succeeded
+    return true;  // Count as an attempt - we scheduled the promotion
   }
 
   /**
