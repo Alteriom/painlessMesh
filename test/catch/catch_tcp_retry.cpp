@@ -18,7 +18,7 @@ static const uint8_t TCP_CONNECT_MAX_RETRIES = 5;
 static const uint32_t TCP_CONNECT_RETRY_DELAY_MS = 1000;
 static const uint32_t TCP_CONNECT_STABILIZATION_DELAY_MS = 500;
 static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 1000;  // Base delay before deleting AsyncClient
-static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 250; // Spacing between consecutive deletions
+static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 1000; // Spacing between consecutive deletions
 static const uint32_t TCP_EXHAUSTION_RECONNECT_DELAY_MS = 10000;
 }  // namespace tcp_test
 
@@ -41,8 +41,8 @@ SCENARIO("TCP connection retry constants are configured correctly",
       REQUIRE(tcp_test::TCP_CLIENT_CLEANUP_DELAY_MS == 1000);
     }
 
-    THEN("TCP_CLIENT_DELETION_SPACING_MS should be 250 (250ms)") {
-      REQUIRE(tcp_test::TCP_CLIENT_DELETION_SPACING_MS == 250);
+    THEN("TCP_CLIENT_DELETION_SPACING_MS should be 1000 (1000ms)") {
+      REQUIRE(tcp_test::TCP_CLIENT_DELETION_SPACING_MS == 1000);
     }
 
     THEN("TCP_EXHAUSTION_RECONNECT_DELAY_MS should be 10000 (10 seconds)") {
@@ -245,9 +245,10 @@ SCENARIO("AsyncClient deletion spacing prevents concurrent cleanup operations",
       }
       
       THEN("Deletion spacing should prevent concurrent AsyncTCP cleanup") {
-        // 250ms spacing ensures each deletion completes before next one starts
-        REQUIRE(spacing >= 200);
-        REQUIRE(spacing <= 500);
+        // 1000ms spacing ensures each deletion completes before next one starts
+        // Increased from 250ms to 1000ms for ESP32-C6 compatibility
+        REQUIRE(spacing >= 500);
+        REQUIRE(spacing <= 1500);
       }
       
       THEN("Second deletion should be spaced from the first") {
@@ -260,9 +261,9 @@ SCENARIO("AsyncClient deletion spacing prevents concurrent cleanup operations",
       THEN("Multiple deletions should have cumulative spacing") {
         // For 4 concurrent deletion requests (sendToInternet high-churn scenario):
         // Deletion 1: 1000ms
-        // Deletion 2: 1000ms + 250ms = 1250ms
-        // Deletion 3: 1250ms + 250ms = 1500ms
-        // Deletion 4: 1500ms + 250ms = 1750ms
+        // Deletion 2: 1000ms + 1000ms = 2000ms
+        // Deletion 3: 2000ms + 1000ms = 3000ms
+        // Deletion 4: 3000ms + 1000ms = 4000ms
         uint32_t numDeletions = 4;
         std::vector<uint32_t> deletionTimes;
         
@@ -280,7 +281,7 @@ SCENARIO("AsyncClient deletion spacing prevents concurrent cleanup operations",
         // Total spread should be base + (count-1)*spacing
         uint32_t totalSpread = deletionTimes.back() - deletionTimes.front();
         REQUIRE(totalSpread == (numDeletions - 1) * spacing);
-        REQUIRE(totalSpread == 750); // (4-1) * 250ms = 750ms
+        REQUIRE(totalSpread == 3000); // (4-1) * 1000ms = 3000ms
       }
     }
     
@@ -301,23 +302,24 @@ SCENARIO("AsyncClient deletion spacing prevents concurrent cleanup operations",
       }
       
       THEN("Deletions should be spread over time to prevent AsyncTCP interference") {
-        // First: 1000ms, Second: 1250ms, Third: 1500ms
+        // First: 1000ms, Second: 2000ms, Third: 3000ms
         REQUIRE(spacedDeletionTimes[0] == 1000);
-        REQUIRE(spacedDeletionTimes[1] == 1250);
-        REQUIRE(spacedDeletionTimes[2] == 1500);
+        REQUIRE(spacedDeletionTimes[1] == 2000);
+        REQUIRE(spacedDeletionTimes[2] == 3000);
       }
       
       THEN("Total window should be reasonable for high-churn scenarios") {
-        // 500ms total spread (1000ms to 1500ms) is acceptable
+        // 2000ms total spread (1000ms to 3000ms) provides adequate spacing for ESP32-C6
         uint32_t totalWindow = spacedDeletionTimes.back() - spacedDeletionTimes.front();
-        REQUIRE(totalWindow == 500);
-        REQUIRE(totalWindow < 1000); // Keep it under 1 second for good responsiveness
+        REQUIRE(totalWindow == 2000);
+        REQUIRE(totalWindow < 3000); // Keep it under 3 seconds for reasonable responsiveness
       }
       
       THEN("Each deletion has time to complete before next starts") {
-        // AsyncTCP library needs ~200-400ms per deletion
-        // 250ms spacing provides adequate buffer
-        REQUIRE(tcp_test::TCP_CLIENT_DELETION_SPACING_MS >= 200);
+        // AsyncTCP library needs ~200-400ms per deletion on ESP32/ESP8266
+        // ESP32-C6 requires significantly more time due to RISC-V architecture
+        // 1000ms spacing provides robust buffer for all ESP32 variants
+        REQUIRE(tcp_test::TCP_CLIENT_DELETION_SPACING_MS >= 500);
       }
     }
     
@@ -396,11 +398,11 @@ SCENARIO("AsyncClient deletion spacing prevents concurrent cleanup operations",
         uint32_t spacing = tcp_test::TCP_CLIENT_DELETION_SPACING_MS;
         
         // Both updates use the same spacing constant
-        REQUIRE(spacing == 250);
+        REQUIRE(spacing == 1000);
         
         // Minimum spacing is enforced at both stages
-        REQUIRE(spacing >= 200);  // Adequate for AsyncTCP cleanup
-        REQUIRE(spacing <= 500);  // Still responsive
+        REQUIRE(spacing >= 500);  // Adequate for ESP32-C6 AsyncTCP cleanup
+        REQUIRE(spacing <= 1500);  // Still responsive
       }
     }
   }
