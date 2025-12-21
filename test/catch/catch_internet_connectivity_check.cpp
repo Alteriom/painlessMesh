@@ -194,7 +194,7 @@ SCENARIO("Gateway connectivity errors should NOT be retried", "[gateway][retry][
                 // This is an infrastructure issue - router has no WAN connection
                 // Retrying won't help until user fixes the router/modem
                 bool isGatewayConnectivityError = 
-                    (ack.error.find("Router has no internet") != TSTRING::npos);
+                    (ack.error.find("Router has no internet") != std::string::npos);
                 
                 REQUIRE(isGatewayConnectivityError == true);
                 
@@ -216,7 +216,7 @@ SCENARIO("Gateway connectivity errors should NOT be retried", "[gateway][retry][
                 // This is an infrastructure issue - ESP not connected to WiFi
                 // Retrying won't help until WiFi connection is established
                 bool isGatewayConnectivityError = 
-                    (ack.error.find("Gateway WiFi not connected") != TSTRING::npos);
+                    (ack.error.find("Gateway WiFi not connected") != std::string::npos);
                 
                 REQUIRE(isGatewayConnectivityError == true);
                 
@@ -236,8 +236,8 @@ SCENARIO("Gateway connectivity errors should NOT be retried", "[gateway][retry][
             THEN("This error SHOULD be retryable") {
                 // This is a transient network issue that may resolve on retry
                 bool isGatewayConnectivityError = 
-                    (ack.error.find("Router has no internet") != TSTRING::npos ||
-                     ack.error.find("Gateway WiFi not connected") != TSTRING::npos);
+                    (ack.error.find("Router has no internet") != std::string::npos ||
+                     ack.error.find("Gateway WiFi not connected") != std::string::npos);
                 
                 REQUIRE(isGatewayConnectivityError == false);
                 

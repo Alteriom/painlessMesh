@@ -1541,8 +1541,19 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       // These errors indicate infrastructure issues that won't be fixed by retrying:
       // - "Router has no internet access" - WAN connection down
       // - "Gateway WiFi not connected" - ESP not associated with WiFi
-      if (ack.error.find("Router has no internet") != TSTRING::npos ||
-          ack.error.find("Gateway WiFi not connected") != TSTRING::npos) {
+      // Use find() for std::string (test env) or indexOf() for Arduino String
+      bool routerError = false, wifiError = false;
+      #if defined(PAINLESSMESH_BOOST)
+        // Test environment: TSTRING is std::string, use find()
+        routerError = (ack.error.find("Router has no internet") != std::string::npos);
+        wifiError = (ack.error.find("Gateway WiFi not connected") != std::string::npos);
+      #else
+        // Arduino environment: TSTRING is String, use indexOf()
+        routerError = (ack.error.indexOf("Router has no internet") >= 0);
+        wifiError = (ack.error.indexOf("Gateway WiFi not connected") >= 0);
+      #endif
+      
+      if (routerError || wifiError) {
         isGatewayConnectivityError = true;
         Log(COMMUNICATION, "handleGatewayAck(): Gateway connectivity error detected (non-retryable): %s\n", 
             ack.error.c_str());
