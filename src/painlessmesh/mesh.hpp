@@ -1532,10 +1532,27 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       isRetryable = true;
       Log(COMMUNICATION, "handleGatewayAck(): HTTP 429 rate limit, marking as retryable\n");
     }
-    // Network errors (httpStatus == 0) are retryable
+    // Network errors (httpStatus == 0) EXCEPT gateway connectivity errors
+    // Gateway connectivity errors are infrastructure issues (not transient)
     else if (ack.httpStatus == 0) {
-      isRetryable = true;
-      Log(COMMUNICATION, "handleGatewayAck(): Network error, marking as retryable\n");
+      // Check if this is a gateway-level connectivity error (non-retryable)
+      bool isGatewayConnectivityError = false;
+      
+      // These errors indicate infrastructure issues that won't be fixed by retrying:
+      // - "Router has no internet access" - WAN connection down
+      // - "Gateway WiFi not connected" - ESP not associated with WiFi
+      if (ack.error.find("Router has no internet") != TSTRING::npos ||
+          ack.error.find("Gateway WiFi not connected") != TSTRING::npos) {
+        isGatewayConnectivityError = true;
+        Log(COMMUNICATION, "handleGatewayAck(): Gateway connectivity error detected (non-retryable): %s\n", 
+            ack.error.c_str());
+      }
+      
+      // Only mark as retryable if it's NOT a gateway connectivity error
+      if (!isGatewayConnectivityError) {
+        isRetryable = true;
+        Log(COMMUNICATION, "handleGatewayAck(): Network error, marking as retryable\n");
+      }
     }
     // HTTP 4xx client errors (except 429) are NOT retryable
     // HTTP 3xx redirects are NOT retryable (should be followed by HTTPClient)
