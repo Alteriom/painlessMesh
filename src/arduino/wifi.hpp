@@ -2121,6 +2121,57 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
+   * Check if gateway has actual internet connectivity
+   * 
+   * Tests DNS resolution to detect scenarios where WiFi is connected
+   * but the router has no internet access. This provides early detection
+   * before attempting HTTP requests that would timeout or fail.
+   * 
+   * @return true if internet is accessible, false otherwise
+   */
+  bool hasActualInternetAccess() {
+    using namespace logger;
+    
+    // First check WiFi connection
+    if (WiFi.status() != WL_CONNECTED) {
+      return false;
+    }
+    
+    // Check if we have a valid local IP
+    if (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
+      return false;
+    }
+    
+    // Try to resolve a well-known DNS name
+    // This tests both DNS resolution and internet routing
+    IPAddress result;
+    
+#if defined(ESP32)
+    // ESP32: Use WiFi.hostByName()
+    int dnsResult = WiFi.hostByName("www.google.com", result);
+    if (dnsResult != 1) {
+      Log(COMMUNICATION, "hasActualInternetAccess(): DNS resolution failed, no internet access\n");
+      return false;
+    }
+#elif defined(ESP8266)
+    // ESP8266: Use WiFiClient for DNS resolution
+    WiFiClient client;
+    if (!client.connect("www.google.com", 80)) {
+      Log(COMMUNICATION, "hasActualInternetAccess(): Connection test failed, no internet access\n");
+      return false;
+    }
+    client.stop();
+#else
+    // Other platforms: assume internet is available if WiFi connected
+    // (no reliable way to test without platform-specific APIs)
+    return true;
+#endif
+    
+    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified\n");
+    return true;
+  }
+
+  /**
    * Helper method to send gateway acknowledgment
    */
   void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
@@ -2196,8 +2247,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           }
 
           // Check Internet connectivity
+          // First check WiFi status for quick fail
           if (WiFi.status() != WL_CONNECTED) {
-            sendGatewayAck(pkg, false, 0, "Gateway not connected to Internet");
+            sendGatewayAck(pkg, false, 0, "Gateway WiFi not connected");
+            return true;  // Consume package - we handled it (with error)
+          }
+          
+          // Then check actual internet access (DNS resolution)
+          // This detects when WiFi is connected but router has no internet
+          if (!hasActualInternetAccess()) {
+            sendGatewayAck(pkg, false, 0, "Router has no internet access - check WAN connection");
             return true;  // Consume package - we handled it (with error)
           }
 
