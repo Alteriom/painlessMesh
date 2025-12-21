@@ -99,14 +99,6 @@ This fork includes specialized packages for structured IoT communication:
   - Alert flags and error reporting
   - Firmware verification with MD5 hash
 
-- **`HealthCheckPackage`** (Type 605) - Proactive problem detection (MESH_METRICS per mqtt-schema v0.7.2+)
-  - Overall health scoring (0-100 for memory, network, performance)
-  - Problem flag indicators (16-bit flags for specific issues)
-  - Memory leak detection with trend analysis
-  - Predictive maintenance (estimated time to failure)
-  - Crash tracking and reboot reason codes
-  - Actionable recommendations
-
 **Bridge Failover & High Availability:**
 
 - **`BridgeStatusPackage`** (Type 610) - Bridge health monitoring (BRIDGE_STATUS per mqtt-schema v0.7.3+)
@@ -126,6 +118,13 @@ This fork includes specialized packages for structured IoT communication:
   - Previous bridge tracking
   - Takeover reason and timestamp
   - Seamless failover notification
+
+- **`BridgeCoordinationPackage`** (Type 613) - Multi-bridge coordination (BRIDGE_COORDINATION per mqtt-schema v0.7.3+)
+  - Bridge priority levels (1-10)
+  - Role assignment (primary/secondary/standby)
+  - Peer bridge discovery
+  - Load balancing metrics
+  - Hot standby redundancy
 
 - **`NTPTimeSyncPackage`** (Type 614) - NTP time synchronization (TIME_SYNC_NTP per mqtt-schema v0.7.3+)
   - Unix timestamp from NTP server
