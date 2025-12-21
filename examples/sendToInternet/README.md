@@ -146,6 +146,35 @@ mesh.sendToInternet("https://api.callmebot.com/...", "", callback);
 3. Check HTTP status code in callback (200 = success)
 4. URL-encode special characters in the message
 
+### Gateway shows "no internet access" but WiFi is connected
+
+**Symptom:** Error message "Router has no internet access - check WAN connection"
+
+**Cause:** The gateway node is connected to WiFi but the router itself has no internet connectivity. This is detected through DNS resolution testing.
+
+**Solutions:**
+1. **Check router WAN connection:**
+   - Verify router's internet LED indicator
+   - Check router's WAN port cable connection
+   - Ensure modem is powered and connected
+
+2. **Check ISP service:**
+   - Verify your internet service is active
+   - Test internet on other devices connected to same router
+   - Contact ISP if service is down
+
+3. **Router configuration:**
+   - Verify router has obtained WAN IP address
+   - Check router's internet connection status page
+   - Restart router if necessary
+
+**Technical Details:**
+The gateway performs two connectivity checks:
+1. `WiFi.status() == WL_CONNECTED` - Verifies WiFi association
+2. DNS resolution test - Verifies actual internet routing
+
+If WiFi is connected but DNS fails, it indicates the router has no upstream internet connection. This prevents unnecessary HTTP request timeouts and provides early error detection.
+
 ### Understanding HTTP Status Codes
 
 The callback provides `httpStatus` to indicate the result:
