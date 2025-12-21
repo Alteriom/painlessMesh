@@ -72,17 +72,19 @@ bool hasActualInternetAccess() {
   // Try to resolve a well-known DNS name
   IPAddress result;
   
-#if defined(ESP32)
+#if defined(ESP32) || defined(ESP8266)
+  // Both ESP32 and ESP8266 support WiFi.hostByName()
   int dnsResult = WiFi.hostByName("www.google.com", result);
+  
   if (dnsResult != 1) {
-    return false;
+    return false;  // DNS resolution failed
   }
-#elif defined(ESP8266)
-  WiFiClient client;
-  if (!client.connect("www.google.com", 80)) {
-    return false;
+  
+  // Additional validation: Check if resolved IP is valid
+  // Some ESP8266 versions may return success but set IP to 255.255.255.255 on error
+  if (result == IPAddress(0, 0, 0, 0) || result == IPAddress(255, 255, 255, 255)) {
+    return false;  // Invalid IP address
   }
-  client.stop();
 #endif
   
   return true;
@@ -90,10 +92,11 @@ bool hasActualInternetAccess() {
 ```
 
 **How it works:**
-- **ESP32:** Uses `WiFi.hostByName()` to perform DNS resolution
-- **ESP8266:** Attempts TCP connection which requires DNS resolution
+- **ESP32 & ESP8266:** Both use `WiFi.hostByName()` to perform DNS resolution
+- **Validation:** Checks for invalid IP addresses (0.0.0.0, 255.255.255.255)
 - **Lightweight:** Single DNS lookup, ~100ms overhead
 - **Reliable:** DNS failure indicates no internet routing
+- **Robust:** Handles ESP8266 core bugs where hostByName returns OK with invalid IP
 
 #### 2. Updated Gateway Handler
 
