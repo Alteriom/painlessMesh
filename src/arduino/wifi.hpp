@@ -2159,8 +2159,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Additional validation: Check if resolved IP is valid
     // Some ESP8266 versions may return success but set IP to 255.255.255.255 on error
     if (result == IPAddress(0, 0, 0, 0) || result == IPAddress(255, 255, 255, 255)) {
-      Log(COMMUNICATION, "hasActualInternetAccess(): Invalid DNS result IP: %s\n", 
-          result.toString().c_str());
+      TSTRING resultStr = result.toString();
+      Log(COMMUNICATION, "hasActualInternetAccess(): Invalid DNS result IP: %s\n", resultStr.c_str());
       return false;
     }
 #else
@@ -2169,8 +2169,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     return true;
 #endif
     
-    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified (resolved to %s)\n",
-        result.toString().c_str());
+    TSTRING resultStr = result.toString();
+    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified (resolved to %s)\n", 
+        resultStr.c_str());
     return true;
   }
 

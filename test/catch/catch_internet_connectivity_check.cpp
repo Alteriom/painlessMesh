@@ -107,7 +107,8 @@ SCENARIO("Different connectivity failure scenarios have distinct error messages"
             THEN("Error message should mention caching/proxy") {
                 bool hasCached = error.find("cached") != std::string::npos;
                 bool hasProxied = error.find("proxied") != std::string::npos;
-                REQUIRE((hasCached || hasProxied));
+                bool hasEither = hasCached || hasProxied;
+                REQUIRE(hasEither);
                 
                 INFO("This indicates request reached a cache/proxy but not the destination");
                 INFO("Often occurs with captive portals or network proxies");
