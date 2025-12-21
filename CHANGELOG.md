@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.9.19] - 2025-12-21
+
+### Fixed
+
 - **Gateway Connectivity Error Non-Retryable Fix** - Infrastructure errors no longer waste time with futile retries
   - Gateway connectivity errors ("Router has no internet", "Gateway WiFi not connected") are now non-retryable
   - Distinguishes between infrastructure issues (need user fix) and transient errors (can retry)

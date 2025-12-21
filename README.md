@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.18** - Internet connectivity check enhancement with DNS resolution verification
+**Version 1.9.19** - Gateway connectivity error non-retryable fix for infrastructure issues
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
