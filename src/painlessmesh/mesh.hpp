@@ -1532,10 +1532,38 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       isRetryable = true;
       Log(COMMUNICATION, "handleGatewayAck(): HTTP 429 rate limit, marking as retryable\n");
     }
-    // Network errors (httpStatus == 0) are retryable
+    // Network errors (httpStatus == 0) EXCEPT gateway connectivity errors
+    // Gateway connectivity errors are infrastructure issues (not transient)
     else if (ack.httpStatus == 0) {
-      isRetryable = true;
-      Log(COMMUNICATION, "handleGatewayAck(): Network error, marking as retryable\n");
+      // Check if this is a gateway-level connectivity error (non-retryable)
+      bool isGatewayConnectivityError = false;
+      
+      // These errors indicate infrastructure issues that won't be fixed by retrying:
+      // - "Router has no internet access" - WAN connection down
+      // - "Gateway WiFi not connected" - ESP not associated with WiFi
+      // Use find() for std::string (test env) or indexOf() for Arduino String
+      bool routerError = false, wifiError = false;
+      #if defined(PAINLESSMESH_BOOST)
+        // Test environment: TSTRING is std::string, use find()
+        routerError = (ack.error.find("Router has no internet") != std::string::npos);
+        wifiError = (ack.error.find("Gateway WiFi not connected") != std::string::npos);
+      #else
+        // Arduino environment: TSTRING is String, use indexOf()
+        routerError = (ack.error.indexOf("Router has no internet") >= 0);
+        wifiError = (ack.error.indexOf("Gateway WiFi not connected") >= 0);
+      #endif
+      
+      if (routerError || wifiError) {
+        isGatewayConnectivityError = true;
+        Log(COMMUNICATION, "handleGatewayAck(): Gateway connectivity error detected (non-retryable): %s\n", 
+            ack.error.c_str());
+      }
+      
+      // Only mark as retryable if it's NOT a gateway connectivity error
+      if (!isGatewayConnectivityError) {
+        isRetryable = true;
+        Log(COMMUNICATION, "handleGatewayAck(): Network error, marking as retryable\n");
+      }
     }
     // HTTP 4xx client errors (except 429) are NOT retryable
     // HTTP 3xx redirects are NOT retryable (should be followed by HTTPClient)

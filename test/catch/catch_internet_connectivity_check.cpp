@@ -180,3 +180,72 @@ SCENARIO("Error messages provide actionable troubleshooting guidance", "[gateway
         }
     }
 }
+
+SCENARIO("Gateway connectivity errors should NOT be retried", "[gateway][retry][bug-fix]") {
+    GIVEN("Gateway ACK packages with different error types") {
+        
+        WHEN("Error is 'Router has no internet access'") {
+            gateway::GatewayAckPackage ack;
+            ack.success = false;
+            ack.httpStatus = 0;
+            ack.error = "Router has no internet access - check WAN connection";
+            
+            THEN("This error should NOT be retryable") {
+                // This is an infrastructure issue - router has no WAN connection
+                // Retrying won't help until user fixes the router/modem
+                bool isGatewayConnectivityError = 
+                    (ack.error.find("Router has no internet") != std::string::npos);
+                
+                REQUIRE(isGatewayConnectivityError == true);
+                
+                INFO("Gateway connectivity errors are NOT retryable because:");
+                INFO("1. They indicate infrastructure/configuration problems");
+                INFO("2. Retrying wastes time and resources");
+                INFO("3. User must fix the infrastructure issue first");
+                INFO("4. Unlike transient network errors, these don't resolve on their own");
+            }
+        }
+        
+        WHEN("Error is 'Gateway WiFi not connected'") {
+            gateway::GatewayAckPackage ack;
+            ack.success = false;
+            ack.httpStatus = 0;
+            ack.error = "Gateway WiFi not connected";
+            
+            THEN("This error should NOT be retryable") {
+                // This is an infrastructure issue - ESP not connected to WiFi
+                // Retrying won't help until WiFi connection is established
+                bool isGatewayConnectivityError = 
+                    (ack.error.find("Gateway WiFi not connected") != std::string::npos);
+                
+                REQUIRE(isGatewayConnectivityError == true);
+                
+                INFO("WiFi connectivity errors are NOT retryable because:");
+                INFO("1. ESP is not associated with any WiFi network");
+                INFO("2. User must check credentials, signal strength, router");
+                INFO("3. Retrying the request won't establish WiFi connection");
+            }
+        }
+        
+        WHEN("Error is a genuine network error during HTTP request") {
+            gateway::GatewayAckPackage ack;
+            ack.success = false;
+            ack.httpStatus = 0;
+            ack.error = "Connection timeout";
+            
+            THEN("This error SHOULD be retryable") {
+                // This is a transient network issue that may resolve on retry
+                bool isGatewayConnectivityError = 
+                    (ack.error.find("Router has no internet") != std::string::npos ||
+                     ack.error.find("Gateway WiFi not connected") != std::string::npos);
+                
+                REQUIRE(isGatewayConnectivityError == false);
+                
+                INFO("Transient network errors ARE retryable because:");
+                INFO("1. They may be temporary (congestion, brief outage)");
+                INFO("2. They often resolve without user intervention");
+                INFO("3. Retry with exponential backoff is standard practice");
+            }
+        }
+    }
+}

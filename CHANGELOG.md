@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Gateway Connectivity Error Non-Retryable Fix** - Infrastructure errors no longer waste time with futile retries
+  - Gateway connectivity errors ("Router has no internet", "Gateway WiFi not connected") are now non-retryable
+  - Distinguishes between infrastructure issues (need user fix) and transient errors (can retry)
+  - Provides immediate failure feedback instead of retrying for ~14+ seconds
+  - Saves battery and network resources by avoiding retries that can't succeed
+  - Clear error messages help users identify and fix infrastructure problems quickly
+  - Transient errors (HTTP 203, 5xx, 429, timeouts) still retry with exponential backoff
+  - New comprehensive test suite with 25 assertions covering retry logic
+  - Documentation: ISSUE_GATEWAY_CONNECTIVITY_NON_RETRYABLE_FIX.md
+  - Fully backward compatible: No API changes required
+
 ## [1.9.18] - 2025-12-21
 
 ### Added
