@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.16** - Maintenance release with documentation improvements and code refinements
+**Version 1.9.17** - Documentation enhancement with production-level quality and improved package organization
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -46,7 +46,7 @@ This fork includes specialized packages for structured IoT communication:
   - Command tracking with unique IDs
   - Perfect for remote device control
 
-**Advanced Monitoring Packages (Phase 2):**
+**Advanced Monitoring Packages:**
 
 - **`MetricsPackage`** (Type 204) - Comprehensive performance metrics (SENSOR_METRICS per mqtt-schema v0.7.2+)
   - CPU usage and processing metrics
@@ -64,13 +64,7 @@ This fork includes specialized packages for structured IoT communication:
   - Crash tracking and reboot reason codes
   - Actionable recommendations
 
-**Mesh Topology & Management (Phase 2):**
-
-- **`EnhancedStatusPackage`** (Type 604) - Detailed mesh status (MESH_STATUS per mqtt-schema v0.7.2+)
-  - Complete mesh statistics (node count, connections, messages)
-  - Performance metrics (latency, packet loss, throughput)
-  - Alert flags and error reporting
-  - Firmware verification with MD5 hash
+**Mesh Topology & Management:**
 
 - **`MeshNodeListPackage`** (Type 600) - Node discovery and inventory (MESH_NODE_LIST per mqtt-schema v0.7.2+)
   - List of all mesh nodes with status (offline/online/unreachable)
@@ -99,7 +93,21 @@ This fork includes specialized packages for structured IoT communication:
   - Gateway node identification
   - Enables heterogeneous mesh networks
 
-**Bridge Failover & High Availability (v1.8.0):**
+- **`EnhancedStatusPackage`** (Type 604) - Detailed mesh status (MESH_STATUS per mqtt-schema v0.7.2+)
+  - Complete mesh statistics (node count, connections, messages)
+  - Performance metrics (latency, packet loss, throughput)
+  - Alert flags and error reporting
+  - Firmware verification with MD5 hash
+
+- **`HealthCheckPackage`** (Type 605) - Proactive problem detection (MESH_METRICS per mqtt-schema v0.7.2+)
+  - Overall health scoring (0-100 for memory, network, performance)
+  - Problem flag indicators (16-bit flags for specific issues)
+  - Memory leak detection with trend analysis
+  - Predictive maintenance (estimated time to failure)
+  - Crash tracking and reboot reason codes
+  - Actionable recommendations
+
+**Bridge Failover & High Availability:**
 
 - **`BridgeStatusPackage`** (Type 610) - Bridge health monitoring (BRIDGE_STATUS per mqtt-schema v0.7.3+)
   - Internet connectivity status
@@ -127,7 +135,7 @@ This fork includes specialized packages for structured IoT communication:
 
 All packages provide type-safe serialization, automatic JSON conversion, and mesh-wide broadcasting or targeted messaging. They align with mqtt-schema v0.7.3+ for enterprise IoT integration.
 
-#### 🚀 Phase 2 Features (v1.7.0+)
+#### 🚀 Advanced Features
 
 **Broadcast OTA Distribution**
 
@@ -145,7 +153,7 @@ All packages provide type-safe serialization, automatic JSON conversion, and mes
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for complete documentation.
 
-#### 🔄 Automatic Bridge Failover (v1.8.0)
+#### 🔄 Automatic Bridge Failover
 
 **High Availability for Critical Systems**
 
@@ -538,12 +546,15 @@ These are the message types used by applications built on painlessMesh:
 - **📱 ESP32 & ESP8266** - Full support for both platforms
 - **🛡️ Memory Efficient** - Optimized for resource-constrained devices
 
-### Advanced Features (v1.7.0+)
+### Advanced Features
 
 - **📡 Broadcast OTA** - Efficient firmware distribution for large meshes (50-100+ nodes)
 - **🌉 MQTT Bridge** - Professional monitoring with Grafana/InfluxDB/Prometheus
 - **📊 Topology Visualization** - D3.js, Cytoscape.js, Node-RED examples
 - **🎯 Production Ready** - Enterprise-grade stability and performance
+- **🔄 Automatic Bridge Failover** - RSSI-based election for high availability
+- **🌐 Multi-Bridge Coordination** - Load balancing and geographic redundancy
+- **💾 Message Queueing** - Zero data loss during Internet outages
 
 ## Examples & Use Cases
 
