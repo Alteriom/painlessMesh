@@ -563,18 +563,16 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.9.6 (December 10, 2025)
+## Latest Release: v1.9.17 (December 21, 2025)
 
-**TCP Connection Improvements & Documentation Update**
+**Documentation Enhancement & Package Organization**
 
-- ⚡ **TCP Connection Retry Improvements** - Enhanced reliability with exponential backoff (#231)
-  - Increased stabilization delay (100ms → 500ms)
-  - Increased retry delay (500ms → 1000ms) with exponential backoff
-  - More retry attempts (3 → 5) for better connection establishment
-- 📚 **Comprehensive Documentation Review** - Updated README.md for completeness and accuracy
-- 🔄 **Version Consistency** - Aligned version numbers across all distribution channels
+- 📚 **Production-Level Documentation** - Removed phase terminology for clearer product positioning
+- 📦 **Complete Package Catalog** - All 19 application-level package types documented in numerical order
+- 🎯 **Enhanced Feature Clarity** - Improved Advanced Features section with comprehensive capability list
+- ✨ **Professional Quality** - Documentation suitable for enterprise adoption and production deployments
 
-**Recent Key Features (v1.9.0 - v1.9.5):**
+**Recent Key Features (v1.9.0 - v1.9.16):**
 
 - 🔍 **Mesh Connectivity Detection** - New `hasActiveMeshConnections()` and `getLastKnownBridge()` APIs
 - 🌉 **Improved Bridge Detection** - `getPrimaryBridge()` returns last known bridge when disconnected
