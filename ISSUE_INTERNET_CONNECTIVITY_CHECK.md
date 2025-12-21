@@ -366,22 +366,20 @@ void checkInternetHealth() {
 
 ### Implementation Notes
 
-**ESP32:**
+**ESP32 and ESP8266:**
 ```cpp
 IPAddress result;
 int dnsResult = WiFi.hostByName("www.google.com", result);
 // Returns 1 on success, 0 on failure
-```
 
-**ESP8266:**
-```cpp
-WiFiClient client;
-if (!client.connect("www.google.com", 80)) {
-  // DNS resolution or connection failed
+// Additional validation for ESP8266 quirks:
+// Check if result is 0.0.0.0 or 255.255.255.255 (invalid)
+if (result == IPAddress(0, 0, 0, 0) || result == IPAddress(255, 255, 255, 255)) {
   return false;
 }
-client.stop();
 ```
+
+**Note on ESP8266:** Some older ESP8266 core versions have bugs where `hostByName()` returns success (1) but sets the IP to 255.255.255.255 on DNS failure. The implementation includes validation to detect this case.
 
 **Why "www.google.com"?**
 - Highly available (99.99% uptime)

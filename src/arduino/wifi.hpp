@@ -2143,31 +2143,34 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
     
     // Try to resolve a well-known DNS name
-    // This tests both DNS resolution and internet routing
+    // Using Google's servers as they have high availability globally
     IPAddress result;
     
-#if defined(ESP32)
-    // ESP32: Use WiFi.hostByName()
+#if defined(ESP32) || defined(ESP8266)
+    // Both ESP32 and ESP8266 support WiFi.hostByName()
     int dnsResult = WiFi.hostByName("www.google.com", result);
+    
+    // Check if DNS resolution succeeded
     if (dnsResult != 1) {
-      Log(COMMUNICATION, "hasActualInternetAccess(): DNS resolution failed, no internet access\n");
+      Log(COMMUNICATION, "hasActualInternetAccess(): DNS resolution failed (code=%d)\n", dnsResult);
       return false;
     }
-#elif defined(ESP8266)
-    // ESP8266: Use WiFiClient for DNS resolution
-    WiFiClient client;
-    if (!client.connect("www.google.com", 80)) {
-      Log(COMMUNICATION, "hasActualInternetAccess(): Connection test failed, no internet access\n");
+    
+    // Additional validation: Check if resolved IP is valid
+    // Some ESP8266 versions may return success but set IP to 255.255.255.255 on error
+    if (result == IPAddress(0, 0, 0, 0) || result == IPAddress(255, 255, 255, 255)) {
+      Log(COMMUNICATION, "hasActualInternetAccess(): Invalid DNS result IP: %s\n", 
+          result.toString().c_str());
       return false;
     }
-    client.stop();
 #else
     // Other platforms: assume internet is available if WiFi connected
     // (no reliable way to test without platform-specific APIs)
     return true;
 #endif
     
-    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified\n");
+    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified (resolved to %s)\n",
+        result.toString().c_str());
     return true;
   }
 
