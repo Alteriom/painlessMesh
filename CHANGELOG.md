@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.9.18] - 2025-12-21
+
+### Added
+
 - **Internet Connectivity Check Enhancement** - Bridge nodes now verify actual internet access before processing HTTP requests
   - Added `hasActualInternetAccess()` function that performs DNS resolution to detect router internet issues
   - Gateway checks both WiFi association AND DNS resolution before attempting HTTP requests
@@ -20,10 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New test suite with 22 assertions covering connectivity scenarios
   - Documentation: ISSUE_INTERNET_CONNECTIVITY_CHECK.md
   - Backward compatible: No API changes required
-
-### Changed
-
-### Fixed
 
 ## [1.9.17] - 2025-12-21
 
