@@ -286,9 +286,8 @@ SCENARIO("Captive portal detection provides clear user guidance", "[gateway][cap
             
             THEN("Error message should provide actionable guidance") {
                 REQUIRE(error.find("Check") != std::string::npos);
-                bool hasRouterOrWiFi = error.find("router") != std::string::npos || 
-                                       error.find("WiFi") != std::string::npos;
-                REQUIRE(hasRouterOrWiFi);
+                REQUIRE(error.find("router") != std::string::npos);
+                REQUIRE(error.find("WiFi") != std::string::npos);
                 
                 INFO("Users are directed to check router/WiFi settings");
                 INFO("They should:");

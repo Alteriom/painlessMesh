@@ -2183,9 +2183,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * This function makes a simple HTTP GET request to a known endpoint and
    * verifies the response to detect such interference.
    * 
-   * Test endpoints used:
+   * Test endpoint used:
    * - http://captive.apple.com/hotspot-detect.html - Returns "Success" (Apple standard)
-   * - http://detectportal.firefox.com/success.txt - Returns "success\n" (Mozilla standard)
    * 
    * @return true if no captive portal detected, false if portal found or check fails
    */
@@ -2201,19 +2200,18 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Use Apple's captive portal detection endpoint
     // This is a well-maintained, reliable endpoint used by iOS devices
     const char* testUrl = "http://captive.apple.com/hotspot-detect.html";
-    const char* expectedResponse = "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>";
     
     Log(COMMUNICATION, "detectCaptivePortal(): Testing %s\n", testUrl);
     
 #ifdef ESP8266
     if (!http.begin(client, testUrl)) {
-      Log(COMMUNICATION, "detectCaptivePortal(): Failed to begin HTTP client\n");
-      return false;  // Assume captive portal if we can't even start the request
+      Log(COMMUNICATION, "detectCaptivePortal(): Failed to begin HTTP client - treating as potential network restriction\n");
+      return false;  // Conservative approach: treat initialization failure as potential captive portal or network restriction
     }
 #else
     // ESP32
     if (!http.begin(testUrl)) {
-      Log(COMMUNICATION, "detectCaptivePortal(): Failed to begin HTTP client\n");
+      Log(COMMUNICATION, "detectCaptivePortal(): Failed to begin HTTP client - treating as potential network restriction\n");
       return false;
     }
 #endif
@@ -2231,7 +2229,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     String response = http.getString();
     http.end();
     
-    // Verify the response matches expected content
+    // Verify the response contains "Success" - this is Apple's standard response
+    // Full response: "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
+    // We check for presence of "Success" to be robust against minor format variations
     if (response.indexOf("Success") == -1) {
       Log(COMMUNICATION, "detectCaptivePortal(): Response doesn't contain 'Success', likely captive portal\n");
       return false;
