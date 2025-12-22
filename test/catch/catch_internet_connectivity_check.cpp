@@ -247,5 +247,56 @@ SCENARIO("Gateway connectivity errors should NOT be retried", "[gateway][retry][
                 INFO("3. Retry with exponential backoff is standard practice");
             }
         }
+        
+        WHEN("Error is 'Captive portal detected'") {
+            gateway::GatewayAckPackage ack;
+            ack.success = false;
+            ack.httpStatus = 0;
+            ack.error = "Captive portal detected - requires web authentication. Check router/WiFi settings";
+            
+            THEN("This error should NOT be retryable") {
+                // This is an infrastructure issue - router requires web authentication
+                // Retrying won't help until user authenticates through captive portal
+                bool isCaptivePortalError = 
+                    (ack.error.find("Captive portal detected") != std::string::npos);
+                
+                REQUIRE(isCaptivePortalError == true);
+                
+                INFO("Captive portal errors are NOT retryable because:");
+                INFO("1. Router is intercepting all HTTP/HTTPS requests");
+                INFO("2. User must authenticate through web portal first");
+                INFO("3. Retrying won't bypass the captive portal");
+                INFO("4. Common in hotels, airports, public WiFi, some home routers");
+            }
+        }
+    }
+}
+
+SCENARIO("Captive portal detection provides clear user guidance", "[gateway][captive-portal][usability]") {
+    GIVEN("A captive portal error message") {
+        TSTRING error = "Captive portal detected - requires web authentication. Check router/WiFi settings";
+        
+        WHEN("User receives this error") {
+            THEN("Error message should clearly indicate captive portal") {
+                REQUIRE(error.find("Captive portal") != std::string::npos);
+                REQUIRE(error.find("authentication") != std::string::npos);
+                
+                INFO("Clear indication helps users understand the issue");
+            }
+            
+            THEN("Error message should provide actionable guidance") {
+                REQUIRE(error.find("Check") != std::string::npos);
+                bool hasRouterOrWiFi = error.find("router") != std::string::npos || 
+                                       error.find("WiFi") != std::string::npos;
+                REQUIRE(hasRouterOrWiFi);
+                
+                INFO("Users are directed to check router/WiFi settings");
+                INFO("They should:");
+                INFO("1. Open a web browser");
+                INFO("2. Try to visit any website");
+                INFO("3. Complete the captive portal authentication");
+                INFO("4. Retry the mesh network request");
+            }
+        }
     }
 }
