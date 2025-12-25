@@ -14,6 +14,10 @@ services:
       - build-cache:/workspace/build
     working_dir: /workspace
     command: /workspace/run-tests.sh
+    depends_on:
+      - mock-http-server
+    environment:
+      - TEST_HTTP_ENDPOINT=http://mock-http-server:8080
     
   # Interactive development shell
   painlessmesh-dev:
@@ -28,6 +32,28 @@ services:
     command: /bin/bash
     stdin_open: true
     tty: true
+    depends_on:
+      - mock-http-server
+    environment:
+      - TEST_HTTP_ENDPOINT=http://mock-http-server:8080
+
+  # Mock HTTP server for testing bridge/Internet functionality
+  mock-http-server:
+    build:
+      context: ./test/mock-http-server
+      dockerfile: Dockerfile
+    container_name: painlessmesh-mock-http
+    ports:
+      - "8080:8080"
+    environment:
+      - MOCK_HTTP_PORT=8080
+      - MOCK_HTTP_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
 volumes:
   build-cache:
