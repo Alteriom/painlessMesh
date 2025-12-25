@@ -2176,6 +2176,77 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
+   * Detect captive portal by making a lightweight HTTP request
+   * 
+   * Captive portals often allow DNS resolution but intercept HTTP requests,
+   * returning redirects, cached responses (HTTP 203), or their own HTML.
+   * This function makes a simple HTTP GET request to a known endpoint and
+   * verifies the response to detect such interference.
+   * 
+   * Test endpoint used:
+   * - http://captive.apple.com/hotspot-detect.html - Returns "Success" (Apple standard)
+   * 
+   * @return true if no captive portal detected, false if portal found or check fails
+   */
+  bool detectCaptivePortal() {
+    using namespace logger;
+    
+#if defined(ESP32) || defined(ESP8266)
+    HTTPClient http;
+    http.setTimeout(5000);  // 5 second timeout for quick check
+    
+    WiFiClient client;
+    
+    // Use Apple's captive portal detection endpoint
+    // This is a well-maintained, reliable endpoint used by iOS devices
+    const char* testUrl = "http://captive.apple.com/hotspot-detect.html";
+    
+    Log(COMMUNICATION, "detectCaptivePortal(): Testing %s\n", testUrl);
+    
+#ifdef ESP8266
+    if (!http.begin(client, testUrl)) {
+      Log(COMMUNICATION, "detectCaptivePortal(): Failed to begin HTTP client - treating as potential network restriction\n");
+      return false;  // Conservative approach: treat initialization failure as potential captive portal or network restriction
+    }
+#else
+    // ESP32
+    if (!http.begin(testUrl)) {
+      Log(COMMUNICATION, "detectCaptivePortal(): Failed to begin HTTP client - treating as potential network restriction\n");
+      return false;
+    }
+#endif
+    
+    int httpCode = http.GET();
+    
+    if (httpCode != 200) {
+      // Any response other than HTTP 200 indicates captive portal or network issue
+      Log(COMMUNICATION, "detectCaptivePortal(): Unexpected HTTP code %d (expected 200)\n", httpCode);
+      http.end();
+      return false;
+    }
+    
+    // Check response content
+    String response = http.getString();
+    http.end();
+    
+    // Verify the response contains "Success" - this is Apple's standard response
+    // Full response: "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
+    // We check for presence of "Success" to be robust against minor format variations
+    if (response.indexOf("Success") == -1) {
+      Log(COMMUNICATION, "detectCaptivePortal(): Response doesn't contain 'Success', likely captive portal\n");
+      return false;
+    }
+    
+    Log(COMMUNICATION, "detectCaptivePortal(): No captive portal detected\n");
+    return true;
+    
+#else
+    // Non-ESP platforms: can't reliably test, assume no captive portal
+    return true;
+#endif
+  }
+
+  /**
    * Helper method to send gateway acknowledgment
    */
   void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
@@ -2261,6 +2332,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           // This detects when WiFi is connected but router has no internet
           if (!hasActualInternetAccess()) {
             sendGatewayAck(pkg, false, 0, "Router has no internet access - check WAN connection");
+            return true;  // Consume package - we handled it (with error)
+          }
+          
+          // Finally, check for captive portal interference
+          // This detects when DNS works but HTTP requests are intercepted
+          if (!detectCaptivePortal()) {
+            sendGatewayAck(pkg, false, 0, "Captive portal detected - requires web authentication. Check router/WiFi settings");
             return true;  // Consume package - we handled it (with error)
           }
 
