@@ -610,6 +610,28 @@ run-parts --regex catch_ bin/  # Run tests
 - **Dependencies**: ArduinoJson 7.x, TaskScheduler 4.x  
 - **Development**: CMake, Ninja, Boost (for desktop testing)
 
+### Testing Bridge/Internet Functionality
+
+painlessMesh includes a **Mock HTTP Server** for testing `sendToInternet()` functionality without requiring actual Internet connectivity. This enables:
+
+- 🚀 **Fast testing cycles** - Instant responses instead of waiting for external APIs
+- 🔧 **Offline development** - No Internet connection required
+- ✅ **Reproducible scenarios** - Control all test conditions precisely
+- 🤖 **CI/CD automation** - Automated testing in pipelines
+
+```bash
+# Start mock server
+cd test/mock-http-server
+python3 server.py
+
+# Test various HTTP scenarios
+curl http://localhost:8080/status/200     # Success
+curl http://localhost:8080/status/404     # Not Found
+curl http://localhost:8080/whatsapp?...   # WhatsApp API simulation
+```
+
+See [Mock HTTP Server Documentation](test/mock-http-server/README.md) for complete usage guide.
+
 ### CI/CD Pipeline
 
 painlessMesh features a state-of-the-art automated CI/CD pipeline:
