@@ -1,0 +1,25 @@
+# Build artifacts
+pc_mesh_node
+*.o
+*.a
+*.so
+*.exe
+
+# CMake build files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+_deps/
+build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
