@@ -50,15 +50,24 @@ echo "✓ g++ found"
 # Check for Boost
 echo ""
 echo "Checking Boost libraries..."
-if ! ldconfig -p 2>/dev/null | grep -q libboost_system; then
-    echo "⚠️  Boost not found or not in standard location"
-    echo "   Attempting to continue anyway..."
-    echo "   If build fails, install with:"
-    echo "   - Linux: sudo apt-get install libboost-dev libboost-system-dev"
-    echo "   - macOS: brew install boost"
+
+# Cross-platform Boost detection
+if command -v pkg-config >/dev/null 2>&1; then
+    if pkg-config --exists boost 2>/dev/null; then
+        echo "✓ Boost found (via pkg-config)"
+    else
+        echo "⚠️  Boost not detected via pkg-config"
+    fi
+elif [ -d "/usr/include/boost" ] || [ -d "/usr/local/include/boost" ] || [ -d "/opt/homebrew/include/boost" ]; then
+    echo "✓ Boost headers found"
 else
-    echo "✓ Boost found"
+    echo "⚠️  Boost not found in standard locations"
 fi
+
+echo "   If build fails, install Boost:"
+echo "   - Linux:  sudo apt-get install libboost-dev libboost-system-dev"
+echo "   - macOS:  brew install boost"
+echo "   - Windows: See https://www.boost.org/"
 
 # Check for test dependencies
 echo ""

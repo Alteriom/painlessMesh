@@ -5,19 +5,20 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# Find Boost (try CONFIG first, fall back to MODULE)
-FIND_PACKAGE(Boost COMPONENTS system)
-IF(NOT Boost_FOUND)
-  # Try without CONFIG
-  FIND_PACKAGE(Boost REQUIRED COMPONENTS system)
-ENDIF()
+# Find Boost (compatible with different CMake versions and platforms)
+FIND_PACKAGE(Boost 1.66 COMPONENTS system)
 
 IF(Boost_FOUND)
   INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
   LINK_DIRECTORIES(${Boost_LIBRARY_DIRS})
   message(STATUS "Boost found: ${Boost_VERSION}")
   message(STATUS "Boost include dirs: ${Boost_INCLUDE_DIRS}")
-ENDIF(Boost_FOUND)
+ELSE()
+  message(FATAL_ERROR "Boost not found! Please install Boost development libraries:\n"
+                      "  Ubuntu/Debian: sudo apt-get install libboost-dev libboost-system-dev\n"
+                      "  macOS:         brew install boost\n"
+                      "  Windows:       See https://www.boost.org/")
+ENDIF()
 
 # Set compiler flags
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")

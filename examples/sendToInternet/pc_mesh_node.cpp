@@ -111,7 +111,9 @@ public:
             while (!connected) {
                 this->update();
                 io_service.poll();
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                
+                // Use longer sleep to reduce CPU usage during wait
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 
                 auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
                     std::chrono::steady_clock::now() - startTime
@@ -266,8 +268,13 @@ void runTests(PCMeshNode& node, const std::string& mockServerUrl) {
     
     // Test 5: Echo with JSON Payload
     std::cout << "\n[Test 5/5] Echo Endpoint with JSON Payload" << std::endl;
-    std::string payload = R"({"source":"pc_node","test":"sendToInternet","timestamp":)" + 
-                          std::to_string(millis()) + "}";
+    // Using raw string literal for safer JSON construction
+    // In production, consider using ArduinoJson for proper JSON handling
+    char jsonBuffer[256];
+    snprintf(jsonBuffer, sizeof(jsonBuffer), 
+             R"({"source":"pc_node","test":"sendToInternet","timestamp":%lu})", 
+             (unsigned long)millis());
+    std::string payload(jsonBuffer);
     node.testSendToInternet(mockServerUrl + "/echo", payload);
     node.runUpdateLoop(5);
     
