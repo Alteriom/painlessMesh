@@ -29,7 +29,7 @@ The `mock_server_test.ino` example (added to resolve Issue #335) provided:
 - Fast testing without real Internet
 
 **BUT** it did NOT test:
-- Regular mesh node (no WiFi) sending `sendToInternet()` request
+- Regular mesh node sending `sendToInternet()` request through the bridge
 - Request routing through mesh network to bridge
 - Bridge making HTTP request on behalf of regular node
 - Response routing back through mesh to originating node
@@ -40,7 +40,7 @@ Testing the complete flow required:
 ```
 ┌──────────────────┐          ┌──────────────────┐          ┌──────────────────┐
 │  Regular Node    │          │  Bridge Node     │          │  Internet        │
-│  (No WiFi)       │◄────────►│  (Has WiFi)      │◄────────►│  (API Server)    │
+│  (via mesh)      │◄────────►│  (Has WiFi)      │◄────────►│  (API Server)    │
 └──────────────────┘  Mesh    └──────────────────┘  HTTP    └──────────────────┘
 ```
 
@@ -57,7 +57,7 @@ Without a PC-based emulator, this required:
 A complete PC-based mesh node implementation that:
 
 1. **Runs on Windows, Linux, macOS** - Using Boost.Asio for networking
-2. **Joins mesh as regular node** - No WiFi, no Internet access
+2. **Joins mesh as regular node** - Connects to bridge like any mesh node would
 3. **Implements painlessMesh protocol** - Full mesh communication
 4. **Calls sendToInternet()** - Requests routed through bridge
 5. **Automated test suite** - 5 test scenarios built-in

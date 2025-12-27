@@ -13,7 +13,7 @@ Regular Node → Mesh Network → Bridge → Internet → Bridge → Mesh Networ
 ```
 
 The **PC Mesh Node** solution allows you to:
-- ✅ Test from a **regular mesh node** (no direct WiFi/Internet)
+- ✅ Test from a **regular mesh node** that routes Internet requests through a bridge
 - ✅ Verify routing **through the bridge** works correctly
 - ✅ Debug issues on a PC with full development tools
 - ✅ Run on **Windows, Linux, or macOS**
@@ -25,7 +25,7 @@ The **PC Mesh Node** solution allows you to:
 ┌──────────────────┐          ┌──────────────────┐          ┌──────────────────┐
 │   PC Mesh Node   │          │  ESP32 Bridge    │          │  Mock HTTP       │
 │  (Regular Node)  │◄────────►│  (Has WiFi)      │◄────────►│  Server          │
-│  No WiFi         │  Mesh    │  Router Access   │  HTTP    │  localhost:8080  │
+│  WiFi/Ethernet   │  Mesh    │  Router Access   │  HTTP    │  localhost:8080  │
 └──────────────────┘          └──────────────────┘          └──────────────────┘
        │                              │                              │
        │ sendToInternet()             │                              │
