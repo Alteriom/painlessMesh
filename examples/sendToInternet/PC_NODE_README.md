@@ -39,6 +39,22 @@ The **PC Mesh Node** solution allows you to:
        │ Callback with result         │                              │
 ```
 
+### Connection Method Differences
+
+**ESP Mesh Nodes** join the mesh network wirelessly:
+- Use `mesh.init(MESH_PREFIX, MESH_PASSWORD, &scheduler, MESH_PORT)`
+- MESH_PREFIX is the WiFi SSID of the mesh network
+- ESP WiFi hardware creates/joins the wireless mesh
+- Example: `mesh.init("FishFarmMesh", "securepass", &scheduler, 5555)`
+
+**PC Mesh Node** joins via TCP/IP connection:
+- Cannot use WiFi mesh (no ESP WiFi hardware)
+- Connects via standard TCP to bridge's IP:port (e.g., 192.168.1.100:5555)
+- Once connected, painlessMesh protocol runs over TCP
+- Same mesh protocol, different transport layer
+
+Both methods result in a functioning mesh node that can send/receive mesh messages and use `sendToInternet()`.
+
 ## Prerequisites
 
 ### Software Requirements
@@ -132,6 +148,20 @@ g++ -std=c++14 -o pc_mesh_node pc_mesh_node.cpp \
 **Example:**
 ```bash
 ./pc_mesh_node 192.168.1.100 5555
+```
+
+**Parameters:**
+- `bridge_ip`: IP address of the ESP bridge on your LAN (not WiFi credentials)
+- `mesh_port`: TCP port the bridge is listening on (typically 5555)
+
+**Note:** Unlike ESP nodes that use WiFi credentials (MESH_PREFIX/MESH_PASSWORD), the PC node connects via TCP/IP to the bridge's IP address. The bridge must be configured with:
+```cpp
+// On ESP bridge
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &scheduler, MESH_PORT);
+// Creates mesh network and opens TCP port MESH_PORT (5555)
+```
+
+The PC node then connects to that TCP port to join the mesh.
 ```
 
 ### Advanced Usage

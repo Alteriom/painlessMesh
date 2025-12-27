@@ -8,9 +8,16 @@
  * PURPOSE:
  * Test the complete flow: PC Node → Bridge → Internet → Bridge → PC Node
  * 
+ * CONNECTION METHOD:
+ * ESP nodes use WiFi mesh credentials: mesh.init(MESH_PREFIX, MESH_PASSWORD, &scheduler, MESH_PORT)
+ * PC node uses TCP/IP connection: connects to bridge's IP:port (e.g., 192.168.1.100:5555)
+ * 
+ * Both methods result in a mesh node that can use sendToInternet() - the difference
+ * is the transport layer (WiFi mesh vs TCP/IP), not the painlessMesh protocol.
+ * 
  * SETUP:
- * 1. Run this PC node: ./pc_mesh_node <bridge_ip> <bridge_port>
- * 2. Run bridge on ESP32/ESP8266 with router access
+ * 1. Configure ESP bridge with: mesh.init("FishFarmMesh", "securepass", &scheduler, 5555)
+ * 2. Run this PC node: ./pc_mesh_node <bridge_ip> 5555
  * 3. Run mock HTTP server: cd test/mock-http-server && python3 server.py
  * 4. PC node sends HTTP requests via sendToInternet() through bridge
  * 
@@ -27,8 +34,8 @@
  * ./pc_mesh_node 192.168.1.100 5555
  * 
  * Where:
- * - 192.168.1.100 is your ESP bridge's IP address
- * - 5555 is the mesh port (default)
+ * - 192.168.1.100 is your ESP bridge's IP address on the LAN
+ * - 5555 is the TCP port the bridge is listening on (MESH_PORT)
  **/
 
 #include <iostream>
