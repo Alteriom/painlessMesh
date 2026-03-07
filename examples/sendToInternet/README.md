@@ -194,11 +194,49 @@ The callback provides `httpStatus` to indicate the result:
 
 ## Files
 
-- `sendToInternet.ino` - Main example sketch
+- `sendToInternet.ino` - Main example sketch for ESP32/ESP8266
+- `mock_server_test.ino` - Bridge testing with mock HTTP server
+- `pc_mesh_node.cpp` - **NEW:** PC-based mesh node for testing regular node → bridge flow
 - `README.md` - This documentation
+- `PC_NODE_README.md` - **NEW:** Documentation for PC mesh node testing
+
+## Testing from Regular Nodes
+
+### PC Mesh Node Emulator (NEW!)
+
+Want to test `sendToInternet()` from a **regular mesh node** (not a bridge) without needing multiple ESP devices?
+
+The **PC Mesh Node** allows you to:
+- ✅ Run a mesh node on Windows/Linux/macOS
+- ✅ Test the complete flow: PC Node → Bridge → Internet
+- ✅ Debug with full PC development tools
+- ✅ Fast iteration (no upload times!)
+
+**Quick Start:**
+```bash
+cd examples/sendToInternet
+
+# Build
+cmake . && make
+
+# Run (connect to your ESP bridge)
+./pc_mesh_node 192.168.1.100 5555
+```
+
+**Full Documentation:** [PC_NODE_README.md](PC_NODE_README.md)
+
+**What It Tests:**
+- Regular mesh node sending HTTP requests through bridge
+- Request routing through mesh network
+- Response callback handling
+- Multiple HTTP status codes (200, 404, 500, etc.)
+- JSON payload transmission
+
+**Addresses Issue #337:** This solution provides the "bridge emulator" or mesh node emulator requested by @woodlist for testing node-to-internet traffic through the bridge.
 
 ## Related Examples
 
 - [sharedGateway](../sharedGateway/) - All nodes with direct Internet access
 - [bridge_failover](../bridge_failover/) - Automatic gateway failover
 - [mqttBridge](../mqttBridge/) - MQTT integration
+- [Mock HTTP Server](../../test/mock-http-server/) - Local testing endpoint
