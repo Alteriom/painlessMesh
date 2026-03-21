@@ -261,18 +261,18 @@ class MpptPackage : public painlessmesh::plugin::BroadcastPackage {
    * @param jsonObj  Parsed JSON object (ArduinoJson JsonObject)
    */
   MpptPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
-    solarVoltage   = jsonObj["sv"];
-    solarCurrent   = jsonObj["sc"];
-    solarPower     = jsonObj["sp"];
+    solarVoltage = jsonObj["sv"];
+    solarCurrent = jsonObj["sc"];
+    solarPower = jsonObj["sp"];
     batteryVoltage = jsonObj["bv"];
-    batterySOC     = jsonObj["bsoc"];
-    loadVoltage    = jsonObj["lv"];
-    loadCurrent    = jsonObj["lc"];
-    chargeState    = jsonObj["cs"];
+    batterySOC = jsonObj["bsoc"];
+    loadVoltage = jsonObj["lv"];
+    loadCurrent = jsonObj["lc"];
+    chargeState = jsonObj["cs"];
     controllerTemp = jsonObj["ct"];
-    deviceId       = jsonObj["did"];
-    timestamp      = jsonObj["ts"];
-    messageType    = jsonObj["message_type"] | 203;
+    deviceId = jsonObj["did"];
+    timestamp = jsonObj["ts"];
+    messageType = jsonObj["message_type"] | 203;
   }
 
   // -------------------------------------------------------------------------
@@ -288,17 +288,17 @@ class MpptPackage : public painlessmesh::plugin::BroadcastPackage {
    */
   JsonObject addTo(JsonObject&& jsonObj) const {
     jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
-    jsonObj["sv"]           = solarVoltage;
-    jsonObj["sc"]           = solarCurrent;
-    jsonObj["sp"]           = solarPower;
-    jsonObj["bv"]           = batteryVoltage;
-    jsonObj["bsoc"]         = batterySOC;
-    jsonObj["lv"]           = loadVoltage;
-    jsonObj["lc"]           = loadCurrent;
-    jsonObj["cs"]           = chargeState;
-    jsonObj["ct"]           = controllerTemp;
-    jsonObj["did"]          = deviceId;
-    jsonObj["ts"]           = timestamp;
+    jsonObj["sv"] = solarVoltage;
+    jsonObj["sc"] = solarCurrent;
+    jsonObj["sp"] = solarPower;
+    jsonObj["bv"] = batteryVoltage;
+    jsonObj["bsoc"] = batterySOC;
+    jsonObj["lv"] = loadVoltage;
+    jsonObj["lc"] = loadCurrent;
+    jsonObj["cs"] = chargeState;
+    jsonObj["ct"] = controllerTemp;
+    jsonObj["did"] = deviceId;
+    jsonObj["ts"] = timestamp;
     jsonObj["message_type"] = messageType;
     return jsonObj;
   }
@@ -311,9 +311,7 @@ class MpptPackage : public painlessmesh::plugin::BroadcastPackage {
    * The +12 accounts for the 12 fields declared in this class.
    * No TSTRING fields, so no extra string length term.
    */
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 12);
-  }
+  size_t jsonObjectSize() const { return JSON_OBJECT_SIZE(noJsonFields + 12); }
 #endif
 };
 
