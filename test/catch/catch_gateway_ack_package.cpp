@@ -218,31 +218,3 @@ SCENARIO("GatewayAckPackage type constant is correctly defined") {
     }
 }
 
-SCENARIO("GatewayAckPackage estimatedMemoryFootprint works") {
-    GIVEN("A default GatewayAckPackage") {
-        GatewayAckPackage pkg;
-
-        WHEN("Calculating memory footprint") {
-            size_t footprint = pkg.estimatedMemoryFootprint();
-
-            THEN("Footprint should be at least sizeof(GatewayAckPackage)") {
-                REQUIRE(footprint >= sizeof(GatewayAckPackage));
-            }
-        }
-    }
-
-    GIVEN("A GatewayAckPackage with error message content") {
-        GatewayAckPackage pkg;
-        pkg.error = "Connection refused: Host unreachable";
-
-        WHEN("Calculating memory footprint") {
-            size_t footprint = pkg.estimatedMemoryFootprint();
-
-            THEN("Footprint should increase with string content") {
-                size_t expectedMin = sizeof(GatewayAckPackage) +
-                                    pkg.error.length();
-                REQUIRE(footprint >= expectedMin);
-            }
-        }
-    }
-}

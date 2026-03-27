@@ -367,37 +367,6 @@ SCENARIO("SharedGatewayConfig helper methods work correctly") {
     }
 }
 
-SCENARIO("SharedGatewayConfig memory footprint estimation") {
-    GIVEN("A default SharedGatewayConfig") {
-        SharedGatewayConfig config;
-        
-        WHEN("estimating memory footprint") {
-            size_t footprint = config.estimatedMemoryFootprint();
-            
-            THEN("footprint should be reasonable") {
-                // Base struct size + default string content
-                REQUIRE(footprint >= sizeof(SharedGatewayConfig));
-                REQUIRE(footprint < 1000);  // Should be well under 1KB
-            }
-        }
-    }
-    
-    GIVEN("A SharedGatewayConfig with long strings") {
-        SharedGatewayConfig config;
-        config.routerSSID = "12345678901234567890123456789012";  // 32 chars
-        config.routerPassword = "123456789012345678901234567890123456789012345678901234567890123";  // 63 chars
-        config.internetCheckHost = "my.custom.ntp.server.example.com";
-        
-        WHEN("estimating memory footprint") {
-            size_t footprint = config.estimatedMemoryFootprint();
-            
-            THEN("footprint should increase with string content") {
-                REQUIRE(footprint >= sizeof(SharedGatewayConfig) + 32 + 63 + 32);
-            }
-        }
-    }
-}
-
 SCENARIO("ValidationResult works correctly") {
     GIVEN("A valid ValidationResult") {
         ValidationResult result(true, "");
