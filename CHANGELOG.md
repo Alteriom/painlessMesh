@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.9.20] - 2026-03-27
 
+### Added
+
+- **Bridge Coordination Monitoring Callbacks** - User-facing API for observing bridge coordination events
+  - `mesh.onBridgeCoordination(cb)` — fires on every coordination message (~30s per bridge)
+  - `mesh.onBridgeCoordinationChanged(cb)` — fires on state changes: "new", "updated", "lost"
+  - Works on both bridge and non-bridge nodes (monitoring is not bridge-only)
+  - Lost bridge detection with 60-second timeout
+  - 5 new test scenarios with 18 assertions for change detection logic
+
 ### Fixed
 
 - **Full Repo Cleanup** - Comprehensive audit and cleanup of the entire codebase (#357)

@@ -562,8 +562,9 @@ These are the message types used by applications built on painlessMesh:
 
 ## Latest Release: v1.9.20 (March 27, 2026)
 
-**Full Repo Cleanup & Bug Fixes**
+**Full Repo Cleanup, Bug Fixes & Bridge Coordination Callbacks**
 
+- New `onBridgeCoordination()` and `onBridgeCoordinationChanged()` monitoring callbacks
 - Fixed 13 critical/high/medium bugs (double-free, RSSI overflow, memory leaks, blocking delays)
 - Removed ~3,600 lines of dead code and 40 AI-generated docs
 - Fixed all CI/CD workflows (corrected action versions)
