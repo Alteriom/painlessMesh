@@ -79,19 +79,11 @@
  * 
  * @code{.cpp}
  * using namespace alteriom;
- * 
+ *
  * // Send sensor data
  * SensorPackage sensor;
- * sensor.temperature = 25.5;
- * sensor.humidity = 60.0;
- * mesh.sendPackage(&sensor);
- * 
- * // Handle received sensor data
- * mesh.onPackage(200, [](protocol::Variant& variant) {
- *     SensorPackage data = variant.to<SensorPackage>();
- *     Serial.printf("Temperature: %.1f°C\n", data.temperature);
- *     return true;
- * });
+ * sensor.temperature = 22.5;
+ * mesh.sendBroadcast(sensor.toJsonString());
  * @endcode
  */
 

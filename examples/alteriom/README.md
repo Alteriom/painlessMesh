@@ -34,7 +34,7 @@ Broadcast package for sharing device health and status information.
 - `wifiStrength` - WiFi signal strength (0-100)
 - `firmwareVersion` - Current firmware version string
 
-### EnhancedStatusPackage (Type 203) - Phase 1
+### EnhancedStatusPackage (Type 604)
 Extended status package with comprehensive health metrics (18 fields).
 
 **Additional Fields:**
@@ -177,12 +177,12 @@ Complete Arduino sketch demonstrating:
 - Message type discrimination
 - Integration with painlessMesh
 
-### `phase1_features.ino` (NEW)
-Phase 1 OTA enhancement example demonstrating:
+### `phase1_features.ino`
+OTA enhancement example demonstrating:
 - Compressed OTA transfer infrastructure
 - Enhanced status reporting with comprehensive metrics
 - Alert system implementation
-- Usage patterns for Phase 1 features
+- Usage patterns for advanced features
 
 ### `metrics_health_node.ino` (NEW in v1.7.7)
 Comprehensive monitoring node example demonstrating:

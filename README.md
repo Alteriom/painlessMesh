@@ -209,11 +209,8 @@ mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
                   ROUTER_SSID, ROUTER_PASSWORD,
                   &userScheduler, MESH_PORT, 10);
 
-// Configure load balancing strategy
-mesh.setBridgeSelectionStrategy(ROUND_ROBIN);
-
-// Monitor bridge coordination
-mesh.onBridgeCoordination(&bridgeCoordinationCallback);
+// Enable bridge failover for high availability
+mesh.enableBridgeFailover(true);
 ```
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for multi-bridge documentation.
@@ -239,16 +236,11 @@ See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for multi-bridge documentatio
 **Example:**
 ```cpp
 // Enable message queue with max 100 messages
-mesh.enableMessageQueue(true);
-mesh.setMaxQueueSize(100);
+mesh.enableMessageQueue(true, 100);
 
 // Queue critical alarm message
 String criticalAlarm = "{\"sensor\":\"O2\",\"value\":2.5,\"alarm\":true}";
-mesh.queueMessage(criticalAlarm, CRITICAL);
-
-// Set callbacks
-mesh.onQueueFull(&queueFullCallback);
-mesh.onQueueFlushed(&queueFlushedCallback);
+mesh.queueMessage(bridgeNodeId, criticalAlarm);
 ```
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for message queue documentation.
@@ -393,46 +385,34 @@ If platformio is used to install the library, then the dependencies will be inst
 
 ```cpp
 #include "painlessMesh.h"
-#include "examples/alteriom/alteriom_sensor_package.hpp"
 
-using namespace alteriom;
-
-#define MESH_PREFIX     "AlteriomMesh"
-#define MESH_PASSWORD   "your_password"
-#define MESH_PORT       5555
+#define MESH_PREFIX "whateverYouLike"
+#define MESH_PASSWORD "somethingSneaky"
+#define MESH_PORT 5555
 
 Scheduler userScheduler;
 painlessMesh mesh;
 
+Task taskSendMessage(TASK_SECOND * 30, TASK_FOREVER, []() {
+  String msg = "Hello from node ";
+  msg += mesh.getNodeId();
+  mesh.sendBroadcast(msg);
+});
+
+void receivedCallback(uint32_t from, String &msg) {
+  Serial.printf("Received from %u: %s\n", from, msg.c_str());
+}
+
 void setup() {
-    Serial.begin(115200);
-    mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
-    mesh.onReceive(&receivedCallback);
+  Serial.begin(115200);
+  mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+  mesh.onReceive(&receivedCallback);
+  userScheduler.addTask(taskSendMessage);
+  taskSendMessage.enable();
 }
 
 void loop() {
-    mesh.update();
-    
-    // Create and send sensor data
-    SensorPackage sensor;
-    sensor.temperature = 25.5;
-    sensor.humidity = 60.0;
-    sensor.sensorId = mesh.getNodeId();
-    sensor.timestamp = mesh.getNodeTime();
-    
-    mesh.sendBroadcast(sensor.toJsonString());
-    delay(30000); // Send every 30 seconds
-}
-
-void receivedCallback(uint32_t from, String& msg) {
-    JsonDocument doc;  // ArduinoJson v7
-    deserializeJson(doc, msg);
-    
-    if (doc["type"] == 200) { // SensorPackage
-        SensorPackage sensor(doc.as<JsonObject>());
-        Serial.printf("Sensor %u: %.1f°C, %.1f%% RH\n", 
-                     sensor.sensorId, sensor.temperature, sensor.humidity);
-    }
+  mesh.update();
 }
 ```
 
@@ -563,7 +543,7 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.9.17 (December 21, 2025)
+## Latest Release: v1.9.19 (December 21, 2025)
 
 **Documentation Enhancement & Package Organization**
 
@@ -578,16 +558,16 @@ These are the message types used by applications built on painlessMesh:
 - 🌉 **Improved Bridge Detection** - `getPrimaryBridge()` returns last known bridge when disconnected
 - ⚡ **Enhanced TCP Reliability** - Exponential backoff and increased retries for mesh connections
 - 🛡️ **Race Condition Fixes** - Improved bridge status and connection validation
-- 📦 **Consolidated Examples** - Streamlined to 14 essential examples
+- 📦 **Consolidated Examples** - Streamlined to 15 essential examples
 - ⚙️ **Configurable Election Timing** - Prevent split-brain with `setElectionStartupDelay()` and `setElectionRandomDelay()`
 
 **[📋 Full CHANGELOG](CHANGELOG.md)**
 
 ## Getting Help
 
-- **[FAQ](docs/troubleshooting/faq.md)** - Common questions and solutions
-- **[Common Issues](docs/troubleshooting/common-issues.md)** - Troubleshooting guide
-- **[GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)** - Bug reports and feature requests  
+- **[FAQ](USER_GUIDE.md)** - Common questions and solutions
+- **[Common Issues](USER_GUIDE.md)** - Troubleshooting guide
+- **[GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)** - Bug reports and feature requests
 - **[Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)** - Community support
 - **[API Documentation](https://alteriom.github.io/painlessMesh/#/api/doxygen)** - Generated API docs
 
@@ -673,8 +653,6 @@ We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparin
 
 If you like the library please consider supporting its development. Your contributions help me spend more time improving painlessMesh.
 
-[![PayPal Donation](paypal/qrcode.png)](https://www.paypal.com/paypalme/domlavoie)
-
 **[Donate via PayPal](https://www.paypal.com/paypalme/domlavoie)** • [dominic.lavoie@gmail.com](mailto:dominic.lavoie@gmail.com)
 
 ## 📚 Documentation
@@ -691,18 +669,18 @@ If you like the library please consider supporting its development. Your contrib
 ### 🚀 Quick Links
 
 **New to AlteriomPainlessMesh?**
-- [Quick Start](docs/getting-started/quickstart.md) - Get your first mesh running in 5 minutes
-- [Installation](docs/getting-started/installation.md) - Arduino IDE and PlatformIO setup
-- [First Mesh](docs/getting-started/first-mesh.md) - Build a multi-node network
+- [Quick Start](USER_GUIDE.md) - Get your first mesh running in 5 minutes
+- [Installation](USER_GUIDE.md) - Arduino IDE and PlatformIO setup
+- [First Mesh](USER_GUIDE.md) - Build a multi-node network
 
 **Reference Documentation:**
-- [Core API](docs/api/core-api.md) - painlessMesh class methods
-- [Alteriom Extensions](docs/alteriom/overview.md) - SensorPackage, CommandPackage, StatusPackage
-- [Examples](examples/) - 16 working examples for common scenarios
+- [Core API](USER_GUIDE.md) - painlessMesh class methods
+- [Alteriom Extensions](examples/alteriom/README.md) - SensorPackage, CommandPackage, StatusPackage
+- [Examples](examples/) - 15 working examples for common scenarios
 
 **Need Help?**
-- [FAQ](docs/troubleshooting/faq.md) - Frequently asked questions
-- [Common Issues](docs/troubleshooting/common-issues.md) - Troubleshooting guide
+- [FAQ](USER_GUIDE.md) - Frequently asked questions
+- [Common Issues](USER_GUIDE.md) - Troubleshooting guide
 - [GitHub Issues](https://github.com/Alteriom/painlessMesh/issues) - Bug reports and support
 
 ## 🔧 Quick API Reference
