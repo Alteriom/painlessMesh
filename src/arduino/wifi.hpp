@@ -410,7 +410,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Wait for connection (with timeout)
     int timeout = 30;  // 30 seconds timeout
     while (WiFi.status() != WL_CONNECTED && timeout > 0) {
-      delay(1000);
+      // Allow event loop processing during hardware settling
+      for (int i = 0; i < 100; i++) { delay(10); yield(); }
       timeout--;
       Log(STARTUP, ".");
     }
@@ -641,7 +642,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Wait for connection with timeout (using constant for configurability)
     int timeout = ROUTER_CONNECTION_TIMEOUT_SECONDS;
     while (WiFi.status() != WL_CONNECTED && timeout > 0) {
-      delay(1000);
+      // Allow event loop processing during hardware settling
+      for (int i = 0; i < 100; i++) { delay(10); yield(); }
       timeout--;
       Log(STARTUP, ".");
     }
@@ -1818,7 +1820,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
 
     // Give time for announcement to propagate before channel switch
-    delay(1000);
+    // Allow event loop processing during hardware settling
+    for (int i = 0; i < 100; i++) { delay(10); yield(); }
     Log(STARTUP, "✓ Takeover announcement sent on channel %d\n", _meshChannel);
 
     // Save current mesh configuration to restore if bridge init fails
@@ -1835,7 +1838,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       
       // Now reconfigure as bridge (this will switch to router's channel)
       this->stop();
-      delay(1000);
+      // Allow event loop processing during hardware settling
+      for (int i = 0; i < 100; i++) { delay(10); yield(); }
 
       bool bridgeInitSuccess =
           this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
@@ -1958,7 +1962,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       
       // Stop current mesh operations
       this->stop();
-      delay(1000);
+      // Allow event loop processing during hardware settling
+      for (int i = 0; i < 100; i++) { delay(10); yield(); }
 
       // Attempt to initialize as bridge
       bool bridgeInitSuccess =

@@ -116,25 +116,20 @@ inline void scheduleAsyncClientDeletion(Scheduler* scheduler, AsyncClient* clien
   Log(CONNECTION, "%s: Scheduling AsyncClient deletion in %u ms (spaced from previous deletions)\n", 
       logPrefix, actualDelay);
   
-  // Schedule the deletion task
-  // Note: Task object is intentionally leaked to keep implementation simple
-  // This is acceptable because:
-  // 1. Connections are long-lived, destructor calls are infrequent
-  // 2. Task object is small (~32-64 bytes) vs preventing critical heap corruption
-  // 3. In typical deployments, memory impact is negligible (few KB over months)
-  // 4. Alternative cleanup patterns would add significant complexity
+  // Schedule the deletion task with self-cleanup
   Task* cleanupTask = new Task(actualDelay * TASK_MILLISECOND, TASK_ONCE, [client, logPrefix]() {
     using namespace logger;
     Log(CONNECTION, "%s: Deferred cleanup of AsyncClient executing now\n", logPrefix);
-    
-    // Note: lastScheduledDeletionTime is updated at scheduling time (before this task runs), not here
-    // This ensures consistent spacing based on when deletions were scheduled, preventing
-    // the race condition where execution-time updates could "rewind" the timestamp
-    // and cause subsequent deletions to be scheduled too close together
-    
     delete client;
   });
-  
+
+  // Self-cleanup: after execution, remove from scheduler and delete the Task.
+  // OnDisable fires after a TASK_ONCE task completes its single iteration.
+  cleanupTask->setOnDisable([cleanupTask, scheduler]() {
+    scheduler->deleteTask(*cleanupTask);
+    delete cleanupTask;
+  });
+
   scheduler->addTask(*cleanupTask);
   cleanupTask->enableDelayed();
 }

@@ -352,6 +352,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
     if (!isExternalScheduler) {
       delete mScheduler;
+      mScheduler = nullptr;
     }
   }
 
@@ -2481,7 +2482,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // Reconstruct path from parent map
     if (found) {
       uint32_t current = nodeId;
-      while (current != 0) {
+      size_t maxIter = parent.size() + 1;
+      while (current != 0 && maxIter-- > 0) {
         path.insert(path.begin(), current);
         current = parent[current];
       }
@@ -2526,7 +2528,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     uint32_t totalMessagesDropped = 0;
     uint32_t totalLatency = 0;
     uint32_t latencySampleCount = 0;
-    int8_t sumRSSI = 0;
+    int32_t sumRSSI = 0;
     int8_t minRSSI = 0;
     int8_t maxRSSI = -127;
     uint32_t rssiCount = 0;
