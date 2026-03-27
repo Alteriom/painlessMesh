@@ -43,33 +43,8 @@ RUN if [ ! -f /workspace/test/TaskScheduler/src/TaskScheduler.h ]; then \
     git clone --depth 1 https://github.com/arkhipenko/TaskScheduler.git; \
 fi
 
-# Create build script
-RUN echo '#!/bin/bash\n\
-set -e\n\
-echo "================================="\n\
-echo "painlessMesh Build & Test System"\n\
-echo "================================="\n\
-echo ""\n\
-echo "Configuring build..."\n\
-cmake -G Ninja .\n\
-echo ""\n\
-echo "Building tests..."\n\
-ninja\n\
-echo ""\n\
-echo "Running tests..."\n\
-echo ""\n\
-for test in bin/catch_*; do\n\
-  if [ -x "$test" ]; then\n\
-    echo "Running: $(basename $test)"\n\
-    echo "-----------------------------------"\n\
-    $test\n\
-    echo ""\n\
-  fi\n\
-done\n\
-echo "================================="\n\
-echo "All tests completed successfully!"\n\
-echo "================================="\n\
-' > /workspace/run-tests.sh && chmod +x /workspace/run-tests.sh
+COPY run-tests.sh /workspace/run-tests.sh
+RUN chmod +x /workspace/run-tests.sh
 
 # Default command
 CMD ["/workspace/run-tests.sh"]

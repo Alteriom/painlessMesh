@@ -1,7 +1,6 @@
 # Docker Compose for painlessMesh Development
 # Simplifies Docker commands and provides consistent environment
 
-version: '3.8'
 
 services:
   painlessmesh-test:

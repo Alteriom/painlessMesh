@@ -352,6 +352,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
     if (!isExternalScheduler) {
       delete mScheduler;
+      mScheduler = nullptr;
     }
   }
 
@@ -876,7 +877,11 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return Number of available gateways
    */
   size_t getGatewayCount() {
-    return getNodesWithInternet().size();
+    size_t count = 0;
+    for (const auto& bridge : knownBridges) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) count++;
+    }
+    return count;
   }
 
   /**
@@ -1005,6 +1010,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     using namespace logger;
     if (bridgeCleanupTask != nullptr) {
       bridgeCleanupTask->disable();
+      // Task remains in scheduler (disabled) — negligible overhead.
+      // The scheduler will skip it on each cycle.
       bridgeCleanupTask = nullptr;
       Log(GENERAL, "disableBridgeCleanup(): Cleanup task disabled\n");
     }
@@ -1405,10 +1412,13 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool cancelInternetRequest(uint32_t messageId) {
     auto it = pendingInternetRequests.find(messageId);
     if (it != pendingInternetRequests.end()) {
-      if (it->second.callback) {
-        it->second.callback(false, 0, "Request cancelled");
-      }
+      auto callback = it->second.callback;
       pendingInternetRequests.erase(it);
+      if (callback) {
+        this->addTask([callback]() {
+          callback(false, 0, "Request cancelled");
+        });
+      }
       Log(logger::GENERAL, "cancelInternetRequest(): Cancelled msgId=%u\n", messageId);
       return true;
     }
@@ -1954,8 +1964,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         return rtcTime;
       }
     }
-    // Fallback to mesh time (microseconds)
-    return this->getNodeTime();
+    // Fallback to mesh time (microseconds), converted to seconds for consistency
+    return getNodeTime() / 1000000;
   }
 
   /**
@@ -2326,7 +2336,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     auto tree = this->asNodeTree();
     
     // BFS to find hop count
-    std::queue<std::pair<uint32_t, uint8_t>> queue;  // (nodeId, hops)
+    std::queue<std::pair<uint32_t, uint16_t>> queue;  // (nodeId, hops)
     std::set<uint32_t> visited;
     
     // Start from this node
@@ -2338,7 +2348,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       queue.pop();
       
       uint32_t currentNode = current.first;
-      uint8_t hops = current.second;
+      uint16_t hops = current.second;
       
       // Found the target
       if (currentNode == nodeId) {
@@ -2352,7 +2362,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         for (auto neighbor : neighbors) {
           if (visited.find(neighbor) == visited.end()) {
             visited.insert(neighbor);
-            queue.push({neighbor, static_cast<uint8_t>(hops + 1)});
+            queue.push({neighbor, static_cast<uint16_t>(hops + 1)});
           }
         }
       }
@@ -2481,7 +2491,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // Reconstruct path from parent map
     if (found) {
       uint32_t current = nodeId;
-      while (current != 0) {
+      size_t maxIter = parent.size() + 1;
+      while (current != 0 && maxIter-- > 0) {
         path.insert(path.begin(), current);
         current = parent[current];
       }
@@ -2526,7 +2537,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     uint32_t totalMessagesDropped = 0;
     uint32_t totalLatency = 0;
     uint32_t latencySampleCount = 0;
-    int8_t sumRSSI = 0;
+    int32_t sumRSSI = 0;
     int8_t minRSSI = 0;
     int8_t maxRSSI = -127;
     uint32_t rssiCount = 0;
@@ -2821,76 +2832,6 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   BridgeChangeEvent getLastBridgeChange() {
     return lastBridgeChange;
-  }
-
-  /**
-   * Get Internet path to specific node
-   * 
-   * Returns the routing path from the specified node to the Internet bridge.
-   * Path includes all intermediate nodes from source to bridge.
-   * 
-   * \code
-   * auto path = mesh.getInternetPath(targetNodeId);
-   * Serial.print("Path to Internet: ");
-   * for (auto nodeId : path) {
-   *   Serial.printf("%u -> ", nodeId);
-   * }
-   * Serial.println("Internet");
-   * \endcode
-   * 
-   * @param nodeId Node to find path from
-   * @return Vector of node IDs representing the path (empty if no path)
-   */
-  std::vector<uint32_t> getInternetPath(uint32_t nodeId) {
-    std::vector<uint32_t> path;
-    
-    // Get primary bridge
-    auto primaryBridge = this->getPrimaryBridge();
-    if (primaryBridge == nullptr) {
-      Log(logger::GENERAL, "getInternetPath(): No bridge available\n");
-      return path;
-    }
-    
-    // If requesting path for the bridge itself
-    if (nodeId == primaryBridge->nodeId) {
-      path.push_back(nodeId);
-      return path;
-    }
-    
-    // Start with the target node
-    path.push_back(nodeId);
-    
-    // For now, simplified routing: if direct connection, add bridge
-    // TODO: Implement proper multi-hop path discovery
-    if (this->isConnected(primaryBridge->nodeId)) {
-      path.push_back(primaryBridge->nodeId);
-    }
-    
-    return path;
-  }
-
-  /**
-   * Get bridge node ID for specific node
-   * 
-   * Returns the bridge node ID that the specified node should use to reach Internet.
-   * For most cases, this is the primary bridge.
-   * 
-   * \code
-   * uint32_t bridgeId = mesh.getBridgeForNodeId(targetNodeId);
-   * if (bridgeId != 0) {
-   *   Serial.printf("Node %u uses bridge %u\n", targetNodeId, bridgeId);
-   * }
-   * \endcode
-   * 
-   * @param nodeId Node to find bridge for
-   * @return Bridge node ID, or 0 if no bridge available
-   */
-  uint32_t getBridgeForNodeId(uint32_t nodeId) {
-    auto primaryBridge = this->getPrimaryBridge();
-    if (primaryBridge != nullptr) {
-      return primaryBridge->nodeId;
-    }
-    return 0;
   }
 
   /**
@@ -3253,7 +3194,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool isExternalScheduler = false;
 
   /// Is the node a root node
-  bool shouldContainRoot;
+  bool shouldContainRoot = false;
 
   Scheduler *mScheduler;
 
@@ -3268,7 +3209,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   bool semaphoreTake() {
 #ifdef ESP32
-    return xSemaphoreTake(xSemaphore, (TickType_t)100) == pdTRUE;  // Was 10
+    return xSemaphoreTake(xSemaphore, (TickType_t)1000) == pdTRUE;
 #else
     return true;
 #endif

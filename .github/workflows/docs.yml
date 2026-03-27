@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
@@ -142,12 +142,12 @@ jobs:
 
       - name: Setup Pages
         id: pages-setup
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v4
         continue-on-error: true
 
       - name: Upload artifact (if Pages configured)
         if: steps.pages-setup.outcome == 'success'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v3
         with:
           path: './public'
 

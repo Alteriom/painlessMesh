@@ -410,7 +410,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Wait for connection (with timeout)
     int timeout = 30;  // 30 seconds timeout
     while (WiFi.status() != WL_CONNECTED && timeout > 0) {
-      delay(1000);
+      // Allow event loop processing during hardware settling
+      for (int i = 0; i < 100; i++) { delay(10); yield(); }
       timeout--;
       Log(STARTUP, ".");
     }
@@ -423,20 +424,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       // Validate channel is in valid range (1-13 for 2.4GHz)
       if (detectedChannel < 1 || detectedChannel > 13) {
         Log(ERROR,
-            "\n✗ Invalid channel detected: %d, falling back to channel 1\n",
+            "\n[FAIL] Invalid channel detected: %d, falling back to channel 1\n",
             detectedChannel);
         detectedChannel = 1;
       } else {
-        Log(STARTUP, "\n✓ Router connected on channel %d\n", detectedChannel);
-        Log(STARTUP, "✓ Router IP: %s\n", WiFi.localIP().toString().c_str());
+        Log(STARTUP, "\n[OK] Router connected on channel %d\n", detectedChannel);
+        Log(STARTUP, "[OK] Router IP: %s\n", WiFi.localIP().toString().c_str());
         routerConnected = true;
       }
     } else {
-      Log(STARTUP, "\n⚠ Router connection unavailable during initialization\n");
+      Log(STARTUP, "\n[WARN] Router connection unavailable during initialization\n");
       
       // Scan for router to detect its channel even though we can't connect
       // This minimizes channel mismatch when router becomes available later
-      Log(STARTUP, "⚠ Scanning for router '%s' to detect channel...\n", routerSSID.c_str());
+      Log(STARTUP, "[WARN] Scanning for router '%s' to detect channel...\n", routerSSID.c_str());
       
       // ESP32 and ESP8266 have different scanNetworks signatures
 #ifdef ESP32
@@ -451,7 +452,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             uint8_t scannedChannel = WiFi.channel(i);
             if (scannedChannel >= 1 && scannedChannel <= 13) {
               detectedChannel = scannedChannel;
-              Log(STARTUP, "✓ Router found on channel %d (not connected, will retry)\n", 
+              Log(STARTUP, "[OK] Router found on channel %d (not connected, will retry)\n", 
                   detectedChannel);
               break;
             }
@@ -461,11 +462,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       }
       
       if (detectedChannel == 1) {
-        Log(STARTUP, "⚠ Router not found in scan, using default channel %d\n", detectedChannel);
+        Log(STARTUP, "[WARN] Router not found in scan, using default channel %d\n", detectedChannel);
       }
       
-      Log(STARTUP, "⚠ Proceeding with bridge setup on channel %d\n", detectedChannel);
-      Log(STARTUP, "⚠ Bridge will retry router connection in background\n");
+      Log(STARTUP, "[WARN] Proceeding with bridge setup on channel %d\n", detectedChannel);
+      Log(STARTUP, "[WARN] Bridge will retry router connection in background\n");
     }
 
     Log(STARTUP, "Step 2: Initializing mesh on channel %d...\n",
@@ -512,9 +513,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       Log(STARTUP, "INFO: Router connection will be established automatically when available\n");
     }
     
-    // Return true - bridge mesh functionality is active even without router
-    // The mesh network is operational and nodes can connect
-    // Router connection will be retried automatically via stationManual
+    // Always returns true: bridge mesh functionality is active regardless of
+    // router connection status. The router connection is opportunistic.
     return true;
   }
 
@@ -641,7 +641,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Wait for connection with timeout (using constant for configurability)
     int timeout = ROUTER_CONNECTION_TIMEOUT_SECONDS;
     while (WiFi.status() != WL_CONNECTED && timeout > 0) {
-      delay(1000);
+      // Allow event loop processing during hardware settling
+      for (int i = 0; i < 100; i++) { delay(10); yield(); }
       timeout--;
       Log(STARTUP, ".");
     }
@@ -654,15 +655,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       if (detectedChannel < MIN_WIFI_CHANNEL ||
           detectedChannel > MAX_WIFI_CHANNEL) {
         Log(ERROR,
-            "\n✗ Invalid channel detected: %d, falling back to channel 1\n",
+            "\n[FAIL] Invalid channel detected: %d, falling back to channel 1\n",
             detectedChannel);
         detectedChannel = 1;
       } else {
-        Log(STARTUP, "\n✓ Router connected on channel %d\n", detectedChannel);
-        Log(STARTUP, "✓ Router IP: %s\n", WiFi.localIP().toString().c_str());
+        Log(STARTUP, "\n[OK] Router connected on channel %d\n", detectedChannel);
+        Log(STARTUP, "[OK] Router IP: %s\n", WiFi.localIP().toString().c_str());
       }
     } else {
-      Log(ERROR, "\n✗ Failed to connect to router during channel detection\n");
+      Log(ERROR, "\n[FAIL] Failed to connect to router during channel detection\n");
       Log(ERROR,
           "Continuing with default channel 1, will retry router connection "
           "later\n");
@@ -1176,17 +1177,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
-   * Select a specific bridge for next transmission
-   *
-   * This overrides the automatic bridge selection for one message.
-   *
-   * @param bridgeNodeId Node ID of bridge to use
-   */
-  void selectBridge(uint32_t bridgeNodeId) {
-    selectedBridgeOverride = bridgeNodeId;
-  }
-
-  /**
    * Check if multi-bridge mode is enabled
    *
    * @return true if multi-bridge coordination is enabled
@@ -1432,6 +1422,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                 if (peerId != this->nodeId &&
                     std::find(knownBridgePeers.begin(), knownBridgePeers.end(),
                               peerId) == knownBridgePeers.end()) {
+                  if (knownBridgePeers.size() >= 32) {
+                    knownBridgePeers.erase(knownBridgePeers.begin());
+                  }
                   knownBridgePeers.push_back(peerId);
                 }
               }
@@ -1757,7 +1750,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
 
     if (winner->nodeId == this->nodeId) {
-      Log(CONNECTION, "🎯 I WON! Promoting to bridge...\n");
+      Log(CONNECTION, "[TARGET] I WON! Promoting to bridge...\n");
       promoteToBridge();
     } else {
       Log(CONNECTION, "Winner is node %u, remaining as regular node\n",
@@ -1818,8 +1811,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
 
     // Give time for announcement to propagate before channel switch
-    delay(1000);
-    Log(STARTUP, "✓ Takeover announcement sent on channel %d\n", _meshChannel);
+    // Allow event loop processing during hardware settling
+    for (int i = 0; i < 100; i++) { delay(10); yield(); }
+    Log(STARTUP, "[OK] Takeover announcement sent on channel %d\n", _meshChannel);
 
     // Save current mesh configuration to restore if bridge init fails
     uint8_t savedChannel = _meshChannel;
@@ -1835,37 +1829,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       
       // Now reconfigure as bridge (this will switch to router's channel)
       this->stop();
-      delay(1000);
+      // Allow event loop processing during hardware settling
+      for (int i = 0; i < 100; i++) { delay(10); yield(); }
 
-      bool bridgeInitSuccess =
-          this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                             mScheduler, _meshPort);
-
-      if (!bridgeInitSuccess) {
-        Log(ERROR, "✗ Bridge promotion failed - router unreachable\n");
-        Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
-
-        // Re-initialize as regular node on the original channel
-        this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
-                   savedChannel, _meshHidden, MAX_CONN);
-
-        // Reset election state and clear candidates (consistent with normal
-        // election completion)
-        electionState = ELECTION_IDLE;
-        electionCandidates.clear();
-
-        // Notify via callback
-        if (bridgeRoleChangedCallback) {
-          bridgeRoleChangedCallback(
-              false, "Bridge promotion failed - router unreachable");
-        }
-
-        return;
-      }
+      // initAsBridge always returns true: bridge mesh functionality is active
+      // regardless of router connection status (router connection is opportunistic)
+      this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                         mScheduler, _meshPort);
 
       lastRoleChangeTime = millis();
 
-      Log(STARTUP, "✓ Bridge promotion complete on channel %d\n", _meshChannel);
+      Log(STARTUP, "[OK] Bridge promotion complete on channel %d\n", _meshChannel);
 
       // Notify via callback
       // Use explicit TSTRING construction to ensure string lifetime safety
@@ -1958,43 +1932,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       
       // Stop current mesh operations
       this->stop();
-      delay(1000);
+      // Allow event loop processing during hardware settling
+      for (int i = 0; i < 100; i++) { delay(10); yield(); }
 
-      // Attempt to initialize as bridge
-      bool bridgeInitSuccess =
-          this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                             mScheduler, _meshPort);
+      // initAsBridge always returns true: bridge mesh functionality is active
+      // regardless of router connection status (router connection is opportunistic)
+      this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                         mScheduler, _meshPort);
 
-      if (!bridgeInitSuccess) {
-        Log(ERROR, "✗ Isolated bridge promotion failed - router unreachable\n");
-        Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
-
-        // Re-initialize as regular node on the original channel
-        this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
-                   savedChannel, _meshHidden, MAX_CONN);
-
-        // Re-configure router credentials for future retry attempts
-        this->setRouterCredentials(routerSSID, routerPassword);
-        this->enableBridgeFailover(true);
-
-        // Set flag to skip empty scan check on next retry attempt
-        // since we already confirmed isolation before this failed attempt
-        _isolatedRetryPending = true;
-
-        // Notify via callback
-        if (bridgeRoleChangedCallback) {
-          bridgeRoleChangedCallback(
-              false, "Isolated bridge promotion failed - router unreachable");
-        }
-
-        return;
-      }
-
-      // Success! Reset retry counter
+      // Reset retry counter
       _isolatedBridgeRetryAttempts = 0;
       lastRoleChangeTime = millis();
 
-      Log(STARTUP, "✓ Isolated bridge promotion complete on channel %d\n",
+      Log(STARTUP, "[OK] Isolated bridge promotion complete on channel %d\n",
           _meshChannel);
 
       // Notify via callback
@@ -2131,47 +2081,67 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    */
   bool hasActualInternetAccess() {
     using namespace logger;
-    
+
+    // Cache result to avoid blocking DNS/HTTP on every call
+    static uint32_t lastCheckTime = 0;
+    static bool lastResult = false;
+    uint32_t now = millis();
+    if (lastCheckTime > 0 && (now - lastCheckTime) < 60000) {
+      return lastResult;
+    }
+
     // First check WiFi connection
     if (WiFi.status() != WL_CONNECTED) {
+      lastCheckTime = millis();
+      lastResult = false;
       return false;
     }
-    
+
     // Check if we have a valid local IP
     if (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
+      lastCheckTime = millis();
+      lastResult = false;
       return false;
     }
-    
+
     // Try to resolve a well-known DNS name
     // Using Google's servers as they have high availability globally
     IPAddress result;
-    
+
 #if defined(ESP32) || defined(ESP8266)
     // Both ESP32 and ESP8266 support WiFi.hostByName()
     int dnsResult = WiFi.hostByName("www.google.com", result);
-    
+
     // Check if DNS resolution succeeded
     if (dnsResult != 1) {
       Log(COMMUNICATION, "hasActualInternetAccess(): DNS resolution failed (code=%d)\n", dnsResult);
+      lastCheckTime = millis();
+      lastResult = false;
       return false;
     }
-    
+
     // Additional validation: Check if resolved IP is valid
     // Some ESP8266 versions may return success but set IP to 255.255.255.255 on error
     if (result == IPAddress(0, 0, 0, 0) || result == IPAddress(255, 255, 255, 255)) {
       TSTRING resultStr = result.toString();
       Log(COMMUNICATION, "hasActualInternetAccess(): Invalid DNS result IP: %s\n", resultStr.c_str());
+      lastCheckTime = millis();
+      lastResult = false;
       return false;
     }
 #else
     // Other platforms: assume internet is available if WiFi connected
     // (no reliable way to test without platform-specific APIs)
+    lastCheckTime = millis();
+    lastResult = true;
     return true;
 #endif
-    
+
     TSTRING resultStr = result.toString();
-    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified (resolved to %s)\n", 
+    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified (resolved to %s)\n",
         resultStr.c_str());
+    lastCheckTime = millis();
+    lastResult = true;
     return true;
   }
 
@@ -2616,7 +2586,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   std::shared_ptr<Task> bridgeCoordinationTask;
   std::map<uint32_t, uint8_t> bridgePriorities;  // nodeId -> priority mapping
   std::vector<uint32_t> knownBridgePeers;        // List of peer bridge node IDs
-  uint32_t selectedBridgeOverride = 0;  // Manual bridge selection override
   size_t lastSelectedBridgeIndex = 0;   // For round-robin selection
 
   // Shared gateway mode state and configuration
