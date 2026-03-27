@@ -5,7 +5,7 @@
  * @file painlessMesh.h
  * @brief Main header file for Alteriom painlessMesh library
  * 
- * @version 1.9.19
+ * @version 1.9.20
  * @date 2025-12-21
  * 
  * painlessMesh is a user-friendly library for creating mesh networks with 
@@ -42,19 +42,6 @@
 
 #ifdef PAINLESSMESH_ENABLE_OTA
 #include "painlessmesh/ota.hpp"
-#endif
-
-// Include improvement modules when enabled
-#ifdef PAINLESSMESH_ENABLE_VALIDATION
-#include "painlessmesh/validation.hpp"
-#endif
-
-#ifdef PAINLESSMESH_ENABLE_METRICS
-#include "painlessmesh/metrics.hpp"
-#endif
-
-#ifdef PAINLESSMESH_ENABLE_MEMORY_OPTIMIZATION
-#include "painlessmesh/memory.hpp"
 #endif
 
 #include "painlessmesh/buffer.hpp"

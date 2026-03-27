@@ -13,6 +13,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.9.20] - 2026-03-27
+
+### Added
+
+- **Bridge Coordination Monitoring Callbacks** - User-facing API for observing bridge coordination events
+  - `mesh.onBridgeCoordination(cb)` — fires on every coordination message (~30s per bridge)
+  - `mesh.onBridgeCoordinationChanged(cb)` — fires on state changes: "new", "updated", "lost"
+  - Works on both bridge and non-bridge nodes (monitoring is not bridge-only)
+  - Lost bridge detection with 60-second timeout
+  - 5 new test scenarios with 18 assertions for change detection logic
+
+### Fixed
+
+- **Full Repo Cleanup** - Comprehensive audit and cleanup of the entire codebase (#357)
+  - Fix double-free of mScheduler in ~Mesh() destructor
+  - Fix int8_t RSSI aggregation overflow (widened to int32_t)
+  - Fix Task object memory leak in scheduleAsyncClientDeletion
+  - Replace blocking delay(1000) with yield-based approach in bridge init
+  - Add max-iteration guard to getPathToNode (prevents infinite loop)
+  - Move static vars from connection.hpp to connection.cpp (ODR violation fix)
+  - Initialize shouldContainRoot to false (undefined behavior fix)
+  - Fix getAccurateTime() to always return seconds
+  - Fix cancelInternetRequest reentrancy via scheduled callback
+  - Widen BFS hop counter from uint8_t to uint16_t
+  - Remove dead revert path in promoteToBridge
+  - Cap knownBridgePeers at 32 entries
+  - Increase WiFi event semaphore timeout from 100 to 1000 ticks
+  - Inline getGatewayCount() to avoid temporary vector allocation
+  - Remove MessageQueue::reserve(1000) (wasted heap on ESP8266)
+  - Fix Timer::elapsed_us() to return microseconds on ESP32
+  - Cache hasActualInternetAccess() with 60s TTL
+  - Remove ~3,600 lines of dead code (unused classes, stubs, AI-generated shelf code)
+  - Remove 40 AI-generated markdown files from root directory
+  - Delete abandoned documentation systems (docs-website/, website/)
+  - Fix all CI/CD workflow action versions
+  - Remove 15 fake test files (only REQUIRE(true) assertions)
+  - Fix millis()/micros() test mocks to prevent uint32_t overflow
+- **Documentation Consistency** - Feature audit and doc fixes (#358)
+  - Fix README version (1.9.17 -> 1.9.20)
+  - Fix 6 broken documentation links
+  - Fix Message Queue API examples to use real enableMessageQueue/queueMessage API
+  - Remove non-existent onBridgeCoordination callback from examples
+  - Fix EnhancedStatusPackage type ID comment (203 -> 604)
+  - Rewrite Quick Start example to use TaskScheduler instead of delay()
+  - Remove dead conditional includes from painlessMesh.h
+  - Add missing examples to library.json
+
 ## [1.9.19] - 2025-12-21
 
 ### Fixed

@@ -520,7 +520,7 @@ class StatusPackage : public painlessmesh::plugin::BroadcastPackage {
  *
  * This is an extended version of StatusPackage that includes additional
  * mesh statistics, performance metrics, and alerting capabilities.
- * Type ID 203 is used to distinguish from the basic StatusPackage (202).
+ * Type ID 604 is used to distinguish from the basic StatusPackage (202).
  */
 class EnhancedStatusPackage : public painlessmesh::plugin::BroadcastPackage {
  public:

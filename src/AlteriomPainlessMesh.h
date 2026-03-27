@@ -29,10 +29,10 @@
 /**
  * @brief AlteriomPainlessMesh library version information
  */
-#define ALTERIOM_PAINLESS_MESH_VERSION "1.9.19"
+#define ALTERIOM_PAINLESS_MESH_VERSION "1.9.20"
 #define ALTERIOM_PAINLESS_MESH_VERSION_MAJOR 1
 #define ALTERIOM_PAINLESS_MESH_VERSION_MINOR 9
-#define ALTERIOM_PAINLESS_MESH_VERSION_PATCH 19
+#define ALTERIOM_PAINLESS_MESH_VERSION_PATCH 20
 
 /**
  * @brief Library description and usage information
@@ -79,19 +79,11 @@
  * 
  * @code{.cpp}
  * using namespace alteriom;
- * 
+ *
  * // Send sensor data
  * SensorPackage sensor;
- * sensor.temperature = 25.5;
- * sensor.humidity = 60.0;
- * mesh.sendPackage(&sensor);
- * 
- * // Handle received sensor data
- * mesh.onPackage(200, [](protocol::Variant& variant) {
- *     SensorPackage data = variant.to<SensorPackage>();
- *     Serial.printf("Temperature: %.1f°C\n", data.temperature);
- *     return true;
- * });
+ * sensor.temperature = 22.5;
+ * mesh.sendBroadcast(sensor.toJsonString());
  * @endcode
  */
 
