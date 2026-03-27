@@ -2081,47 +2081,67 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    */
   bool hasActualInternetAccess() {
     using namespace logger;
-    
+
+    // Cache result to avoid blocking DNS/HTTP on every call
+    static uint32_t lastCheckTime = 0;
+    static bool lastResult = false;
+    uint32_t now = millis();
+    if (lastCheckTime > 0 && (now - lastCheckTime) < 60000) {
+      return lastResult;
+    }
+
     // First check WiFi connection
     if (WiFi.status() != WL_CONNECTED) {
+      lastCheckTime = millis();
+      lastResult = false;
       return false;
     }
-    
+
     // Check if we have a valid local IP
     if (WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
+      lastCheckTime = millis();
+      lastResult = false;
       return false;
     }
-    
+
     // Try to resolve a well-known DNS name
     // Using Google's servers as they have high availability globally
     IPAddress result;
-    
+
 #if defined(ESP32) || defined(ESP8266)
     // Both ESP32 and ESP8266 support WiFi.hostByName()
     int dnsResult = WiFi.hostByName("www.google.com", result);
-    
+
     // Check if DNS resolution succeeded
     if (dnsResult != 1) {
       Log(COMMUNICATION, "hasActualInternetAccess(): DNS resolution failed (code=%d)\n", dnsResult);
+      lastCheckTime = millis();
+      lastResult = false;
       return false;
     }
-    
+
     // Additional validation: Check if resolved IP is valid
     // Some ESP8266 versions may return success but set IP to 255.255.255.255 on error
     if (result == IPAddress(0, 0, 0, 0) || result == IPAddress(255, 255, 255, 255)) {
       TSTRING resultStr = result.toString();
       Log(COMMUNICATION, "hasActualInternetAccess(): Invalid DNS result IP: %s\n", resultStr.c_str());
+      lastCheckTime = millis();
+      lastResult = false;
       return false;
     }
 #else
     // Other platforms: assume internet is available if WiFi connected
     // (no reliable way to test without platform-specific APIs)
+    lastCheckTime = millis();
+    lastResult = true;
     return true;
 #endif
-    
+
     TSTRING resultStr = result.toString();
-    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified (resolved to %s)\n", 
+    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified (resolved to %s)\n",
         resultStr.c_str());
+    lastCheckTime = millis();
+    lastResult = true;
     return true;
   }
 

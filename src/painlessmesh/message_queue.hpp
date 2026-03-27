@@ -104,9 +104,8 @@ public:
    * Constructor
    * @param maxSize Maximum number of messages in queue
    */
-  explicit MessageQueue(uint32_t maxSize = 1000) 
+  explicit MessageQueue(uint32_t maxSize = 1000)
     : maxQueueSize(maxSize), nextMessageId(1) {
-    messages.reserve(maxSize);
   }
   
   /**

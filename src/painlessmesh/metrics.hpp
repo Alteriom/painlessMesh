@@ -33,8 +33,7 @@ class Timer {
 
   uint32_t elapsed_us() const {
 #ifdef ESP32
-    return static_cast<uint32_t>((esp_timer_get_time() - start_time_us_) /
-                                 1000);
+    return static_cast<uint32_t>(esp_timer_get_time() - start_time_us_);
 #else
     return elapsed_ms() * 1000;  // Fallback to millisecond precision
 #endif

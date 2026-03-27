@@ -877,7 +877,11 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return Number of available gateways
    */
   size_t getGatewayCount() {
-    return getNodesWithInternet().size();
+    size_t count = 0;
+    for (const auto& bridge : knownBridges) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) count++;
+    }
+    return count;
   }
 
   /**
@@ -1006,6 +1010,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     using namespace logger;
     if (bridgeCleanupTask != nullptr) {
       bridgeCleanupTask->disable();
+      // Task remains in scheduler (disabled) — negligible overhead.
+      // The scheduler will skip it on each cycle.
       bridgeCleanupTask = nullptr;
       Log(GENERAL, "disableBridgeCleanup(): Cleanup task disabled\n");
     }
