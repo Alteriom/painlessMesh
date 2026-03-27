@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.19** - Gateway connectivity error non-retryable fix for infrastructure issues
+**Version 1.9.20** - Full repo cleanup, bug fixes, and documentation consistency
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -543,14 +543,15 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.9.19 (December 21, 2025)
+## Latest Release: v1.9.20 (March 27, 2026)
 
-**Documentation Enhancement & Package Organization**
+**Full Repo Cleanup & Bug Fixes**
 
-- 📚 **Production-Level Documentation** - Removed phase terminology for clearer product positioning
-- 📦 **Complete Package Catalog** - All 19 application-level package types documented in numerical order
-- 🎯 **Enhanced Feature Clarity** - Improved Advanced Features section with comprehensive capability list
-- ✨ **Professional Quality** - Documentation suitable for enterprise adoption and production deployments
+- Fixed 13 critical/high/medium bugs (double-free, RSSI overflow, memory leaks, blocking delays)
+- Removed ~3,600 lines of dead code and 40 AI-generated docs
+- Fixed all CI/CD workflows (corrected action versions)
+- Removed 15 fake test files, fixed test infrastructure
+- Documentation consistency audit — fixed broken links, API examples, version references
 
 **Recent Key Features (v1.9.0 - v1.9.16):**
 
