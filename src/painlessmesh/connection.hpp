@@ -42,10 +42,10 @@ static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 1000; // 1000ms spacing b
 // - The scheduler never runs tasks concurrently within the same mesh instance
 // - All mesh operations (including deletion callbacks) execute in the same thread
 // - Even when multiple tasks are ready, they execute one-at-a-time via scheduler->execute()
-static uint32_t lastScheduledDeletionTime = 0; // Timestamp of last deletion scheduled/executed (milliseconds)
+extern uint32_t lastScheduledDeletionTime; // Timestamp of last deletion scheduled/executed (milliseconds)
 
 // Shared buffer for reading/writing to the buffer
-static painlessmesh::buffer::temp_buffer_t shared_buffer;
+extern painlessmesh::buffer::temp_buffer_t shared_buffer;
 
 /**
  * Schedule deletion of an AsyncClient with proper spacing to prevent concurrent cleanups

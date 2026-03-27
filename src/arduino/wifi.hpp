@@ -512,9 +512,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       Log(STARTUP, "INFO: Router connection will be established automatically when available\n");
     }
     
-    // Return true - bridge mesh functionality is active even without router
-    // The mesh network is operational and nodes can connect
-    // Router connection will be retried automatically via stationManual
+    // Always returns true: bridge mesh functionality is active regardless of
+    // router connection status. The router connection is opportunistic.
     return true;
   }
 
@@ -1432,6 +1431,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                 if (peerId != this->nodeId &&
                     std::find(knownBridgePeers.begin(), knownBridgePeers.end(),
                               peerId) == knownBridgePeers.end()) {
+                  if (knownBridgePeers.size() >= 32) {
+                    knownBridgePeers.erase(knownBridgePeers.begin());
+                  }
                   knownBridgePeers.push_back(peerId);
                 }
               }
@@ -1837,31 +1839,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       this->stop();
       delay(1000);
 
-      bool bridgeInitSuccess =
-          this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                             mScheduler, _meshPort);
-
-      if (!bridgeInitSuccess) {
-        Log(ERROR, "✗ Bridge promotion failed - router unreachable\n");
-        Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
-
-        // Re-initialize as regular node on the original channel
-        this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
-                   savedChannel, _meshHidden, MAX_CONN);
-
-        // Reset election state and clear candidates (consistent with normal
-        // election completion)
-        electionState = ELECTION_IDLE;
-        electionCandidates.clear();
-
-        // Notify via callback
-        if (bridgeRoleChangedCallback) {
-          bridgeRoleChangedCallback(
-              false, "Bridge promotion failed - router unreachable");
-        }
-
-        return;
-      }
+      // initAsBridge always returns true: bridge mesh functionality is active
+      // regardless of router connection status (router connection is opportunistic)
+      this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                         mScheduler, _meshPort);
 
       lastRoleChangeTime = millis();
 
@@ -1960,37 +1941,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       this->stop();
       delay(1000);
 
-      // Attempt to initialize as bridge
-      bool bridgeInitSuccess =
-          this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                             mScheduler, _meshPort);
+      // initAsBridge always returns true: bridge mesh functionality is active
+      // regardless of router connection status (router connection is opportunistic)
+      this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
+                         mScheduler, _meshPort);
 
-      if (!bridgeInitSuccess) {
-        Log(ERROR, "✗ Isolated bridge promotion failed - router unreachable\n");
-        Log(ERROR, "Reverting to regular node on channel %d\n", savedChannel);
-
-        // Re-initialize as regular node on the original channel
-        this->init(_meshSSID, _meshPassword, mScheduler, _meshPort, WIFI_AP_STA,
-                   savedChannel, _meshHidden, MAX_CONN);
-
-        // Re-configure router credentials for future retry attempts
-        this->setRouterCredentials(routerSSID, routerPassword);
-        this->enableBridgeFailover(true);
-
-        // Set flag to skip empty scan check on next retry attempt
-        // since we already confirmed isolation before this failed attempt
-        _isolatedRetryPending = true;
-
-        // Notify via callback
-        if (bridgeRoleChangedCallback) {
-          bridgeRoleChangedCallback(
-              false, "Isolated bridge promotion failed - router unreachable");
-        }
-
-        return;
-      }
-
-      // Success! Reset retry counter
+      // Reset retry counter
       _isolatedBridgeRetryAttempts = 0;
       lastRoleChangeTime = millis();
 
