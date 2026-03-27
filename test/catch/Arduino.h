@@ -14,20 +14,24 @@
 #define NULL 0
 #endif
 
+// Base time captured at first call, so millis() starts near 0
+// This avoids uint32_t overflow when epoch milliseconds exceed 2^32
 inline unsigned long millis() {
+  static long long base = -1;
   struct timeval te;
-  gettimeofday(&te, NULL);  // get current time
-  long long milliseconds =
-      te.tv_sec * 1000LL + te.tv_usec / 1000;  // calculate milliseconds
-  // printf("milliseconds: %lld\n", milliseconds);
-  return milliseconds;
+  gettimeofday(&te, NULL);
+  long long milliseconds = te.tv_sec * 1000LL + te.tv_usec / 1000;
+  if (base < 0) base = milliseconds;
+  return static_cast<unsigned long>(milliseconds - base);
 }
 
 inline unsigned long micros() {
+  static long long base = -1;
   struct timeval te;
-  gettimeofday(&te, NULL);  // get current time
-  long long milliseconds = te.tv_sec * 1000000LL + te.tv_usec;
-  return milliseconds;
+  gettimeofday(&te, NULL);
+  long long microseconds = te.tv_sec * 1000000LL + te.tv_usec;
+  if (base < 0) base = microseconds;
+  return static_cast<unsigned long>(microseconds - base);
 }
 
 inline void delay(int i) { usleep(i); }
