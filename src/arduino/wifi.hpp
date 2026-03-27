@@ -1000,6 +1000,123 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
   /**
+   * Set callback for bridge coordination messages
+   *
+   * Called every time a coordination message (Type 613) is received from
+   * another bridge. Useful for monitoring bridge health and status.
+   *
+   * For non-bridge nodes, this also registers a Type 613 handler so that
+   * regular mesh nodes can monitor bridge coordination traffic.
+   *
+   * @param callback Function called with the coordination package and sender
+   * node ID
+   */
+  void onBridgeCoordination(
+      std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t)>
+          callback) {
+    using namespace logger;
+    bridgeCoordinationCallback = callback;
+
+    // Non-bridge nodes don't run initBridgeCoordination(), so register
+    // a Type 613 handler here so they can still receive coordination traffic.
+    if (!this->isBridge()) {
+      this->callbackList.onPackage(
+          613,
+          [this](protocol::Variant& variant, std::shared_ptr<Connection>,
+                 uint32_t) {
+            JsonDocument doc;
+            TSTRING str;
+            variant.printTo(str);
+            deserializeJson(doc, str);
+            JsonObject obj = doc.as<JsonObject>();
+
+            if (obj["priority"].is<unsigned int>()) {
+              uint32_t fromNode = obj["from"];
+              plugin::BridgeCoordinationPackage pkg(obj);
+
+              if (this->bridgeCoordinationCallback) {
+                this->bridgeCoordinationCallback(pkg, fromNode);
+              }
+
+              // Change detection for non-bridge nodes
+              if (this->bridgeCoordinationChangedCallback) {
+                auto it = this->lastBridgeCoordinationState.find(fromNode);
+                if (it == this->lastBridgeCoordinationState.end()) {
+                  this->lastBridgeCoordinationState[fromNode] = {
+                      pkg.priority, pkg.role, pkg.load, (uint32_t)millis()};
+                  this->bridgeCoordinationChangedCallback(pkg, fromNode,
+                                                          "new");
+                } else {
+                  auto& prev = it->second;
+                  bool changed = (prev.priority != pkg.priority ||
+                                  prev.role != pkg.role ||
+                                  prev.load != pkg.load);
+                  prev.priority = pkg.priority;
+                  prev.role = pkg.role;
+                  prev.load = pkg.load;
+                  prev.lastSeen = (uint32_t)millis();
+                  if (changed) {
+                    this->bridgeCoordinationChangedCallback(pkg, fromNode,
+                                                            "updated");
+                  }
+                }
+              }
+            }
+            return false;
+          });
+      Log(GENERAL,
+          "onBridgeCoordination(): Registered Type 613 handler for non-bridge "
+          "node\n");
+    }
+  }
+
+  /**
+   * Set callback for bridge coordination state changes
+   *
+   * Called when a new bridge is discovered, an existing bridge changes its
+   * priority/role/load, or a bridge is lost (no coordination message for 60s).
+   *
+   * @param callback Function called with the coordination package, sender node
+   * ID, and change type ("new", "updated", or "lost")
+   */
+  void onBridgeCoordinationChanged(
+      std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t,
+                         TSTRING)>
+          callback) {
+    using namespace logger;
+    bridgeCoordinationChangedCallback = callback;
+
+    // Start periodic lost-detection task (every 30 seconds, check for
+    // bridges that haven't sent a coordination message in 60 seconds)
+    bridgeLostDetectionTask = this->addTask(
+        30000, TASK_FOREVER, [this]() {
+          uint32_t now = (uint32_t)millis();
+          for (auto it = this->lastBridgeCoordinationState.begin();
+               it != this->lastBridgeCoordinationState.end();) {
+            if ((now - it->second.lastSeen) > 60000) {
+              uint32_t lostNode = it->first;
+              // Create a package with last known state for the callback
+              plugin::BridgeCoordinationPackage pkg;
+              pkg.from = lostNode;
+              pkg.priority = it->second.priority;
+              pkg.role = it->second.role;
+              pkg.load = it->second.load;
+              it = this->lastBridgeCoordinationState.erase(it);
+              if (this->bridgeCoordinationChangedCallback) {
+                this->bridgeCoordinationChangedCallback(pkg, lostNode, "lost");
+              }
+            } else {
+              ++it;
+            }
+          }
+        });
+
+    Log(GENERAL,
+        "onBridgeCoordinationChanged(): Lost detection task started "
+        "(interval: 30s, timeout: 60s)\n");
+  }
+
+  /**
    * Enable or disable multi-bridge coordination mode
    *
    * When enabled, multiple bridges can operate simultaneously for:
@@ -1434,6 +1551,36 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                 "Bridge coordination from %u: priority=%d, role=%s, "
                 "load=%d%%\n",
                 fromNode, priority, role.c_str(), load);
+
+            // Invoke bridge coordination callback if set
+            if (this->bridgeCoordinationCallback) {
+              plugin::BridgeCoordinationPackage pkg(obj);
+              this->bridgeCoordinationCallback(pkg, fromNode);
+            }
+
+            // Change detection and bridgeCoordinationChangedCallback
+            if (this->bridgeCoordinationChangedCallback) {
+              plugin::BridgeCoordinationPackage pkg(obj);
+              auto it = this->lastBridgeCoordinationState.find(fromNode);
+              if (it == this->lastBridgeCoordinationState.end()) {
+                this->lastBridgeCoordinationState[fromNode] = {
+                    priority, role, load, (uint32_t)millis()};
+                this->bridgeCoordinationChangedCallback(pkg, fromNode, "new");
+              } else {
+                auto& prev = it->second;
+                bool changed = (prev.priority != priority ||
+                                prev.role != role ||
+                                prev.load != load);
+                prev.priority = priority;
+                prev.role = role;
+                prev.load = load;
+                prev.lastSeen = (uint32_t)millis();
+                if (changed) {
+                  this->bridgeCoordinationChangedCallback(pkg, fromNode,
+                                                          "updated");
+                }
+              }
+            }
           }
           return false;  // Don't consume the package
         });
@@ -2587,6 +2734,18 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   std::map<uint32_t, uint8_t> bridgePriorities;  // nodeId -> priority mapping
   std::vector<uint32_t> knownBridgePeers;        // List of peer bridge node IDs
   size_t lastSelectedBridgeIndex = 0;   // For round-robin selection
+
+  // Bridge coordination monitoring callbacks and state
+  struct BridgeCoordinationState {
+    uint8_t priority;
+    TSTRING role;
+    uint8_t load;
+    uint32_t lastSeen;
+  };
+  std::map<uint32_t, BridgeCoordinationState> lastBridgeCoordinationState;
+  std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t)> bridgeCoordinationCallback;
+  std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t, TSTRING)> bridgeCoordinationChangedCallback;
+  std::shared_ptr<Task> bridgeLostDetectionTask;
 
   // Shared gateway mode state and configuration
   bool _sharedGatewayMode = false;
