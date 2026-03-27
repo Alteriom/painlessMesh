@@ -630,6 +630,27 @@ coordination.timestamp = mesh.getNodeTime();
 mesh.sendPackage(&coordination);
 ```
 
+#### Monitoring Callbacks
+
+```cpp
+// Monitor bridge coordination (fires every ~30s per bridge)
+mesh.onBridgeCoordination(
+  [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode) {
+    Serial.printf("Bridge %u: priority=%d, load=%d%%\n",
+                  fromNode, pkg.priority, pkg.load);
+  }
+);
+
+// Get notified when bridge state changes (new/updated/lost)
+mesh.onBridgeCoordinationChanged(
+  [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode,
+     TSTRING changeType) {
+    Serial.printf("Bridge %s: %u (role=%s)\n",
+                  changeType.c_str(), fromNode, pkg.role.c_str());
+  }
+);
+```
+
 **Fields:**
 - `priority` (uint8_t) - Bridge priority (10=highest, 1=lowest)
 - `role` (TSTRING) - Current role: "primary", "secondary", "standby"

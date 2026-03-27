@@ -238,6 +238,23 @@ void setup() {
   mesh.onBridgeStatusChanged(&bridgeStatusCallback);
   mesh.onBridgeRoleChanged(&bridgeRoleCallback);
 
+  // Monitor bridge coordination (fires every ~30s per bridge)
+  mesh.onBridgeCoordination(
+    [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode) {
+      Serial.printf("Bridge %u: priority=%d, load=%d%%\n",
+                    fromNode, pkg.priority, pkg.load);
+    }
+  );
+
+  // Get notified when bridge state changes (new/updated/lost)
+  mesh.onBridgeCoordinationChanged(
+    [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode,
+       TSTRING changeType) {
+      Serial.printf("Bridge %s: %u (role=%s)\n",
+                    changeType.c_str(), fromNode, pkg.role.c_str());
+    }
+  );
+
   // Configure logging
   mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
 

@@ -211,6 +211,23 @@ mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
 
 // Enable bridge failover for high availability
 mesh.enableBridgeFailover(true);
+
+// Monitor bridge coordination (fires every ~30s per bridge)
+mesh.onBridgeCoordination(
+  [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode) {
+    Serial.printf("Bridge %u: priority=%d, load=%d%%\n",
+                  fromNode, pkg.priority, pkg.load);
+  }
+);
+
+// Get notified when bridge state changes
+mesh.onBridgeCoordinationChanged(
+  [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode,
+     TSTRING changeType) {
+    Serial.printf("Bridge %s: %u (role=%s)\n",
+                  changeType.c_str(), fromNode, pkg.role.c_str());
+  }
+);
 ```
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for multi-bridge documentation.
