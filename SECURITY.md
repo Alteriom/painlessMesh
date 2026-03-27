@@ -11,10 +11,10 @@ We release patches for security vulnerabilities. Which versions are eligible for
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in @alteriom/repository-metadata-manager, please report it by:
+If you discover a security vulnerability in painlessMesh, please report it by:
 
 1. **DO NOT** open a public issue
-2. Email security@example.com with:
+2. Use GitHub's [Security Advisory](https://github.com/Alteriom/painlessMesh/security/advisories/new) feature, or email the maintainer directly with:
    - Description of the vulnerability
    - Steps to reproduce
    - Potential impact
@@ -31,4 +31,4 @@ We will respond within 48 hours and provide regular updates on the progress of t
 5. Patch is released
 6. Public disclosure after users have time to update
 
-Thank you for helping keep @alteriom/repository-metadata-manager secure!
+Thank you for helping keep painlessMesh secure!
