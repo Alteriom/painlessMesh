@@ -849,8 +849,22 @@ mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
 // Configure load balancing
 mesh.setBridgeSelectionStrategy(ROUND_ROBIN);
 
-// Monitor coordination
-mesh.onBridgeCoordination(&bridgeCoordinationCallback);
+// Monitor bridge coordination (fires every ~30s per bridge)
+mesh.onBridgeCoordination(
+  [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode) {
+    Serial.printf("Bridge %u: priority=%d, load=%d%%\n",
+                  fromNode, pkg.priority, pkg.load);
+  }
+);
+
+// Get notified when bridge state changes
+mesh.onBridgeCoordinationChanged(
+  [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode,
+     TSTRING changeType) {
+    Serial.printf("Bridge %s: %u (role=%s)\n",
+                  changeType.c_str(), fromNode, pkg.role.c_str());
+  }
+);
 ```
 
 **Strategies:**
