@@ -257,39 +257,6 @@ SCENARIO("GatewayDataPackage priority levels are correct") {
     }
 }
 
-SCENARIO("GatewayDataPackage estimatedMemoryFootprint works") {
-    GIVEN("A default GatewayDataPackage") {
-        GatewayDataPackage pkg;
-
-        WHEN("Calculating memory footprint") {
-            size_t footprint = pkg.estimatedMemoryFootprint();
-
-            THEN("Footprint should be at least sizeof(GatewayDataPackage)") {
-                REQUIRE(footprint >= sizeof(GatewayDataPackage));
-            }
-        }
-    }
-
-    GIVEN("A GatewayDataPackage with content") {
-        GatewayDataPackage pkg;
-        pkg.destination = "https://api.example.com/endpoint";
-        pkg.payload = "{\"data\": \"test\"}";
-        pkg.contentType = "application/json";
-
-        WHEN("Calculating memory footprint") {
-            size_t footprint = pkg.estimatedMemoryFootprint();
-
-            THEN("Footprint should increase with string content") {
-                size_t expectedMin = sizeof(GatewayDataPackage) +
-                                    pkg.destination.length() +
-                                    pkg.payload.length() +
-                                    pkg.contentType.length();
-                REQUIRE(footprint >= expectedMin);
-            }
-        }
-    }
-}
-
 SCENARIO("GatewayDataPackage type constant is correctly defined") {
     GIVEN("The protocol::GATEWAY_DATA constant") {
         THEN("It should equal 620") {

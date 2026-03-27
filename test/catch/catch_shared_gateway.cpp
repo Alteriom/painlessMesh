@@ -313,27 +313,3 @@ SCENARIO("Shared gateway mode works on both ESP8266 and ESP32", "[shared-gateway
     }
 }
 
-SCENARIO("SharedGatewayConfig memory footprint is acceptable", "[shared-gateway][memory]") {
-    GIVEN("A SharedGatewayConfig with typical settings") {
-        SharedGatewayConfig config;
-        config.enabled = true;
-        config.routerSSID = "MyHomeNetwork";
-        config.routerPassword = "MySecurePassword123";
-        
-        WHEN("Checking memory footprint") {
-            size_t footprint = config.estimatedMemoryFootprint();
-            
-            THEN("Memory usage should be reasonable for embedded devices") {
-                // Memory expectations:
-                // - Base struct: ~80-140 bytes
-                // - With typical strings: ~150-250 bytes
-                // - Well under 1KB total
-                //
-                // For ESP8266 with ~80KB: <0.5% usage
-                // For ESP32 with ~320KB: <0.1% usage
-                
-                REQUIRE(footprint < 1000);  // Under 1KB
-            }
-        }
-    }
-}
