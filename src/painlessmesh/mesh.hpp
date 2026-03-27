@@ -1406,10 +1406,13 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool cancelInternetRequest(uint32_t messageId) {
     auto it = pendingInternetRequests.find(messageId);
     if (it != pendingInternetRequests.end()) {
-      if (it->second.callback) {
-        it->second.callback(false, 0, "Request cancelled");
-      }
+      auto callback = it->second.callback;
       pendingInternetRequests.erase(it);
+      if (callback) {
+        this->addTask([callback]() {
+          callback(false, 0, "Request cancelled");
+        });
+      }
       Log(logger::GENERAL, "cancelInternetRequest(): Cancelled msgId=%u\n", messageId);
       return true;
     }
@@ -1955,8 +1958,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         return rtcTime;
       }
     }
-    // Fallback to mesh time (microseconds)
-    return this->getNodeTime();
+    // Fallback to mesh time (microseconds), converted to seconds for consistency
+    return getNodeTime() / 1000000;
   }
 
   /**
@@ -2327,7 +2330,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     auto tree = this->asNodeTree();
     
     // BFS to find hop count
-    std::queue<std::pair<uint32_t, uint8_t>> queue;  // (nodeId, hops)
+    std::queue<std::pair<uint32_t, uint16_t>> queue;  // (nodeId, hops)
     std::set<uint32_t> visited;
     
     // Start from this node
@@ -2339,7 +2342,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       queue.pop();
       
       uint32_t currentNode = current.first;
-      uint8_t hops = current.second;
+      uint16_t hops = current.second;
       
       // Found the target
       if (currentNode == nodeId) {
@@ -2353,7 +2356,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         for (auto neighbor : neighbors) {
           if (visited.find(neighbor) == visited.end()) {
             visited.insert(neighbor);
-            queue.push({neighbor, static_cast<uint8_t>(hops + 1)});
+            queue.push({neighbor, static_cast<uint16_t>(hops + 1)});
           }
         }
       }
@@ -3185,7 +3188,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool isExternalScheduler = false;
 
   /// Is the node a root node
-  bool shouldContainRoot;
+  bool shouldContainRoot = false;
 
   Scheduler *mScheduler;
 
@@ -3200,7 +3203,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   bool semaphoreTake() {
 #ifdef ESP32
-    return xSemaphoreTake(xSemaphore, (TickType_t)100) == pdTRUE;  // Was 10
+    return xSemaphoreTake(xSemaphore, (TickType_t)1000) == pdTRUE;
 #else
     return true;
 #endif
