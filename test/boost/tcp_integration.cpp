@@ -147,13 +147,13 @@ SCENARIO("We can send a message using our Nodes class") {
     z = msg;
   });
   n.nodes[10]->sendSingle(n.nodes[2]->getNodeId(), "Blaat");
-  for (auto i = 0; i < 1000; ++i) n.update();
+  for (auto i = 0; i < 5000; ++i) { n.update(); delay(1); }
   REQUIRE(x == 0);
   REQUIRE(y == 0);
   REQUIRE(z == "");
 
   n.nodes[10]->sendSingle(n.nodes[0]->getNodeId(), "Blaat");
-  for (auto i = 0; i < 1000; ++i) n.update();
+  for (auto i = 0; i < 5000; ++i) { n.update(); delay(1); }
   REQUIRE(z == "Blaat");
   REQUIRE(x == 1);
   REQUIRE(y == n.nodes[10]->getNodeId());
