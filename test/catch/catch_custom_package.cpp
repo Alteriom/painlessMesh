@@ -18,10 +18,10 @@ SCENARIO("MpptPackage has correct type and routing") {
     GIVEN("A default-constructed MpptPackage") {
         auto pkg = MpptPackage();
 
-        THEN("Type ID is 203 and routing is BROADCAST") {
-            REQUIRE(pkg.type == 203);
+        THEN("Type ID is 205 and routing is BROADCAST") {
+            REQUIRE(pkg.type == 205);
             REQUIRE(pkg.routing == router::BROADCAST);
-            REQUIRE(pkg.messageType == 203);
+            REQUIRE(pkg.messageType == 205);
         }
 
         THEN("All numeric fields default to zero") {
@@ -56,7 +56,7 @@ SCENARIO("MpptPackage serialization round-trip preserves all fields") {
         pkg.deviceId       = 99999;
         pkg.timestamp      = 1700000000;
 
-        REQUIRE(pkg.type == 203);
+        REQUIRE(pkg.type == 205);
 
         WHEN("Converting to and from a protocol::Variant") {
             auto var  = protocol::Variant(&pkg);
