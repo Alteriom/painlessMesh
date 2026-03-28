@@ -17,7 +17,7 @@
  * QUICK START
  * -----------
  * To create your own custom package:
- *   1. Pick an unused Type ID from the table below (use 203+ range)
+ *   1. Pick an unused Type ID from the table below (use 206+ range)
  *   2. Choose a base class: BroadcastPackage (all nodes) or SinglePackage (one
  *      node)
  *   3. Add your data fields with appropriate types
@@ -30,8 +30,8 @@
  *
  *   200 : SensorPackage      (environmental sensors: temp, humidity, pressure)
  *   202 : StatusPackage      (device health and configuration)
- *   203 : MpptPackage        (MPPT solar charge controller data)  <-- this file
  *   204 : MetricsPackage     (network performance metrics)
+ *   205 : MpptPackage        (MPPT solar charge controller data)  <-- this file
  *   400 : CommandPackage     (device control commands)
  *   600 : MeshNodeListPackage
  *   601 : MeshTopologyPackage
@@ -44,7 +44,7 @@
  *   612 : BridgeTakeoverPackage
  *   614 : NTPTimeSyncPackage
  *
- * Available ranges: 205-399 (add your package here and update this table).
+ * Available ranges: 206-399 (add your package here and update this table).
  *
  *
  * CHOOSING BASE CLASS
@@ -138,15 +138,15 @@
  *   TSTRING  myText  = "";
  *
  *   // MQTT message_type (set to your chosen type ID)
- *   uint16_t messageType = 205;
+ *   uint16_t messageType = 206;
  *
- *   MyCustomPackage() : BroadcastPackage(205) {}
+ *   MyCustomPackage() : BroadcastPackage(206) {}
  *
  *   MyCustomPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
  *     myId        = jsonObj["id"];
  *     myValue     = jsonObj["val"];
  *     myText      = jsonObj["txt"].as<TSTRING>();
- *     messageType = jsonObj["message_type"] | 205;
+ *     messageType = jsonObj["message_type"] | 206;
  *   }
  *
  *   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -173,7 +173,7 @@
  * CONCRETE EXAMPLE: MpptPackage
  * ==============================
  *
- * The MpptPackage (Type 203) transmits real-time telemetry from an MPPT solar
+ * The MpptPackage (Type 205) transmits real-time telemetry from an MPPT solar
  * charge controller (e.g. Renegy, Epever, Victron).  It is a BroadcastPackage
  * so every node in the mesh receives the data automatically.
  *
@@ -219,7 +219,7 @@ enum ChargeState : uint8_t {
  * values from your hardware, assign them to the struct fields, then call
  * sendBroadcast() as shown in alteriom_mppt_example.ino.
  *
- * Type ID: 203
+ * Type ID: 205
  */
 class MpptPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
@@ -247,13 +247,13 @@ class MpptPackage : public painlessmesh::plugin::BroadcastPackage {
   uint32_t timestamp = 0;
 
   // MQTT Schema message_type for fast classification at the bridge
-  uint16_t messageType = 203;  // MPPT_DATA
+  uint16_t messageType = 205;  // MPPT_DATA
 
   // -------------------------------------------------------------------------
   // Constructors
   // -------------------------------------------------------------------------
 
-  MpptPackage() : BroadcastPackage(203) {}
+  MpptPackage() : BroadcastPackage(205) {}
 
   /**
    * @brief Deserialise from a JSON object received over the mesh
@@ -272,7 +272,7 @@ class MpptPackage : public painlessmesh::plugin::BroadcastPackage {
     controllerTemp = jsonObj["ct"];
     deviceId = jsonObj["did"];
     timestamp = jsonObj["ts"];
-    messageType = jsonObj["message_type"] | 203;
+    messageType = jsonObj["message_type"] | 205;
   }
 
   // -------------------------------------------------------------------------

@@ -149,7 +149,7 @@ void handleIncomingPackage(uint32_t from, String& msg) {
   uint16_t msgType = obj["type"];
 
   switch (msgType) {
-    case 203: {  // MpptPackage
+    case 205: {  // MpptPackage
       MpptPackage received(obj);
       Serial.printf(
           "MPPT from %u: PV=%.1fV/%.1fA/%dW  Bat=%.1fV/%d%%  "

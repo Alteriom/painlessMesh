@@ -408,7 +408,7 @@ public:
     uint32_t stationId = 0;
     TSTRING location = "";
     
-    WeatherPackage() : BroadcastPackage(203) {}  // Use ID 203+
+    WeatherPackage() : BroadcastPackage(206) {}  // Use an ID from the 206+ range
     
     WeatherPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
         windSpeed = jsonObj["windSpeed"];
