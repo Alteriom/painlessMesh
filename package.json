@@ -43,7 +43,7 @@
     "@eslint/js": "^10.0.1",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "prettier": "^3.8.1"
+    "prettier": "^3.8.2"
   },
   "scripts": {
     "test": "run-parts --regex catch_ bin/ || echo 'Tests completed'",
