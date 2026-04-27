@@ -41,7 +41,7 @@
   "devDependencies": {
     "@alteriom/mqtt-schema": "^0.8.0",
     "@eslint/js": "^10.0.1",
-    "ajv": "^8.17.1",
+    "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "prettier": "^3.8.1"
   },
