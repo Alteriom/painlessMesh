@@ -99,6 +99,19 @@ A full adversarial review of the ACK feature before release led to:
   docsify changes.
 - Removed dead links from the docsify sidebar.
 
+### Fixed
+
+- **`bridge_failover` example failed to compile (#360)** — the two
+  `mesh.onBridgeCoordination*` lambdas referenced
+  `plugin::BridgeCoordinationPackage` with a bare `plugin::` prefix, but
+  `painlessMesh.h` only lifts `painlessmesh::logger` to global scope, so
+  the type did not resolve (`'plugin' does not name a type`). Both lambda
+  parameters are now fully qualified as
+  `painlessmesh::plugin::BridgeCoordinationPackage`, matching the
+  convention used across every other example (otaSender, namedMesh,
+  alteriom_*).
+
+
 ## [1.9.21] - 2026-08-04
 
 Crash-fix release resolving a family of use-after-free bugs in the task and
