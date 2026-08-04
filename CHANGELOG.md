@@ -50,6 +50,11 @@ with TaskScheduler's native self-destruct mechanism and regression coverage.
   `promoteToBridge()` (and the isolated-node variant) now captures mesh
   credentials, scheduler, and callback by value so `stop()` cannot mutate
   them before the reinit reads them.
+- **Off-by-one buffer overflow in `ReceiveBuffer::push()`** — when a
+  received chunk was ≥ `TCP_MSS`, the null terminator was written one byte
+  past the end of the shared temp buffer, corrupting adjacent memory on
+  every large read. Found by the new AddressSanitizer CI job on its first
+  run; `read_len` now reserves one byte for the terminator.
 
 ### Added
 
