@@ -1962,7 +1962,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     for (int i = 0; i < 100; i++) { delay(10); yield(); }
     Log(STARTUP, "[OK] Takeover announcement sent on channel %d\n", _meshChannel);
 
-    // Save current mesh configuration to restore if bridge init fails
+    // Save current mesh configuration to restore if bridge init fails.
+    // The copies below are captured by value into the deferred lambda so the
+    // stop() call inside it cannot clear/mutate these members before the
+    // reinit reads them. (The Mesh object itself outlives the lambda; this
+    // protects against member mutation, not object lifetime.)
+    // TODO(#373 follow-up): if the mesh owns its scheduler
+    // (!isExternalScheduler), stop() deletes mScheduler and savedScheduler
+    // dangles before initAsBridge() uses it. Pre-existing limitation —
+    // bridge promotion requires a user-supplied scheduler.
     uint8_t savedChannel = _meshChannel;
     TSTRING savedMeshSSID = _meshSSID;
     TSTRING savedMeshPassword = _meshPassword;
@@ -2073,7 +2081,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(CONNECTION,
         "Scheduling stop/reinit (async to avoid task corruption)\n");
 
-    // Save current mesh configuration
+    // Save current mesh configuration. Captured by value into the deferred
+    // lambda so stop() cannot clear/mutate these members before the reinit
+    // reads them (see the matching comment in promoteToBridge(); same
+    // TODO(#373 follow-up) about savedScheduler and internal schedulers
+    // applies here).
     uint8_t savedChannel = _meshChannel;
     TSTRING savedMeshSSID = _meshSSID;
     TSTRING savedMeshPassword = _meshPassword;
