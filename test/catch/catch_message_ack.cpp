@@ -306,6 +306,167 @@ SCENARIO("AckTracker handles millis() wraparound") {
   }
 }
 
+SCENARIO("Variant exposes lightweight msgId/from peeks") {
+  GIVEN("A serialized Single without msgId") {
+    TSTRING msg = "plain";
+    auto pkg = protocol::Single(42, 43, msg);
+    auto var = protocol::Variant(&pkg);
+
+    THEN("msgId() peeks 0 and from() peeks the origin") {
+      REQUIRE(var.msgId() == 0);
+      REQUIRE(var.from() == 42);
+    }
+  }
+
+  GIVEN("A serialized MessageAckPackage") {
+    MessageAckPackage pkg(7, 8, 99);
+    auto var = protocol::Variant(&pkg);
+
+    THEN("the peeks read the ack fields without materializing the package") {
+      REQUIRE(var.msgId() == 99);
+      REQUIRE(var.from() == 7);
+    }
+  }
+}
+
+SCENARIO("AckTracker ids can be seeded to avoid reboot collisions") {
+  GIVEN("A tracker seeded with a random-looking value") {
+    AckTracker tracker;
+    tracker.seed(123456);
+
+    THEN("ids continue from the seed") {
+      REQUIRE(tracker.nextMessageId() == 123457);
+    }
+  }
+
+  GIVEN("A tracker seeded at the wraparound boundary") {
+    AckTracker tracker;
+    tracker.seed(0xFFFFFFFF);
+
+    THEN("the id counter wraps but never returns 0") {
+      REQUIRE(tracker.nextMessageId() == 1);
+    }
+  }
+}
+
+SCENARIO("AckTracker enforces the pending-message cap") {
+  GIVEN("A tracker filled to PAINLESSMESH_MAX_PENDING_ACKS") {
+    AckTracker tracker;
+    auto noop = [](uint32_t, bool, uint32_t) {};
+    for (size_t i = 0; i < PAINLESSMESH_MAX_PENDING_ACKS; ++i) {
+      REQUIRE(tracker.track(tracker.nextMessageId(), {1}, noop, 5000, 100));
+    }
+
+    THEN("the tracker reports full and rejects further messages") {
+      REQUIRE(tracker.full());
+      REQUIRE(!tracker.track(tracker.nextMessageId(), {1}, noop, 5000, 100));
+      REQUIRE(tracker.pending() == PAINLESSMESH_MAX_PENDING_ACKS);
+    }
+
+    WHEN("one message is acknowledged") {
+      // ids started from 1 (unseeded), so the first tracked id is 1
+      REQUIRE(tracker.handleAck(1, 1, 200));
+
+      THEN("capacity opens up again") {
+        REQUIRE(!tracker.full());
+        REQUIRE(tracker.track(tracker.nextMessageId(), {1}, noop, 5000, 100));
+      }
+    }
+  }
+
+  GIVEN("Invalid tracking requests") {
+    AckTracker tracker;
+
+    THEN("a null callback or empty destination list is rejected") {
+      REQUIRE(!tracker.track(1, {2}, nullptr, 5000, 100));
+      REQUIRE(!tracker.track(1, {}, [](uint32_t, bool, uint32_t) {}, 5000,
+                             100));
+      REQUIRE(tracker.pending() == 0);
+    }
+  }
+}
+
+SCENARIO("AckTracker survives reentrant mutation from expiry callbacks") {
+  GIVEN("Two messages expiring in the same pass, first callback clears") {
+    auto tracker = std::make_shared<AckTracker>();
+    size_t called = 0;
+
+    auto idA = tracker->nextMessageId();
+    auto idB = tracker->nextMessageId();
+    tracker->track(idA, {10},
+                   [&, tracker](uint32_t, bool, uint32_t) {
+                     ++called;
+                     tracker->clear();  // e.g. mesh.stop() from a callback
+                   },
+                   1000, 100);
+    tracker->track(idB, {20}, [&](uint32_t, bool, uint32_t) { ++called; },
+                   1000, 100);
+
+    WHEN("both expire in one expire() pass") {
+      auto stillPending = tracker->expire(5000);
+
+      THEN("no crash; both already-collected callbacks fire") {
+        // Both entries were removed from the map before any callback
+        // ran, so clear() inside the first callback cannot invalidate
+        // the expiry iteration; the second callback still fires.
+        REQUIRE(called == 2);
+        REQUIRE(stillPending == 0);
+        REQUIRE(tracker->pending() == 0);
+      }
+    }
+  }
+
+  GIVEN("An expiry callback that recursively calls expire()") {
+    auto tracker = std::make_shared<AckTracker>();
+    size_t called = 0;
+
+    auto idA = tracker->nextMessageId();
+    auto idB = tracker->nextMessageId();
+    tracker->track(idA, {10},
+                   [&, tracker](uint32_t, bool, uint32_t) {
+                     ++called;
+                     tracker->expire(6000);  // e.g. checkAcks() from callback
+                   },
+                   1000, 100);
+    tracker->track(idB, {20}, [&](uint32_t, bool, uint32_t) { ++called; },
+                   1000, 100);
+
+    WHEN("expire() runs") {
+      tracker->expire(5000);
+
+      THEN("each callback fires exactly once, no double-expiry") {
+        REQUIRE(called == 2);
+        REQUIRE(tracker->pending() == 0);
+      }
+    }
+  }
+
+  GIVEN("An expiry callback that re-tracks a retry (retry pattern)") {
+    auto tracker = std::make_shared<AckTracker>();
+    size_t timeouts = 0;
+
+    std::function<void(uint32_t, bool, uint32_t)> retry =
+        [&, tracker](uint32_t nodeId, bool delivered, uint32_t) {
+          if (!delivered && timeouts++ < 1) {
+            tracker->track(tracker->nextMessageId(), {nodeId}, retry, 1000,
+                           6000);
+          }
+        };
+
+    tracker->track(tracker->nextMessageId(), {30}, retry, 1000, 100);
+
+    WHEN("the first attempt times out") {
+      auto stillPending = tracker->expire(5000);
+
+      THEN("the retry is tracked and not expired in the same pass") {
+        REQUIRE(timeouts == 1);
+        REQUIRE(stillPending == 1);
+        REQUIRE(tracker->pending() == 1);
+      }
+    }
+  }
+}
+
 SCENARIO("AckTracker can track many messages independently") {
   GIVEN("Two tracked messages") {
     AckTracker tracker;

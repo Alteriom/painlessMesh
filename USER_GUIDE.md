@@ -390,7 +390,10 @@ mesh.sendSingle(gatewayId, msg,
 
 Use `mesh.pendingAcks()` to see how many messages are still unconfirmed and
 `mesh.checkAcks()` to poll timeouts manually (they are also processed inside
-`mesh.update()`).
+`mesh.update()`). At most `PAINLESSMESH_MAX_PENDING_ACKS` (default 32)
+messages can await confirmation at once — beyond that the send returns
+`false` and nothing is sent. Note that the priority-level send overloads
+cannot be combined with a delivery callback.
 
 #### Callbacks
 

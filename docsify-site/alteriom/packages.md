@@ -716,7 +716,6 @@ mesh.sendSingle(destId, msg,
 | 630 | `MessageAckPackage` | v2.0.0+ | Per-message delivery acknowledgment |
 
 See also:
-- [Sensor Networks Tutorial](sensor-networks.md) - Real-world applications
-- [Examples](examples.md) - Complete working examples
-- [Custom Packages Tutorial](../tutorials/custom-packages.md) - Creating your own packages
+- [Alteriom Overview](overview.md) - Extension architecture and goals
+- [Basic Examples](../tutorials/basic-examples.md) - Complete working examples
 - [Bridge Failover Guide](../../BRIDGE_TO_INTERNET.md) - Bridge setup and failover

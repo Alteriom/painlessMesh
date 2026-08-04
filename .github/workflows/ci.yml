@@ -151,12 +151,20 @@ jobs:
 
       - name: Compile examples
         run: |
+          # NOTE: an earlier version tested [ -f "${example}*.ino" ] — a
+          # quoted glob that never matches, so no example was ever compiled.
+          failed=0
           for example in examples/*/; do
-            if [ -f "${example}*.ino" ]; then
-              echo "Building example: $example"
-              arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example"
+            if find "$example" -maxdepth 1 -name '*.ino' | grep -q .; then
+              echo "::group::Building example: $example"
+              if ! arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example"; then
+                echo "::error::Example failed to compile: $example"
+                failed=1
+              fi
+              echo "::endgroup::"
             fi
           done
+          exit $failed
 
   build-platformio:
     name: PlatformIO Build Test  

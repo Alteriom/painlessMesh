@@ -94,6 +94,8 @@
     "examples/sendToInternet/sendToInternet.ino",
     "examples/sharedGateway/sharedGateway.ino",
     "examples/startHere/startHere.ino",
-    "examples/webServer/webServer.ino"
+    "examples/webServer/webServer.ino",
+    "examples/commandControl/commandControl.ino",
+    "examples/reliableSensorLogging/reliableSensorLogging.ino"
   ]
 }

@@ -498,4 +498,4 @@ mesh.onReceive([](uint32_t from, String& msg) {
 See also:
 - [Core API](core-api.md) - Complete method reference
 - [Configuration](configuration.md) - Mesh setup options  
-- [Message Types](message-types.md) - Built-in message formats
+- [Alteriom Packages](../alteriom/packages.md) - Built-in package types

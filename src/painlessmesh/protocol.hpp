@@ -726,6 +726,22 @@ class Variant {
   int type() { return jsonObj["type"].as<int>(); }
 
   /**
+   * Origin node of the package (0 if not present)
+   *
+   * Lightweight field peek — unlike to<T>() this does not materialize a
+   * package object or copy the message payload.
+   */
+  uint32_t from() { return jsonObj["from"] | (uint32_t)0; }
+
+  /**
+   * Delivery-confirmation id of the package (0 = no ack requested)
+   *
+   * Lightweight field peek — unlike to<T>() this does not materialize a
+   * package object or copy the message payload.
+   */
+  uint32_t msgId() { return jsonObj["msgId"] | (uint32_t)0; }
+
+  /**
    * Package routing method
    */
   router::Type routing() {

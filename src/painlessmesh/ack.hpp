@@ -12,6 +12,13 @@
 
 extern painlessmesh::logger::LogClass Log;
 
+// Maximum number of messages that may await acknowledgment at once.
+// Bounded to protect the small ESP8266 heap; override at build time if
+// your application legitimately needs more concurrent tracked sends.
+#ifndef PAINLESSMESH_MAX_PENDING_ACKS
+#define PAINLESSMESH_MAX_PENDING_ACKS 32
+#endif
+
 namespace painlessmesh {
 
 /**
@@ -95,11 +102,24 @@ struct PendingAck {
  */
 class AckTracker {
  public:
+  /**
+   * Seed the message-id counter
+   *
+   * Called once at mesh init with a random value so ids do not restart
+   * at 1 after a reboot — a delayed ACK for a pre-reboot message could
+   * otherwise match a fresh message's id and report a false
+   * delivered = true.
+   */
+  void seed(uint32_t value) { counter = value; }
+
   /** Generate the next unique, non-zero message id */
   uint32_t nextMessageId() {
     if (++counter == 0) ++counter;
     return counter;
   }
+
+  /** Whether the tracker is at its pending-message limit */
+  bool full() const { return entries.size() >= PAINLESSMESH_MAX_PENDING_ACKS; }
 
   /**
    * Start tracking a message
@@ -109,16 +129,25 @@ class AckTracker {
    * @param callback Fired once per destination (ack or timeout)
    * @param timeoutMs Time to wait for acknowledgments
    * @param now Current time (millis())
+   * @return false when the callback/destinations are empty or the
+   *         tracker is full (PAINLESSMESH_MAX_PENDING_ACKS)
    */
-  void track(uint32_t msgId, const std::list<uint32_t>& destinations,
+  bool track(uint32_t msgId, const std::list<uint32_t>& destinations,
              deliveryCallback_t callback, uint32_t timeoutMs, uint32_t now) {
-    if (!callback || destinations.empty()) return;
+    if (!callback || destinations.empty()) return false;
+    if (full()) {
+      Log(logger::ERROR,
+          "AckTracker: pending-ack limit (%u) reached, not tracking %u\n",
+          (unsigned)PAINLESSMESH_MAX_PENDING_ACKS, msgId);
+      return false;
+    }
     PendingAck entry;
     entry.callback = callback;
     entry.sentAt = now;
     entry.timeoutMs = timeoutMs;
     entry.waitingFor.insert(destinations.begin(), destinations.end());
     entries[msgId] = std::move(entry);
+    return true;
   }
 
   /**
@@ -146,17 +175,24 @@ class AckTracker {
    * @return Number of messages still awaiting acknowledgment
    */
   size_t expire(uint32_t now) {
+    // Collect expired entries and erase them from the map BEFORE running
+    // any user callback: a callback may reenter this tracker (track a
+    // retry, call clear() via mesh.stop(), or poll checkAcks()), which
+    // would invalidate a live iterator into `entries`.
+    std::list<PendingAck> expired;
     for (auto it = entries.begin(); it != entries.end();) {
       if ((uint32_t)(now - it->second.sentAt) >= it->second.timeoutMs) {
-        auto entry = std::move(it->second);
+        expired.push_back(std::move(it->second));
         it = entries.erase(it);
-        for (auto&& nodeId : entry.waitingFor) {
-          Log(logger::COMMUNICATION,
-              "AckTracker: timeout waiting for ack from %u\n", nodeId);
-          entry.callback(nodeId, false, entry.timeoutMs);
-        }
       } else {
         ++it;
+      }
+    }
+    for (auto&& entry : expired) {
+      for (auto&& nodeId : entry.waitingFor) {
+        Log(logger::COMMUNICATION,
+            "AckTracker: timeout waiting for ack from %u\n", nodeId);
+        entry.callback(nodeId, false, entry.timeoutMs);
       }
     }
     return entries.size();
