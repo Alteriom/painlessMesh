@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [gcc, clang]
+        compiler: [gcc, clang, asan]
         include:
           - compiler: gcc
             cc: gcc-13
@@ -40,6 +40,12 @@ jobs:
           - compiler: clang
             cc: clang-18
             cxx: clang++-18
+          # AddressSanitizer build: catches use-after-free / double-free in
+          # the task and connection lifecycle (regression coverage for issue
+          # #373, where a Task deleted itself inside its own onDisable).
+          - compiler: asan
+            cc: gcc-13
+            cxx: g++-13
     
     steps:
       - name: Checkout
@@ -65,6 +71,10 @@ jobs:
           # Use different warning flags for clang vs gcc to handle stricter clang warnings
           if [[ "${{ matrix.compiler }}" == "clang" ]]; then
             cmake -G Ninja . -DCMAKE_CXX_FLAGS="-Wall -Werror -Wno-vla-cxx-extension"
+          elif [[ "${{ matrix.compiler }}" == "asan" ]]; then
+            cmake -G Ninja . \
+              -DCMAKE_CXX_FLAGS="-Wall -Werror -fsanitize=address -fno-omit-frame-pointer -g" \
+              -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
           else
             cmake -G Ninja . -DCMAKE_CXX_FLAGS="-Wall -Werror"
           fi
@@ -73,6 +83,11 @@ jobs:
         run: ninja
 
       - name: Run tests
+        env:
+          # Leak detection is intentionally off for the asan build: the test
+          # fakes intentionally leak a few objects (e.g. fake_asynctcp peer
+          # clients). The signal we want here is use-after-free/double-free.
+          ASAN_OPTIONS: detect_leaks=0
         run: run-parts --regex catch_ bin/
 
       - name: Upload test results
