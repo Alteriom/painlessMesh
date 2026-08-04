@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`MessageQueue` documented honestly as a manual buffer (#385)** —
+  removed the "messages are automatically delivered when connection is
+  restored" claim from `MessageQueue` and the `mesh.enableMessageQueue`
+  / `queueMessage` / `flushMessageQueue` doc comments. Nothing in the
+  library ever transmitted queued messages or observed connectivity
+  changes; the app has always owned the send loop. The docs now say so,
+  and the `flushMessageQueue` example shows the intended pattern of
+  wiring the drain into `onLocalInternetChanged`.
+
+### Removed
+
+- **Dead safety knobs `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` (#385)** —
+  these `#define`s in `painlessmesh/configuration.hpp` (and the
+  duplicated definitions in `test/boost/Arduino.h`) were read by nothing
+  in the tree. They were placeholders for the auto-flush behavior that
+  never landed. `MessageQueue` has always taken its own per-instance
+  `maxSize` constructor argument. Removing them prevents downstream
+  users from tuning knobs that do nothing. If your application defined
+  either macro before including painlessMesh, it can be safely deleted.
+
 ### Fixed
 
 - **`bridge_failover` example failed to compile (#360)** — the two

@@ -2060,16 +2060,33 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   //
   
   /**
-   * Enable or disable message queueing for offline mode
-   * 
-   * When enabled, messages can be queued when Internet is unavailable
-   * and automatically flushed when connection is restored.
-   * 
+   * Enable or disable the manual message queue for offline mode
+   *
+   * When enabled, allocates a `MessageQueue` that your application can
+   * push into while an upstream (MQTT/HTTP/etc.) is unreachable. The
+   * mesh does NOT flush the queue automatically and does NOT observe
+   * connectivity changes — the app is responsible for detecting when
+   * to drain it via `flushMessageQueue()` + `removeQueuedMessage()`.
+   *
+   * Wire it to your own connectivity signal, for example
+   * `onLocalInternetChanged` on the bridge node or
+   * `onBridgeStatusChanged` on downstream nodes.
+   *
    * @param enabled True to enable queueing, false to disable
    * @param maxSize Maximum number of messages in queue (default 1000)
-   * 
+   *
    * \code
    * mesh.enableMessageQueue(true, 500);  // Enable with 500 message capacity
+   *
+   * mesh.onLocalInternetChanged([&mesh](bool available) {
+   *   if (available) {
+   *     for (auto& msg : mesh.flushMessageQueue()) {
+   *       if (sendToCloud(msg.payload, msg.destination)) {
+   *         mesh.removeQueuedMessage(msg.id);
+   *       }
+   *     }
+   *   }
+   * });
    * \endcode
    */
   void enableMessageQueue(bool enabled, uint32_t maxSize = 1000) {
@@ -2084,11 +2101,13 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
   
   /**
-   * Queue a message with priority for later delivery
-   * 
-   * Use this to queue critical messages when Internet is unavailable.
-   * Messages are automatically delivered when connection is restored.
-   * 
+   * Queue a message with priority for later manual delivery
+   *
+   * Use this to buffer critical messages when your upstream
+   * (MQTT/HTTP/etc.) is unavailable. The library does NOT deliver these
+   * on its own — your app must call `flushMessageQueue()` and
+   * `removeQueuedMessage()` once its own connectivity check clears.
+   *
    * @param payload Message content to queue
    * @param destination Optional destination metadata (e.g., MQTT topic, HTTP endpoint)
    * @param priority Message priority (default: PRIORITY_NORMAL)
@@ -2115,16 +2134,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
   
   /**
-   * Flush all queued messages
-   * 
-   * Attempts to send all queued messages. This is typically called
-   * automatically when Internet connection is restored, but can be
-   * called manually.
-   * 
-   * Note: This returns the messages for the application to send.
-   * The application is responsible for actually transmitting them
-   * and calling removeQueuedMessage() when successful.
-   * 
+   * Return a snapshot of all queued messages for manual delivery
+   *
+   * This does NOT transmit anything and does NOT clear the queue. The
+   * application is responsible for actually sending each message and
+   * calling `removeQueuedMessage(id)` for each one that succeeded.
+   * Messages left in the queue remain available for retry on the next
+   * flush.
+   *
    * @return Vector of queued messages to send
    * 
    * \code

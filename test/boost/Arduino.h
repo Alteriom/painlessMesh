@@ -83,10 +83,6 @@ inline void yield() {}
 #define PAINLESSMESH_ENABLE_STD_STRING
 #define PAINLESSMESH_ENABLE_OTA
 #define NODE_TIMEOUT 10 * TASK_SECOND
-// Minimum free memory, besides here all packets in queue are discarded.
-#define MIN_FREE_MEMORY 4000
-// MAX number of unsent messages in queue. Newer messages are discarded
-#define MAX_MESSAGE_QUEUE 50
 
 typedef std::string TSTRING;
 

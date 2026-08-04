@@ -26,10 +26,12 @@
 // Enable OTA support
 #define PAINLESSMESH_ENABLE_OTA
 
-// Minimum free memory, besides here all packets in queue are discarded.
-#define MIN_FREE_MEMORY 4000
-// MAX number of unsent messages in queue. Newer messages are discarded
-#define MAX_MESSAGE_QUEUE 50
+// NOTE: `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` used to live here as
+// safety knobs for an auto-flushing message queue that never landed
+// (see #385, PR #383 review). They were read by nothing in the library
+// and were removed to avoid implying behavior that does not exist. The
+// `MessageQueue` class (`painlessmesh/message_queue.hpp`) is a manual
+// priority buffer with its own per-instance `maxSize` argument.
 
 #define NODE_TIMEOUT 10 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
