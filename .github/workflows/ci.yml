@@ -144,7 +144,10 @@ jobs:
 
       - name: Install library dependencies
         run: |
-          arduino-cli lib install ArduinoJson TaskScheduler AsyncTCP ESPAsyncTCP PubSubClient "ESP Async WebServer" --config-dir test/ci/
+          # "Async TCP" is the maintained ESP32Async v3.x library that
+          # library.json declares (esp32async/AsyncTCP ^3.4.7) and that
+          # ESP Async WebServer v3 requires — NOT the legacy v1 "AsyncTCP"
+          arduino-cli lib install ArduinoJson TaskScheduler "Async TCP" ESPAsyncTCP PubSubClient "ESP Async WebServer" --config-dir test/ci/
 
       - name: Install library from source
         run: |
