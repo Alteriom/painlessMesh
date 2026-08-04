@@ -173,12 +173,34 @@ class BridgeCoordinationPackage : public plugin::BroadcastPackage {
 template <typename T>
 class PackageHandler : public layout::Layout<T> {
  public:
-  void stop() {
-    for (auto&& task : taskList) {
-      task->disable();
-      task->setCallback(NULL);
+  // NOTE: scheduler is optional (defaults to nullptr) for backward
+  // compatibility with existing call sites; without it we can't detect
+  // the "current" task and behaviour falls back to the original one.
+  // Passing the scheduler (mesh.hpp already has it as mScheduler) avoids
+  // the use-after-free described below.
+  void stop(Scheduler* scheduler = nullptr) {
+    // If stop() is called from within the callback of one of the tasks in
+    // taskList (e.g. promoteToBridge()), that task is
+    // "scheduler->getCurrentTask()" at this exact moment. Disabling it,
+    // clearing its callback, or letting its shared_ptr refcount drop to
+    // zero here would destroy its closure - which is still on the stack,
+    // in the middle of its own execution - causing a use-after-free crash
+    // (same bug family as upstream issue #373, but triggered by the
+    // shared_ptr refcount instead of a raw delete in onDisable).
+    // We simply leave it in the list: addTask() will recognise it as
+    // "disabled with a single reference" and reuse it on the next call,
+    // exactly like it already does for disabled anonymous tasks (see the
+    // comment on addTask() above).
+    Task* current = scheduler ? scheduler->getCurrentTask() : nullptr;
+    for (auto it = taskList.begin(); it != taskList.end();) {
+      if (current != nullptr && it->get() == current) {
+        ++it;
+        continue;
+      }
+      (*it)->disable();
+      (*it)->setCallback(NULL);
+      it = taskList.erase(it);
     }
-    taskList.clear();
     callbackList.clear();
   }
 

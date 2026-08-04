@@ -1964,12 +1964,21 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Save current mesh configuration to restore if bridge init fails
     uint8_t savedChannel = _meshChannel;
+    TSTRING savedMeshSSID = _meshSSID;
+    TSTRING savedMeshPassword = _meshPassword;
+    TSTRING savedRouterSSID = routerSSID;
+    TSTRING savedRouterPassword = routerPassword;
+    Scheduler *savedScheduler = mScheduler;
+    auto savedBridgeRoleChangedCallback = bridgeRoleChangedCallback;
 
     // CRITICAL FIX: Schedule the stop/reinit work to run after current task completes
     // This prevents use-after-free crash when stop() clears taskList while
     // evaluateElection() task is still executing
     // Use minimal delay to allow current task to complete first
-    this->addTask(ASYNC_PROMOTION_DELAY_MS, TASK_ONCE, [this, savedChannel]() {
+    this->addTask(ASYNC_PROMOTION_DELAY_MS, TASK_ONCE,
+                  [this, savedChannel, savedMeshSSID, savedMeshPassword,
+                   savedRouterSSID, savedRouterPassword, savedScheduler,
+                   savedBridgeRoleChangedCallback]() {
       using namespace logger;
       
       Log(STARTUP, "Executing bridge promotion (stop/reinit cycle)\n");
@@ -1981,18 +1990,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
       // initAsBridge always returns true: bridge mesh functionality is active
       // regardless of router connection status (router connection is opportunistic)
-      this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                         mScheduler, _meshPort);
+      this->initAsBridge(savedMeshSSID, savedMeshPassword, savedRouterSSID,
+                         savedRouterPassword, savedScheduler, _meshPort);
 
       lastRoleChangeTime = millis();
 
       Log(STARTUP, "[OK] Bridge promotion complete on channel %d\n", _meshChannel);
 
       // Notify via callback
-      // Use explicit TSTRING construction to ensure string lifetime safety
-      if (bridgeRoleChangedCallback) {
+      if (savedBridgeRoleChangedCallback) {
         static const TSTRING reason = "Election winner - best router signal";
-        bridgeRoleChangedCallback(true, reason);
+        savedBridgeRoleChangedCallback(true, reason);
       }
 
       // Note: The initial takeover announcement was already sent earlier
@@ -2067,12 +2075,21 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Save current mesh configuration
     uint8_t savedChannel = _meshChannel;
+    TSTRING savedMeshSSID = _meshSSID;
+    TSTRING savedMeshPassword = _meshPassword;
+    TSTRING savedRouterSSID = routerSSID;
+    TSTRING savedRouterPassword = routerPassword;
+    Scheduler *savedScheduler = mScheduler;
+    auto savedBridgeRoleChangedCallback = bridgeRoleChangedCallback;
 
     // CRITICAL FIX: Schedule the stop/reinit work to run after current task completes
     // This prevents use-after-free crash when stop() clears taskList while
     // the retry task is still executing
     // Use minimal delay to allow current task to complete first
-    this->addTask(ASYNC_PROMOTION_DELAY_MS, TASK_ONCE, [this, savedChannel]() {
+    this->addTask(ASYNC_PROMOTION_DELAY_MS, TASK_ONCE,
+                  [this, savedChannel, savedMeshSSID, savedMeshPassword,
+                   savedRouterSSID, savedRouterPassword, savedScheduler,
+                   savedBridgeRoleChangedCallback]() {
       using namespace logger;
       
       Log(CONNECTION, "Executing isolated bridge promotion (stop/reinit cycle)\n");
@@ -2084,8 +2101,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
       // initAsBridge always returns true: bridge mesh functionality is active
       // regardless of router connection status (router connection is opportunistic)
-      this->initAsBridge(_meshSSID, _meshPassword, routerSSID, routerPassword,
-                         mScheduler, _meshPort);
+      this->initAsBridge(savedMeshSSID, savedMeshPassword, savedRouterSSID,
+                         savedRouterPassword, savedScheduler, _meshPort);
 
       // Reset retry counter
       _isolatedBridgeRetryAttempts = 0;
@@ -2095,10 +2112,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           _meshChannel);
 
       // Notify via callback
-      // Use explicit TSTRING construction to ensure string lifetime safety
-      if (bridgeRoleChangedCallback) {
+      if (savedBridgeRoleChangedCallback) {
         static const TSTRING reason = "Isolated node promoted to bridge";
-        bridgeRoleChangedCallback(true, reason);
+        savedBridgeRoleChangedCallback(true, reason);
       }
 
       // Note: Bridge status announcement will be sent automatically by
