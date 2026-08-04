@@ -344,7 +344,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       (*conn)->close();
       this->eraseClosedConnections();
     }
-    plugin::PackageHandler<T>::stop();
+    plugin::PackageHandler<T>::stop(mScheduler);
 
     newConnectionCallbacks.clear();
     droppedConnectionCallbacks.clear();

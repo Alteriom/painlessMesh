@@ -66,8 +66,11 @@ inline void yield() {}
 #ifndef _PAINLESS_MESH_CONFIGURATION_HPP_
 #define _PAINLESS_MESH_CONFIGURATION_HPP_
 
-#define _TASK_PRIORITY  // Support for layered scheduling priority
-#define _TASK_STD_FUNCTION
+// TaskScheduler compile options MUST match the ones used to build the
+// implementation in src/scheduler.cpp — a mismatch silently changes the
+// Task object layout (ODR violation). Use the single source of truth
+// instead of redefining options here.
+#include "painlessTaskOptions.h"
 
 #include <TaskSchedulerDeclarations.h>
 

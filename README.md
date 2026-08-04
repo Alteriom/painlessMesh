@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.20** - Full repo cleanup, bug fixes, and documentation consistency
+**Version 1.9.21** - Crash fixes: use-after-free in task and TCP connection lifecycle (#373)
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -560,9 +560,16 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.9.20 (March 27, 2026)
+## Latest Release: v1.9.21 (August 4, 2026)
 
-**Full Repo Cleanup, Bug Fixes & Bridge Coordination Callbacks**
+**Crash Fixes: Task & TCP Connection Lifecycle (issue #373)**
+
+- Fixed use-after-free in `Task::disable()` that crashed nodes on every peer disconnect (#373, PR #376 by @vaz82)
+- Fixed `PackageHandler::stop()` destroying the currently-executing task during bridge promotion
+- Fixed stale-pcb heap corruption window in `~BufferedConnection()` and an `onError`/`onConnect` double-handling race
+- New AddressSanitizer CI job and regression test for the task/connection cleanup lifecycle
+
+**Previous Release: v1.9.20 (March 27, 2026)** — Full repo cleanup, bug fixes & bridge coordination callbacks:
 
 - New `onBridgeCoordination()` and `onBridgeCoordinationChanged()` monitoring callbacks
 - Fixed 13 critical/high/medium bugs (double-free, RSSI overflow, memory leaks, blocking delays)

@@ -121,9 +121,33 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
   Log(CONNECTION, "tcp::connect(): Attempting connection to port %d (attempt %d/%d)\n",
       port, retryCount + 1, TCP_CONNECT_MAX_RETRIES + 1);
   
+  // Guard shared between onError and onConnect: under normal conditions a
+  // TCP connection attempt leads to only ONE of the two outcomes. But if
+  // WiFi drops right as the TCP handshake completes, AsyncTCP can queue
+  // BOTH events (connection succeeded at the TCP level + abort due to the
+  // WiFi link being lost) for the same AsyncClient, and both callbacks end
+  // up firing for the SAME object. Without this guard, the client would be
+  // "handed over" twice: once to a BufferedConnection (via onConnect, which
+  // becomes its owner and will delete it via its own destructor) and once
+  // to the retry path (via onError, which schedules it again for deletion)
+  // - two scheduleAsyncClientDeletion() calls on the same pointer, and
+  // therefore a double deferred deletion on the same object once both
+  // tasks fire.
+  auto claimed = std::make_shared<bool>(false);
+  
   // Store retry count and connection parameters for the error handler
   // We need to capture these by value since they're used in the lambda
-  client.onError([&mesh, ip, port, retryCount](void *, AsyncClient *client, int8_t err) {
+  client.onError([&mesh, ip, port, retryCount, claimed](void *, AsyncClient *client, int8_t err) {
+    if (*claimed) {
+      // onConnect has already claimed this client (the connection actually
+      // succeeded, and it's already been wrapped in a BufferedConnection
+      // that owns it): don't touch the same object again.
+      Log(CONNECTION,
+          "tcp_err(): onError fired after onConnect had already claimed "
+          "the client - ignored to avoid double handling\n");
+      return;
+    }
+    *claimed = true;
     if (mesh.semaphoreTake()) {
       Log(CONNECTION, "tcp_err(): error trying to connect %d (attempt %d/%d)\n", 
           err, retryCount + 1, TCP_CONNECT_MAX_RETRIES + 1);
@@ -214,7 +238,26 @@ void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh,
   });
 
   client.onConnect(
-      [&mesh](void *, AsyncClient *client) {
+      [&mesh, claimed](void *, AsyncClient *client) {
+        if (*claimed) {
+          // onError has already fired for this client (e.g. an abort
+          // caused by losing WiFi right while the TCP handshake was
+          // completing): the client is already scheduled for deletion by
+          // the retry path. Wrapping it in a new BufferedConnection now
+          // would give it two owners at once. This connection did however
+          // genuinely succeed at the TCP level (that's why onConnect
+          // fired): close it explicitly here, so that when the deferred
+          // deletion already scheduled by onError fires, it finds a
+          // properly closed client instead of one still "connected" -
+          // otherwise we'd fall right back into the bug we're fixing.
+          Log(CONNECTION,
+              "tcp::connect(): onConnect fired after onError had already "
+              "claimed the client - closing the connection and discarding "
+              "it\n");
+          client->close();
+          return;
+        }
+        *claimed = true;
         if (mesh.semaphoreTake()) {
           Log(CONNECTION, "New STA connection incoming\n");
           auto conn = std::make_shared<T>(client, &mesh, true);
