@@ -13,6 +13,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.0.0] - 2026-08-04
+
+Feature release adding per-message delivery confirmation (issue #379). The
+release is a major version bump because it introduces a new wire-protocol
+message type: pre-2.0 nodes forward acknowledgment packets but never send
+them, so delivery confirmation only works reliably once every participating
+node runs 2.0.0. All existing sketches compile and behave unchanged.
+
+### Added
+
+- **Per-message delivery confirmation and acknowledgment API (#379)** —
+  `sendSingle()` and `sendBroadcast()` gained overloads that accept a
+  `painlessmesh::ack::deliveryCallback_t` callback and an acknowledgment
+  timeout (default 5000 ms). When a callback is provided the outgoing
+  message is tagged with a unique `msgId`, the receiving node automatically
+  replies with a `MessageAckPackage` (new protocol type 630, routed as a
+  SINGLE package so it traverses multiple hops), and the callback fires
+  with `delivered = true` plus the measured round-trip latency — or
+  `delivered = false` when the timeout elapses. Broadcast tracking
+  snapshots the mesh layout at send time and fires the callback once per
+  expected node.
+- `checkAcks()` — non-blocking poll that processes acknowledgment timeouts
+  and returns the number of messages still pending (timeouts are also
+  processed automatically inside `mesh.update()`).
+- `pendingAcks()` — number of messages still awaiting acknowledgment.
+- New header `painlessmesh/ack.hpp` with the platform-independent
+  `AckTracker` (unit-tested, uint32 wraparound safe) and
+  `MessageAckPackage`.
+- Arduino examples `reliableSensorLogging` (buffered retries until the
+  gateway confirms) and `commandControl` (per-node broadcast confirmation).
+- Unit tests (`catch_message_ack.cpp`) covering serialization, ack
+  matching, timeout, duplicate/unknown acks, broadcast fan-in and clock
+  wraparound, plus an end-to-end multi-node scenario in the TCP
+  integration suite.
+
+### Changed
+
+- `protocol::Single` / `protocol::Broadcast` carry an optional `msgId`
+  field. It is only serialized when delivery confirmation was requested,
+  so plain sends have zero added wire overhead.
+
 ## [1.9.21] - 2026-08-04
 
 Crash-fix release resolving a family of use-after-free bugs in the task and

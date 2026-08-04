@@ -18,11 +18,15 @@ getNodeList	KEYWORD2
 getNodeId	KEYWORD2
 getNodeTime	KEYWORD2
 setDebugMsgTypes	KEYWORD2
+checkAcks	KEYWORD2
+pendingAcks	KEYWORD2
 subConnectionJson	KEYWORD2
 asNodeTree	KEYWORD2
 
 # Alteriom Extensions (KEYWORD1)
 SensorPackage	KEYWORD1
+MessageAckPackage	KEYWORD1
+deliveryCallback_t	KEYWORD1
 CommandPackage	KEYWORD1
 StatusPackage	KEYWORD1
 

@@ -98,6 +98,68 @@ String msg = "Hello specific node!";
 bool sent = mesh.sendSingle(targetNode, msg);
 ```
 
+#### Delivery confirmation (v2.0.0+)
+
+Both send functions accept an optional delivery callback. When provided, the
+message is tagged with a unique id, the receiving node automatically replies
+with an acknowledgment (protocol type 630, routed across multiple hops), and
+the callback reports the result per destination node:
+
+```cpp
+// Callback type (painlessmesh::ack::deliveryCallback_t)
+void(uint32_t nodeId, bool delivered, uint32_t latencyMs);
+
+bool sendSingle(uint32_t destId, TSTRING msg,
+                painlessmesh::ack::deliveryCallback_t ackCallback,
+                uint32_t ackTimeoutMs = 5000);
+
+// includeSelf and ackCallback must be passed explicitly on this overload
+bool sendBroadcast(TSTRING msg, bool includeSelf,
+                   painlessmesh::ack::deliveryCallback_t ackCallback,
+                   uint32_t ackTimeoutMs = 5000);
+```
+
+**Behavior:**
+- The callback fires exactly once per expected node: `delivered = true` with
+  the measured round-trip latency, or `delivered = false` after
+  `ackTimeoutMs` elapsed.
+- For broadcasts, the set of expected nodes is snapshotted from the mesh
+  layout at send time; the local node never acknowledges itself.
+- Timeouts are processed inside `mesh.update()` — no blocking waits.
+- Passing `nullptr` as the callback behaves exactly like the plain overloads
+  (zero wire and CPU overhead).
+
+**Example:**
+```cpp
+mesh.sendSingle(gatewayId, msg,
+                [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  if (delivered)
+    Serial.printf("Node %u confirmed in %u ms\n", nodeId, latencyMs);
+  else
+    Serial.printf("Delivery to %u timed out\n", nodeId);
+});
+```
+
+#### `checkAcks()`
+
+Process pending acknowledgment timeouts (non-blocking poll).
+
+```cpp
+size_t checkAcks();
+```
+
+**Returns:** Number of messages still awaiting acknowledgment. Timeout
+processing also happens automatically inside `mesh.update()`, so calling
+this manually is only useful in tight loops.
+
+#### `pendingAcks()`
+
+```cpp
+size_t pendingAcks() const;
+```
+
+**Returns:** Number of messages still awaiting delivery acknowledgment.
+
 ### Plugin System
 
 #### `sendPackage()`

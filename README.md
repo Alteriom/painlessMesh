@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.21** - Crash fixes: use-after-free in task and TCP connection lifecycle (#373)
+**Version 2.0.0** - Per-message delivery confirmation and acknowledgment API (#379)
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -560,9 +560,17 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.9.21 (August 4, 2026)
+## Latest Release: v2.0.0 (August 4, 2026)
 
-**Crash Fixes: Task & TCP Connection Lifecycle (issue #373)**
+**Per-Message Delivery Confirmation & Acknowledgment API (issue #379)**
+
+- `sendSingle()` and `sendBroadcast()` accept an optional delivery callback — fires with `delivered=true` and round-trip latency on acknowledgment, or `delivered=false` on timeout
+- Receiving nodes acknowledge automatically; ACKs route across multiple hops (new protocol type 630)
+- Zero wire/CPU overhead when no callback is requested; existing sketches compile unchanged
+- New `checkAcks()` / `pendingAcks()` APIs and examples `reliableSensorLogging`, `commandControl`
+- Major version bump: mixed networks with pre-2.0 nodes forward ACK traffic but never acknowledge, so delivery confirmation needs 2.0.0 on all participating nodes
+
+**Previous Release: v1.9.21 (August 4, 2026)** — Crash Fixes: Task & TCP Connection Lifecycle (issue #373)
 
 - Fixed use-after-free in `Task::disable()` that crashed nodes on every peer disconnect (#373, PR #376 by @vaz82)
 - Fixed `PackageHandler::stop()` destroying the currently-executing task during bridge promotion

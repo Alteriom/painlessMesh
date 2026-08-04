@@ -45,13 +45,44 @@ void receivedCallback(uint32_t from, String& msg) {
         executeCommand(command, value);
     }
     
-    // Echo back acknowledgment
-    String ack = "ACK:" + msg;
-    mesh.sendSingle(from, ack);
+    // Note: since v2.0.0 you no longer need to hand-roll acknowledgments.
+    // Pass a delivery callback to sendSingle()/sendBroadcast() instead —
+    // the receiving node acknowledges automatically.
 }
 
 mesh.onReceive(&receivedCallback);
 ```
+
+### Delivery confirmation callback (v2.0.0+)
+
+`sendSingle()` and `sendBroadcast()` accept an optional
+`painlessmesh::ack::deliveryCallback_t` that reports per-node delivery:
+
+```cpp
+typedef std::function<void(uint32_t nodeId, bool delivered, uint32_t latencyMs)>
+    deliveryCallback_t;
+```
+
+**Parameters:**
+- `nodeId` - The destination node this result refers to
+- `delivered` - `true` when the node acknowledged the message, `false` when
+  the acknowledgment timed out
+- `latencyMs` - Round-trip time when delivered, otherwise the timeout value
+
+**Example:**
+```cpp
+mesh.sendSingle(gatewayId, msg,
+                [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+    if (delivered)
+        Serial.printf("Node %u confirmed in %u ms\n", nodeId, latencyMs);
+    else
+        Serial.printf("Delivery to %u timed out\n", nodeId);
+}, 5000 /* ackTimeoutMs */);
+```
+
+The callback fires exactly once per expected destination, from within
+`mesh.update()`. See [Core API](core-api.md#delivery-confirmation-v200) for
+details.
 
 ### onPackage()
 
