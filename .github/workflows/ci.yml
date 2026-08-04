@@ -110,7 +110,9 @@ jobs:
           - board: esp32
             fqbn: esp32:esp32:esp32
           - board: esp8266
-            fqbn: esp8266:esp8266:generic
+            # nodemcuv2 (not generic): examples use NodeMCU pin aliases
+            # (D8 etc.) and the example platformio.ini targets nodemcuv2
+            fqbn: esp8266:esp8266:nodemcuv2
     
     steps:
       - name: Checkout
@@ -142,7 +144,7 @@ jobs:
 
       - name: Install library dependencies
         run: |
-          arduino-cli lib install ArduinoJson TaskScheduler AsyncTCP ESPAsyncTCP --config-dir test/ci/
+          arduino-cli lib install ArduinoJson TaskScheduler AsyncTCP ESPAsyncTCP PubSubClient "ESP Async WebServer" --config-dir test/ci/
 
       - name: Install library from source
         run: |
@@ -157,17 +159,21 @@ jobs:
         run: |
           # NOTE: an earlier version tested [ -f "${example}*.ino" ] — a
           # quoted glob that never matches, so no example was ever compiled.
+          # Compile every proper sketch dir (dir name == ino name), including
+          # nested ones (e.g. examples/priority/priority_basic_example/).
           failed=0
-          for example in examples/*/; do
-            if find "$example" -maxdepth 1 -name '*.ino' | grep -q .; then
-              echo "::group::Building example: $example"
-              if ! arduino-cli compile --config-dir test/ci/ --fqbn ${{ matrix.fqbn }} "$example"; then
-                echo "::error::Example failed to compile: $example"
+          while read -r ino; do
+            dir=$(dirname "$ino")
+            base=$(basename "$dir")
+            if [ "$(basename "$ino")" = "$base.ino" ]; then
+              echo "::group::Building example: $dir"
+              if ! arduino-cli compile --config-dir test/ci/ --fqbn ${{ matrix.fqbn }} "$dir"; then
+                echo "::error::Example failed to compile: $dir"
                 failed=1
               fi
               echo "::endgroup::"
             fi
-          done
+          done < <(find examples -name '*.ino' | sort)
           exit $failed
 
   build-platformio:

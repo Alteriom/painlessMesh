@@ -195,8 +195,8 @@ The callback provides `httpStatus` to indicate the result:
 ## Files
 
 - `sendToInternet.ino` - Main example sketch for ESP32/ESP8266
-- `mock_server_test.ino` - Bridge testing with mock HTTP server
-- `pc_mesh_node.cpp` - **NEW:** PC-based mesh node for testing regular node → bridge flow
+- `mock_server_test/mock_server_test.ino` - Bridge testing with mock HTTP server
+- `pc_node/pc_mesh_node.cpp` - **NEW:** PC-based mesh node for testing regular node → bridge flow
 - `README.md` - This documentation
 - `PC_NODE_README.md` - **NEW:** Documentation for PC mesh node testing
 
