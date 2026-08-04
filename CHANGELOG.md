@@ -13,6 +13,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.9.21] - 2026-08-04
+
+Crash-fix release resolving a family of use-after-free bugs in the task and
+TCP-connection lifecycle. Root-caused and fixed by @vaz82 (PR #376) with
+reports and field testing from @fidla73 and @miloshev (issue #373); finalized
+with TaskScheduler's native self-destruct mechanism and regression coverage.
+
+### Fixed
+
+- **Use-after-free in `Task::disable()` on connection teardown (#373)** —
+  `scheduleAsyncClientDeletion()`'s cleanup task deleted itself inside its
+  own `onDisable` callback, but TaskScheduler's `Task::disable()` writes to
+  the task object after `onDisable` returns. Crashed nodes (StoreProhibited,
+  `EXCVADDR 0x8`) on every peer disconnect. The cleanup task now uses
+  TaskScheduler's `_TASK_SELF_DESTRUCT` support (enabled in
+  `painlessTaskOptions.h`): the Scheduler deletes the task from within
+  `execute()`, safely outside the `disable()` call stack.
+- **`PackageHandler::stop()` destroying the currently-executing task** —
+  when `stop()` runs from within a task's own callback (bridge promotion
+  path), it destroyed that task's closure mid-execution via
+  `setCallback(NULL)`/`shared_ptr` release. `stop()` now accepts the
+  scheduler, detects the running task via `getCurrentTask()`, and leaves it
+  in `taskList` for safe reuse by `addTask()`.
+- **Stale `_pcb` window in `~BufferedConnection()`** — `client->close()` was
+  skipped when `freeable()` returned true, leaving a non-null-but-stale pcb
+  that lwIP's timers could recycle during the deferred-deletion window
+  (`heap_caps_free`/`memp_free` assertion failures, `tcp_arg()` wild-pointer
+  stores). `close()` is now called unconditionally at destruction.
+- **`onError`/`onConnect` double-handling race in `tcp::connect()`** — if
+  WiFi dropped as the TCP handshake completed, AsyncTCP could fire both
+  callbacks for the same `AsyncClient`, handing it to two owners and
+  scheduling its deletion twice. A shared claim guard now ensures exactly
+  one callback processes the client.
+- **Bridge promotion state capture** — the deferred stop/reinit lambda in
+  `promoteToBridge()` (and the isolated-node variant) now captures mesh
+  credentials, scheduler, and callback by value so `stop()` cannot mutate
+  them before the reinit reads them.
+
+### Added
+
+- Regression test `catch_connection_cleanup.cpp` covering the #373
+  schedule → fire → self-destruct cleanup lifecycle and
+  `~BufferedConnection` churn.
+- AddressSanitizer job in CI (gcc + `-fsanitize=address`) so use-after-free
+  and double-free regressions in the task/connection lifecycle fail the
+  build instead of crashing devices in the field.
+
 ## [1.9.20] - 2026-03-27
 
 ### Added
