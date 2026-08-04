@@ -142,12 +142,16 @@ jobs:
 
       - name: Install library dependencies
         run: |
-          arduino-cli lib install ArduinoJson TaskScheduler AsyncTCP ESPAsyncTCP
+          arduino-cli lib install ArduinoJson TaskScheduler AsyncTCP ESPAsyncTCP --config-dir test/ci/
 
       - name: Install library from source
         run: |
-          mkdir -p ~/Arduino/libraries/painlessMesh
-          cp -r src examples library.properties ~/Arduino/libraries/painlessMesh/
+          # Resolve the sketchbook/user dir from the SAME config the compile
+          # step uses, so the source copy is guaranteed to be visible
+          USER_DIR=$(arduino-cli config get directories.user --config-dir test/ci/)
+          echo "Arduino user dir: $USER_DIR"
+          mkdir -p "$USER_DIR/libraries/painlessMesh"
+          cp -r src examples library.properties "$USER_DIR/libraries/painlessMesh/"
 
       - name: Compile examples
         run: |
@@ -157,7 +161,7 @@ jobs:
           for example in examples/*/; do
             if find "$example" -maxdepth 1 -name '*.ino' | grep -q .; then
               echo "::group::Building example: $example"
-              if ! arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example"; then
+              if ! arduino-cli compile --config-dir test/ci/ --fqbn ${{ matrix.fqbn }} "$example"; then
                 echo "::error::Example failed to compile: $example"
                 failed=1
               fi
