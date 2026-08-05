@@ -101,7 +101,8 @@ typedef std::function<void(QueueState state, uint32_t messageCount)> queueStateC
  * uint32_t size = queue.size();
  *
  * // When your app detects the upstream is back, drain manually:
- * for (auto& msg : queue.getMessages()) {
+ * auto messages = queue.getMessages();
+ * for (auto& msg : messages) {
  *   if (sendToCloud(msg.payload, msg.destination)) {
  *     queue.remove(msg.id);
  *   }

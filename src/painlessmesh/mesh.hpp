@@ -2080,7 +2080,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    *
    * mesh.onLocalInternetChanged([&mesh](bool available) {
    *   if (available) {
-   *     for (auto& msg : mesh.flushMessageQueue()) {
+   *     auto messages = mesh.flushMessageQueue();
+   *     for (auto& msg : messages) {
    *       if (sendToCloud(msg.payload, msg.destination)) {
    *         mesh.removeQueuedMessage(msg.id);
    *       }
