@@ -84,7 +84,8 @@ typedef std::function<void(QueueState state, uint32_t messageCount)> queueStateC
  * when your own connectivity check tells you it is safe to resend.
  *
  * Provides priority-based message queueing with support for:
- * - Priority levels (CRITICAL messages never dropped)
+ * - Priority levels (CRITICAL messages evicted last, but may still be dropped
+ *   if the queue is full and all entries are CRITICAL)
  * - Queue size limits with intelligent eviction
  * - Statistics tracking
  * - State change callbacks
