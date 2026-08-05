@@ -237,7 +237,7 @@ jobs:
           exit 1
         fi
         echo "🔎 Validating NPM_TOKEN against registry (npm whoami)..."
-        if ! WHOAMI_OUT=$(npm whoami 2>&1); then
+        if ! WHOAMI_OUT=$(npm whoami --registry=https://registry.npmjs.org 2>&1); then
           echo "❌ NPM_TOKEN is set but invalid (npm whoami failed):"
           echo "$WHOAMI_OUT"
           echo ""
@@ -377,4 +377,3 @@ jobs:
         echo ""
         echo "💡 Note: GitHub Packages require authentication for installation"
         echo "================================"
-
