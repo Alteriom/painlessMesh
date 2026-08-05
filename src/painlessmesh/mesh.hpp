@@ -664,6 +664,15 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    *    Serial.println(msg);
    * });
    * \endcode
+   *
+   * \note **Accumulates — does not replace.** Calling onReceive() a second
+   * time does not overwrite the previous handler; both handlers are invoked
+   * for every subsequent message, in the order they were registered. This
+   * mirrors the other on...() setters on this class (onNewConnection,
+   * onDroppedConnection, onChangedConnections, onNodeTimeAdjusted,
+   * onNodeDelayReceived). There is currently no public API to unregister
+   * a handler; if you need replace-semantics, keep a single dispatcher
+   * lambda and mutate the target it dispatches to.
    */
   void onReceive(receivedCallback_t onReceive) {
     using namespace painlessmesh;
