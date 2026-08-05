@@ -20,16 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the `flushMessageQueue` example shows the intended pattern of
   wiring the drain into `onLocalInternetChanged`.
 
-### Removed
+### Deprecated
 
-- **Dead safety knobs `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` (#385)** —
-  these `#define`s in `painlessmesh/configuration.hpp` (and the
-  duplicated definitions in `test/boost/Arduino.h`) were read by nothing
-  in the tree. They were placeholders for the auto-flush behavior that
-  never landed. `MessageQueue` has always taken its own per-instance
-  `maxSize` constructor argument. Removing them prevents downstream
-  users from tuning knobs that do nothing. If your application defined
-  either macro before including painlessMesh, it can be safely deleted.
+- **Compatibility queue macros kept as ignored no-ops (#385)** —
+  `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` remain defined in
+  `painlessmesh/configuration.hpp` (and `test/boost/Arduino.h`) for
+  source compatibility, but nothing in the library reads them. They were
+  placeholders for the auto-flush behavior that never landed.
+  `MessageQueue` has always taken its own per-instance `maxSize`
+  constructor argument.
 
 ### Fixed
 

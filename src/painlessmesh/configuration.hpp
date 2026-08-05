@@ -26,12 +26,19 @@
 // Enable OTA support
 #define PAINLESSMESH_ENABLE_OTA
 
-// NOTE: `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` used to live here as
-// safety knobs for an auto-flushing message queue that never landed
-// (see #385, PR #383 review). They were read by nothing in the library
-// and were removed to avoid implying behavior that does not exist. The
-// `MessageQueue` class (`painlessmesh/message_queue.hpp`) is a manual
-// priority buffer with its own per-instance `maxSize` argument.
+// NOTE: `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` are kept as deprecated
+// no-op compatibility macros. The library does not read either macro:
+// the auto-flushing message queue they were meant to tune never landed
+// (see #385, PR #383 review). `MessageQueue`
+// (`painlessmesh/message_queue.hpp`) is a manual priority buffer with
+// its own per-instance `maxSize` argument.
+#ifndef MIN_FREE_MEMORY
+#define MIN_FREE_MEMORY 4000
+#endif
+
+#ifndef MAX_MESSAGE_QUEUE
+#define MAX_MESSAGE_QUEUE 1000
+#endif
 
 #define NODE_TIMEOUT 10 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms

@@ -84,6 +84,14 @@ inline void yield() {}
 #define PAINLESSMESH_ENABLE_OTA
 #define NODE_TIMEOUT 10 * TASK_SECOND
 
+#ifndef MIN_FREE_MEMORY
+#define MIN_FREE_MEMORY 4000
+#endif
+
+#ifndef MAX_MESSAGE_QUEUE
+#define MAX_MESSAGE_QUEUE 1000
+#endif
+
 typedef std::string TSTRING;
 
 #ifdef ESP32
