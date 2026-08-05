@@ -28,7 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   source compatibility, but nothing in the library reads them. They were
   placeholders for the auto-flush behavior that never landed.
   `MessageQueue` has always taken its own per-instance `maxSize`
-  constructor argument.
+  constructor argument. Their historical default values
+  (`MIN_FREE_MEMORY 4000`, `MAX_MESSAGE_QUEUE 50`) are preserved so any
+  downstream code that referenced the macros keeps its prior behavior.
 
 ### Fixed
 

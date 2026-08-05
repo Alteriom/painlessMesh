@@ -31,13 +31,15 @@
 // the auto-flushing message queue they were meant to tune never landed
 // (see #385, PR #383 review). `MessageQueue`
 // (`painlessmesh/message_queue.hpp`) is a manual priority buffer with
-// its own per-instance `maxSize` argument.
+// its own per-instance `maxSize` argument. Their historical default
+// values are preserved so downstream code that referenced them keeps
+// its prior behavior.
 #ifndef MIN_FREE_MEMORY
 #define MIN_FREE_MEMORY 4000
 #endif
 
 #ifndef MAX_MESSAGE_QUEUE
-#define MAX_MESSAGE_QUEUE 1000
+#define MAX_MESSAGE_QUEUE 50
 #endif
 
 #define NODE_TIMEOUT 10 * TASK_SECOND

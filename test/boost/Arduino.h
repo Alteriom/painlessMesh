@@ -89,7 +89,7 @@ inline void yield() {}
 #endif
 
 #ifndef MAX_MESSAGE_QUEUE
-#define MAX_MESSAGE_QUEUE 1000
+#define MAX_MESSAGE_QUEUE 50
 #endif
 
 typedef std::string TSTRING;
