@@ -7,6 +7,14 @@
 WiFiClass WiFi;
 ESPClass ESP;
 
+// Log must be declared before tcp.hpp: the non-template helpers in that
+// header call it, so it has to be visible at their point of definition.
+#include "painlessmesh/logger.hpp"
+
+painlessmesh::logger::LogClass Log;
+
+#include "painlessmesh/tcp.hpp"
+
 // Test the TCP failure blocklist mechanism
 // This validates the fix for the infinite connection retry loop issue
 
@@ -152,29 +160,103 @@ SCENARIO("Blocklist correctly identifies mesh IP addresses",
 
 SCENARIO("TCP exhaustion delay provides adequate recovery time",
          "[tcp][exhaustion][delay]") {
-  GIVEN("TCP connection retry exhaustion parameters") {
-    const uint32_t TCP_EXHAUSTION_RECONNECT_DELAY_MS = 10000;  // 10 seconds
-    const uint32_t TCP_FAILURE_BLOCK_DURATION_MS = 60000;       // 60 seconds
-    
+  GIVEN("The default TCP retry configuration") {
+    // Read the real shipped defaults rather than re-declaring them locally, so
+    // the anti-thrash invariant below is checked against values that actually
+    // ship.
+    painlessmesh::tcp::TcpRetryConfig cfg;
+
     WHEN("All retries are exhausted") {
-      // After 6 failed attempts with exponential backoff: 1s + 2s + 4s + 8s + 8s = 23s
-      uint32_t totalRetryTime = 23000;
-      
+      // Total backoff across all retries: 1s + 2s + 4s + 8s + 8s = 23s
+      uint32_t totalRetryTime = 0;
+      for (uint8_t retryCount = 0; retryCount < cfg.maxRetries; ++retryCount) {
+        totalRetryTime += painlessmesh::tcp::retryBackoffDelay(cfg, retryCount);
+      }
+      REQUIRE(totalRetryTime == 23000);
+
       THEN("WiFi reconnection delay should prevent rapid loops") {
         // The 10 second delay before reconnection gives the TCP server time to recover
-        REQUIRE(TCP_EXHAUSTION_RECONNECT_DELAY_MS >= 10000);
+        REQUIRE(cfg.exhaustionReconnectDelayMs >= 10000);
       }
-      
+
       THEN("Block duration should exceed total retry time plus reconnection delay") {
         // Total time before next attempt on same node:
         // Retry time (23s) + Reconnection delay (10s) = 33s
         // Block duration (60s) ensures node won't be retried during this cycle
-        uint32_t minTimeBetweenAttempts = totalRetryTime + TCP_EXHAUSTION_RECONNECT_DELAY_MS;
-        REQUIRE(TCP_FAILURE_BLOCK_DURATION_MS > minTimeBetweenAttempts);
-        
+        uint32_t minTimeBetweenAttempts =
+            totalRetryTime + cfg.exhaustionReconnectDelayMs;
+        REQUIRE(cfg.failureBlockDurationMs > minTimeBetweenAttempts);
+
         // This prevents: Scan -> Find blocked node -> Skip -> Scan -> Find again too soon
-        REQUIRE(TCP_FAILURE_BLOCK_DURATION_MS >= 60000);  // At least 60 seconds
+        REQUIRE(cfg.failureBlockDurationMs >= 60000);  // At least 60 seconds
       }
+    }
+  }
+}
+
+namespace {
+/// Total time spent retrying before the fallback WiFi reconnect is scheduled.
+uint32_t totalRetryTime(const painlessmesh::tcp::TcpRetryConfig &cfg) {
+  uint32_t total = 0;
+  for (uint8_t retryCount = 0; retryCount < cfg.maxRetries; ++retryCount) {
+    total += painlessmesh::tcp::retryBackoffDelay(cfg, retryCount);
+  }
+  return total;
+}
+}  // namespace
+
+SCENARIO("Every documented tuning profile preserves the anti-thrash invariant",
+         "[tcp][exhaustion][delay][profiles]") {
+  // failureBlockDurationMs must outlast one full failure cycle
+  // (all retry backoffs + the exhaustion reconnect delay). Otherwise a dead
+  // peer leaves the blocklist before the node has finished failing over and
+  // is immediately re-selected - exactly the thrash the blocklist exists to
+  // prevent.
+  //
+  // This caught a real bug while writing the profiles: the high-reliability
+  // profile originally paired 126s of retries + 30s reconnect with a 120s
+  // block, which silently violated the invariant. Keep this test in sync with
+  // examples/tcpRetryConfig and docsify-site/api/configuration.md.
+  GIVEN("The low-latency profile") {
+    painlessmesh::tcp::TcpRetryConfig cfg;
+    cfg.maxRetries = 1;
+    cfg.retryDelayMs = 200;
+    cfg.exhaustionReconnectDelayMs = 1000;
+    cfg.failureBlockDurationMs = 5000;
+
+    THEN("The failure cycle is far shorter than the default") {
+      uint32_t cycleTime = totalRetryTime(cfg) + cfg.exhaustionReconnectDelayMs;
+      REQUIRE(cycleTime == 1200);  // vs 33000 on defaults
+      REQUIRE(cfg.failureBlockDurationMs > cycleTime);
+    }
+  }
+
+  GIVEN("The high-reliability profile") {
+    painlessmesh::tcp::TcpRetryConfig cfg;
+    cfg.maxRetries = 10;
+    cfg.retryDelayMs = 2000;
+    cfg.exhaustionReconnectDelayMs = 30000;
+    cfg.failureBlockDurationMs = 180000;
+
+    THEN("The block duration outlasts the long retry cycle") {
+      REQUIRE(totalRetryTime(cfg) == 126000);
+      uint32_t cycleTime = totalRetryTime(cfg) + cfg.exhaustionReconnectDelayMs;
+      REQUIRE(cycleTime == 156000);
+      REQUIRE(cfg.failureBlockDurationMs > cycleTime);
+    }
+  }
+
+  GIVEN("The battery-saver profile") {
+    painlessmesh::tcp::TcpRetryConfig cfg;
+    cfg.maxRetries = 2;
+    cfg.retryDelayMs = 3000;
+    cfg.exhaustionReconnectDelayMs = 60000;
+    cfg.failureBlockDurationMs = 300000;
+
+    THEN("The block duration outlasts the failure cycle") {
+      uint32_t cycleTime = totalRetryTime(cfg) + cfg.exhaustionReconnectDelayMs;
+      REQUIRE(cycleTime == 69000);
+      REQUIRE(cfg.failureBlockDurationMs > cycleTime);
     }
   }
 }

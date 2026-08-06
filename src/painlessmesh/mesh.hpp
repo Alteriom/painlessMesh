@@ -1395,6 +1395,32 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
   /**
+   * Configure TCP connection retry behaviour
+   *
+   * Lets latency-sensitive, high-reliability or battery-powered deployments
+   * pick their own retry envelope. Values outside safe operating bounds are
+   * clamped - see painlessmesh::tcp::clampTcpRetryConfig(). Read the applied
+   * (post-clamp) values back with getTcpRetryConfig().
+   *
+   * The defaults reproduce the previous hardcoded behaviour exactly, so
+   * existing sketches that never call this see no change.
+   *
+   * @param config Retry parameters to apply
+   */
+  void setTcpRetryConfig(const painlessmesh::tcp::TcpRetryConfig &config) {
+    tcpRetryConfig = painlessmesh::tcp::clampTcpRetryConfig(config);
+  }
+
+  /**
+   * Get the active TCP retry configuration
+   *
+   * @return The configuration currently in effect, after clamping
+   */
+  painlessmesh::tcp::TcpRetryConfig getTcpRetryConfig() const {
+    return tcpRetryConfig;
+  }
+
+  /**
    * Get number of pending Internet requests
    *
    * @return Number of requests waiting for acknowledgment
@@ -3261,6 +3287,13 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   uint8_t internetRetryCount = 3;            // Default 3 retries
   uint32_t internetRetryDelay = 1000;        // Default 1 second base delay
   bool sendToInternetEnabled = false;
+
+  // TCP connect retry parameters, see setTcpRetryConfig().
+  // Public because tcp::connect<Connection, wifi::Mesh> reads it but is NOT a
+  // friend: the friend declaration below names connect<T, Mesh<T>>, whereas
+  // wifi::Mesh::tcpConnect() instantiates connect<Connection, wifi::Mesh> - a
+  // different specialisation. Same reason as the public: sections above.
+  painlessmesh::tcp::TcpRetryConfig tcpRetryConfig;
 
   friend T;
   friend void onDataCb(void *, AsyncClient *, void *, size_t);

@@ -276,6 +276,87 @@ mesh.setNodeTimeout(5 * 1000000);
 mesh.setNodeTimeout(30 * 1000000);
 ```
 
+### setTcpRetryConfig()
+
+Tune how a node retries a failed TCP connection before falling back to a full
+WiFi reconnect.
+
+```cpp
+void mesh.setTcpRetryConfig(const painlessmesh::tcp::TcpRetryConfig& config)
+painlessmesh::tcp::TcpRetryConfig mesh.getTcpRetryConfig() const
+```
+
+**Fields:**
+
+| Field | Default | Meaning |
+|---|---|---|
+| `maxRetries` | 5 | TCP connect attempts after the first before giving up |
+| `retryDelayMs` | 1000 | Base delay between retries; scaled 1x, 2x, 4x, 8x, 8x |
+| `stabilizationDelayMs` | 500 | Wait after IP acquisition before the first attempt |
+| `exhaustionReconnectDelayMs` | 10000 | Wait before the WiFi reconnect that follows exhaustion |
+| `failureBlockDurationMs` | 60000 | How long a failed peer is skipped during AP selection |
+
+The defaults reproduce the previous hardcoded behaviour exactly — a sketch that
+never calls this sees no change. With them, a node that cannot reach its parent
+spends 1 + 2 + 4 + 8 + 8 = 23 s retrying, waits another 10 s before reconnecting
+WiFi, and will not re-select that peer for 60 s.
+
+Call this **before** `mesh.init()` so the first connection attempt already uses
+it.
+
+```cpp
+painlessmesh::tcp::TcpRetryConfig cfg;   // starts at the defaults
+cfg.maxRetries = 1;
+cfg.retryDelayMs = 200;
+cfg.exhaustionReconnectDelayMs = 1000;
+mesh.setTcpRetryConfig(cfg);
+
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+```
+
+**Profiles:**
+
+| | Real-time | Default | High-reliability | Battery |
+|---|---|---|---|---|
+| `maxRetries` | 1 | 5 | 10 | 2 |
+| `retryDelayMs` | 200 | 1000 | 2000 | 3000 |
+| `stabilizationDelayMs` | 100 | 500 | 1000 | 500 |
+| `exhaustionReconnectDelayMs` | 1000 | 10000 | 30000 | 60000 |
+| `failureBlockDurationMs` | 5000 | 60000 | 180000 | 300000 |
+| worst-case retry time | 0.2 s | 23 s | 126 s | 9 s |
+
+See `examples/tcpRetryConfig/` for a runnable sketch with all three.
+
+**Clamping:**
+
+Two values are coerced into safe bounds, because they can otherwise render a
+node unusable:
+
+- `maxRetries` is capped at **10** — each retry allocates an `AsyncClient` and
+  schedules a task, so an unbounded value is a heap and recursion-depth hazard
+  on ESP8266.
+- `retryDelayMs` is held between **50 ms** and **60000 ms** — a zero delay would
+  schedule retries with no spacing (a hot loop allocating an `AsyncClient` per
+  scheduler tick); the ceiling keeps `retryDelayMs * 8` clear of `uint32_t`
+  overflow.
+
+Everything else passes through untouched, including zeros, which are meaningful:
+`maxRetries = 0` means "do not retry at all", `stabilizationDelayMs = 0` means
+"connect immediately on IP acquisition", `exhaustionReconnectDelayMs = 0` means
+"reconnect WiFi immediately", and `failureBlockDurationMs = 0` means "never
+blocklist a failed peer". Use `getTcpRetryConfig()` to read back what actually
+took effect.
+
+> [!WARNING]
+> The defaults exist for a reason: painlessMesh 1.9.x deliberately *raised*
+> these values (retries 3 → 5, base delay 500 ms → 1000 ms) to fix real-world
+> mesh instability. Tuning them down reintroduces the problems that change
+> fixed — connection churn, rapid reconnect loops, and network congestion.
+> In particular, keep `failureBlockDurationMs` greater than
+> `(sum of retry backoffs) + exhaustionReconnectDelayMs`, or a dead peer will
+> leave the blocklist before the node has finished failing over and be
+> re-selected immediately.
+
 ## Message Configuration
 
 ### Package Registration
