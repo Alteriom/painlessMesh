@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **User-configurable TCP retry parameters (#378)** — the five TCP connect
+  retry values that were hardcoded as `static const` in
+  `src/painlessmesh/tcp.hpp` are now tunable per mesh instance via
+  `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()`, using the new
+  `painlessmesh::tcp::TcpRetryConfig` struct (`maxRetries`, `retryDelayMs`,
+  `stabilizationDelayMs`, `exhaustionReconnectDelayMs`,
+  `failureBlockDurationMs`). This lets latency-sensitive meshes (see
+  discussion #368), high-reliability industrial deployments and
+  battery-powered nodes each pick their own retry envelope without forking
+  the library.
+
+  The struct's defaults are spelled as the existing constants, so **behaviour
+  is unchanged for any sketch that does not call the new setter**, and the
+  constants themselves remain in place. `maxRetries` is clamped to 10 and
+  `retryDelayMs` to 50–60000 ms, since an unbounded retry count is a
+  heap/recursion hazard and a zero delay produces a hot reconnect loop; the
+  remaining fields accept 0 as a meaningful "disable this step" value.
+  New `examples/tcpRetryConfig/` demonstrates real-time, high-reliability and
+  battery-saver profiles.
+
 ### Changed
 
 - **`MessageQueue` documented honestly as a manual buffer (#385)** —

@@ -817,8 +817,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * TCP Connection Retry:
    * The TCP connection now includes automatic retry with exponential backoff.
    * If the initial connection fails (error -14 ERR_CONN or other errors),
-   * the system will retry up to TCP_CONNECT_MAX_RETRIES times before
-   * triggering a full WiFi reconnection cycle. This helps handle:
+   * the system will retry up to the configured maxRetries times before
+   * triggering a full WiFi reconnection cycle (see setTcpRetryConfig()).
+   * This helps handle:
    * - Timing issues where TCP server is not ready immediately
    * - Network stack stabilization after IP acquisition
    * - Transient network conditions
@@ -842,8 +843,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       // This helps prevent error -14 (ERR_CONN) by allowing the network stack
       // and TCP server to be fully ready. The delay is added via task scheduler
       // to avoid blocking the event loop.
+      // The delay is read at schedule time, so calling setTcpRetryConfig()
+      // while a connect is already pending affects the next attempt, not the
+      // in-flight one.
       this->addTask(
-          painlessmesh::tcp::TCP_CONNECT_STABILIZATION_DELAY_MS, TASK_ONCE,
+          this->getTcpRetryConfig().stabilizationDelayMs, TASK_ONCE,
           [this, targetIP, targetPort]() {
             // Verify WiFi is still connected after the delay
             if (WiFi.status() != WL_CONNECTED || !WiFi.localIP()) {
