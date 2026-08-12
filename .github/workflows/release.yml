@@ -276,11 +276,13 @@ jobs:
     - name: Verify NPM authentication
       run: |
         if [ -z "$NODE_AUTH_TOKEN" ]; then
-          echo "❌ NPM_TOKEN secret is not configured!"
-          echo "Please add NPM_TOKEN to repository secrets:"
-          echo "1. Go to repository Settings → Secrets and variables → Actions"
-          echo "2. Add NPM_TOKEN with your NPM access token"
-          echo "3. Generate token at: https://www.npmjs.com/settings/tokens"
+          echo "❌ NPM_TOKEN is empty!"
+          echo "This repo inherits NPM_TOKEN from the Alteriom *organisation*"
+          echo "secrets — it has no repository-level copy, and should not get one"
+          echo "(a repo secret shadows the org secret and rotting separately is"
+          echo "exactly how this breaks). Check that the org secret exists and"
+          echo "that painlessMesh is in its repository-access list:"
+          echo "  https://github.com/organizations/Alteriom/settings/secrets/actions"
           exit 1
         fi
         echo "🔎 Validating NPM_TOKEN against registry (npm whoami)..."
@@ -292,7 +294,8 @@ jobs:
           echo "1. Mint a new granular token at https://www.npmjs.com/settings/tokens"
           echo "   - Packages and scopes: Read and write on @alteriom/painlessmesh"
           echo "   - Enable 'Bypass 2FA' — without it the publish fails with EOTP"
-          echo "2. Update the NPM_TOKEN secret in repository settings"
+          echo "2. Update the NPM_TOKEN *organisation* secret (not a repo secret):"
+          echo "   https://github.com/organizations/Alteriom/settings/secrets/actions"
           echo "3. Re-run this workflow"
           exit 1
         fi

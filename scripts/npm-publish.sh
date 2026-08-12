@@ -64,7 +64,10 @@ npm removed the legacy "Automation" token type in November 2025. A granular
 token without "Bypass 2FA" behaves like the old "Publish" token and lands
 exactly here, so a token minted by muscle memory hits this.
 
-Then update the NPM_TOKEN repository secret and re-run.
+Then update the NPM_TOKEN *organisation* secret and re-run:
+  https://github.com/organizations/Alteriom/settings/secrets/actions
+Do not add a repository-level NPM_TOKEN — it silently shadows the org
+secret, so the next org-wide rotation will not reach this repo.
 
 Longer term: npm is removing direct publish from bypass-2FA tokens
 (targeted January 2027). Migrating to trusted publishing (OIDC) retires
@@ -83,7 +86,10 @@ The NPM_TOKEN secret has expired or been revoked. Mint a replacement at
 Verify it before saving the secret:
   curl -sS -H "Authorization: Bearer <new-token>" https://registry.npmjs.org/-/whoami
 
-Then update the NPM_TOKEN repository secret and re-run.
+Then update the NPM_TOKEN *organisation* secret and re-run:
+  https://github.com/organizations/Alteriom/settings/secrets/actions
+Do not add a repository-level NPM_TOKEN — it silently shadows the org
+secret, so the next org-wide rotation will not reach this repo.
 EOF
     ;;
 *"cannot publish over"* | *"You cannot publish over the previously published versions"*)
