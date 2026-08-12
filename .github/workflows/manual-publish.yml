@@ -41,9 +41,46 @@ jobs:
       id: version
       run: |
         VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        PKG_VERSION=$(jq -r '.version' package.json)
+
+        # npm publishes package.json's version — refuse to publish something
+        # other than the version this job reports.
+        if [ "$VERSION" != "$PKG_VERSION" ]; then
+          echo "❌ Version mismatch:"
+          echo "  library.properties: $VERSION"
+          echo "  package.json:       $PKG_VERSION"
+          echo "Align the version files on the default branch before publishing."
+          exit 1
+        fi
+
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Publishing version: $VERSION"
-    
+
+    - name: Verify NPM authentication
+      run: |
+        if [ -z "$NODE_AUTH_TOKEN" ]; then
+          echo "❌ NPM_TOKEN secret is not configured!"
+          echo "Please add NPM_TOKEN to repository secrets:"
+          echo "1. Go to repository Settings → Secrets and variables → Actions"
+          echo "2. Add NPM_TOKEN with your NPM access token"
+          echo "3. Generate token at: https://www.npmjs.com/settings/tokens"
+          exit 1
+        fi
+        echo "🔎 Validating NPM_TOKEN against registry (npm whoami)..."
+        if ! WHOAMI_OUT=$(npm whoami --registry=https://registry.npmjs.org 2>&1); then
+          echo "❌ NPM_TOKEN is set but invalid (npm whoami failed):"
+          echo "$WHOAMI_OUT"
+          echo ""
+          echo "The token has likely expired or been revoked. To fix:"
+          echo "1. Mint a new automation token at https://www.npmjs.com/settings/tokens"
+          echo "2. Update the NPM_TOKEN secret in repository settings"
+          echo "3. Re-run this workflow"
+          exit 1
+        fi
+        echo "✅ Authenticated to NPM as: $WHOAMI_OUT"
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
     - name: Publish to NPM
       run: |
         echo " Publishing to NPM..."
