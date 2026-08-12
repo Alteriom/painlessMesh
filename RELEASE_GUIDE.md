@@ -479,10 +479,15 @@ Rotating the token is operator-only — it cannot be automated from CI:
 ```bash
 # 1. Mint a fresh *Automation* token (Granular, scoped to @alteriom/painlessmesh)
 #    https://www.npmjs.com/settings/tokens
-# 2. Update the NPM_TOKEN repository secret
+# 2. Verify the new token before saving it (recommended).
+#    Ask the registry directly — do NOT use a bare `npm whoami`, which answers
+#    for whatever credential your local ~/.npmrc already holds and will happily
+#    pass while the new token is bad:
+curl -sS -H "Authorization: Bearer <new-token>" \
+  https://registry.npmjs.org/-/whoami          # -> {"username":"..."} , not 401
+
+# 3. Update the NPM_TOKEN repository secret
 #    https://github.com/Alteriom/painlessMesh/settings/secrets/actions
-# 3. Verify locally before saving (optional but recommended)
-NPM_TOKEN=<new-token> npm whoami --registry=https://registry.npmjs.org
 
 # 4a. Re-run the failed release job (keeps the original run's context)
 gh run rerun <run-id> --failed --repo Alteriom/painlessMesh
