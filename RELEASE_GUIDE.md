@@ -209,10 +209,21 @@ Each release triggers the **PlatformIO Library Publishing** workflow:
 
 #### Automatic Workflow Trigger
 
-The PlatformIO workflow automatically triggers on:
+The PlatformIO workflow is started by:
 
-- New GitHub releases (tags)
+- The `platformio-dispatch` job in **Automated Release**, which calls
+  `gh workflow run platformio-publish.yml --ref v<version> -f version=<version>`
+  right after the release is created
+- A GitHub release published by a human (via the UI or a PAT)
 - Manual workflow dispatch for testing
+
+> **Why the explicit dispatch?** `platformio-publish.yml` also listens for
+> `release: published`, but that event never fires for releases created by
+> `release.yml`: GitHub suppresses events raised by the built-in `GITHUB_TOKEN`.
+> `workflow_dispatch` is one of the two documented exceptions to that rule, so
+> the release workflow dispatches the publish explicitly and then verifies a run
+> actually appeared. Before this was added, PlatformIO publication silently did
+> not happen and had to be dispatched by hand (v1.9.21).
 
 ### PlatformIO Package Contents
 
@@ -454,12 +465,43 @@ npm run build
 npm run test
 ```
 
-**NPM Token Invalid**
+**NPM Token Expired / Invalid (`E401 Unauthorized`)**
+
+Symptom: the `npm-publish` job fails at *Verify NPM authentication* with
+`401 Unauthorized - GET https://registry.npmjs.org/-/whoami`. npm automation
+tokens expire; everything else in the release (tag, GitHub Release, zip asset,
+GitHub Packages, PlatformIO) succeeds independently, so **the release can look
+green-ish while npmjs.org is missing the version**. Always confirm with
+`npm view @alteriom/painlessmesh version`.
+
+Rotating the token is operator-only — it cannot be automated from CI:
+
 ```bash
-# Verify NPM authentication
-npm whoami
-# If not logged in: npm login
+# 1. Mint a fresh *Automation* token (Granular, scoped to @alteriom/painlessmesh)
+#    https://www.npmjs.com/settings/tokens
+# 2. Verify the new token before saving it (recommended).
+#    Ask the registry directly — do NOT use a bare `npm whoami`, which answers
+#    for whatever credential your local ~/.npmrc already holds and will happily
+#    pass while the new token is bad:
+curl -sS -H "Authorization: Bearer <new-token>" \
+  https://registry.npmjs.org/-/whoami          # -> {"username":"..."} , not 401
+
+# 3. Update the NPM_TOKEN repository secret
+#    https://github.com/Alteriom/painlessMesh/settings/secrets/actions
+
+# 4a. Re-run the failed release job (keeps the original run's context)
+gh run rerun <run-id> --failed --repo Alteriom/painlessMesh
+
+# 4b. …or republish the current version out-of-band
+gh workflow run manual-publish.yml --repo Alteriom/painlessMesh \
+  -f publish_npm=true -f publish_github=false
+
+# 5. Confirm the version actually landed
+npm view @alteriom/painlessmesh version
 ```
+
+While rotating `NPM_TOKEN`, check `PLATFORMIO_AUTH_TOKEN` too — it expires the
+same way and `platformio-publish.yml` hard-fails on an invalid one.
 
 **GitHub Packages Authentication**
 ```bash
@@ -508,10 +550,17 @@ If this happens, you can manually publish packages:
 4. Click **Run workflow**
 
 The manual workflow will:
-- Read the current version from `library.properties`
+- Read the current version from `library.properties` and refuse to run if it
+  disagrees with `package.json` (npm publishes the `package.json` version)
+- Validate `NPM_TOKEN` against the registry before attempting to publish, so an
+  expired token fails immediately with rotation instructions
 - Publish to NPM (if selected)
 - Publish to GitHub Packages (if selected)
 - Show success/failure status for each
+
+It does **not** publish to the PlatformIO registry — use
+`gh workflow run platformio-publish.yml --ref v<version> -f version=<version>`
+for that.
 
 Alternatively, from command line:
 ```bash
@@ -649,6 +698,11 @@ Monitor your releases:
 - `GITHUB_TOKEN`: Automatically provided by GitHub Actions
 - `NPM_TOKEN`: Required for NPM publishing (add in repository secrets)
 - `PLATFORMIO_AUTH_TOKEN`: Required for PlatformIO Library Registry publishing
+
+Both `NPM_TOKEN` and `PLATFORMIO_AUTH_TOKEN` are user-minted tokens that
+**expire**. Their expiry is invisible until a release fails, so rotate them
+together and re-check after any expiry date you set. See
+[NPM Token Expired / Invalid](#-troubleshooting) for the rotation runbook.
 
 ### Repository Settings
 - **Actions**: Enabled with write permissions
