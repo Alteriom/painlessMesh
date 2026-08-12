@@ -289,12 +289,16 @@ jobs:
           echo "$WHOAMI_OUT"
           echo ""
           echo "The token has likely expired or been revoked. To fix:"
-          echo "1. Mint a new automation token at https://www.npmjs.com/settings/tokens"
+          echo "1. Mint a new granular token at https://www.npmjs.com/settings/tokens"
+          echo "   - Packages and scopes: Read and write on @alteriom/painlessmesh"
+          echo "   - Enable 'Bypass 2FA' — without it the publish fails with EOTP"
           echo "2. Update the NPM_TOKEN secret in repository settings"
           echo "3. Re-run this workflow"
           exit 1
         fi
         echo "✅ Authenticated to NPM as: $WHOAMI_OUT"
+        echo "ℹ️  Note: whoami only proves the token is valid, not that it may"
+        echo "   publish without a 2FA challenge — that surfaces at publish time."
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
@@ -312,19 +316,7 @@ jobs:
         fi
     
     - name: Publish to NPM
-      run: |
-        echo "📦 Publishing to NPM..."
-        echo "Registry: $(npm config get registry)"
-        echo "Package name: $(jq -r '.name' package.json)"
-        echo "Package version: $(jq -r '.version' package.json)"
-        
-        # Verify we're publishing to the correct registry
-        if [ "$(npm config get registry)" != "https://registry.npmjs.org/" ]; then
-          echo "⚠️  Warning: NPM registry is not set to public NPM!"
-          npm config set registry https://registry.npmjs.org/
-        fi
-        
-        npm publish --access public
+      run: ./scripts/npm-publish.sh
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
