@@ -468,8 +468,8 @@ npm run test
 **NPM Token Expired / Invalid (`E401 Unauthorized`)**
 
 Symptom: the `npm-publish` job fails at *Verify NPM authentication* with
-`401 Unauthorized - GET https://registry.npmjs.org/-/whoami`. npm automation
-tokens expire; everything else in the release (tag, GitHub Release, zip asset,
+`401 Unauthorized - GET https://registry.npmjs.org/-/whoami`. npm tokens
+expire; everything else in the release (tag, GitHub Release, zip asset,
 GitHub Packages, PlatformIO) succeeds independently, so **the release can look
 green-ish while npmjs.org is missing the version**. Always confirm with
 `npm view @alteriom/painlessmesh version`.
@@ -477,7 +477,8 @@ green-ish while npmjs.org is missing the version**. Always confirm with
 Rotating the token is operator-only — it cannot be automated from CI:
 
 ```bash
-# 1. Mint a fresh *Automation* token (Granular, scoped to @alteriom/painlessmesh)
+# 1. Mint a fresh granular token, scoped to @alteriom/painlessmesh, with
+#    "Read and write" AND the "Bypass 2FA" option enabled  <-- see EOTP below
 #    https://www.npmjs.com/settings/tokens
 # 2. Verify the new token before saving it (recommended).
 #    Ask the registry directly — do NOT use a bare `npm whoami`, which answers
@@ -502,6 +503,60 @@ npm view @alteriom/painlessmesh version
 
 While rotating `NPM_TOKEN`, check `PLATFORMIO_AUTH_TOKEN` too — it expires the
 same way and `platformio-publish.yml` hard-fails on an invalid one.
+
+**NPM asks for a one-time password (`EOTP`)**
+
+Symptom: authentication *succeeds* — `npm whoami` prints the username — and then
+`npm publish` fails with:
+
+```
+npm error code EOTP
+npm error This operation requires a one-time password from your authenticator.
+```
+
+The token is valid but is not allowed to bypass 2FA, and CI has no authenticator
+to answer the challenge with. **A rotation that fixes `E401` lands here if the
+replacement token is minted without the bypass option** — which is what happened
+on the second rotation attempt for #381.
+
+npm removed the legacy token types (`read-only` / `automation` / `publish`) in
+**November 2025**; only granular access tokens exist now. The old *Automation*
+token bypassed 2FA by virtue of its type, so this was never a decision anyone had
+to make. On a granular token it is an explicit checkbox, and a token minted from
+muscle memory does not have it:
+
+> **Bypass 2FA** — required. Takes precedence over account-level and
+> package-level 2FA settings for publishing.
+
+Re-mint at <https://www.npmjs.com/settings/tokens> with *Read and write* on
+`@alteriom/painlessmesh` **and Bypass 2FA enabled**, update the secret, re-run.
+`npm whoami` cannot detect this ahead of time — it passes for both token kinds,
+so the failure necessarily surfaces at the publish call.
+
+### Trusted publishing (OIDC) — the way out of token rotation
+
+Both failures above are symptoms of the same thing: a long-lived credential that
+expires silently and is only exercised on release day. npm's replacement is
+**trusted publishing** — the workflow authenticates to npm over OIDC, and
+`NPM_TOKEN` stops existing.
+
+This is on a clock rather than merely being nicer: as of **2026-07-31** bypass-2FA
+tokens can no longer manage tokens, package access, or trusted-publishing config,
+and npm has targeted **January 2027** for removing *direct publish* from them —
+after which they can only stage a publish for a maintainer to approve with 2FA.
+The current setup stops working at that point.
+
+Requirements, none of which this repo blocks on today:
+
+| Requirement | Status here |
+|---|---|
+| `id-token: write` permission | ✅ already set in `release.yml` and `manual-publish.yml` |
+| npm CLI ≥ 11.5.1, Node ≥ 22.14.0 | ❌ workflows pin `node-version: '18'` — needs a bump |
+| Trusted publisher registered on npmjs.com | ❌ operator, one-time, per workflow file |
+
+The npmjs.com side is under *Package settings → Trusted publisher*: org
+`Alteriom`, repository `painlessMesh`, workflow filename `release.yml` (add a
+second entry for `manual-publish.yml` if that path should keep working).
 
 **GitHub Packages Authentication**
 ```bash

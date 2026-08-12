@@ -72,7 +72,9 @@ jobs:
           echo "$WHOAMI_OUT"
           echo ""
           echo "The token has likely expired or been revoked. To fix:"
-          echo "1. Mint a new automation token at https://www.npmjs.com/settings/tokens"
+          echo "1. Mint a new granular token at https://www.npmjs.com/settings/tokens"
+          echo "   - Packages and scopes: Read and write on @alteriom/painlessmesh"
+          echo "   - Enable 'Bypass 2FA' — without it the publish fails with EOTP"
           echo "2. Update the NPM_TOKEN secret in repository settings"
           echo "3. Re-run this workflow"
           exit 1
@@ -82,9 +84,7 @@ jobs:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     - name: Publish to NPM
-      run: |
-        echo " Publishing to NPM..."
-        npm publish --access public
+      run: ./scripts/npm-publish.sh
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
