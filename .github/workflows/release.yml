@@ -171,15 +171,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: PlatformIO Library Registry
-        if: steps.tagcheck.outputs.exists == 'false' && (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true')
-        run: |
-          echo "📦 PlatformIO Library Registry publication"
-          echo "✅ PlatformIO publication workflow will be triggered automatically"
-          echo "🔄 Check: https://github.com/${{ github.repository }}/actions/workflows/platformio-publish.yml"
-          echo "📋 Manual trigger: GitHub Actions → PlatformIO Library Publishing → Run workflow"
-          echo "📊 Monitor: https://registry.platformio.org/libraries"
-
       - name: Set release decision
         id: release_decision
         run: |
@@ -207,6 +198,62 @@ jobs:
           echo "- Auto-release: ${{ (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true') && steps.tagcheck.outputs.exists == 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Changelog found: ${{ steps.changelog.outputs.has_changelog }}" >> $GITHUB_STEP_SUMMARY
 
+  # Trigger the PlatformIO Library Publishing workflow.
+  #
+  # platformio-publish.yml listens for `release: published`, but that event never
+  # fires for the release created above: GitHub suppresses events raised by the
+  # built-in GITHUB_TOKEN. workflow_dispatch and repository_dispatch are the two
+  # documented exceptions, so we dispatch explicitly instead. Kept as its own job
+  # so a dispatch failure surfaces as a red job without blocking npm-publish.
+  platformio-dispatch:
+    name: Trigger PlatformIO publish
+    needs: [tag-and-release]
+    runs-on: ubuntu-latest
+    if: needs.tag-and-release.outputs.should_release == 'true'
+
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: Dispatch PlatformIO Library Publishing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.tag-and-release.outputs.version }}
+          WORKFLOW: platformio-publish.yml
+        run: |
+          # Newest existing run id, so we can prove a new one appeared.
+          BEFORE=$(gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 1 \
+            --json databaseId --jq '.[0].databaseId // 0')
+          echo "Newest existing $WORKFLOW run before dispatch: $BEFORE"
+
+          echo "🚀 Dispatching $WORKFLOW for v${VERSION} (ref: v${VERSION})..."
+          gh workflow run "$WORKFLOW" \
+            --repo "$REPO" \
+            --ref "v${VERSION}" \
+            -f version="${VERSION}"
+
+          # A dispatch that is accepted but creates no run is the exact failure
+          # mode this job exists to eliminate — verify rather than assume.
+          echo "⏳ Waiting for the dispatched run to appear..."
+          for _ in $(seq 1 12); do
+            sleep 5
+            AFTER=$(gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 1 \
+              --json databaseId --jq '.[0].databaseId // 0')
+            if [ "$AFTER" != "$BEFORE" ]; then
+              echo "✅ PlatformIO publish run started: https://github.com/$REPO/actions/runs/$AFTER"
+              echo "- PlatformIO publish: [run $AFTER](https://github.com/$REPO/actions/runs/$AFTER)" >> $GITHUB_STEP_SUMMARY
+              exit 0
+            fi
+          done
+
+          echo "❌ Dispatched $WORKFLOW but no new run appeared within 60s."
+          echo "Publish to the PlatformIO registry manually:"
+          echo "  gh workflow run $WORKFLOW --repo $REPO --ref v${VERSION} -f version=${VERSION}"
+          echo "Note: npm and GitHub Release publication are unaffected by this failure."
+          exit 1
+
   # Publish to NPM (public registry)
   npm-publish:
     needs: [tag-and-release]
@@ -229,17 +276,32 @@ jobs:
     - name: Verify NPM authentication
       run: |
         if [ -z "$NODE_AUTH_TOKEN" ]; then
-          echo "❌ NPM_TOKEN secret is not configured!"
-          echo "Please add NPM_TOKEN to repository secrets:"
-          echo "1. Go to repository Settings → Secrets and variables → Actions"
-          echo "2. Add NPM_TOKEN with your NPM access token"
-          echo "3. Generate token at: https://www.npmjs.com/settings/tokens"
+          echo "❌ NPM_TOKEN is empty!"
+          echo "This repo inherits NPM_TOKEN from the Alteriom *organisation*"
+          echo "secrets — it has no repository-level copy, and should not get one"
+          echo "(a repo secret shadows the org secret and rotting separately is"
+          echo "exactly how this breaks). Check that the org secret exists and"
+          echo "that painlessMesh is in its repository-access list:"
+          echo "  https://github.com/organizations/Alteriom/settings/secrets/actions"
           exit 1
-        else
-          echo "✅ NPM authentication token is configured"
-          # Test authentication without publishing
-          npm whoami || echo "NPM authentication test completed"
         fi
+        echo "🔎 Validating NPM_TOKEN against registry (npm whoami)..."
+        if ! WHOAMI_OUT=$(npm whoami --registry=https://registry.npmjs.org 2>&1); then
+          echo "❌ NPM_TOKEN is set but invalid (npm whoami failed):"
+          echo "$WHOAMI_OUT"
+          echo ""
+          echo "The token has likely expired or been revoked. To fix:"
+          echo "1. Mint a new granular token at https://www.npmjs.com/settings/tokens"
+          echo "   - Packages and scopes: Read and write on @alteriom/painlessmesh"
+          echo "   - Enable 'Bypass 2FA' — without it the publish fails with EOTP"
+          echo "2. Update the NPM_TOKEN *organisation* secret (not a repo secret):"
+          echo "   https://github.com/organizations/Alteriom/settings/secrets/actions"
+          echo "3. Re-run this workflow"
+          exit 1
+        fi
+        echo "✅ Authenticated to NPM as: $WHOAMI_OUT"
+        echo "ℹ️  Note: whoami only proves the token is valid, not that it may"
+        echo "   publish without a 2FA challenge — that surfaces at publish time."
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
@@ -257,19 +319,7 @@ jobs:
         fi
     
     - name: Publish to NPM
-      run: |
-        echo "📦 Publishing to NPM..."
-        echo "Registry: $(npm config get registry)"
-        echo "Package name: $(jq -r '.name' package.json)"
-        echo "Package version: $(jq -r '.version' package.json)"
-        
-        # Verify we're publishing to the correct registry
-        if [ "$(npm config get registry)" != "https://registry.npmjs.org/" ]; then
-          echo "⚠️  Warning: NPM registry is not set to public NPM!"
-          npm config set registry https://registry.npmjs.org/
-        fi
-        
-        npm publish --access public
+      run: ./scripts/npm-publish.sh
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
@@ -369,4 +419,3 @@ jobs:
         echo ""
         echo "💡 Note: GitHub Packages require authentication for installation"
         echo "================================"
-

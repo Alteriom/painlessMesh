@@ -4,6 +4,7 @@
 painlessMesh	KEYWORD1
 Scheduler	KEYWORD1
 Task	KEYWORD1
+TcpRetryConfig	KEYWORD1
 
 # Methods and Functions (KEYWORD2)
 init	KEYWORD2
@@ -20,6 +21,8 @@ getNodeTime	KEYWORD2
 setDebugMsgTypes	KEYWORD2
 checkAcks	KEYWORD2
 pendingAcks	KEYWORD2
+setTcpRetryConfig	KEYWORD2
+getTcpRetryConfig	KEYWORD2
 subConnectionJson	KEYWORD2
 asNodeTree	KEYWORD2
 

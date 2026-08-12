@@ -1,5 +1,5 @@
-#ifndef _PAINLESS_MESH_ACK_HPP_
-#define _PAINLESS_MESH_ACK_HPP_
+#ifndef PAINLESS_MESH_ACK_HPP
+#define PAINLESS_MESH_ACK_HPP
 
 #include <functional>
 #include <list>

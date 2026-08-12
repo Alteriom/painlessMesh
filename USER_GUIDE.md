@@ -527,6 +527,47 @@ void setDebugMsgTypes(uint16_t types);
 mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
 ```
 
+#### TCP Retry Configuration
+
+**`setTcpRetryConfig()`** / **`getTcpRetryConfig()`** - Tune how a node retries
+a failed TCP connection before falling back to a full WiFi reconnect.
+
+```cpp
+void setTcpRetryConfig(const painlessmesh::tcp::TcpRetryConfig& config);
+painlessmesh::tcp::TcpRetryConfig getTcpRetryConfig() const;
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `maxRetries` | 5 | TCP connect attempts after the first before giving up |
+| `retryDelayMs` | 1000 | Base delay between retries; scaled 1x, 2x, 4x, 8x, 8x |
+| `stabilizationDelayMs` | 500 | Wait after IP acquisition before the first attempt |
+| `exhaustionReconnectDelayMs` | 10000 | Wait before the WiFi reconnect after exhaustion |
+| `failureBlockDurationMs` | 60000 | How long a failed peer is skipped during AP selection |
+
+The defaults reproduce the previous hardcoded behaviour exactly, so existing
+sketches see no change. Call this **before** `mesh.init()`.
+
+**Example** (real-time profile — fail fast and re-scan rather than stall):
+```cpp
+painlessmesh::tcp::TcpRetryConfig cfg;   // starts at the defaults
+cfg.maxRetries = 1;
+cfg.retryDelayMs = 200;
+cfg.exhaustionReconnectDelayMs = 1000;
+mesh.setTcpRetryConfig(cfg);
+
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
+```
+
+`maxRetries` is capped at 10 and `retryDelayMs` is held between 50 ms and
+60000 ms; use `getTcpRetryConfig()` to read back what actually took effect.
+See `examples/tcpRetryConfig/` for real-time, high-reliability and
+battery-saver profiles, and the API docs for the full tuning guidance.
+
+> **Note:** these defaults were deliberately raised in 1.9.x to fix real-world
+> mesh instability. Tuning them down can reintroduce connection churn and rapid
+> reconnect loops.
+
 ---
 
 ## Alteriom Extensions
