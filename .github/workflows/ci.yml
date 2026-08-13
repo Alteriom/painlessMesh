@@ -109,8 +109,12 @@ jobs:
         include:
           - board: esp32
             fqbn: esp32:esp32:esp32
+            core: esp32:esp32
+            async_lib: AsyncTCP
           - board: esp8266
             fqbn: esp8266:esp8266:generic
+            core: esp8266:esp8266
+            async_lib: ESPAsyncTCP
     
     steps:
       - name: Checkout
@@ -123,26 +127,46 @@ jobs:
         run: |
           arduino-cli config init --config-dir test/ci/
           
-          # Add ESP8266 board manager URL first
-          arduino-cli config add board_manager.additional_urls http://arduino.esp8266.com/stable/package_esp8266com_index.json --config-dir test/ci/
+          # Add ESP8266 board manager URL only when needed
+          if [[ "${{ matrix.board }}" == "esp8266" ]]; then
+            arduino-cli config add board_manager.additional_urls http://arduino.esp8266.com/stable/package_esp8266com_index.json --config-dir test/ci/
+          fi
           
           # Update index with retry logic for transient server errors
           for i in 1 2 3; do
             if arduino-cli core update-index --config-dir test/ci/; then
               break
             else
+              if [[ "$i" == "3" ]]; then
+                echo "Index update failed after $i attempts."
+                exit 1
+              fi
               echo "Attempt $i failed, retrying in 5 seconds..."
               sleep 5
             fi
           done
           
-          # Install both ESP32 and ESP8266 platforms
-          arduino-cli core install esp32:esp32 --config-dir test/ci/
-          arduino-cli core install esp8266:esp8266 --config-dir test/ci/
+          # Install only the selected platform, with retries for transient outages
+          for i in 1 2 3; do
+            if arduino-cli core install ${{ matrix.core }} --config-dir test/ci/; then
+              break
+            else
+              if [[ "$i" == "3" ]]; then
+                echo "Core install for ${{ matrix.core }} failed after $i attempts."
+                exit 1
+              fi
+              echo "Core install attempt $i failed, retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
 
       - name: Install library dependencies
         run: |
-          arduino-cli lib install ArduinoJson TaskScheduler AsyncTCP ESPAsyncTCP
+          arduino-cli --config-dir test/ci/ lib install \
+            ArduinoJson \
+            TaskScheduler \
+            ${{ matrix.async_lib }} \
+            PubSubClient
 
       - name: Install library from source
         run: |
@@ -152,9 +176,14 @@ jobs:
       - name: Compile examples
         run: |
           for example in examples/*/; do
-            if [ -f "${example}*.ino" ]; then
+            if [ "$(basename "$example")" = "webServer" ]; then
+              echo "Skipping example with external dependency not available via Arduino Library Manager: $example"
+              continue
+            fi
+            sketch="${example}$(basename "$example").ino"
+            if [ -f "$sketch" ]; then
               echo "Building example: $example"
-              arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example"
+              arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example" --config-dir test/ci/
             fi
           done
 

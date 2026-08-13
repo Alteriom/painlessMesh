@@ -1,6 +1,6 @@
 # CLAUDE.md — painlessMesh
 
-C++ mesh networking library for ESP32/ESP8266 (PlatformIO). Alteriom fork of painlessMesh v1.9.21.
+C++ mesh networking library for ESP32/ESP8266 (PlatformIO). Alteriom fork of painlessMesh v1.10.0.
 
 ## Key Directories
 
@@ -44,4 +44,4 @@ pio run -e <env>
 
 ## Version
 
-Current: **v1.9.21**
+Current: **v1.10.0**
