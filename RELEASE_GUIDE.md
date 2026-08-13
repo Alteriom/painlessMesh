@@ -487,18 +487,46 @@ Rotating the token is operator-only — it cannot be automated from CI:
 curl -sS -H "Authorization: Bearer <new-token>" \
   https://registry.npmjs.org/-/whoami          # -> {"username":"..."} , not 401
 
-# 3. Update the NPM_TOKEN repository secret
-#    https://github.com/Alteriom/painlessMesh/settings/secrets/actions
+# 3. Update the NPM_TOKEN *organisation* secret — NOT a repository secret.
+#    painlessMesh has no repo-level NPM_TOKEN and must not gain one; see
+#    "Where NPM_TOKEN actually lives" below.
+#    https://github.com/organizations/Alteriom/settings/secrets/actions
 
 # 4a. Re-run the failed release job (keeps the original run's context)
 gh run rerun <run-id> --failed --repo Alteriom/painlessMesh
 
-# 4b. …or republish the current version out-of-band
+# 4b. …or republish a missed version out-of-band. Pass the TAG as ref:
+#     without it the workflow builds the default branch, and if main has moved
+#     on since the tag it would upload today's code under the old version
+#     number. The workflow now refuses that outright — pass ref so you never
+#     have to rely on the guard catching it.
 gh workflow run manual-publish.yml --repo Alteriom/painlessMesh \
-  -f publish_npm=true -f publish_github=false
+  -f ref=v1.9.21 -f publish_npm=true -f publish_github=false
 
 # 5. Confirm the version actually landed
 npm view @alteriom/painlessmesh version
+```
+
+#### Where NPM_TOKEN actually lives
+
+`NPM_TOKEN` is an **organisation** secret on `Alteriom`, shared by every repo
+that publishes to npm. painlessMesh has **no repository-level copy**, and adding
+one is a trap rather than a tightening:
+
+> A repository secret silently takes precedence over an organisation secret of
+> the same name. The repo then stops seeing org-wide rotations and keeps using
+> its own copy until that copy expires — which is invisible until a release day
+> fails.
+
+Two sibling repos already sit in that state, with repo-level `NPM_TOKEN` copies
+that shadow the org secret (`webhook-client`, `repository-metadata-manager`).
+Rotate the org secret and those two are still broken; delete the repo-level copy
+and they inherit the fresh one. Check before assuming a rotation reached a repo:
+
+```bash
+# Empty output = good (inherits the org secret)
+gh api repos/Alteriom/<repo>/actions/secrets \
+  --jq '.secrets[] | select(.name=="NPM_TOKEN") | "SHADOWED, updated \(.updated_at)"'
 ```
 
 While rotating `NPM_TOKEN`, check `PLATFORMIO_AUTH_TOKEN` too — it expires the
@@ -751,7 +779,9 @@ Monitor your releases:
 ### Required GitHub Secrets
 
 - `GITHUB_TOKEN`: Automatically provided by GitHub Actions
-- `NPM_TOKEN`: Required for NPM publishing (add in repository secrets)
+- `NPM_TOKEN`: Required for NPM publishing. Lives in the **Alteriom
+  organisation** secrets and is inherited — do not add a repository-level copy,
+  which would shadow it (see [Where NPM_TOKEN actually lives](#where-npm_token-actually-lives))
 - `PLATFORMIO_AUTH_TOKEN`: Required for PlatformIO Library Registry publishing
 
 Both `NPM_TOKEN` and `PLATFORMIO_AUTH_TOKEN` are user-minted tokens that
