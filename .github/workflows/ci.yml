@@ -175,7 +175,7 @@ jobs:
             sketch="${example}$(basename "$example").ino"
             if [ -f "$sketch" ]; then
               echo "Building example: $example"
-              arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example"
+              arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example" --config-dir test/ci/
             fi
           done
 
