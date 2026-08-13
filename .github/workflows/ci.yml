@@ -162,13 +162,11 @@ jobs:
 
       - name: Install library dependencies
         run: |
-          arduino-cli lib install \
+          arduino-cli --config-dir test/ci/ lib install \
             ArduinoJson \
             TaskScheduler \
             ${{ matrix.async_lib }} \
-            PubSubClient \
-            ESPAsyncWebServer \
-            --config-dir test/ci/
+            PubSubClient
 
       - name: Install library from source
         run: |
@@ -178,6 +176,10 @@ jobs:
       - name: Compile examples
         run: |
           for example in examples/*/; do
+            if [ "$(basename "$example")" = "webServer" ]; then
+              echo "Skipping example with external dependency not available via Arduino Library Manager: $example"
+              continue
+            fi
             sketch="${example}$(basename "$example").ino"
             if [ -f "$sketch" ]; then
               echo "Building example: $example"
