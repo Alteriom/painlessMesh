@@ -162,7 +162,13 @@ jobs:
 
       - name: Install library dependencies
         run: |
-          arduino-cli lib install ArduinoJson TaskScheduler ${{ matrix.async_lib }}
+          arduino-cli lib install \
+            ArduinoJson \
+            TaskScheduler \
+            ${{ matrix.async_lib }} \
+            PubSubClient \
+            ESPAsyncWebServer \
+            --config-dir test/ci/
 
       - name: Install library from source
         run: |
