@@ -138,6 +138,7 @@ jobs:
               break
             else
               if [[ "$i" == "3" ]]; then
+                echo "Index update failed after $i attempts."
                 exit 1
               fi
               echo "Attempt $i failed, retrying in 5 seconds..."
@@ -151,6 +152,7 @@ jobs:
               break
             else
               if [[ "$i" == "3" ]]; then
+                echo "Core install for ${{ matrix.core }} failed after $i attempts."
                 exit 1
               fi
               echo "Core install attempt $i failed, retrying in 5 seconds..."
