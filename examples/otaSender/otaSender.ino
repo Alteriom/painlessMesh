@@ -24,7 +24,11 @@
 
 #ifdef ESP32
 #else
-#define CS_PIN  D8
+// SD card chip-select. The D0..D8 aliases only exist on the NodeMCU/Wemos
+// ESP8266 variants; the "generic" ESP8266 variant does not define them, so
+// D8 fails to compile there. SS is GPIO15 on every ESP8266 variant, which is
+// the exact pin D8 maps to on NodeMCU, so this is portable and equivalent.
+#define CS_PIN  SS
 #endif
 
 #include "painlessMesh.h"
