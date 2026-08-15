@@ -195,10 +195,18 @@ The callback provides `httpStatus` to indicate the result:
 ## Files
 
 - `sendToInternet.ino` - Main example sketch for ESP32/ESP8266
-- `mock_server_test.ino` - Bridge testing with mock HTTP server
 - `pc_mesh_node.cpp` - **NEW:** PC-based mesh node for testing regular node → bridge flow
+  (desktop-only; guarded by `#ifndef ARDUINO` so Arduino builds skip it)
 - `README.md` - This documentation
 - `PC_NODE_README.md` - **NEW:** Documentation for PC mesh node testing
+
+### Related examples
+
+- [`../mockServerTest/`](../mockServerTest/) - Bridge testing against the mock
+  HTTP server. This used to live here as `mock_server_test.ino`, but a sketch
+  folder may contain only one sketch: the Arduino toolchain merges every `.ino`
+  in a folder into a single translation unit, so two sketches side by side
+  collide on `setup()`/`loop()`.
 
 ## Testing from Regular Nodes
 
