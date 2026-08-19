@@ -12,6 +12,11 @@ on:
       - 'docs/**'
       - '*.md'
       - 'LICENSE'
+  merge_group:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
