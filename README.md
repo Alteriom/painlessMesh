@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.9.20** - Full repo cleanup, bug fixes, and documentation consistency
+**Version 1.10.0** - Tunable TCP connect-retry behaviour via `setTcpRetryConfig()` (#378)
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -560,9 +560,29 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.9.20 (March 27, 2026)
+## Latest Release: v1.10.0 (August 12, 2026)
 
-**Full Repo Cleanup, Bug Fixes & Bridge Coordination Callbacks**
+**Tunable TCP Connect-Retry Behaviour (issue #378)**
+
+- The five TCP connect-retry values that were hardcoded in `tcp.hpp` are now tunable per mesh instance via `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()` (#378, PR #395)
+- Defaults match the previous constants exactly — **no behaviour change unless you call the setter**
+- New `examples/tcpRetryConfig/` with real-time, high-reliability and battery-saver profiles
+- `MessageQueue` documentation corrected: it is a manual buffer, never an auto-flush queue (#385)
+- `MIN_FREE_MEMORY` / `MAX_MESSAGE_QUEUE` deprecated as ignored no-ops, values preserved for source compatibility (#385)
+- Fixed `bridge_failover` example failing to compile on an unqualified `plugin::` type (#360)
+
+> **npm users:** v1.9.21 was never published to npm ([#381](https://github.com/Alteriom/painlessMesh/issues/381) — expired token). npm's previous version is 1.9.20, so upgrading from npm picks up both releases. GitHub, PlatformIO and Arduino were unaffected.
+
+**Previous Release: v1.9.21 (August 4, 2026)**
+
+**Crash Fixes: Task & TCP Connection Lifecycle (issue #373)**
+
+- Fixed use-after-free in `Task::disable()` that crashed nodes on every peer disconnect (#373, PR #376 by @vaz82)
+- Fixed `PackageHandler::stop()` destroying the currently-executing task during bridge promotion
+- Fixed stale-pcb heap corruption window in `~BufferedConnection()` and an `onError`/`onConnect` double-handling race
+- New AddressSanitizer CI job and regression test for the task/connection cleanup lifecycle
+
+**Previous Release: v1.9.20 (March 27, 2026)** — Full repo cleanup, bug fixes & bridge coordination callbacks:
 
 - New `onBridgeCoordination()` and `onBridgeCoordinationChanged()` monitoring callbacks
 - Fixed 13 critical/high/medium bugs (double-free, RSSI overflow, memory leaks, blocking delays)

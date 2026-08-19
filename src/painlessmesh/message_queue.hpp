@@ -73,29 +73,40 @@ struct QueueStats {
 typedef std::function<void(QueueState state, uint32_t messageCount)> queueStateChangedCallback_t;
 
 /**
- * Message Queue for offline/Internet-unavailable mode
- * 
+ * Manual priority buffer for offline / Internet-unavailable mode
+ *
+ * This is a *storage* container only. It does NOT transmit anything on
+ * its own: painlessMesh will not enqueue, flush, or deliver messages
+ * automatically, and there is no connectivity-restored trigger inside
+ * the library. The application owns the send loop — enqueue when your
+ * upstream (MQTT/HTTP/etc.) is down, drain via `getMessages()` /
+ * `mesh.flushMessageQueue()` and `remove()` / `mesh.removeQueuedMessage()`
+ * when your own connectivity check tells you it is safe to resend.
+ *
  * Provides priority-based message queueing with support for:
- * - Priority levels (CRITICAL messages never dropped)
+ * - Priority levels (CRITICAL messages evicted last, but may still be dropped
+ *   if the queue is full and all entries are CRITICAL)
  * - Queue size limits with intelligent eviction
  * - Statistics tracking
  * - State change callbacks
- * 
+ *
  * Example usage:
  * \code
  * MessageQueue queue(1000);  // Max 1000 messages
- * 
- * // Queue a critical message
+ *
+ * // Queue a critical message while upstream is offline
  * uint32_t msgId = queue.enqueue(PRIORITY_CRITICAL, "alarm_data", "mqtt://...");
- * 
+ *
  * // Get queue size
  * uint32_t size = queue.size();
- * 
- * // Get all messages (for sending)
- * std::vector<QueuedMessage> messages = queue.getMessages();
- * 
- * // Remove sent message
- * queue.remove(msgId);
+ *
+ * // When your app detects the upstream is back, drain manually:
+ * auto messages = queue.getMessages();
+ * for (auto& msg : messages) {
+ *   if (sendToCloud(msg.payload, msg.destination)) {
+ *     queue.remove(msg.id);
+ *   }
+ * }
  * \endcode
  */
 class MessageQueue {

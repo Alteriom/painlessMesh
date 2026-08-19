@@ -66,8 +66,11 @@ inline void yield() {}
 #ifndef _PAINLESS_MESH_CONFIGURATION_HPP_
 #define _PAINLESS_MESH_CONFIGURATION_HPP_
 
-#define _TASK_PRIORITY  // Support for layered scheduling priority
-#define _TASK_STD_FUNCTION
+// TaskScheduler compile options MUST match the ones used to build the
+// implementation in src/scheduler.cpp — a mismatch silently changes the
+// Task object layout (ODR violation). Use the single source of truth
+// instead of redefining options here.
+#include "painlessTaskOptions.h"
 
 #include <TaskSchedulerDeclarations.h>
 
@@ -80,10 +83,14 @@ inline void yield() {}
 #define PAINLESSMESH_ENABLE_STD_STRING
 #define PAINLESSMESH_ENABLE_OTA
 #define NODE_TIMEOUT 10 * TASK_SECOND
-// Minimum free memory, besides here all packets in queue are discarded.
+
+#ifndef MIN_FREE_MEMORY
 #define MIN_FREE_MEMORY 4000
-// MAX number of unsent messages in queue. Newer messages are discarded
+#endif
+
+#ifndef MAX_MESSAGE_QUEUE
 #define MAX_MESSAGE_QUEUE 50
+#endif
 
 typedef std::string TSTRING;
 
