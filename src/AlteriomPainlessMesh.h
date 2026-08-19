@@ -29,10 +29,10 @@
 /**
  * @brief AlteriomPainlessMesh library version information
  */
-#define ALTERIOM_PAINLESS_MESH_VERSION "1.9.20"
+#define ALTERIOM_PAINLESS_MESH_VERSION "1.10.0"
 #define ALTERIOM_PAINLESS_MESH_VERSION_MAJOR 1
-#define ALTERIOM_PAINLESS_MESH_VERSION_MINOR 9
-#define ALTERIOM_PAINLESS_MESH_VERSION_PATCH 20
+#define ALTERIOM_PAINLESS_MESH_VERSION_MINOR 10
+#define ALTERIOM_PAINLESS_MESH_VERSION_PATCH 0
 
 /**
  * @brief Library description and usage information

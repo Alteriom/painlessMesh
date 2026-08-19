@@ -7,11 +7,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-08-12
+
+Feature release making the TCP connect-retry envelope tunable per mesh instance
+(#378), alongside two documentation corrections that retire long-standing claims
+the library never actually implemented (#385) and an example build fix (#360).
+
+**Upgrading is behaviour-neutral.** Every new setting defaults to the value that
+was previously hardcoded, so a sketch that does not call `setTcpRetryConfig()`
+behaves exactly as it did on 1.9.21. Nothing was removed: the deprecated queue
+macros keep their historical values for source compatibility.
+
+> **Note for npm users:** v1.9.21 was never published to npm — the `NPM_TOKEN`
+> used by CI had expired (#381), which failed the npm publish job while the
+> GitHub Release, GitHub Packages, PlatformIO and Arduino channels all succeeded.
+> npm's previous version is therefore **1.9.20**, and upgrading from npm brings
+> in both 1.9.21 and 1.10.0. See the 1.9.21 entry below for what that release
+> contained — it was a crash-fix release, and npm users have been missing it.
+
 ### Added
+
+- **User-configurable TCP retry parameters (#378)** — the five TCP connect
+  retry values that were hardcoded as `static const` in
+  `src/painlessmesh/tcp.hpp` are now tunable per mesh instance via
+  `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()`, using the new
+  `painlessmesh::tcp::TcpRetryConfig` struct (`maxRetries`, `retryDelayMs`,
+  `stabilizationDelayMs`, `exhaustionReconnectDelayMs`,
+  `failureBlockDurationMs`). This lets latency-sensitive meshes (see
+  discussion #368), high-reliability industrial deployments and
+  battery-powered nodes each pick their own retry envelope without forking
+  the library.
+
+  The struct's defaults are spelled as the existing constants, so **behaviour
+  is unchanged for any sketch that does not call the new setter**, and the
+  constants themselves remain in place. `maxRetries` is clamped to 10 and
+  `retryDelayMs` to 50–60000 ms, since an unbounded retry count is a
+  heap/recursion hazard and a zero delay produces a hot reconnect loop; the
+  remaining fields accept 0 as a meaningful "disable this step" value.
+  New `examples/tcpRetryConfig/` demonstrates real-time, high-reliability and
+  battery-saver profiles.
 
 ### Changed
 
+- **`MessageQueue` documented honestly as a manual buffer (#385)** —
+  removed the "messages are automatically delivered when connection is
+  restored" claim from `MessageQueue` and the `mesh.enableMessageQueue`
+  / `queueMessage` / `flushMessageQueue` doc comments. Nothing in the
+  library ever transmitted queued messages or observed connectivity
+  changes; the app has always owned the send loop. The docs now say so,
+  and the `flushMessageQueue` example shows the intended pattern of
+  wiring the drain into `onLocalInternetChanged`.
+
+### Deprecated
+
+- **Compatibility queue macros kept as ignored no-ops (#385)** —
+  `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` remain defined in
+  `painlessmesh/configuration.hpp` (and `test/boost/Arduino.h`) for
+  source compatibility, but nothing in the library reads them. They were
+  placeholders for the auto-flush behavior that never landed.
+  `MessageQueue` has always taken its own per-instance `maxSize`
+  constructor argument. Their historical default values
+  (`MIN_FREE_MEMORY 4000`, `MAX_MESSAGE_QUEUE 50`) are preserved so any
+  downstream code that referenced the macros keeps its prior behavior.
+
 ### Fixed
+
+- **`bridge_failover` example failed to compile (#360)** — the two
+  `mesh.onBridgeCoordination*` lambdas referenced
+  `plugin::BridgeCoordinationPackage` with a bare `plugin::` prefix, but
+  `painlessMesh.h` only lifts `painlessmesh::logger` to global scope, so
+  the type did not resolve (`'plugin' does not name a type`). Both lambda
+  parameters are now fully qualified as
+  `painlessmesh::plugin::BridgeCoordinationPackage`, matching the
+  convention used across every other example (otaSender, namedMesh,
+  alteriom_*).
+
+## [1.9.21] - 2026-08-04
+
+Crash-fix release resolving a family of use-after-free bugs in the task and
+TCP-connection lifecycle. Root-caused and fixed by @vaz82 (PR #376) with
+reports and field testing from @fidla73 and @miloshev (issue #373); finalized
+with TaskScheduler's native self-destruct mechanism and regression coverage.
+
+### Fixed
+
+- **Use-after-free in `Task::disable()` on connection teardown (#373)** —
+  `scheduleAsyncClientDeletion()`'s cleanup task deleted itself inside its
+  own `onDisable` callback, but TaskScheduler's `Task::disable()` writes to
+  the task object after `onDisable` returns. Crashed nodes (StoreProhibited,
+  `EXCVADDR 0x8`) on every peer disconnect. The cleanup task now uses
+  TaskScheduler's `_TASK_SELF_DESTRUCT` support (enabled in
+  `painlessTaskOptions.h`): the Scheduler deletes the task from within
+  `execute()`, safely outside the `disable()` call stack.
+- **`PackageHandler::stop()` destroying the currently-executing task** —
+  when `stop()` runs from within a task's own callback (bridge promotion
+  path), it destroyed that task's closure mid-execution via
+  `setCallback(NULL)`/`shared_ptr` release. `stop()` now accepts the
+  scheduler, detects the running task via `getCurrentTask()`, and leaves it
+  in `taskList` for safe reuse by `addTask()`.
+- **Stale `_pcb` window in `~BufferedConnection()`** — `client->close()` was
+  skipped when `freeable()` returned true, leaving a non-null-but-stale pcb
+  that lwIP's timers could recycle during the deferred-deletion window
+  (`heap_caps_free`/`memp_free` assertion failures, `tcp_arg()` wild-pointer
+  stores). `close()` is now called unconditionally at destruction.
+- **`onError`/`onConnect` double-handling race in `tcp::connect()`** — if
+  WiFi dropped as the TCP handshake completed, AsyncTCP could fire both
+  callbacks for the same `AsyncClient`, handing it to two owners and
+  scheduling its deletion twice. A shared claim guard now ensures exactly
+  one callback processes the client.
+- **Bridge promotion state capture** — the deferred stop/reinit lambda in
+  `promoteToBridge()` (and the isolated-node variant) now captures mesh
+  credentials, scheduler, and callback by value so `stop()` cannot mutate
+  them before the reinit reads them.
+- **Off-by-one buffer overflow in `ReceiveBuffer::push()`** — when a
+  received chunk was ≥ `TCP_MSS`, the null terminator was written one byte
+  past the end of the shared temp buffer, corrupting adjacent memory on
+  every large read. Found by the new AddressSanitizer CI job on its first
+  run; `read_len` now reserves one byte for the terminator.
+
+### Added
+
+- Regression test `catch_connection_cleanup.cpp` covering the #373
+  schedule → fire → self-destruct cleanup lifecycle and
+  `~BufferedConnection` churn.
+- AddressSanitizer job in CI (gcc + `-fsanitize=address`) so use-after-free
+  and double-free regressions in the task/connection lifecycle fail the
+  build instead of crashing devices in the field.
 
 ## [1.9.20] - 2026-03-27
 

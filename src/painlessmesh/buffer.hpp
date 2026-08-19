@@ -37,7 +37,10 @@ class ReceiveBuffer {
     do {
       auto len = strnlen(data_ptr, length);
       do {
-        auto read_len = (std::min)(len, buf.length);
+        // Reserve one byte for the '\0' terminator below: read_len may be at
+        // most buf.length - 1, otherwise buf.buffer[read_len] writes one
+        // byte past the end of the buffer (caught by the ASan CI job).
+        auto read_len = (std::min)(len, buf.length - 1);
         memcpy(buf.buffer, data_ptr, read_len);
         buf.buffer[read_len] = '\0';
         auto newBuffer = T(buf.buffer);

@@ -123,7 +123,9 @@ SCENARIO("ReceiveBuffer receives strings and needs to process them") {
     cstring[0] = 'r';
     cstring[1] = 'n';
     cstring[2] = 'd';
-    randomCString(tmp_buffer.buffer, tmp_buffer.length);
+    // randomCString writes a terminator at str[length], so at most
+    // length - 1 fits in a buffer of tmp_buffer.length bytes
+    randomCString(tmp_buffer.buffer, tmp_buffer.length - 1);
     auto data_ptr = cstring + sizeof(char) * 3;
     rBuffer.push(data_ptr, 3, tmp_buffer);
     THEN("We still have the correct result") {

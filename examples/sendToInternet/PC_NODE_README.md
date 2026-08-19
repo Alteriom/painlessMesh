@@ -6,7 +6,7 @@ This example provides a **PC-based mesh node** that can join a painlessMesh netw
 
 ### The Problem This Solves
 
-Previous examples (`mock_server_test.ino`) tested the bridge making HTTP requests directly, but did **NOT** test the complete flow:
+Previous examples (`../mockServerTest/mockServerTest.ino`) tested the bridge making HTTP requests directly, but did **NOT** test the complete flow:
 
 ```
 Regular Node → Mesh Network → Bridge → Internet → Bridge → Mesh Network → Regular Node

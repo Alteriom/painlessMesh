@@ -38,6 +38,15 @@
  * - 5555 is the TCP port the bridge is listening on (MESH_PORT)
  **/
 
+// This is a PC-side (desktop) program: it needs Boost and the Arduino
+// emulation layer under test/, neither of which exists for an embedded
+// target. Both the Arduino IDE and arduino-cli compile *every* .cpp in a
+// sketch folder, so without this guard they try to build this file for the
+// ESP and fail on <boost/asio/ip/address.hpp>. ARDUINO is defined by every
+// Arduino toolchain, so the whole file collapses to an empty translation
+// unit there and is left to the CMake/g++ build described above.
+#ifndef ARDUINO
+
 #include <iostream>
 #include <string>
 #include <memory>
@@ -356,6 +365,8 @@ int main(int argc, char* argv[]) {
     node.runUpdateLoop(10);
     
     std::cout << "\n✓ PC Mesh Node shutting down..." << std::endl;
-    
+
     return 0;
 }
+
+#endif  // !ARDUINO

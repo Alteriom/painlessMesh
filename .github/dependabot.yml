@@ -1,6 +1,14 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
+    # Collapse routine updates into one PR per ecosystem; majors stay
+    # individual so they can be reviewed on their own merits.
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -9,11 +17,27 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
   - package-ecosystem: "docker"
+    # Collapse routine updates into one PR per ecosystem; majors stay
+    # individual so they can be reviewed on their own merits.
+    groups:
+      docker-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
   - package-ecosystem: "github-actions"
+    # Collapse routine updates into one PR per ecosystem; majors stay
+    # individual so they can be reviewed on their own merits.
+    groups:
+      github-actions-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
     directory: "/"
     schedule:
       interval: "weekly"
