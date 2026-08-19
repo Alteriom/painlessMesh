@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`mqttBridge` example fails to compile in Arduino IDE (#398)** — the
+  `PubSubClient` library was missing from `library.properties`'s `depends`
+  field, so installing/updating this library through the Arduino IDE Library
+  Manager never pulled in `PubSubClient`, causing
+  `fatal error: PubSubClient.h: No such file or directory` when compiling
+  `examples/mqttBridge/mqttBridge.ino`. `PubSubClient` is now listed as a
+  dependency so the Library Manager installs it automatically; the example
+  also gained a comment pointing this out, and
+  `examples/mqttBridge/platformio.ini` now pins the same
+  `knolleary/PubSubClient` package used by `examples/bridge` to avoid
+  ambiguous package name resolution in PlatformIO.
+
 ## [1.10.0] - 2026-08-12
 
 Feature release making the TCP connect-retry envelope tunable per mesh instance
