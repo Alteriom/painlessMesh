@@ -13,10 +13,7 @@ on:
       - '*.md'
       - 'LICENSE'
   merge_group:
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'LICENSE'
+    types: [checks_requested]
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
