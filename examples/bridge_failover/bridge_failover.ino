@@ -240,7 +240,7 @@ void setup() {
 
   // Monitor bridge coordination (fires every ~30s per bridge)
   mesh.onBridgeCoordination(
-    [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode) {
+    [](const painlessmesh::plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode) {
       Serial.printf("Bridge %u: priority=%d, load=%d%%\n",
                     fromNode, pkg.priority, pkg.load);
     }
@@ -248,7 +248,7 @@ void setup() {
 
   // Get notified when bridge state changes (new/updated/lost)
   mesh.onBridgeCoordinationChanged(
-    [](const plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode,
+    [](const painlessmesh::plugin::BridgeCoordinationPackage& pkg, uint32_t fromNode,
        TSTRING changeType) {
       Serial.printf("Bridge %s: %u (role=%s)\n",
                     changeType.c_str(), fromNode, pkg.role.c_str());

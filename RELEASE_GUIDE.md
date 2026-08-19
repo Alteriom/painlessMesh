@@ -209,10 +209,21 @@ Each release triggers the **PlatformIO Library Publishing** workflow:
 
 #### Automatic Workflow Trigger
 
-The PlatformIO workflow automatically triggers on:
+The PlatformIO workflow is started by:
 
-- New GitHub releases (tags)
+- The `platformio-dispatch` job in **Automated Release**, which calls
+  `gh workflow run platformio-publish.yml --ref v<version> -f version=<version>`
+  right after the release is created
+- A GitHub release published by a human (via the UI or a PAT)
 - Manual workflow dispatch for testing
+
+> **Why the explicit dispatch?** `platformio-publish.yml` also listens for
+> `release: published`, but that event never fires for releases created by
+> `release.yml`: GitHub suppresses events raised by the built-in `GITHUB_TOKEN`.
+> `workflow_dispatch` is one of the two documented exceptions to that rule, so
+> the release workflow dispatches the publish explicitly and then verifies a run
+> actually appeared. Before this was added, PlatformIO publication silently did
+> not happen and had to be dispatched by hand (v1.9.21).
 
 ### PlatformIO Package Contents
 
@@ -454,12 +465,126 @@ npm run build
 npm run test
 ```
 
-**NPM Token Invalid**
+**NPM Token Expired / Invalid (`E401 Unauthorized`)**
+
+Symptom: the `npm-publish` job fails at *Verify NPM authentication* with
+`401 Unauthorized - GET https://registry.npmjs.org/-/whoami`. npm tokens
+expire; everything else in the release (tag, GitHub Release, zip asset,
+GitHub Packages, PlatformIO) succeeds independently, so **the release can look
+green-ish while npmjs.org is missing the version**. Always confirm with
+`npm view @alteriom/painlessmesh version`.
+
+Rotating the token is operator-only — it cannot be automated from CI:
+
 ```bash
-# Verify NPM authentication
-npm whoami
-# If not logged in: npm login
+# 1. Mint a fresh granular token, scoped to @alteriom/painlessmesh, with
+#    "Read and write" AND the "Bypass 2FA" option enabled  <-- see EOTP below
+#    https://www.npmjs.com/settings/tokens
+# 2. Verify the new token before saving it (recommended).
+#    Ask the registry directly — do NOT use a bare `npm whoami`, which answers
+#    for whatever credential your local ~/.npmrc already holds and will happily
+#    pass while the new token is bad:
+curl -sS -H "Authorization: Bearer <new-token>" \
+  https://registry.npmjs.org/-/whoami          # -> {"username":"..."} , not 401
+
+# 3. Update the NPM_TOKEN *organisation* secret — NOT a repository secret.
+#    painlessMesh has no repo-level NPM_TOKEN and must not gain one; see
+#    "Where NPM_TOKEN actually lives" below.
+#    https://github.com/organizations/Alteriom/settings/secrets/actions
+
+# 4a. Re-run the failed release job (keeps the original run's context)
+gh run rerun <run-id> --failed --repo Alteriom/painlessMesh
+
+# 4b. …or republish a missed version out-of-band. Pass the TAG as ref:
+#     without it the workflow builds the default branch, and if main has moved
+#     on since the tag it would upload today's code under the old version
+#     number. The workflow now refuses that outright — pass ref so you never
+#     have to rely on the guard catching it.
+gh workflow run manual-publish.yml --repo Alteriom/painlessMesh \
+  -f ref=v1.9.21 -f publish_npm=true -f publish_github=false
+
+# 5. Confirm the version actually landed
+npm view @alteriom/painlessmesh version
 ```
+
+#### Where NPM_TOKEN actually lives
+
+`NPM_TOKEN` is an **organisation** secret on `Alteriom`, shared by every repo
+that publishes to npm. painlessMesh has **no repository-level copy**, and adding
+one is a trap rather than a tightening:
+
+> A repository secret silently takes precedence over an organisation secret of
+> the same name. The repo then stops seeing org-wide rotations and keeps using
+> its own copy until that copy expires — which is invisible until a release day
+> fails.
+
+Two sibling repos already sit in that state, with repo-level `NPM_TOKEN` copies
+that shadow the org secret (`webhook-client`, `repository-metadata-manager`).
+Rotate the org secret and those two are still broken; delete the repo-level copy
+and they inherit the fresh one. Check before assuming a rotation reached a repo:
+
+```bash
+# Empty output = good (inherits the org secret)
+gh api repos/Alteriom/<repo>/actions/secrets \
+  --jq '.secrets[] | select(.name=="NPM_TOKEN") | "SHADOWED, updated \(.updated_at)"'
+```
+
+While rotating `NPM_TOKEN`, check `PLATFORMIO_AUTH_TOKEN` too — it expires the
+same way and `platformio-publish.yml` hard-fails on an invalid one.
+
+**NPM asks for a one-time password (`EOTP`)**
+
+Symptom: authentication *succeeds* — `npm whoami` prints the username — and then
+`npm publish` fails with:
+
+```
+npm error code EOTP
+npm error This operation requires a one-time password from your authenticator.
+```
+
+The token is valid but is not allowed to bypass 2FA, and CI has no authenticator
+to answer the challenge with. **A rotation that fixes `E401` lands here if the
+replacement token is minted without the bypass option** — which is what happened
+on the second rotation attempt for #381.
+
+npm removed the legacy token types (`read-only` / `automation` / `publish`) in
+**November 2025**; only granular access tokens exist now. The old *Automation*
+token bypassed 2FA by virtue of its type, so this was never a decision anyone had
+to make. On a granular token it is an explicit checkbox, and a token minted from
+muscle memory does not have it:
+
+> **Bypass 2FA** — required. Takes precedence over account-level and
+> package-level 2FA settings for publishing.
+
+Re-mint at <https://www.npmjs.com/settings/tokens> with *Read and write* on
+`@alteriom/painlessmesh` **and Bypass 2FA enabled**, update the secret, re-run.
+`npm whoami` cannot detect this ahead of time — it passes for both token kinds,
+so the failure necessarily surfaces at the publish call.
+
+### Trusted publishing (OIDC) — the way out of token rotation
+
+Both failures above are symptoms of the same thing: a long-lived credential that
+expires silently and is only exercised on release day. npm's replacement is
+**trusted publishing** — the workflow authenticates to npm over OIDC, and
+`NPM_TOKEN` stops existing.
+
+This is on a clock rather than merely being nicer: as of **2026-07-31** bypass-2FA
+tokens can no longer manage tokens, package access, or trusted-publishing config,
+and npm has targeted **January 2027** for removing *direct publish* from them —
+after which they can only stage a publish for a maintainer to approve with 2FA.
+The current setup stops working at that point.
+
+Requirements, none of which this repo blocks on today:
+
+| Requirement | Status here |
+|---|---|
+| `id-token: write` permission | ✅ already set in `release.yml` and `manual-publish.yml` |
+| npm CLI ≥ 11.5.1, Node ≥ 22.14.0 | ❌ workflows pin `node-version: '18'` — needs a bump |
+| Trusted publisher registered on npmjs.com | ❌ operator, one-time, per workflow file |
+
+The npmjs.com side is under *Package settings → Trusted publisher*: org
+`Alteriom`, repository `painlessMesh`, workflow filename `release.yml` (add a
+second entry for `manual-publish.yml` if that path should keep working).
 
 **GitHub Packages Authentication**
 ```bash
@@ -508,10 +633,17 @@ If this happens, you can manually publish packages:
 4. Click **Run workflow**
 
 The manual workflow will:
-- Read the current version from `library.properties`
+- Read the current version from `library.properties` and refuse to run if it
+  disagrees with `package.json` (npm publishes the `package.json` version)
+- Validate `NPM_TOKEN` against the registry before attempting to publish, so an
+  expired token fails immediately with rotation instructions
 - Publish to NPM (if selected)
 - Publish to GitHub Packages (if selected)
 - Show success/failure status for each
+
+It does **not** publish to the PlatformIO registry — use
+`gh workflow run platformio-publish.yml --ref v<version> -f version=<version>`
+for that.
 
 Alternatively, from command line:
 ```bash
@@ -647,8 +779,15 @@ Monitor your releases:
 ### Required GitHub Secrets
 
 - `GITHUB_TOKEN`: Automatically provided by GitHub Actions
-- `NPM_TOKEN`: Required for NPM publishing (add in repository secrets)
+- `NPM_TOKEN`: Required for NPM publishing. Lives in the **Alteriom
+  organisation** secrets and is inherited — do not add a repository-level copy,
+  which would shadow it (see [Where NPM_TOKEN actually lives](#where-npm_token-actually-lives))
 - `PLATFORMIO_AUTH_TOKEN`: Required for PlatformIO Library Registry publishing
+
+Both `NPM_TOKEN` and `PLATFORMIO_AUTH_TOKEN` are user-minted tokens that
+**expire**. Their expiry is invisible until a release fails, so rotate them
+together and re-check after any expiry date you set. See
+[NPM Token Expired / Invalid](#-troubleshooting) for the rotation runbook.
 
 ### Repository Settings
 - **Actions**: Enabled with write permissions

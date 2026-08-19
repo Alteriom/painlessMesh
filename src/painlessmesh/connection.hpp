@@ -123,12 +123,17 @@ inline void scheduleAsyncClientDeletion(Scheduler* scheduler, AsyncClient* clien
     delete client;
   });
 
-  // Self-cleanup: after execution, remove from scheduler and delete the Task.
-  // OnDisable fires after a TASK_ONCE task completes its single iteration.
-  cleanupTask->setOnDisable([cleanupTask, scheduler]() {
-    scheduler->deleteTask(*cleanupTask);
-    delete cleanupTask;
-  });
+  // Task cleanup (issue #373): the task must NOT delete itself from inside
+  // its own onDisable callback. TaskScheduler's Task::disable() keeps
+  // writing to the task object (iScheduler->iCurrent) after onDisable
+  // returns, so a self-delete there is a guaranteed use-after-free — this
+  // was crashing nodes on every connection teardown.
+  // Instead we mark the task self-destructing (_TASK_SELF_DESTRUCT, enabled
+  // in painlessTaskOptions.h): after the single iteration completes, the
+  // Scheduler itself disables the task, unlinks it from its chain, and
+  // deletes it — all from within Scheduler::execute(), safely outside the
+  // disable() call stack.
+  cleanupTask->setSelfDestruct(true);
 
   scheduler->addTask(*cleanupTask);
   cleanupTask->enableDelayed();
@@ -160,13 +165,28 @@ class BufferedConnection
     using namespace logger;
     Log.remote("~BufferedConnection");
     this->close();
-    if (!client->freeable()) {
-      client->close(true);
-    }
+    // Always call client->close() here, unconditionally - do NOT guard this
+    // behind client->freeable(). freeable() can return true while _pcb is
+    // still a valid, non-null pointer (e.g. pcb->state == CLOSED but not yet
+    // reclaimed by lwIP). If we skip close() in that case, _pcb stays
+    // non-null for the entire TCP_CLIENT_CLEANUP_DELAY_MS+ deferred-deletion
+    // window below - during which lwIP's own internal timers (e.g. TIME_WAIT
+    // expiry) can silently free/recycle that pcb without ever notifying
+    // AsyncClient (the tcp_err callback only fires on abnormal termination,
+    // not on routine timer-driven pcb reclamation). The deferred delete then
+    // finds a stale-but-non-null _pcb and tries to close/free it a second
+    // time, corrupting the heap (observed as heap_caps_free/memp_free
+    // assertion failures and wild-pointer crashes inside tcp_arg(), all
+    // several seconds after the connection actually died).
+    // close() internally handles "nothing to do" safely (AsyncTCP checks
+    // _pcb/*pcb before touching lwIP state), and reliably nulls _pcb via its
+    // synchronous tcpip_api_call round-trip - so calling it unconditionally
+    // here, right at destruction time, closes this exposure window entirely.
+    client->close();
     // Note: client->abort() removed - calling it before deferred deletion
     // can leave the client in an inconsistent state where AsyncTCP is still
-    // trying to clean up the aborted connection. The close() and close(true)
-    // calls above are sufficient for connection termination.
+    // trying to clean up the aborted connection. The close() call above is
+    // sufficient for connection termination.
     // See: AsyncTCP best practices - abort() should only be called immediately
     // before delete, not before a deferred deletion.
     

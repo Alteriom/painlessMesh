@@ -3,6 +3,11 @@ name: Manual Package Publishing
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: 'Git ref to publish (e.g. v1.9.21). Defaults to the default branch — set this when republishing a version whose tag is behind main.'
+        required: false
+        type: string
+        default: ''
       publish_npm:
         description: 'Publish to NPM Registry'
         required: true
@@ -27,7 +32,11 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+      with:
+        ref: ${{ inputs.ref }}
+        # Tags are needed by "Verify the checkout matches the release tag".
+        fetch-depth: 0
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
@@ -41,13 +50,93 @@ jobs:
       id: version
       run: |
         VERSION=$(grep '^version=' library.properties | cut -d'=' -f2)
+        PKG_VERSION=$(jq -r '.version' package.json)
+
+        # npm publishes package.json's version — refuse to publish something
+        # other than the version this job reports.
+        if [ "$VERSION" != "$PKG_VERSION" ]; then
+          echo "❌ Version mismatch:"
+          echo "  library.properties: $VERSION"
+          echo "  package.json:       $PKG_VERSION"
+          echo "Align the version files on the default branch before publishing."
+          exit 1
+        fi
+
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Publishing version: $VERSION"
-    
-    - name: Publish to NPM
+
+    - name: Verify the checkout matches the release tag
       run: |
-        echo " Publishing to NPM..."
-        npm publish --access public
+        VERSION="${{ steps.version.outputs.version }}"
+        TAG="v$VERSION"
+
+        if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+          echo "ℹ️  No tag $TAG exists — publishing an untagged version."
+          echo "   Expected for a first publication; otherwise cut the release first."
+          exit 0
+        fi
+
+        TAG_SHA=$(git rev-list -n1 "$TAG")
+        HEAD_SHA=$(git rev-parse HEAD)
+
+        if [ "$TAG_SHA" != "$HEAD_SHA" ]; then
+          cat <<EOF
+        ❌ Refusing to publish $VERSION from a commit that is not $TAG.
+
+          checked out: $HEAD_SHA
+          $TAG:        $TAG_SHA
+
+        The version files still say $VERSION, but this ref has moved on since the
+        tag — so this job would upload today's code to npm under an old version
+        number. npm versions are immutable, so that is unfixable after the fact:
+        npm $VERSION would permanently disagree with git $TAG and with the
+        GitHub Release assets.
+
+        If you are republishing a release npm missed (see issue #381), publish the
+        tag itself:
+          gh workflow run manual-publish.yml --repo Alteriom/painlessMesh \\
+            -f ref=$TAG -f publish_npm=true -f publish_github=false
+
+        If you meant to ship the newer code, bump the version on the default
+        branch and cut a normal release instead.
+        EOF
+          exit 1
+        fi
+
+        echo "✅ Checkout is exactly $TAG ($TAG_SHA)"
+
+    - name: Verify NPM authentication
+      run: |
+        if [ -z "$NODE_AUTH_TOKEN" ]; then
+          echo "❌ NPM_TOKEN is empty!"
+          echo "This repo inherits NPM_TOKEN from the Alteriom *organisation*"
+          echo "secrets — it has no repository-level copy, and should not get one"
+          echo "(a repo secret shadows the org secret and rotting separately is"
+          echo "exactly how this breaks). Check that the org secret exists and"
+          echo "that painlessMesh is in its repository-access list:"
+          echo "  https://github.com/organizations/Alteriom/settings/secrets/actions"
+          exit 1
+        fi
+        echo "🔎 Validating NPM_TOKEN against registry (npm whoami)..."
+        if ! WHOAMI_OUT=$(npm whoami --registry=https://registry.npmjs.org 2>&1); then
+          echo "❌ NPM_TOKEN is set but invalid (npm whoami failed):"
+          echo "$WHOAMI_OUT"
+          echo ""
+          echo "The token has likely expired or been revoked. To fix:"
+          echo "1. Mint a new granular token at https://www.npmjs.com/settings/tokens"
+          echo "   - Packages and scopes: Read and write on @alteriom/painlessmesh"
+          echo "   - Enable 'Bypass 2FA' — without it the publish fails with EOTP"
+          echo "2. Update the NPM_TOKEN *organisation* secret (not a repo secret):"
+          echo "   https://github.com/organizations/Alteriom/settings/secrets/actions"
+          echo "3. Re-run this workflow"
+          exit 1
+        fi
+        echo "✅ Authenticated to NPM as: $WHOAMI_OUT"
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+    - name: Publish to NPM
+      run: ./scripts/npm-publish.sh
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
@@ -70,7 +159,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+      with:
+        ref: ${{ inputs.ref }}
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
