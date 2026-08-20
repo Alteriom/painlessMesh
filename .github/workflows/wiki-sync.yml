@@ -39,16 +39,10 @@ jobs:
           # Create wiki-friendly versions of the docsify documentation.
           # (An earlier version copied from a "docs/" directory that does
           # not exist in this repo — the prose docs live in docsify-site/.)
-          # Pages are flattened as <Dir>-<File>.md; docsify-internal
-          # navigation files are skipped.
+          # Pages are flattened as <Dir>-<File>.md; relative Markdown links
+          # are rewritten to the corresponding flattened page names.
           if [ -d "docsify-site" ]; then
-            find docsify-site -name "*.md" \
-                ! -name "_sidebar.md" ! -name "_navbar.md" \
-                ! -path "*/node_modules/*" | while read file; do
-              rel="${file#docsify-site/}"
-              wiki_name=$(echo "${rel%.md}" | sed 's|/|-|g')
-              cp "$file" "wiki_build/${wiki_name}.md"
-            done
+            python3 scripts/build-wiki.py
           fi
           
           # Create API reference from examples

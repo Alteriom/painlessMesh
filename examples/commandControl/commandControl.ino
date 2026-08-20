@@ -26,6 +26,8 @@ painlessMesh mesh;
 uint32_t commandsSent = 0;
 uint32_t nodesConfirmed = 0;
 uint32_t nodesMissed = 0;
+uint32_t resultsReceived = 0;
+uint32_t expectedResults = 0;
 
 void sendCommand();
 Task taskSendCommand(TASK_SECOND * 15, TASK_FOREVER, &sendCommand);
@@ -37,6 +39,8 @@ void sendCommand() {
   ++commandsSent;
   nodesConfirmed = 0;
   nodesMissed = 0;
+  resultsReceived = 0;
+  expectedResults = mesh.getNodeList(false).size();
 
   bool queued = mesh.sendBroadcast(
       cmd, false,
@@ -51,7 +55,8 @@ void sendCommand() {
                         nodeId);
           // A real controller would retry with sendSingle(nodeId, ...)
         }
-        if (mesh.pendingAcks() == 0)
+        ++resultsReceived;
+        if (resultsReceived == expectedResults)
           Serial.printf("Command %u done: %u confirmed, %u missed\n",
                         commandsSent, nodesConfirmed, nodesMissed);
       },
