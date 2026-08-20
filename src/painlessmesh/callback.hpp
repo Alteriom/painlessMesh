@@ -61,15 +61,16 @@ class PackageCallbackList {
    */
   void onPackage(int id, std::function<void(Args...)> func) {
     if (clearPending) {
-      pendingCallbackMap[id].push_back(func);
+      (*pendingCallbackMap)[id].push_back(func);
     } else {
-      callbackMap[id].push_back(func);
+      (*callbackMap)[id].push_back(func);
     }
   }
 
   size_t size() {
     size_t size = 0;
-    for (auto&& key_value : callbackMap) {
+    auto generation = clearPending ? pendingCallbackMap : callbackMap;
+    for (auto&& key_value : *generation) {
       size += key_value.second.size();
     }
     return size;
@@ -78,33 +79,38 @@ class PackageCallbackList {
   void clear() {
     if (dispatchDepth > 0) {
       clearPending = true;
-      pendingCallbackMap.clear();
+      pendingCallbackMap = std::make_shared<CallbackMap>();
       return;
     }
-    callbackMap.clear();
+    callbackMap->clear();
   }
 
   /**
    * Execute all the callbacks associated with a certain package
    */
   int execute(int id, Args... args) {
+    // Retain the selected generation for the complete call. A nested callback
+    // may clear and replace the pending generation without destroying the
+    // List/std::function currently executing on this stack.
+    auto generation = clearPending ? pendingCallbackMap : callbackMap;
     ++dispatchDepth;
-    auto result = callbackMap[id].execute(args...);
+    auto result = (*generation)[id].execute(args...);
     --dispatchDepth;
     if (dispatchDepth == 0 && clearPending) {
-      callbackMap.clear();
-      callbackMap = std::move(pendingCallbackMap);
+      callbackMap = pendingCallbackMap;
+      pendingCallbackMap.reset();
       clearPending = false;
     }
     return result;
   }
 
  protected:
-  std::map<int, List<Args...>> callbackMap;
+  using CallbackMap = std::map<int, List<Args...>>;
+  std::shared_ptr<CallbackMap> callbackMap = std::make_shared<CallbackMap>();
   // Registrations made after clear() during an active dispatch belong to
   // the next callback generation (for example stop(); init(); from a user
   // callback) and must survive removal of the currently executing one.
-  std::map<int, List<Args...>> pendingCallbackMap;
+  std::shared_ptr<CallbackMap> pendingCallbackMap;
   size_t dispatchDepth = 0;
   bool clearPending = false;
 };

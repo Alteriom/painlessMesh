@@ -163,6 +163,34 @@ SCENARIO("Callbacks registered after a deferred clear survive dispatch") {
   REQUIRE(nextGenerationCalls == 1);
 }
 
+SCENARIO("Nested dispatch uses the newest callback generation") {
+  callback::PackageCallbackList<int> callbacks;
+  size_t stoppedGenerationCalls = 0;
+  size_t firstPendingCalls = 0;
+  size_t newestGenerationCalls = 0;
+
+  callbacks.onPackage(1, [&](int) {
+    ++stoppedGenerationCalls;
+    callbacks.clear();
+    callbacks.onPackage(2, [&](int) {
+      ++firstPendingCalls;
+      callbacks.clear();
+      callbacks.onPackage(3, [&](int) { ++newestGenerationCalls; });
+      callbacks.execute(3, 0);
+    });
+    callbacks.execute(2, 0);
+  });
+
+  callbacks.execute(1, 0);
+
+  REQUIRE(stoppedGenerationCalls == 1);
+  REQUIRE(firstPendingCalls == 1);
+  REQUIRE(newestGenerationCalls == 1);
+  REQUIRE(callbacks.size() == 1);
+  callbacks.execute(3, 0);
+  REQUIRE(newestGenerationCalls == 2);
+}
+
 SCENARIO("A task that restarts an internal mesh is not reused live") {
   TestMesh<Connection> mesh;
   mesh.init(/*nodeId=*/1234567);
