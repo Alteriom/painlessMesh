@@ -70,8 +70,10 @@ def main() -> None:
         )
 
     for source, output_name in ROOT_PAGES.items():
+        content = source.read_text(encoding="utf-8")
+        rewritten = rewrite_links(content, Path("..") / source, page_names)
         (OUTPUT_ROOT / output_name).write_text(
-            source.read_text(encoding="utf-8"), encoding="utf-8"
+            rewritten, encoding="utf-8"
         )
 
 

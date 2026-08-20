@@ -40,6 +40,7 @@ class TestMesh : public Mesh<T> {
   using Mesh<T>::addTask;
   using Mesh<T>::ackTracker;
   using Mesh<T>::pendingBroadcastAcks;
+  using Mesh<T>::retiredSchedulers;
 };
 
 }  // namespace
@@ -153,11 +154,13 @@ SCENARIO("A task that restarts an internal mesh is not reused live") {
 
   mesh.update();
   REQUIRE(mesh.quarantinedTasks.size() == 1);
+  REQUIRE(mesh.retiredSchedulers.size() == 1);
   REQUIRE_FALSE(restartedTaskRan);
 
   mesh.update();
   REQUIRE(restartedTaskRan);
   REQUIRE(mesh.quarantinedTasks.empty());
+  REQUIRE(mesh.retiredSchedulers.empty());
 }
 
 SCENARIO("Broadcast acknowledgment bursts use one bounded scheduler task") {

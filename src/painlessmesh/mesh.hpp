@@ -406,8 +406,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         // stop() was reached from inside a scheduler callback (e.g. a
         // delivery/timeout callback). Deleting the scheduler here would
         // free the object whose execute() is still on the call stack —
-        // the same bug class as issue #373. Intentionally leak it: the
-        // mesh is stopping, the scheduler is unusable but safe.
+        // the same bug class as issue #373. Retire it until execute()
+        // unwinds, then reclaim it during the next update.
+        retiredSchedulers.push_back(mScheduler);
         mScheduler = nullptr;
       } else {
         delete mScheduler;
@@ -424,6 +425,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   void update(void) {
     if (semaphoreTake()) {
       plugin::PackageHandler<T>::reclaimQuarantinedTasks();
+      reclaimRetiredSchedulers();
       // Check if something is executed (returns false)
       if (!mScheduler->execute())
         Log(logger::GENERAL, "update(): Scheduler executed a task\n");
@@ -3328,11 +3330,27 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
   ~Mesh() {
     this->stop();
+    plugin::PackageHandler<T>::reclaimQuarantinedTasks();
+    reclaimRetiredSchedulers();
     if (!isExternalScheduler) delete mScheduler;
     if (messageQueue) delete messageQueue;
   }
 
  protected:
+  void reclaimRetiredSchedulers() {
+    for (auto it = retiredSchedulers.begin();
+         it != retiredSchedulers.end();) {
+      if ((*it)->getCurrentTask() != nullptr) {
+        ++it;
+        continue;
+      }
+      delete *it;
+      it = retiredSchedulers.erase(it);
+    }
+  }
+
+  std::list<Scheduler*> retiredSchedulers = {};
+
   void queueBroadcastAck(uint32_t origin, uint32_t msgId) {
     const auto key = std::make_pair(origin, msgId);
     if (std::find(pendingBroadcastAcks.begin(), pendingBroadcastAcks.end(),
