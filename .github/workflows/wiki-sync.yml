@@ -104,8 +104,10 @@ jobs:
           
           cd wiki_repo
           
-          # Check if there are any changes
-          if git diff --quiet; then
+          # Stage first so newly generated (previously untracked) pages are
+          # included in the change check as well as modified pages.
+          git add .
+          if git diff --cached --quiet; then
             echo "No wiki changes detected"
             exit 0
           fi
@@ -113,7 +115,6 @@ jobs:
           # Configure git and commit changes
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
           git commit -m "docs: automated wiki sync from main branch"
           git push
 
