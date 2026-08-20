@@ -60,7 +60,11 @@ class PackageCallbackList {
    * Add a callback for specific package id
    */
   void onPackage(int id, std::function<void(Args...)> func) {
-    callbackMap[id].push_back(func);
+    if (clearPending) {
+      pendingCallbackMap[id].push_back(func);
+    } else {
+      callbackMap[id].push_back(func);
+    }
   }
 
   size_t size() {
@@ -74,6 +78,7 @@ class PackageCallbackList {
   void clear() {
     if (dispatchDepth > 0) {
       clearPending = true;
+      pendingCallbackMap.clear();
       return;
     }
     callbackMap.clear();
@@ -88,6 +93,7 @@ class PackageCallbackList {
     --dispatchDepth;
     if (dispatchDepth == 0 && clearPending) {
       callbackMap.clear();
+      callbackMap = std::move(pendingCallbackMap);
       clearPending = false;
     }
     return result;
@@ -95,6 +101,10 @@ class PackageCallbackList {
 
  protected:
   std::map<int, List<Args...>> callbackMap;
+  // Registrations made after clear() during an active dispatch belong to
+  // the next callback generation (for example stop(); init(); from a user
+  // callback) and must survive removal of the currently executing one.
+  std::map<int, List<Args...>> pendingCallbackMap;
   size_t dispatchDepth = 0;
   bool clearPending = false;
 };

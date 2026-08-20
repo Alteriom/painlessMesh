@@ -119,6 +119,24 @@ SCENARIO("Delivery callbacks may stop the mesh during package dispatch") {
   REQUIRE(mesh.callbackList.size() == 0);
 }
 
+SCENARIO("Callbacks registered after a deferred clear survive dispatch") {
+  callback::PackageCallbackList<int> callbacks;
+  size_t nextGenerationCalls = 0;
+  callbacks.onPackage(1, [&](int) {
+    callbacks.clear();
+    callbacks.onPackage(2, [&](int value) {
+      ++nextGenerationCalls;
+      REQUIRE(value == 42);
+    });
+  });
+
+  callbacks.execute(1, 0);
+
+  REQUIRE(callbacks.size() == 1);
+  callbacks.execute(2, 42);
+  REQUIRE(nextGenerationCalls == 1);
+}
+
 SCENARIO("Broadcast acknowledgment bursts use one bounded scheduler task") {
   Scheduler scheduler;
   TestMesh<Connection> mesh;
