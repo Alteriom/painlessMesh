@@ -7,6 +7,7 @@
 #include <map>
 #include <set>
 #include <queue>
+#include <type_traits>
 
 #include "painlessmesh/configuration.hpp"
 
@@ -595,18 +596,6 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return trackingPeers;
   }
 
-  /** Function-pointer form of confirmed broadcast delivery.
-   *
-   * This exact overload prevents a named function from converting to bool
-   * and binding to sendBroadcast(msg, priority, includeSelf).
-   */
-  bool sendBroadcast(TSTRING msg, bool includeSelf,
-                     void (*ackCallback)(uint32_t, bool, uint32_t),
-                     uint32_t ackTimeoutMs = 5000) {
-    return sendBroadcast(msg, includeSelf,
-                         ack::deliveryCallback_t(ackCallback), ackTimeoutMs);
-  }
-
   /** Process pending delivery acknowledgments (non-blocking poll)
    *
    * Fires timeout callbacks for messages whose acknowledgment window has
@@ -631,9 +620,18 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    *
    * @return true if everything works, false if not
    */
-  bool sendBroadcast(TSTRING msg, uint8_t priorityLevel, bool includeSelf = false) {
+  template <
+      typename Priority,
+      typename std::enable_if<
+          std::is_integral<typename std::decay<Priority>::type>::value &&
+              !std::is_same<typename std::decay<Priority>::type, bool>::value,
+          int>::type = 0>
+  bool sendBroadcast(TSTRING msg, Priority priorityLevel,
+                     bool includeSelf = false) {
     using namespace logger;
-    Log(COMMUNICATION, "sendBroadcast(): msg=%s priority=%u\n", msg.c_str(), priorityLevel);
+    const auto priority = static_cast<uint8_t>(priorityLevel);
+    Log(COMMUNICATION, "sendBroadcast(): msg=%s priority=%u\n", msg.c_str(),
+        priority);
     painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
     
     // Broadcast to all connections with priority
@@ -643,7 +641,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         painlessmesh::protocol::Variant variant(pkg);
         TSTRING msgStr;
         variant.printTo(msgStr);
-        auto sent = conn->addMessageWithPriority(msgStr, priorityLevel);
+        auto sent = conn->addMessageWithPriority(msgStr, priority);
         if (sent) ++success;
       }
     }
