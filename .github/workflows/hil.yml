@@ -18,6 +18,9 @@ on:
 jobs:
   authorize:
     name: Verify HIL approval
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'run-hil'
     runs-on: ubuntu-latest
     permissions:
       contents: read

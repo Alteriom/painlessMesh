@@ -101,10 +101,34 @@ jobs:
             exit 1
           fi
           
-          # Copy generated wiki files
-          cp -v wiki_build/*.md wiki_repo/
-          
           cd wiki_repo
+
+          # Remove only pages recorded by the previous generated set. The
+          # manifest prevents stale renamed/deleted pages while preserving
+          # any hand-maintained wiki content.
+          manifest=.painlessmesh-generated-pages
+          if [ -f "$manifest" ]; then
+            while IFS= read -r page; do
+              case "$page" in
+                *.md)
+                  if [ "$(basename "$page")" != "$page" ]; then
+                    echo "Invalid generated-page manifest entry: $page" >&2
+                    exit 1
+                  fi
+                  git rm -f --ignore-unmatch -- "$page"
+                  ;;
+                '') ;;
+                *)
+                  echo "Invalid generated-page manifest entry: $page" >&2
+                  exit 1
+                  ;;
+              esac
+            done < "$manifest"
+          fi
+
+          cp -v ../wiki_build/*.md .
+          find ../wiki_build -maxdepth 1 -type f -name '*.md' \
+            -printf '%f\n' | sort > "$manifest"
           
           # Stage first so newly generated (previously untracked) pages are
           # included in the change check as well as modified pages.
