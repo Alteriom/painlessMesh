@@ -110,7 +110,7 @@ SCENARIO("Delivery callbacks run after package dispatch") {
       5000, 100));
 
   ack::MessageAckPackage pkg(/*fromNode=*/999, /*destNode=*/1234567, msgId);
-  protocol::Variant var(pkg);
+  protocol::Variant var(&pkg);
   mesh.callbackList.execute(protocol::MESSAGE_ACK, var,
                             std::shared_ptr<Connection>(), 0);
 
