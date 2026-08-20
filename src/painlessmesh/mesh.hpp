@@ -595,6 +595,18 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return trackingPeers;
   }
 
+  /** Function-pointer form of confirmed broadcast delivery.
+   *
+   * This exact overload prevents a named function from converting to bool
+   * and binding to sendBroadcast(msg, priority, includeSelf).
+   */
+  bool sendBroadcast(TSTRING msg, bool includeSelf,
+                     void (*ackCallback)(uint32_t, bool, uint32_t),
+                     uint32_t ackTimeoutMs = 5000) {
+    return sendBroadcast(msg, includeSelf,
+                         ack::deliveryCallback_t(ackCallback), ackTimeoutMs);
+  }
+
   /** Process pending delivery acknowledgments (non-blocking poll)
    *
    * Fires timeout callbacks for messages whose acknowledgment window has

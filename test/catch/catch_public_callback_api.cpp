@@ -26,6 +26,8 @@ painlessmesh::logger::LogClass Log;
 
 namespace {
 
+void namedDeliveryHandler(uint32_t, bool, uint32_t) {}
+
 // Mesh::callbackList is protected (inherited from plugin::PackageHandler).
 // Expose it via a thin subclass so tests can inject a Variant and observe
 // which user-registered callbacks fire, without going through the async
@@ -216,6 +218,20 @@ SCENARIO("Confirmed peerless broadcasts still deliver to self") {
 
   REQUIRE_FALSE(queued);
   REQUIRE(received == 1);
+}
+
+SCENARIO("Named broadcast delivery handlers select acknowledgment overload") {
+  Scheduler scheduler;
+  TestMesh<Connection> mesh;
+  mesh.init(&scheduler, /*nodeId=*/1234567);
+  size_t selfDeliveries = 0;
+  mesh.onReceive([&](uint32_t, TSTRING&) { ++selfDeliveries; });
+
+  const auto queued =
+      mesh.sendBroadcast("named", /*includeSelf=*/false, namedDeliveryHandler);
+
+  REQUIRE_FALSE(queued);
+  REQUIRE(selfDeliveries == 0);
 }
 
 SCENARIO("Mesh::onNewConnection accumulates handlers instead of replacing") {
