@@ -572,15 +572,20 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
     pkg.msgId = ackTracker.nextMessageId();
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
-    if (success == 0 || expected.empty()) return false;
-    ackTracker.track(pkg.msgId, expected, ackCallback, ackTimeoutMs,
-                     static_cast<uint32_t>(millis()));
-    this->ensureAckScheduling();
+    const bool trackingPeers = success > 0 && !expected.empty();
+    if (trackingPeers) {
+      ackTracker.track(pkg.msgId, expected, ackCallback, ackTimeoutMs,
+                       static_cast<uint32_t>(millis()));
+      this->ensureAckScheduling();
+    }
     if (includeSelf) {
       protocol::Variant var(pkg);
       this->callbackList.execute(var.type(), var, NULL, 0);
     }
-    return true;
+    // Do not access mesh state after self-delivery: an onReceive callback
+    // may have called stop(). Local delivery still occurs without peers,
+    // while the return value continues to describe peer ACK tracking.
+    return trackingPeers;
   }
 
   /** Process pending delivery acknowledgments (non-blocking poll)

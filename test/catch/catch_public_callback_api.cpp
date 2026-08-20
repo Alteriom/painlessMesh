@@ -138,6 +138,26 @@ SCENARIO("Broadcast acknowledgment bursts use one bounded scheduler task") {
           PAINLESSMESH_MAX_QUEUED_BROADCAST_ACKS);
 }
 
+SCENARIO("Confirmed peerless broadcasts still deliver to self") {
+  Scheduler scheduler;
+  TestMesh<Connection> mesh;
+  mesh.init(&scheduler, /*nodeId=*/1234567);
+  size_t received = 0;
+  mesh.onReceive([&](uint32_t from, TSTRING& msg) {
+    ++received;
+    REQUIRE(from == 1234567);
+    REQUIRE(msg == "self");
+    mesh.stop();
+  });
+
+  const auto queued = mesh.sendBroadcast(
+      "self", /*includeSelf=*/true,
+      [](uint32_t, bool, uint32_t) { FAIL("No peer callback expected"); });
+
+  REQUIRE_FALSE(queued);
+  REQUIRE(received == 1);
+}
+
 SCENARIO("Mesh::onNewConnection accumulates handlers instead of replacing") {
   GIVEN("A mesh with two new-connection handlers registered") {
     Scheduler scheduler;
