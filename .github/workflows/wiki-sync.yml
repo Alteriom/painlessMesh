@@ -35,6 +35,7 @@ jobs:
           
           # Copy main documentation files
           cp README.md wiki_build/Home.md
+          cp USER_GUIDE.md wiki_build/USER_GUIDE.md
           cp RELEASE_GUIDE.md wiki_build/Release-Guide.md
           cp CHANGELOG.md wiki_build/Changelog.md
           
