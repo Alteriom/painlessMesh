@@ -198,7 +198,7 @@ The callback provides `httpStatus` to indicate the result:
 - `mock_server_test/mock_server_test.ino` - Bridge testing with mock HTTP server
 - `pc_node/pc_mesh_node.cpp` - **NEW:** PC-based mesh node for testing regular node → bridge flow
 - `README.md` - This documentation
-- `PC_NODE_README.md` - **NEW:** Documentation for PC mesh node testing
+- `pc_node/PC_NODE_README.md` - **NEW:** Documentation for PC mesh node testing
 
 ### Related examples
 
@@ -222,7 +222,7 @@ The **PC Mesh Node** allows you to:
 
 **Quick Start:**
 ```bash
-cd examples/sendToInternet
+cd examples/sendToInternet/pc_node
 
 # Build
 cmake . && make
@@ -231,7 +231,7 @@ cmake . && make
 ./pc_mesh_node 192.168.1.100 5555
 ```
 
-**Full Documentation:** [PC_NODE_README.md](PC_NODE_README.md)
+**Full Documentation:** [pc_node/PC_NODE_README.md](pc_node/PC_NODE_README.md)
 
 **What It Tests:**
 - Regular mesh node sending HTTP requests through bridge

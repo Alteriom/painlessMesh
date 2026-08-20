@@ -21,72 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `knolleary/PubSubClient` package used by `examples/bridge` to avoid
   ambiguous package name resolution in PlatformIO.
 
-## [1.10.0] - 2026-08-12
-
-Feature release making the TCP connect-retry envelope tunable per mesh instance
-(#378), alongside two documentation corrections that retire long-standing claims
-the library never actually implemented (#385) and an example build fix (#360).
-
-**Upgrading is behaviour-neutral.** Every new setting defaults to the value that
-was previously hardcoded, so a sketch that does not call `setTcpRetryConfig()`
-behaves exactly as it did on 1.9.21. Nothing was removed: the deprecated queue
-macros keep their historical values for source compatibility.
-
-> **Note for npm users:** v1.9.21 was never published to npm — the `NPM_TOKEN`
-> used by CI had expired (#381), which failed the npm publish job while the
-> GitHub Release, GitHub Packages, PlatformIO and Arduino channels all succeeded.
-> npm's previous version is therefore **1.9.20**, and upgrading from npm brings
-> in both 1.9.21 and 1.10.0. See the 1.9.21 entry below for what that release
-> contained — it was a crash-fix release, and npm users have been missing it.
-
-### Added
-
-- **User-configurable TCP retry parameters (#378)** — the five TCP connect
-  retry values that were hardcoded as `static const` in
-  `src/painlessmesh/tcp.hpp` are now tunable per mesh instance via
-  `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()`, using the new
-  `painlessmesh::tcp::TcpRetryConfig` struct (`maxRetries`, `retryDelayMs`,
-  `stabilizationDelayMs`, `exhaustionReconnectDelayMs`,
-  `failureBlockDurationMs`). This lets latency-sensitive meshes (see
-  discussion #368), high-reliability industrial deployments and
-  battery-powered nodes each pick their own retry envelope without forking
-  the library.
-
-  The struct's defaults are spelled as the existing constants, so **behaviour
-  is unchanged for any sketch that does not call the new setter**, and the
-  constants themselves remain in place. `maxRetries` is clamped to 10 and
-  `retryDelayMs` to 50–60000 ms, since an unbounded retry count is a
-  heap/recursion hazard and a zero delay produces a hot reconnect loop; the
-  remaining fields accept 0 as a meaningful "disable this step" value.
-  New `examples/tcpRetryConfig/` demonstrates real-time, high-reliability and
-  battery-saver profiles.
-
-### Changed
-
-- **`MessageQueue` documented honestly as a manual buffer (#385)** —
-  removed the "messages are automatically delivered when connection is
-  restored" claim from `MessageQueue` and the `mesh.enableMessageQueue`
-  / `queueMessage` / `flushMessageQueue` doc comments. Nothing in the
-  library ever transmitted queued messages or observed connectivity
-  changes; the app has always owned the send loop. The docs now say so,
-  and the `flushMessageQueue` example shows the intended pattern of
-  wiring the drain into `onLocalInternetChanged`.
-
-### Deprecated
-
-- **Compatibility queue macros kept as ignored no-ops (#385)** —
-  `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` remain defined in
-  `painlessmesh/configuration.hpp` (and `test/boost/Arduino.h`) for
-  source compatibility, but nothing in the library reads them. They were
-  placeholders for the auto-flush behavior that never landed.
-  `MessageQueue` has always taken its own per-instance `maxSize`
-  constructor argument. Their historical default values
-  (`MIN_FREE_MEMORY 4000`, `MAX_MESSAGE_QUEUE 50`) are preserved so any
-  downstream code that referenced the macros keeps its prior behavior.
-
-### Fixed
-
-## [2.0.0] - 2026-08-04
+## [2.0.0] - 2026-08-20
 
 Feature release adding per-message delivery confirmation (issue #379). The
 release is a major version bump because it introduces a new wire-protocol
@@ -171,6 +106,70 @@ A full adversarial review of the ACK feature before release led to:
   copied from a `docs/` directory that does not exist) and triggers on
   docsify changes.
 - Removed dead links from the docsify sidebar.
+
+
+## [1.10.0] - 2026-08-12
+
+Feature release making the TCP connect-retry envelope tunable per mesh instance
+(#378), alongside two documentation corrections that retire long-standing claims
+the library never actually implemented (#385) and an example build fix (#360).
+
+**Upgrading is behaviour-neutral.** Every new setting defaults to the value that
+was previously hardcoded, so a sketch that does not call `setTcpRetryConfig()`
+behaves exactly as it did on 1.9.21. Nothing was removed: the deprecated queue
+macros keep their historical values for source compatibility.
+
+> **Note for npm users:** v1.9.21 was never published to npm — the `NPM_TOKEN`
+> used by CI had expired (#381), which failed the npm publish job while the
+> GitHub Release, GitHub Packages, PlatformIO and Arduino channels all succeeded.
+> npm's previous version is therefore **1.9.20**, and upgrading from npm brings
+> in both 1.9.21 and 1.10.0. See the 1.9.21 entry below for what that release
+> contained — it was a crash-fix release, and npm users have been missing it.
+
+### Added
+
+- **User-configurable TCP retry parameters (#378)** — the five TCP connect
+  retry values that were hardcoded as `static const` in
+  `src/painlessmesh/tcp.hpp` are now tunable per mesh instance via
+  `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()`, using the new
+  `painlessmesh::tcp::TcpRetryConfig` struct (`maxRetries`, `retryDelayMs`,
+  `stabilizationDelayMs`, `exhaustionReconnectDelayMs`,
+  `failureBlockDurationMs`). This lets latency-sensitive meshes (see
+  discussion #368), high-reliability industrial deployments and
+  battery-powered nodes each pick their own retry envelope without forking
+  the library.
+
+  The struct's defaults are spelled as the existing constants, so **behaviour
+  is unchanged for any sketch that does not call the new setter**, and the
+  constants themselves remain in place. `maxRetries` is clamped to 10 and
+  `retryDelayMs` to 50–60000 ms, since an unbounded retry count is a
+  heap/recursion hazard and a zero delay produces a hot reconnect loop; the
+  remaining fields accept 0 as a meaningful "disable this step" value.
+  New `examples/tcpRetryConfig/` demonstrates real-time, high-reliability and
+  battery-saver profiles.
+
+### Changed
+
+- **`MessageQueue` documented honestly as a manual buffer (#385)** —
+  removed the "messages are automatically delivered when connection is
+  restored" claim from `MessageQueue` and the `mesh.enableMessageQueue`
+  / `queueMessage` / `flushMessageQueue` doc comments. Nothing in the
+  library ever transmitted queued messages or observed connectivity
+  changes; the app has always owned the send loop. The docs now say so,
+  and the `flushMessageQueue` example shows the intended pattern of
+  wiring the drain into `onLocalInternetChanged`.
+
+### Deprecated
+
+- **Compatibility queue macros kept as ignored no-ops (#385)** —
+  `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` remain defined in
+  `painlessmesh/configuration.hpp` (and `test/boost/Arduino.h`) for
+  source compatibility, but nothing in the library reads them. They were
+  placeholders for the auto-flush behavior that never landed.
+  `MessageQueue` has always taken its own per-instance `maxSize`
+  constructor argument. Their historical default values
+  (`MIN_FREE_MEMORY 4000`, `MAX_MESSAGE_QUEUE 50`) are preserved so any
+  downstream code that referenced the macros keeps its prior behavior.
 
 ### Fixed
 

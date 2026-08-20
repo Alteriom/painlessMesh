@@ -7,14 +7,17 @@
 //    confirms delivery (delivered == true)
 // 3. unconfirmed readings are retried up to MAX_ATTEMPTS times
 //
-// Run one node with GATEWAY defined (or adapt gatewayId discovery to
-// your setup) and one or more sensor nodes.
+// Run one node with GATEWAY defined and one or more sensor nodes. The
+// gateway announces its node id; only sensor nodes generate readings.
 //************************************************************
 #include <painlessMesh.h>
 
 #define MESH_SSID "whateverYouLike"
 #define MESH_PASSWORD "somethingSneaky"
 #define MESH_PORT 5555
+
+// Define GATEWAY on exactly one node.
+// #define GATEWAY
 
 // How long to wait for a delivery confirmation
 #define ACK_TIMEOUT_MS 3000
@@ -25,7 +28,7 @@ Scheduler userScheduler;
 painlessMesh mesh;
 
 // The node we log readings to. In a real deployment you would discover
-// this via a broadcastannouncement or hardcode your gateway's node id.
+// this via a broadcast announcement or hardcode your gateway's node id.
 uint32_t gatewayId = 0;
 
 // A single buffered reading awaiting confirmation
@@ -38,6 +41,10 @@ PendingReading pending;
 
 void sendReading();
 Task taskSendReading(TASK_SECOND * 10, TASK_FOREVER, &sendReading);
+#ifdef GATEWAY
+void announceGateway();
+Task taskAnnounceGateway(TASK_SECOND * 5, TASK_FOREVER, &announceGateway);
+#endif
 
 void transmitPending() {
   if (gatewayId == 0 || pending.payload.length() == 0 || pending.inFlight)
@@ -86,17 +93,33 @@ void sendReading() {
   transmitPending();
 }
 
+#ifdef GATEWAY
+void announceGateway() {
+  mesh.sendBroadcast("GATEWAY_ANNOUNCE");
+  Serial.printf("Gateway announcement sent from %u\n", mesh.getNodeId());
+}
+#endif
+
 void receivedCallback(uint32_t from, String &msg) {
+#ifdef GATEWAY
   // The gateway simply prints what it receives. The acknowledgment is
   // sent automatically by the library — no application code needed.
   Serial.printf("Gateway received from %u: %s\n", from, msg.c_str());
+#else
+  if (msg == "GATEWAY_ANNOUNCE") {
+    gatewayId = from;
+    Serial.printf("Discovered gateway node %u\n", gatewayId);
+  }
+#endif
 }
 
 void newConnectionCallback(uint32_t nodeId) {
   Serial.printf("New connection: %u\n", nodeId);
-  // Naive gateway discovery for this example: treat the first node we
-  // see as the gateway. Replace with your own discovery logic.
-  if (gatewayId == 0) gatewayId = nodeId;
+#ifdef GATEWAY
+  // Announce immediately as well as periodically so new sensors do not
+  // wait for the next scheduled announcement.
+  announceGateway();
+#endif
 }
 
 void setup() {
@@ -107,8 +130,14 @@ void setup() {
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);
 
+#ifdef GATEWAY
+  userScheduler.addTask(taskAnnounceGateway);
+  taskAnnounceGateway.enable();
+  announceGateway();
+#else
   userScheduler.addTask(taskSendReading);
   taskSendReading.enable();
+#endif
 }
 
 void loop() {
