@@ -43,7 +43,7 @@ The mesh extends this by hopping through intermediate nodes. Total range depends
 3. **Neighbor messages** go only to directly connected nodes
 4. Routing tables update automatically as topology changes
 
-See [Message Routing](../architecture/routing.md) for details.
+See [Message Routing](../architecture/mesh-architecture.md#message-routing) for details.
 
 ### Q: Are messages guaranteed to be delivered?
 

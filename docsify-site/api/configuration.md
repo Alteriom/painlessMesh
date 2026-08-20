@@ -641,4 +641,4 @@ See also:
 
 - [Core API](core-api.md) - Complete method reference
 - [Callbacks](callbacks.md) - Event handling
-- [Performance Tuning](../advanced/performance.md) - Optimization guidelines
+- [Performance Tuning](configuration.md#performance-configuration) - Optimization guidelines

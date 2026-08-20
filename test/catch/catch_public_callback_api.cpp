@@ -34,6 +34,7 @@ template <typename T>
 class TestMesh : public Mesh<T> {
  public:
   using plugin::PackageHandler<T>::callbackList;
+  using plugin::PackageHandler<T>::reclaimQuarantinedTasks;
   using plugin::PackageHandler<T>::taskList;
   using plugin::PackageHandler<T>::quarantinedTasks;
   using Mesh<T>::addTask;
@@ -156,6 +157,7 @@ SCENARIO("A task that restarts an internal mesh is not reused live") {
 
   mesh.update();
   REQUIRE(restartedTaskRan);
+  REQUIRE(mesh.quarantinedTasks.empty());
 }
 
 SCENARIO("Broadcast acknowledgment bursts use one bounded scheduler task") {

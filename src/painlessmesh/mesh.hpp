@@ -423,6 +423,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   void update(void) {
     if (semaphoreTake()) {
+      plugin::PackageHandler<T>::reclaimQuarantinedTasks();
       // Check if something is executed (returns false)
       if (!mScheduler->execute())
         Log(logger::GENERAL, "update(): Scheduler executed a task\n");

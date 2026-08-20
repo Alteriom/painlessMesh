@@ -5,6 +5,7 @@
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/router.hpp"
+#include <utility>
 #include <vector>
 
 namespace painlessmesh {
@@ -198,8 +199,8 @@ class PackageHandler : public layout::Layout<T> {
         // pool. A callback may stop() and immediately init() with a new
         // scheduler; reusing this still-running task would rewrite its
         // closure and would not attach it to that new scheduler.
-        auto active = it++;
-        quarantinedTasks.splice(quarantinedTasks.end(), taskList, active);
+        quarantinedTasks.push_back({scheduler, *it});
+        it = taskList.erase(it);
         continue;
       }
       (*it)->disable();
@@ -252,6 +253,7 @@ class PackageHandler : public layout::Layout<T> {
                                 long aIterations,
                                 std::function<void()> aCallback) {
     using namespace painlessmesh::logger;
+    reclaimQuarantinedTasks();
     for (auto&& task : taskList) {
       if (task.use_count() == 1 && !task->isEnabled()) {
         task->set(aInterval, aIterations, aCallback, NULL, NULL);
@@ -286,12 +288,26 @@ class PackageHandler : public layout::Layout<T> {
   }
 
  protected:
+  void reclaimQuarantinedTasks() {
+    for (auto it = quarantinedTasks.begin(); it != quarantinedTasks.end();) {
+      if (it->first != nullptr &&
+          it->first->getCurrentTask() == it->second.get()) {
+        ++it;
+        continue;
+      }
+      it->second->disable();
+      it->second->setCallback(NULL);
+      it = quarantinedTasks.erase(it);
+    }
+  }
+
   callback::MeshPackageCallbackList<T> callbackList;
   std::list<std::shared_ptr<Task> > taskList = {};
-  // Tasks detached while their own callback is executing. Their scheduler
-  // still owns a raw task link, so retain them for this handler's lifetime
-  // but never consider them for reuse.
-  std::list<std::shared_ptr<Task> > quarantinedTasks = {};
+  // Tasks detached while their own callback is executing, paired with the
+  // scheduler whose stack still references them. They become reclaimable
+  // after that scheduler no longer reports the task as current.
+  std::list<std::pair<Scheduler*, std::shared_ptr<Task> > > quarantinedTasks =
+      {};
 };
 
 }  // namespace plugin

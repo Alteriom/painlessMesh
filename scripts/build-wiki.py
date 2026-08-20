@@ -33,7 +33,9 @@ def rewrite_links(content: str, source_relative: Path,
         )
         target = page_names.get(resolved)
         if target is None:
-            return match.group(0)
+            raise ValueError(
+                f"Unresolved Markdown link in {source_relative}: {destination}"
+            )
 
         rewritten = target
         if separator:
