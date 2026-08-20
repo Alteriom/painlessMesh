@@ -27,6 +27,7 @@ DOC_ALIASES = {
 }
 REPOSITORY_BASE = "https://github.com/Alteriom/painlessMesh/"
 MARKDOWN_LINK = re.compile(r"(\[[^\]]*\]\()([^)]+)(\))")
+HTML_HREF = re.compile(r"(href\s*=\s*[\"'])([^\"']+)([\"'])", re.IGNORECASE)
 DOXYGEN_BASE = "https://alteriom.github.io/painlessMesh/api-reference/"
 RELATIVE_DOXYGEN_LINK = re.compile(
     r"(?:\.\./)+api-reference/([^\s\"'()]+\.html(?:#[^\s\"'()]*)?)"
@@ -43,10 +44,9 @@ def rewrite_links(content: str, source_relative: Path,
         lambda match: DOXYGEN_BASE + match.group(1), content
     )
 
-    def replace(match: re.Match[str]) -> str:
-        destination = match.group(2)
+    def rewrite_destination(destination: str) -> str:
         if destination.startswith(("#", "/", "http://", "https://", "mailto:")):
-            return match.group(0)
+            return destination
 
         path, separator, fragment = destination.partition("#")
         resolved = posixpath.normpath(
@@ -57,7 +57,7 @@ def rewrite_links(content: str, source_relative: Path,
             rewritten = target
             if separator:
                 rewritten += "#" + fragment
-            return match.group(1) + rewritten + match.group(3)
+            return rewritten
 
         if resolved.startswith("../"):
             repository_path = resolved[3:]
@@ -67,15 +67,20 @@ def rewrite_links(content: str, source_relative: Path,
                 rewritten = f"{REPOSITORY_BASE}{kind}/main/{repository_path}"
                 if separator:
                     rewritten += "#" + fragment
-                return match.group(1) + rewritten + match.group(3)
+                return rewritten
 
         if path.endswith(".md"):
             raise ValueError(
                 f"Unresolved Markdown link in {source_relative}: {destination}"
             )
-        return match.group(0)
+        return destination
 
-    return MARKDOWN_LINK.sub(replace, content)
+    def replace(match: re.Match[str]) -> str:
+        return (match.group(1) + rewrite_destination(match.group(2)) +
+                match.group(3))
+
+    content = MARKDOWN_LINK.sub(replace, content)
+    return HTML_HREF.sub(replace, content)
 
 
 def main() -> None:
