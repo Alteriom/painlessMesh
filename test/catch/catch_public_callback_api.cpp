@@ -95,7 +95,7 @@ SCENARIO("Mesh::onReceive accumulates handlers instead of replacing") {
   }
 }
 
-SCENARIO("Delivery callbacks run after package dispatch") {
+SCENARIO("Delivery callbacks may stop the mesh during package dispatch") {
   Scheduler scheduler;
   TestMesh<Connection> mesh;
   mesh.init(&scheduler, /*nodeId=*/1234567);
@@ -114,10 +114,9 @@ SCENARIO("Delivery callbacks run after package dispatch") {
   mesh.callbackList.execute(protocol::MESSAGE_ACK, var,
                             std::shared_ptr<Connection>(), 0);
 
-  REQUIRE_FALSE(callbackRan);
-  REQUIRE(mesh.ackTracker.pending() == 0);
-  scheduler.execute();
   REQUIRE(callbackRan);
+  REQUIRE(mesh.ackTracker.pending() == 0);
+  REQUIRE(mesh.callbackList.size() == 0);
 }
 
 SCENARIO("Broadcast acknowledgment bursts use one bounded scheduler task") {

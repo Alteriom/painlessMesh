@@ -5,7 +5,6 @@
 #include <list>
 #include <map>
 #include <set>
-#include <utility>
 
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
@@ -100,26 +99,6 @@ struct PendingAck {
   std::set<uint32_t> waitingFor;
 };
 
-/** A matched acknowledgment whose user callback has not run yet. */
-struct DeliveryResult {
-  deliveryCallback_t callback;
-  uint32_t nodeId = 0;
-  uint32_t latencyMs = 0;
-
-  DeliveryResult() = default;
-  DeliveryResult(deliveryCallback_t callback, uint32_t nodeId,
-                 uint32_t latencyMs)
-      : callback(std::move(callback)),
-        nodeId(nodeId),
-        latencyMs(latencyMs) {}
-
-  explicit operator bool() const { return static_cast<bool>(callback); }
-
-  void deliver() const {
-    if (callback) callback(nodeId, true, latencyMs);
-  }
-};
-
 /**
  * AckTracker - tracks outgoing messages awaiting acknowledgment
  *
@@ -185,27 +164,14 @@ class AckTracker {
    * @return true when the ack matched a pending message/destination
    */
   bool handleAck(uint32_t msgId, uint32_t fromNode, uint32_t now) {
-    auto result = acknowledge(msgId, fromNode, now);
-    if (!result) return false;
-    result.deliver();
-    return true;
-  }
-
-  /**
-   * Match an acknowledgment without invoking user code.
-   *
-   * Mesh uses this to defer delivery callbacks until package dispatch has
-   * finished, so callbacks may safely stop or reconfigure the mesh.
-   */
-  DeliveryResult acknowledge(uint32_t msgId, uint32_t fromNode,
-                             uint32_t now) {
     auto it = entries.find(msgId);
-    if (it == entries.end()) return {};
-    if (it->second.waitingFor.erase(fromNode) == 0) return {};
+    if (it == entries.end()) return false;
+    if (it->second.waitingFor.erase(fromNode) == 0) return false;
     auto latency = (uint32_t)(now - it->second.sentAt);
     auto callback = it->second.callback;
     if (it->second.waitingFor.empty()) entries.erase(it);
-    return {callback, fromNode, latency};
+    callback(fromNode, true, latency);
+    return true;
   }
 
   /**

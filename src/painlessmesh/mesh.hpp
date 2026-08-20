@@ -246,10 +246,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     this->callbackList.onPackage(
         protocol::MESSAGE_ACK,
         [this](protocol::Variant& variant, std::shared_ptr<T>, uint32_t) {
-          auto result = this->ackTracker.acknowledge(
-              variant.msgId(), variant.from(),
-              static_cast<uint32_t>(millis()));
-          if (result) this->queueDeliveryResult(std::move(result));
+          this->ackTracker.handleAck(variant.msgId(), variant.from(),
+                                     static_cast<uint32_t>(millis()));
           return false;
         });
 
@@ -392,13 +390,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // the task would keep firing forever on an external scheduler.
     if (ackCheckTask) ackCheckTask->disable();
     if (broadcastAckTask) broadcastAckTask->disable();
-    if (ackDeliveryTask) ackDeliveryTask->disable();
     ackTracker.clear();
     pendingBroadcastAcks.clear();
-    pendingDeliveryResults.clear();
     ackCheckTask = nullptr;
     broadcastAckTask = nullptr;
-    ackDeliveryTask = nullptr;
 
     plugin::PackageHandler<T>::stop(mScheduler);
 
@@ -3356,21 +3351,6 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     }
   }
 
-  void queueDeliveryResult(ack::DeliveryResult result) {
-    pendingDeliveryResults.push_back(std::move(result));
-    if (!ackDeliveryTask) {
-      ackDeliveryTask = this->addTask([this]() {
-        while (!this->pendingDeliveryResults.empty()) {
-          auto queued = std::move(this->pendingDeliveryResults);
-          this->pendingDeliveryResults.clear();
-          for (const auto& result : queued) result.deliver();
-        }
-      });
-    } else if (!ackDeliveryTask->isEnabled()) {
-      ackDeliveryTask->enable();
-    }
-  }
-
   /**
    * Make sure the periodic ack-timeout task is running
    *
@@ -3409,8 +3389,6 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   std::shared_ptr<Task> ackCheckTask;
   std::vector<std::pair<uint32_t, uint32_t> > pendingBroadcastAcks;
   std::shared_ptr<Task> broadcastAckTask;
-  std::vector<ack::DeliveryResult> pendingDeliveryResults;
-  std::shared_ptr<Task> ackDeliveryTask;
 
   void setScheduler(Scheduler *baseScheduler) {
     this->mScheduler = baseScheduler;

@@ -71,15 +71,32 @@ class PackageCallbackList {
     return size;
   }
 
-  void clear() { callbackMap.clear(); }
+  void clear() {
+    if (dispatchDepth > 0) {
+      clearPending = true;
+      return;
+    }
+    callbackMap.clear();
+  }
 
   /**
    * Execute all the callbacks associated with a certain package
    */
-  int execute(int id, Args... args) { return callbackMap[id].execute(args...); }
+  int execute(int id, Args... args) {
+    ++dispatchDepth;
+    auto result = callbackMap[id].execute(args...);
+    --dispatchDepth;
+    if (dispatchDepth == 0 && clearPending) {
+      callbackMap.clear();
+      clearPending = false;
+    }
+    return result;
+  }
 
  protected:
   std::map<int, List<Args...>> callbackMap;
+  size_t dispatchDepth = 0;
+  bool clearPending = false;
 };
 
 template <typename T>
