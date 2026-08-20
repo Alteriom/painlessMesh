@@ -83,6 +83,7 @@
     "examples/bridge_failover/bridge_failover.ino",
     "examples/logClient/logClient.ino",
     "examples/logServer/logServer.ino",
+    "examples/mockServerTest/mockServerTest.ino",
     "examples/mqttBridge/mqttBridge.ino",
     "examples/namedMesh/namedMesh.ino",
     "examples/otaReceiver/otaReceiver.ino",

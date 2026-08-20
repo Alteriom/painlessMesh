@@ -200,6 +200,14 @@ The callback provides `httpStatus` to indicate the result:
 - `README.md` - This documentation
 - `PC_NODE_README.md` - **NEW:** Documentation for PC mesh node testing
 
+### Related examples
+
+- [`../mockServerTest/`](../mockServerTest/) - Bridge testing against the mock
+  HTTP server. This used to live here as `mock_server_test.ino`, but a sketch
+  folder may contain only one sketch: the Arduino toolchain merges every `.ino`
+  in a folder into a single translation unit, so two sketches side by side
+  collide on `setup()`/`loop()`.
+
 ## Testing from Regular Nodes
 
 ### PC Mesh Node Emulator (NEW!)

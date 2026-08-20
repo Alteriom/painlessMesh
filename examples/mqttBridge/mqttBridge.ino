@@ -10,6 +10,10 @@
 
 #include <Arduino.h>
 #include <painlessMesh.h>
+// Requires the "PubSubClient" library by Nick O'Leary. Arduino IDE users:
+// install it via Library Manager (Tools > Manage Libraries... > search
+// "PubSubClient"); PlatformIO users already get it automatically from this
+// example's platformio.ini.
 #include <PubSubClient.h>
 #include <WiFiClient.h>
 

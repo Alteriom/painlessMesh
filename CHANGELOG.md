@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`mqttBridge` example fails to compile in Arduino IDE (#398)** — the
+  `PubSubClient` library was missing from `library.properties`'s `depends`
+  field, so installing/updating this library through the Arduino IDE Library
+  Manager never pulled in `PubSubClient`, causing
+  `fatal error: PubSubClient.h: No such file or directory` when compiling
+  `examples/mqttBridge/mqttBridge.ino`. `PubSubClient` is now listed as a
+  dependency so the Library Manager installs it automatically; the example
+  also gained a comment pointing this out, and
+  `examples/mqttBridge/platformio.ini` now pins the same
+  `knolleary/PubSubClient` package used by `examples/bridge` to avoid
+  ambiguous package name resolution in PlatformIO.
+
+## [1.10.0] - 2026-08-12
+
+Feature release making the TCP connect-retry envelope tunable per mesh instance
+(#378), alongside two documentation corrections that retire long-standing claims
+the library never actually implemented (#385) and an example build fix (#360).
+
+**Upgrading is behaviour-neutral.** Every new setting defaults to the value that
+was previously hardcoded, so a sketch that does not call `setTcpRetryConfig()`
+behaves exactly as it did on 1.9.21. Nothing was removed: the deprecated queue
+macros keep their historical values for source compatibility.
+
+> **Note for npm users:** v1.9.21 was never published to npm — the `NPM_TOKEN`
+> used by CI had expired (#381), which failed the npm publish job while the
+> GitHub Release, GitHub Packages, PlatformIO and Arduino channels all succeeded.
+> npm's previous version is therefore **1.9.20**, and upgrading from npm brings
+> in both 1.9.21 and 1.10.0. See the 1.9.21 entry below for what that release
+> contained — it was a crash-fix release, and npm users have been missing it.
+
 ### Added
 
 - **User-configurable TCP retry parameters (#378)** — the five TCP connect

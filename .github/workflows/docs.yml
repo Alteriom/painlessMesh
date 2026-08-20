@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -147,14 +147,14 @@ jobs:
 
       - name: Upload artifact (if Pages configured)
         if: steps.pages-setup.outcome == 'success'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: './public'
 
       - name: Deploy to GitHub Pages (if Pages configured)
         if: steps.pages-setup.outcome == 'success'
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Skip Pages deployment (Pages not configured)
         if: steps.pages-setup.outcome == 'failure'

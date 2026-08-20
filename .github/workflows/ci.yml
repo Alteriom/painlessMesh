@@ -12,6 +12,8 @@ on:
       - 'docs/**'
       - '*.md'
       - 'LICENSE'
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
@@ -49,7 +51,7 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -92,7 +94,7 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-failure-${{ matrix.compiler }}
           path: |
@@ -109,14 +111,18 @@ jobs:
         include:
           - board: esp32
             fqbn: esp32:esp32:esp32
+            core: esp32:esp32
+            async_lib: AsyncTCP
           - board: esp8266
             # nodemcuv2 (not generic): examples use NodeMCU pin aliases
             # (D8 etc.) and the example platformio.ini targets nodemcuv2
             fqbn: esp8266:esp8266:nodemcuv2
+            core: esp8266:esp8266
+            async_lib: ESPAsyncTCP
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v2
@@ -125,22 +131,38 @@ jobs:
         run: |
           arduino-cli config init --config-dir test/ci/
           
-          # Add ESP8266 board manager URL first
-          arduino-cli config add board_manager.additional_urls http://arduino.esp8266.com/stable/package_esp8266com_index.json --config-dir test/ci/
+          # Add ESP8266 board manager URL only when needed
+          if [[ "${{ matrix.board }}" == "esp8266" ]]; then
+            arduino-cli config add board_manager.additional_urls http://arduino.esp8266.com/stable/package_esp8266com_index.json --config-dir test/ci/
+          fi
           
           # Update index with retry logic for transient server errors
           for i in 1 2 3; do
             if arduino-cli core update-index --config-dir test/ci/; then
               break
             else
+              if [[ "$i" == "3" ]]; then
+                echo "Index update failed after $i attempts."
+                exit 1
+              fi
               echo "Attempt $i failed, retrying in 5 seconds..."
               sleep 5
             fi
           done
           
-          # Install both ESP32 and ESP8266 platforms
-          arduino-cli core install esp32:esp32 --config-dir test/ci/
-          arduino-cli core install esp8266:esp8266 --config-dir test/ci/
+          # Install only the selected platform, with retries for transient outages
+          for i in 1 2 3; do
+            if arduino-cli core install ${{ matrix.core }} --config-dir test/ci/; then
+              break
+            else
+              if [[ "$i" == "3" ]]; then
+                echo "Core install for ${{ matrix.core }} failed after $i attempts."
+                exit 1
+              fi
+              echo "Core install attempt $i failed, retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
 
       - name: Install library dependencies
         run: |
@@ -185,10 +207,10 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
@@ -206,7 +228,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check formatting
         run: |
@@ -244,7 +266,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0  # Fetch all history for tags
 

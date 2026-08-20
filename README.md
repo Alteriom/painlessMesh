@@ -570,6 +570,17 @@ These are the message types used by applications built on painlessMesh:
 - New `checkAcks()` / `pendingAcks()` APIs and examples `reliableSensorLogging`, `commandControl`
 - Major version bump: mixed networks with pre-2.0 nodes forward ACK traffic but never acknowledge, so delivery confirmation needs 2.0.0 on all participating nodes
 
+**Previous Release: v1.10.0 (August 12, 2026)** — Tunable TCP Connect-Retry Behaviour (issue #378)
+
+- The five TCP connect-retry values that were hardcoded in `tcp.hpp` are now tunable per mesh instance via `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()` (#378, PR #395)
+- Defaults match the previous constants exactly — **no behaviour change unless you call the setter**
+- New `examples/tcpRetryConfig/` with real-time, high-reliability and battery-saver profiles
+- `MessageQueue` documentation corrected: it is a manual buffer, never an auto-flush queue (#385)
+- `MIN_FREE_MEMORY` / `MAX_MESSAGE_QUEUE` deprecated as ignored no-ops, values preserved for source compatibility (#385)
+- Fixed `bridge_failover` example failing to compile on an unqualified `plugin::` type (#360)
+
+> **npm users:** v1.9.21 was never published to npm ([#381](https://github.com/Alteriom/painlessMesh/issues/381) — expired token). npm's previous version is 1.9.20, so upgrading from npm picks up both releases. GitHub, PlatformIO and Arduino were unaffected.
+
 **Previous Release: v1.9.21 (August 4, 2026)** — Crash Fixes: Task & TCP Connection Lifecycle (issue #373)
 
 - Fixed use-after-free in `Task::disable()` that crashed nodes on every peer disconnect (#373, PR #376 by @vaz82)
