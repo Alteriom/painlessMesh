@@ -184,6 +184,19 @@ SCENARIO("AckTracker tracks a single destination") {
       }
     }
 
+    WHEN("the ACK arrives at the timeout deadline before expiry polling") {
+      auto matched = tracker.handleAck(id, 2222, 6000);
+
+      THEN("the ACK is rejected and the callback reports a timeout") {
+        REQUIRE(!matched);
+        REQUIRE(called == 1);
+        REQUIRE(cbNode == 2222);
+        REQUIRE(!cbDelivered);
+        REQUIRE(cbLatency == 5000);
+        REQUIRE(tracker.pending() == 0);
+      }
+    }
+
     WHEN("expire runs before the timeout") {
       auto stillPending = tracker.expire(3000);
 

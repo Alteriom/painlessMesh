@@ -166,8 +166,22 @@ class AckTracker {
   bool handleAck(uint32_t msgId, uint32_t fromNode, uint32_t now) {
     auto it = entries.find(msgId);
     if (it == entries.end()) return false;
-    if (it->second.waitingFor.erase(fromNode) == 0) return false;
+    if (it->second.waitingFor.count(fromNode) == 0) return false;
     auto latency = (uint32_t)(now - it->second.sentAt);
+    if (latency >= it->second.timeoutMs) {
+      // The polling task may not have run exactly at the deadline. Reject
+      // this late ACK and expire every destination still waiting on the
+      // same message before invoking user code (callbacks may reenter us).
+      auto expired = std::move(it->second);
+      entries.erase(it);
+      for (auto&& nodeId : expired.waitingFor) {
+        Log(logger::COMMUNICATION,
+            "AckTracker: timeout waiting for ack from %u\n", nodeId);
+        expired.callback(nodeId, false, expired.timeoutMs);
+      }
+      return false;
+    }
+    it->second.waitingFor.erase(fromNode);
     auto callback = it->second.callback;
     if (it->second.waitingFor.empty()) entries.erase(it);
     callback(fromNode, true, latency);
