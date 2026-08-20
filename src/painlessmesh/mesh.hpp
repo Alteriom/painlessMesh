@@ -232,13 +232,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       if (variant.type() == protocol::BROADCAST) {
         // Stagger broadcast ACKs by nodeId so N nodes do not fire N
         // unicast ACKs at the sender in the same instant
-        auto self = this;
-        this->addTask(
-            [self, origin, msgId]() {
-              auto ackPkg = ack::MessageAckPackage(self->nodeId, origin, msgId);
-              self->sendPackage(&ackPkg);
-            },
-            this->nodeId % ACK_BROADCAST_JITTER_MS);
+        this->queueBroadcastAck(origin, msgId);
       } else {
         auto ackPkg = ack::MessageAckPackage(this->nodeId, origin, msgId);
         this->sendPackage(&ackPkg);
@@ -252,8 +246,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     this->callbackList.onPackage(
         protocol::MESSAGE_ACK,
         [this](protocol::Variant& variant, std::shared_ptr<T>, uint32_t) {
-          this->ackTracker.handleAck(variant.msgId(), variant.from(),
-                                     static_cast<uint32_t>(millis()));
+          auto result = this->ackTracker.acknowledge(
+              variant.msgId(), variant.from(),
+              static_cast<uint32_t>(millis()));
+          if (result) this->queueDeliveryResult(std::move(result));
           return false;
         });
 
@@ -395,8 +391,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // this->ackCheckTask guard is useless once the member is null and
     // the task would keep firing forever on an external scheduler.
     if (ackCheckTask) ackCheckTask->disable();
+    if (broadcastAckTask) broadcastAckTask->disable();
+    if (ackDeliveryTask) ackDeliveryTask->disable();
     ackTracker.clear();
+    pendingBroadcastAcks.clear();
+    pendingDeliveryResults.clear();
     ackCheckTask = nullptr;
+    broadcastAckTask = nullptr;
+    ackDeliveryTask = nullptr;
 
     plugin::PackageHandler<T>::stop(mScheduler);
 
@@ -3324,6 +3326,51 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
  protected:
+  void queueBroadcastAck(uint32_t origin, uint32_t msgId) {
+    const auto key = std::make_pair(origin, msgId);
+    if (std::find(pendingBroadcastAcks.begin(), pendingBroadcastAcks.end(),
+                  key) != pendingBroadcastAcks.end())
+      return;
+    if (pendingBroadcastAcks.size() >= MAX_QUEUED_BROADCAST_ACKS) {
+      Log(logger::ERROR, "Mesh: broadcast-ack queue limit (%u) reached\n",
+          (unsigned)MAX_QUEUED_BROADCAST_ACKS);
+      return;
+    }
+    pendingBroadcastAcks.push_back(key);
+    if (!broadcastAckTask) {
+      broadcastAckTask = this->addTask(
+          [this]() {
+            while (!this->pendingBroadcastAcks.empty()) {
+              auto queued = std::move(this->pendingBroadcastAcks);
+              this->pendingBroadcastAcks.clear();
+              for (const auto& item : queued) {
+                auto pkg = ack::MessageAckPackage(this->nodeId, item.first,
+                                                  item.second);
+                this->sendPackage(&pkg);
+              }
+            }
+          },
+          this->nodeId % ACK_BROADCAST_JITTER_MS);
+    } else if (!broadcastAckTask->isEnabled()) {
+      broadcastAckTask->enableDelayed();
+    }
+  }
+
+  void queueDeliveryResult(ack::DeliveryResult result) {
+    pendingDeliveryResults.push_back(std::move(result));
+    if (!ackDeliveryTask) {
+      ackDeliveryTask = this->addTask([this]() {
+        while (!this->pendingDeliveryResults.empty()) {
+          auto queued = std::move(this->pendingDeliveryResults);
+          this->pendingDeliveryResults.clear();
+          for (const auto& result : queued) result.deliver();
+        }
+      });
+    } else if (!ackDeliveryTask->isEnabled()) {
+      ackDeliveryTask->enable();
+    }
+  }
+
   /**
    * Make sure the periodic ack-timeout task is running
    *
@@ -3356,8 +3403,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   // Broadcast ACK replies are staggered by nodeId within this window so
   // N nodes do not converge N simultaneous unicasts on the sender
   static constexpr uint32_t ACK_BROADCAST_JITTER_MS = 50;
+  static constexpr size_t MAX_QUEUED_BROADCAST_ACKS =
+      PAINLESSMESH_MAX_QUEUED_BROADCAST_ACKS;
   ack::AckTracker ackTracker;
   std::shared_ptr<Task> ackCheckTask;
+  std::vector<std::pair<uint32_t, uint32_t> > pendingBroadcastAcks;
+  std::shared_ptr<Task> broadcastAckTask;
+  std::vector<ack::DeliveryResult> pendingDeliveryResults;
+  std::shared_ptr<Task> ackDeliveryTask;
 
   void setScheduler(Scheduler *baseScheduler) {
     this->mScheduler = baseScheduler;

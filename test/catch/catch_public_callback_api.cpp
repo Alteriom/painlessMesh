@@ -34,6 +34,9 @@ template <typename T>
 class TestMesh : public Mesh<T> {
  public:
   using plugin::PackageHandler<T>::callbackList;
+  using plugin::PackageHandler<T>::taskList;
+  using Mesh<T>::ackTracker;
+  using Mesh<T>::pendingBroadcastAcks;
 };
 
 }  // namespace
@@ -90,6 +93,50 @@ SCENARIO("Mesh::onReceive accumulates handlers instead of replacing") {
       }
     }
   }
+}
+
+SCENARIO("Delivery callbacks run after package dispatch") {
+  Scheduler scheduler;
+  TestMesh<Connection> mesh;
+  mesh.init(&scheduler, /*nodeId=*/1234567);
+  bool callbackRan = false;
+  const auto msgId = mesh.ackTracker.nextMessageId();
+  REQUIRE(mesh.ackTracker.track(
+      msgId, {999},
+      [&](uint32_t, bool, uint32_t) {
+        callbackRan = true;
+        mesh.stop();
+      },
+      5000, 100));
+
+  ack::MessageAckPackage pkg(/*fromNode=*/999, /*destNode=*/1234567, msgId);
+  protocol::Variant var(pkg);
+  mesh.callbackList.execute(protocol::MESSAGE_ACK, var,
+                            std::shared_ptr<Connection>(), 0);
+
+  REQUIRE_FALSE(callbackRan);
+  REQUIRE(mesh.ackTracker.pending() == 0);
+  scheduler.execute();
+  REQUIRE(callbackRan);
+}
+
+SCENARIO("Broadcast acknowledgment bursts use one bounded scheduler task") {
+  Scheduler scheduler;
+  TestMesh<Connection> mesh;
+  mesh.init(&scheduler, /*nodeId=*/1234567);
+
+  for (uint32_t i = 1; i <= PAINLESSMESH_MAX_QUEUED_BROADCAST_ACKS * 3; ++i) {
+    TSTRING body = "burst";
+    protocol::Broadcast pkg(/*fromID=*/i + 10, /*destID=*/0, body);
+    pkg.msgId = i;
+    protocol::Variant var(pkg);
+    mesh.callbackList.execute(protocol::BROADCAST, var,
+                              std::shared_ptr<Connection>(), 0);
+  }
+
+  REQUIRE(mesh.taskList.size() == 1);
+  REQUIRE(mesh.pendingBroadcastAcks.size() ==
+          PAINLESSMESH_MAX_QUEUED_BROADCAST_ACKS);
 }
 
 SCENARIO("Mesh::onNewConnection accumulates handlers instead of replacing") {
