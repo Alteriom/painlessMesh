@@ -550,7 +550,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @param ackCallback Delivery confirmation callback, fired once per
    *        node. Passing nullptr behaves like the plain sendBroadcast().
    * @param ackTimeoutMs How long to wait for acknowledgments (default
-   *        5000 ms).
+   *        5000 ms). Values below the 50 ms broadcast-ACK jitter window
+   *        are raised to 50 ms.
    *
    * @return true if the message was queued and at least one node is
    *         expected to acknowledge, false otherwise — including when
@@ -568,6 +569,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       return false;
     }
     Log(COMMUNICATION, "sendBroadcast(): msg=%s with ack\n", msg.c_str());
+    // Broadcast recipients intentionally jitter ACK replies across this
+    // window. A shorter deadline would deterministically time out nodes
+    // whose slot falls after it, even when delivery is immediate.
+    ackTimeoutMs = std::max(ackTimeoutMs, ACK_BROADCAST_JITTER_MS);
     auto expected = this->getNodeList(false);
     painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
     pkg.msgId = ackTracker.nextMessageId();

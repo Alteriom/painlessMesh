@@ -9,6 +9,7 @@ from pathlib import Path
 SOURCE_ROOT = Path("docsify-site")
 OUTPUT_ROOT = Path("wiki_build")
 SKIPPED_NAMES = {"_sidebar.md", "_navbar.md"}
+ROOT_PAGES = {Path("BRIDGE_TO_INTERNET.md"): "Bridge-To-Internet.md"}
 MARKDOWN_LINK = re.compile(r"(\[[^\]]*\]\()([^)]+)(\))")
 
 
@@ -52,6 +53,10 @@ def main() -> None:
         wiki_name(path.relative_to(SOURCE_ROOT))
         for path in pages
     }
+    page_names.update({
+        "../" + source.as_posix(): output_name
+        for source, output_name in ROOT_PAGES.items()
+    })
 
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     for source in pages:
@@ -60,6 +65,11 @@ def main() -> None:
         rewritten = rewrite_links(content, relative, page_names)
         (OUTPUT_ROOT / page_names[relative.as_posix()]).write_text(
             rewritten, encoding="utf-8"
+        )
+
+    for source, output_name in ROOT_PAGES.items():
+        (OUTPUT_ROOT / output_name).write_text(
+            source.read_text(encoding="utf-8"), encoding="utf-8"
         )
 
 
