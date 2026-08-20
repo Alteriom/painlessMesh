@@ -16,12 +16,37 @@ on:
     types: [labeled]
 
 jobs:
+  authorize:
+    name: Verify HIL approval
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      approved: ${{ steps.approval.outputs.approved }}
+    steps:
+      - name: Verify trusted trigger actor
+        id: approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_ACTOR: ${{ github.actor }}
+        run: |
+          permission=$(gh api \
+            "repos/${{ github.repository }}/collaborators/$TRIGGER_ACTOR/permission" \
+            --jq 'if .user.permissions.admin then "admin" elif .user.permissions.maintain then "maintain" else "untrusted" end')
+          if [ "$permission" != "admin" ] && [ "$permission" != "maintain" ]; then
+            echo "::error::$TRIGGER_ACTOR is not trusted to approve HIL runs"
+            exit 1
+          fi
+          echo "approved=true" >> "$GITHUB_OUTPUT"
+
   hil:
     name: Flash + on-hardware suite
+    needs: authorize
     if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.label.name == 'run-hil' &&
-       github.event.pull_request.head.repo.full_name == github.repository)
+      needs.authorize.outputs.approved == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.label.name == 'run-hil' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: [self-hosted, esp32-farm]
     timeout-minutes: 45
     env:
