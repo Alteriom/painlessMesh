@@ -550,8 +550,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @param ackCallback Delivery confirmation callback, fired once per
    *        node. Passing nullptr behaves like the plain sendBroadcast().
    * @param ackTimeoutMs How long to wait for acknowledgments (default
-   *        5000 ms). Values below the 50 ms broadcast-ACK jitter window
-   *        are raised to 50 ms.
+   *        5000 ms). Values below 1000 ms are raised to 1000 ms so the
+   *        50 ms jitter window still leaves time for routed round-trip
+   *        delivery.
    *
    * @return true if the message was queued and at least one node is
    *         expected to acknowledge, false otherwise — including when
@@ -572,7 +573,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // Broadcast recipients intentionally jitter ACK replies across this
     // window. A shorter deadline would deterministically time out nodes
     // whose slot falls after it, even when delivery is immediate.
-    ackTimeoutMs = std::max(ackTimeoutMs, ACK_BROADCAST_JITTER_MS);
+    ackTimeoutMs = std::max(ackTimeoutMs, ACK_BROADCAST_MIN_TIMEOUT_MS);
     auto expected = this->getNodeList(false);
     painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
     pkg.msgId = ackTracker.nextMessageId();
@@ -3393,6 +3394,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   // Broadcast ACK replies are staggered by nodeId within this window so
   // N nodes do not converge N simultaneous unicasts on the sender
   static constexpr uint32_t ACK_BROADCAST_JITTER_MS = 50;
+  // Allow the jittered ACK to traverse a multi-hop route after its slot.
+  static constexpr uint32_t ACK_BROADCAST_MIN_TIMEOUT_MS = 1000;
   static constexpr size_t MAX_QUEUED_BROADCAST_ACKS =
       PAINLESSMESH_MAX_QUEUED_BROADCAST_ACKS;
   ack::AckTracker ackTracker;

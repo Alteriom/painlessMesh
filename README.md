@@ -560,7 +560,7 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v2.0.0 (August 4, 2026)
+## Latest Release: v2.0.0 (August 20, 2026)
 
 **Per-Message Delivery Confirmation & Acknowledgment API (issue #379)**
 
