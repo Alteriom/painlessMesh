@@ -630,12 +630,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   template <
       typename Priority,
+      typename IncludeSelf = bool,
       typename std::enable_if<
           std::is_integral<typename std::decay<Priority>::type>::value &&
-              !std::is_same<typename std::decay<Priority>::type, bool>::value,
+              !std::is_same<typename std::decay<Priority>::type, bool>::value &&
+              std::is_same<typename std::decay<IncludeSelf>::type, bool>::value,
           int>::type = 0>
   bool sendBroadcast(TSTRING msg, Priority priorityLevel,
-                     bool includeSelf = false) {
+                     IncludeSelf includeSelf = false) {
     using namespace logger;
     const auto priority = static_cast<uint8_t>(priorityLevel);
     Log(COMMUNICATION, "sendBroadcast(): msg=%s priority=%u\n", msg.c_str(),

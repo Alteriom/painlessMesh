@@ -264,6 +264,11 @@ SCENARIO("Named broadcast delivery handlers select acknowledgment overload") {
 
   REQUIRE_FALSE(queued);
   REQUIRE(selfDeliveries == 0);
+
+  const auto integerBoolQueued =
+      mesh.sendBroadcast("named-int", 0, namedDeliveryHandler);
+  REQUIRE_FALSE(integerBoolQueued);
+  REQUIRE(selfDeliveries == 0);
 }
 
 SCENARIO("Mesh::onNewConnection accumulates handlers instead of replacing") {
