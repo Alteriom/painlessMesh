@@ -583,7 +583,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // Broadcast recipients intentionally jitter ACK replies across this
     // window. A shorter deadline would deterministically time out nodes
     // whose slot falls after it, even when delivery is immediate.
-    ackTimeoutMs = std::max(ackTimeoutMs, ACK_BROADCAST_MIN_TIMEOUT_MS);
+    if (ackTimeoutMs < ACK_BROADCAST_MIN_TIMEOUT_MS)
+      ackTimeoutMs = ACK_BROADCAST_MIN_TIMEOUT_MS;
     auto expected = this->getNodeList(false);
     painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
     pkg.msgId = ackTracker.nextMessageId();
