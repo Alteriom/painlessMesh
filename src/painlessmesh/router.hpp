@@ -195,7 +195,8 @@ size_t broadcast(protocol::Variant&& variant, layout::Layout<T> layout,
 
 template <class T>
 void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
-                  const TSTRING& pkg, callback::MeshPackageCallbackList<T> cbl,
+                  const TSTRING& pkg,
+                  callback::MeshPackageCallbackList<T>& cbl,
                   uint32_t receivedAt) {
   using namespace logger;
   Log(COMMUNICATION, "routePackage(): Recvd from %u: %s\n", connection->nodeId,
