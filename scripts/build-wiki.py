@@ -11,6 +11,10 @@ OUTPUT_ROOT = Path("wiki_build")
 SKIPPED_NAMES = {"_sidebar.md", "_navbar.md"}
 ROOT_PAGES = {Path("BRIDGE_TO_INTERNET.md"): "Bridge-To-Internet.md"}
 MARKDOWN_LINK = re.compile(r"(\[[^\]]*\]\()([^)]+)(\))")
+DOXYGEN_BASE = "https://alteriom.github.io/painlessMesh/api-reference/"
+RELATIVE_DOXYGEN_LINK = re.compile(
+    r"(?:\.\./)+api-reference/([^\s\"'()]+\.html(?:#[^\s\"'()]*)?)"
+)
 
 
 def wiki_name(relative_path: Path) -> str:
@@ -19,6 +23,10 @@ def wiki_name(relative_path: Path) -> str:
 
 def rewrite_links(content: str, source_relative: Path,
                   page_names: dict[str, str]) -> str:
+    content = RELATIVE_DOXYGEN_LINK.sub(
+        lambda match: DOXYGEN_BASE + match.group(1), content
+    )
+
     def replace(match: re.Match[str]) -> str:
         destination = match.group(2)
         if destination.startswith(("#", "/", "http://", "https://", "mailto:")):
