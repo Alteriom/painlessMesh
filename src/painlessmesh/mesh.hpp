@@ -208,10 +208,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 #endif
 
     // Add package handlers
-    this->callbackList = painlessmesh::ntp::addPackageCallback(
-        std::move(this->callbackList), (*this));
-    this->callbackList = painlessmesh::router::addPackageCallback(
-        std::move(this->callbackList), (*this));
+    painlessmesh::ntp::addPackageCallback(this->callbackList, (*this));
+    painlessmesh::router::addPackageCallback(this->callbackList, (*this));
 
     // Seed delivery-confirmation ids with a random value so they do not
     // restart at 1 after a reboot — a delayed ACK for a pre-reboot

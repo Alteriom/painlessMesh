@@ -99,7 +99,7 @@ SCENARIO("Mesh::onReceive accumulates handlers instead of replacing") {
   }
 }
 
-SCENARIO("Delivery callbacks may stop the mesh during package dispatch") {
+SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
   Scheduler scheduler;
   TestMesh<Connection> mesh;
   mesh.init(&scheduler, /*nodeId=*/1234567);
@@ -110,6 +110,7 @@ SCENARIO("Delivery callbacks may stop the mesh during package dispatch") {
       [&](uint32_t, bool, uint32_t) {
         callbackRan = true;
         mesh.stop();
+        mesh.init(&scheduler, /*nodeId=*/1234567);
       },
       5000, 100));
 
@@ -120,7 +121,22 @@ SCENARIO("Delivery callbacks may stop the mesh during package dispatch") {
 
   REQUIRE(callbackRan);
   REQUIRE(mesh.ackTracker.pending() == 0);
-  REQUIRE(mesh.callbackList.size() == 0);
+  REQUIRE(mesh.callbackList.size() > 0);
+
+  bool nextGenerationRan = false;
+  const auto nextMsgId = mesh.ackTracker.nextMessageId();
+  REQUIRE(mesh.ackTracker.track(
+      nextMsgId, {999},
+      [&](uint32_t, bool delivered, uint32_t) {
+        nextGenerationRan = delivered;
+      },
+      5000, 100));
+  ack::MessageAckPackage nextPkg(/*fromNode=*/999, /*destNode=*/1234567,
+                                 nextMsgId);
+  protocol::Variant nextVar(&nextPkg);
+  mesh.callbackList.execute(protocol::MESSAGE_ACK, nextVar,
+                            std::shared_ptr<Connection>(), 0);
+  REQUIRE(nextGenerationRan);
 }
 
 SCENARIO("Callbacks registered after a deferred clear survive dispatch") {

@@ -335,8 +335,8 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
 }
 
 template <class T, typename U>
-callback::MeshPackageCallbackList<U> addPackageCallback(
-    callback::MeshPackageCallbackList<U>&& callbackList, T& mesh) {
+void addPackageCallback(callback::MeshPackageCallbackList<U>& callbackList,
+                        T& mesh) {
   // REQUEST type,
   callbackList.onPackage(
       protocol::NODE_SYNC_REQUEST,
@@ -359,8 +359,6 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
         connection->timeOutTask.disable();
         return false;
       });
-
-  return callbackList;
 }
 
 }  // namespace router
