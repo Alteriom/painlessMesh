@@ -12,6 +12,8 @@ on:
       - 'docs/**'
       - '*.md'
       - 'LICENSE'
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
