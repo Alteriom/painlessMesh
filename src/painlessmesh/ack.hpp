@@ -99,6 +99,20 @@ struct PendingAck {
   std::set<uint32_t> waitingFor;
 };
 
+struct DeliveryResult {
+  deliveryCallback_t callback;
+  uint32_t nodeId = 0;
+  bool delivered = false;
+  uint32_t latencyMs = 0;
+
+  DeliveryResult(deliveryCallback_t callback, uint32_t nodeId, bool delivered,
+                 uint32_t latencyMs)
+      : callback(callback),
+        nodeId(nodeId),
+        delivered(delivered),
+        latencyMs(latencyMs) {}
+};
+
 /**
  * AckTracker - tracks outgoing messages awaiting acknowledgment
  *
@@ -164,6 +178,23 @@ class AckTracker {
    * @return true when the ack matched a pending message/destination
    */
   bool handleAck(uint32_t msgId, uint32_t fromNode, uint32_t now) {
+    std::list<DeliveryResult> results;
+    auto matched = collectAck(msgId, fromNode, now, results);
+    for (auto&& result : results) {
+      result.callback(result.nodeId, result.delivered, result.latencyMs);
+    }
+    return matched;
+  }
+
+  /**
+   * Match an acknowledgment without invoking user code.
+   *
+   * Mesh receive dispatch uses this form so callbacks can be scheduled after
+   * the connection read task has unwound. Tracker state is still updated
+   * synchronously and exactly once.
+   */
+  bool collectAck(uint32_t msgId, uint32_t fromNode, uint32_t now,
+                  std::list<DeliveryResult>& results) {
     auto it = entries.find(msgId);
     if (it == entries.end()) return false;
     if (it->second.waitingFor.count(fromNode) == 0) return false;
@@ -177,14 +208,15 @@ class AckTracker {
       for (auto&& nodeId : expired.waitingFor) {
         Log(logger::COMMUNICATION,
             "AckTracker: timeout waiting for ack from %u\n", nodeId);
-        expired.callback(nodeId, false, expired.timeoutMs);
+        results.push_back(
+            DeliveryResult(expired.callback, nodeId, false, expired.timeoutMs));
       }
       return false;
     }
     it->second.waitingFor.erase(fromNode);
     auto callback = it->second.callback;
     if (it->second.waitingFor.empty()) entries.erase(it);
-    callback(fromNode, true, latency);
+    results.push_back(DeliveryResult(callback, fromNode, true, latency));
     return true;
   }
 

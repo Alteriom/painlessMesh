@@ -245,8 +245,16 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     this->callbackList.onPackage(
         protocol::MESSAGE_ACK,
         [this](protocol::Variant& variant, std::shared_ptr<T>, uint32_t) {
-          this->ackTracker.handleAck(variant.msgId(), variant.from(),
-                                     static_cast<uint32_t>(millis()));
+          std::list<ack::DeliveryResult> results;
+          this->ackTracker.collectAck(variant.msgId(), variant.from(),
+                                      static_cast<uint32_t>(millis()),
+                                      results);
+          for (auto&& result : results) {
+            this->addTask([result]() {
+              result.callback(result.nodeId, result.delivered,
+                              result.latencyMs);
+            });
+          }
           return false;
         });
 

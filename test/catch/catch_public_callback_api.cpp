@@ -121,6 +121,8 @@ SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
   mesh.callbackList.execute(protocol::MESSAGE_ACK, var,
                             std::shared_ptr<Connection>(), 0);
 
+  REQUIRE_FALSE(callbackRan);
+  scheduler.execute();
   REQUIRE(callbackRan);
   REQUIRE(mesh.ackTracker.pending() == 0);
   REQUIRE(mesh.callbackList.size() > 0);
@@ -138,6 +140,8 @@ SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
   protocol::Variant nextVar(&nextPkg);
   mesh.callbackList.execute(protocol::MESSAGE_ACK, nextVar,
                             std::shared_ptr<Connection>(), 0);
+  REQUIRE_FALSE(nextGenerationRan);
+  scheduler.execute();
   REQUIRE(nextGenerationRan);
 }
 
