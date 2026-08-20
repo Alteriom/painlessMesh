@@ -35,6 +35,8 @@ class TestMesh : public Mesh<T> {
  public:
   using plugin::PackageHandler<T>::callbackList;
   using plugin::PackageHandler<T>::taskList;
+  using plugin::PackageHandler<T>::quarantinedTasks;
+  using Mesh<T>::addTask;
   using Mesh<T>::ackTracker;
   using Mesh<T>::pendingBroadcastAcks;
 };
@@ -135,6 +137,25 @@ SCENARIO("Callbacks registered after a deferred clear survive dispatch") {
   REQUIRE(callbacks.size() == 1);
   callbacks.execute(2, 42);
   REQUIRE(nextGenerationCalls == 1);
+}
+
+SCENARIO("A task that restarts an internal mesh is not reused live") {
+  TestMesh<Connection> mesh;
+  mesh.init(/*nodeId=*/1234567);
+  bool restartedTaskRan = false;
+
+  mesh.addTask([&]() {
+    mesh.stop();
+    mesh.init(/*nodeId=*/1234567);
+    mesh.addTask([&]() { restartedTaskRan = true; });
+  });
+
+  mesh.update();
+  REQUIRE(mesh.quarantinedTasks.size() == 1);
+  REQUIRE_FALSE(restartedTaskRan);
+
+  mesh.update();
+  REQUIRE(restartedTaskRan);
 }
 
 SCENARIO("Broadcast acknowledgment bursts use one bounded scheduler task") {

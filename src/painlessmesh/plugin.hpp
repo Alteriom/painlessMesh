@@ -187,14 +187,19 @@ class PackageHandler : public layout::Layout<T> {
     // in the middle of its own execution - causing a use-after-free crash
     // (same bug family as upstream issue #373, but triggered by the
     // shared_ptr refcount instead of a raw delete in onDisable).
-    // We simply leave it in the list: addTask() will recognise it as
-    // "disabled with a single reference" and reuse it on the next call,
-    // exactly like it already does for disabled anonymous tasks (see the
-    // comment on addTask() above).
+    // Move it out of the reusable list while retaining ownership for the
+    // handler's lifetime. This also protects a stop()/init() sequence inside
+    // the callback: a new scheduler must receive a new task rather than
+    // mutating the task that is still executing on the old scheduler.
     Task* current = scheduler ? scheduler->getCurrentTask() : nullptr;
     for (auto it = taskList.begin(); it != taskList.end();) {
       if (current != nullptr && it->get() == current) {
-        ++it;
+        // Keep the executing task alive, but remove it from the reusable
+        // pool. A callback may stop() and immediately init() with a new
+        // scheduler; reusing this still-running task would rewrite its
+        // closure and would not attach it to that new scheduler.
+        auto active = it++;
+        quarantinedTasks.splice(quarantinedTasks.end(), taskList, active);
         continue;
       }
       (*it)->disable();
@@ -283,9 +288,12 @@ class PackageHandler : public layout::Layout<T> {
  protected:
   callback::MeshPackageCallbackList<T> callbackList;
   std::list<std::shared_ptr<Task> > taskList = {};
+  // Tasks detached while their own callback is executing. Their scheduler
+  // still owns a raw task link, so retain them for this handler's lifetime
+  // but never consider them for reuse.
+  std::list<std::shared_ptr<Task> > quarantinedTasks = {};
 };
 
 }  // namespace plugin
 }  // namespace painlessmesh
 #endif
-
