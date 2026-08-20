@@ -8,8 +8,10 @@ on:
       - 'RELEASE_GUIDE.md'
       - 'CHANGELOG.md'
       - 'USER_GUIDE.md'
+      - 'BRIDGE_TO_INTERNET.md'
       - 'docsify-site/**'
       - 'examples/**'
+      - 'scripts/build-wiki.py'
   release:
     types: [published]
   workflow_dispatch: {}
