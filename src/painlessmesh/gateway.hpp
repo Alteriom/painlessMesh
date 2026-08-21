@@ -1099,16 +1099,26 @@ class GatewayAckPackage : public plugin::SinglePackage {
  * The captive-portal probe runs before the request itself, so the two socket
  * timeouts stack.
  *
- * @warning This is not the total stall on the GATEWAY_DATA path. The DNS
- *          probe in hasActualInternetAccess() calls WiFi.hostByName() with no
- *          timeout argument, so its worst case is whatever the platform
- *          resolver does and it cannot be expressed here. It runs on the first
- *          request and again whenever GATEWAY_CONNECTIVITY_CACHE_MS expires --
- *          caching lowers how often that unbounded call happens, not how long
- *          it can take. A gateway behind slow or blackholed DNS can still
- *          overrun NODE_TIMEOUT and partition the mesh despite the assertion
- *          below holding. Tracked in issue #416; see SECURITY.md
- *          "Gateway blocking: the mesh partition risk".
+ * @warning This is NOT the total stall on the GATEWAY_DATA path, and the
+ *          assertion below can hold while the path still overruns
+ *          NODE_TIMEOUT. Two reasons, both tracked in issue #416:
+ *
+ *          1. HTTPClient::setTimeout() bounds an individual socket wait, not
+ *             the whole call. detectCaptivePortal() waits twice against the
+ *             same server -- GET() then getString() -- so a server that delays
+ *             the headers and then the body spends roughly 2x
+ *             GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS before the destination request
+ *             starts, and that request has the same shape. Each term here is a
+ *             per-wait timeout being summed as if it were a per-call ceiling.
+ *          2. The DNS probe in hasActualInternetAccess() calls
+ *             WiFi.hostByName() with no timeout argument at all, so its worst
+ *             case is whatever the platform resolver does. It runs on the
+ *             first request and whenever GATEWAY_CONNECTIVITY_CACHE_MS
+ *             expires -- caching lowers how often that unbounded call happens,
+ *             not how long it can take.
+ *
+ *          See SECURITY.md "Gateway blocking: the mesh partition risk". The
+ *          compensation applied after a stall is separately unsound (#417).
  */
 constexpr unsigned long gatewayBlockingBudgetMs() {
   return static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
@@ -1149,13 +1159,22 @@ static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
  * reliability fix into a disconnect bug.
  *
  * This protects the gateway's own view of its peers. The peers' view of the
- * gateway is protected by keeping the stall shorter than their watchdog, which
- * is what gatewayBlockingBudgetMs() enforces; the two halves are both needed.
+ * gateway depends on keeping the stall shorter than their watchdog, which is
+ * what gatewayBlockingBudgetMs() is meant to bound -- though see the @warning
+ * there for why that bound is not airtight (#416). Both halves are needed.
  *
  * @tparam T   Mesh type exposing `subs` (see painlessmesh::layout::Layout).
  * @param mesh The mesh whose direct peer connections should be refreshed.
  * @return Number of peers whose watchdog was re-armed.
  */
+// KNOWN DEFECT (#417): this restarts each watchdog from zero rather than
+// giving back the time the scheduler could not observe the peer. Callers invoke
+// it on every exit path, including the WiFi-disconnected and cached-probe paths
+// that never blocked, so a peer that has genuinely stopped answering NODE_SYNC
+// has its timeout renewed by any *other* peer's gateway traffic and is never
+// reaped. Compensating by the measured stall via Task::adjust() is the fix;
+// Task::delay() is not, it resets the baseline and would disconnect healthy
+// peers early.
 template <typename T>
 size_t refreshPeerWatchdogs(T& mesh) {
   size_t refreshed = 0;

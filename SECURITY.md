@@ -137,11 +137,25 @@ Fixed in v2.0 (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
   returns, not before it. Refreshing beforehand is the half that cannot work:
   the deadline is wall-clock, so pushing it out ahead of a stall longer than
   the window changes nothing.
+  **Known gap (issue #417):** that restart resets each watchdog to a full
+  `NODE_TIMEOUT` rather than giving back only the time the scheduler could not
+  observe the peer, and it runs on exit paths that never blocked. A peer that
+  has genuinely stopped answering therefore has its timeout renewed by *other*
+  peers' gateway traffic and is never reaped.
 
 This bounds the damage; it does not make the call asynchronous. A gateway
 still stops servicing mesh traffic for up to `NODE_TIMEOUT` per request.
 
-**Known gap — DNS is not inside that budget (issue #416).** On the first
+**Known gap — the budget is not a wall-clock ceiling (issue #416).**
+`HTTPClient::setTimeout()` bounds one socket wait, not a whole call. The
+captive-portal probe waits twice against the same server (`GET()`, then
+`getString()`), so a server that stalls the headers and then the body spends
+about twice `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS` before the destination request
+even starts — and that request has the same shape. The `static_assert` sums
+per-wait timeouts as though they were per-call ceilings, so the timed path
+alone can overrun `NODE_TIMEOUT`.
+
+**Known gap — DNS is not inside that budget either (also #416).** On the first
 request, and again whenever the 60 s connectivity cache expires,
 `hasActualInternetAccess()` resolves a well-known hostname with
 `WiFi.hostByName()` before either timed call runs. That overload takes no
