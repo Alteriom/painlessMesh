@@ -81,7 +81,10 @@ inline void yield() {}
 #define ICACHE_FLASH_ATTR
 
 #define PAINLESSMESH_ENABLE_STD_STRING
+// Guarded to match painlessmesh/configuration.hpp -- see test/catch/Arduino.h.
+#ifndef PAINLESSMESH_DISABLE_OTA
 #define PAINLESSMESH_ENABLE_OTA
+#endif
 #define NODE_TIMEOUT 10 * TASK_SECOND
 
 #ifndef MIN_FREE_MEMORY

@@ -7,6 +7,11 @@
 // operators to use was overwritten by the very header the docs pointed at, and
 // nothing in CI compiled an OTA-free build to notice. This translation unit is
 // that build.
+//
+// The first run of this test earned its keep by failing: the desktop harness
+// shims (test/catch/Arduino.h, test/boost/Arduino.h) defined
+// PAINLESSMESH_ENABLE_OTA a second time, so fixing configuration.hpp alone
+// still produced an OTA build here. Both now mirror the same guard.
 #define PAINLESSMESH_DISABLE_OTA
 
 #define CATCH_CONFIG_MAIN

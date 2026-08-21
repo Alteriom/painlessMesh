@@ -91,8 +91,13 @@ class __FlashStringHelper {
 
 #define PAINLESSMESH_ENABLE_STD_STRING
 
-// Enable OTA support
+// Enable OTA support. Mirrors the guard in painlessmesh/configuration.hpp
+// so that a translation unit opting out with PAINLESSMESH_DISABLE_OTA gets
+// an OTA-free build here too -- an unconditional define would silently put
+// OTA back and make the opt-out untestable on the desktop harness.
+#ifndef PAINLESSMESH_DISABLE_OTA
 #define PAINLESSMESH_ENABLE_OTA
+#endif
 
 #define NODE_TIMEOUT 5 * TASK_SECOND
 
