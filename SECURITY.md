@@ -75,10 +75,12 @@ some revisions, `#undef PAINLESSMESH_ENABLE_OTA`). **Neither ever worked.**
 long after a `-U` or a sketch-level `#undef` had been applied, so operators
 who followed that advice shipped OTA code believing they had removed it. v2.0
 guards the default definition, which is what makes
-`-DPAINLESSMESH_DISABLE_OTA` above effective. An OTA-free build is compiled
-and run in CI on every commit (`test/catch/catch_ota_disabled.cpp`, which
-takes the flag from the build system rather than from a `#define`, for the
-reason above) so the mitigation cannot quietly rot a second time.
+`-DPAINLESSMESH_DISABLE_OTA` above effective. Two CI jobs keep it that way, so
+the mitigation cannot quietly rot a second time: `test/ci/no-ota/` builds this
+header with the flag on both ESP32 and ESP8266 toolchains, and
+`test/catch/catch_ota_disabled.cpp` checks on every commit that an OTA-free
+mesh still compiles, links and initialises. Both take the flag from the build
+system rather than a `#define`, for the reason above.
 
 Signed OTA is roadmap work and is **not** in v2.0. There is deliberately no
 flag for it: `PAINLESSMESH_OTA_REQUIRE_SIGNATURE` is rejected with a compile

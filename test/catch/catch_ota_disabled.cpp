@@ -19,6 +19,16 @@
 // translation unit a painlessmesh::Mesh with different members than the rest
 // of the link, which is an ODR violation with no required diagnostic. The
 // test sets it the way SECURITY.md tells operators to.
+//
+// LIMITATION: this file cannot pin the production guard. Arduino.h above is
+// test/catch/Arduino.h, which shadows painlessmesh/configuration.hpp wholesale
+// via its include guard, so the #ifndef in the real header is never parsed
+// here -- the guard asserted below is the shim's mirror of it. If
+// configuration.hpp went unconditional again, this test would stay green.
+// test/ci/no-ota/ covers that: a shim-free PlatformIO build of the real header
+// on both cores, run by the PlatformIO Build Test job. What this file adds is
+// cheap per-commit proof on three compilers that an OTA-free Mesh still
+// compiles, links and initialises.
 
 #define CATCH_CONFIG_MAIN
 #include "catch2/catch.hpp"

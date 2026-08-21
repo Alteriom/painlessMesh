@@ -211,6 +211,18 @@ jobs:
           bash test/ci/test_platformio.sh --example basic
           bash test/ci/test_platformio.sh --example alteriom
 
+      - name: Build with OTA compiled out
+        run: |
+          # SECURITY.md documents -DPAINLESSMESH_DISABLE_OTA as the only
+          # mitigation for unauthenticated mesh OTA, so it gets a build that
+          # proves it works. The desktop catch test cannot: test/catch/Arduino.h
+          # shadows painlessmesh/configuration.hpp via its include guard, so the
+          # production guard is never parsed there. This project has no shim and
+          # applies the flag to every translation unit.
+          cd test/ci/no-ota
+          pio run -e esp32
+          pio run -e esp8266
+
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
