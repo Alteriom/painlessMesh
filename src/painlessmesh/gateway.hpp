@@ -1053,6 +1053,108 @@ class GatewayAckPackage : public plugin::SinglePackage {
 
 };
 
+// ===========================================================================
+// Scheduler-stall protection for blocking gateway requests
+// ===========================================================================
+
+// The socket timeouts below are derived from NODE_TIMEOUT rather than written
+// as absolute numbers, so a gateway request cannot outlast the mesh watchdog in
+// *any* build. That is not hypothetical tidiness: the host test environment
+// overrides NODE_TIMEOUT to 5s (test/catch/Arduino.h shadows configuration.hpp
+// wholesale via its include guard), so hardcoded defaults sized for the 10s
+// production watchdog would blow the assertion below there.
+//
+// They live in this header, not in configuration.hpp, for the same reason --
+// gateway.hpp is reached through both configurations, configuration.hpp is not.
+//
+// At the production NODE_TIMEOUT of 10s this gives 5000ms for the request and
+// 2000ms for the captive-portal probe. Dividing by TASK_MILLISECOND first
+// normalises out the scheduler resolution, so the result is milliseconds under
+// _TASK_MICRO_RES too.
+
+/** Socket timeout, in milliseconds, for a gateway Internet request. */
+#ifndef GATEWAY_HTTP_TIMEOUT_MS
+#define GATEWAY_HTTP_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 2)
+#endif
+
+/** Socket timeout, in milliseconds, for the captive-portal probe. */
+#ifndef GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS
+#define GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 5)
+#endif
+
+/** How long, in milliseconds, a connectivity probe result stays cached.
+ *
+ * Both the DNS reachability check and the captive-portal probe are network
+ * round trips. Running them per message would put an Internet round trip in
+ * front of every single mesh->Internet send.
+ */
+#ifndef GATEWAY_CONNECTIVITY_CACHE_MS
+#define GATEWAY_CONNECTIVITY_CACHE_MS 60000UL
+#endif
+
+/**
+ * @brief Total time the gateway may spend inside blocking Internet calls
+ *        while handling a single GATEWAY_DATA package, in milliseconds.
+ *
+ * The captive-portal probe runs before the request itself, so the two socket
+ * timeouts stack. DNS reachability is cached and is not counted here.
+ */
+constexpr unsigned long gatewayBlockingBudgetMs() {
+  return static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
+         static_cast<unsigned long>(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS);
+}
+
+// A gateway that can block longer than the mesh watchdog partitions the mesh
+// around itself (issues #318, #332). Catch that at compile time. TASK_
+// constants are scaled by the scheduler's resolution, so the comparison is
+// written in scheduler units to stay correct under _TASK_MICRO_RES too.
+static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
+              "Gateway blocking budget (GATEWAY_HTTP_TIMEOUT_MS + "
+              "GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS) must stay below NODE_TIMEOUT, "
+              "or a gateway request stalls the scheduler for longer than its "
+              "peers are willing to wait and the mesh partitions around the "
+              "gateway. Raise NODE_TIMEOUT if you need a longer HTTP timeout.");
+
+/**
+ * @brief Re-arm the mesh watchdog on every peer that currently has one running.
+ *
+ * Call this immediately after returning from a blocking Internet call, before
+ * the scheduler next runs.
+ *
+ * Nothing executes while the gateway is inside `HTTPClient::GET()`/`POST()`,
+ * but wall-clock time keeps passing. So a `timeOutTask` whose NODE_TIMEOUT
+ * deadline fell during the stall is already overdue when the scheduler
+ * resumes, and fires on the very next `execute()` -- closing a peer that never
+ * actually went missing. Re-arming gives each peer a full fresh window to
+ * answer now that the CPU is available again.
+ *
+ * Only *enabled* watchdogs are touched, and this matters: `timeOutTask` is
+ * armed by `nodeSyncTask` when a sync request goes out and disabled again when
+ * the reply lands, so a disabled watchdog means the peer has nothing
+ * outstanding. Enabling it here would invent a NODE_TIMEOUT deadline for an
+ * idle-but-healthy link whose callback is `Connection::close()` -- turning a
+ * reliability fix into a disconnect bug.
+ *
+ * This protects the gateway's own view of its peers. The peers' view of the
+ * gateway is protected by keeping the stall shorter than their watchdog, which
+ * is what gatewayBlockingBudgetMs() enforces; the two halves are both needed.
+ *
+ * @tparam T   Mesh type exposing `subs` (see painlessmesh::layout::Layout).
+ * @param mesh The mesh whose direct peer connections should be refreshed.
+ * @return Number of peers whose watchdog was re-armed.
+ */
+template <typename T>
+size_t refreshPeerWatchdogs(T& mesh) {
+  size_t refreshed = 0;
+  for (auto&& connection : mesh.subs) {
+    if (!connection) continue;
+    if (!connection->timeOutTask.isEnabled()) continue;
+    connection->timeOutTask.restartDelayed();
+    ++refreshed;
+  }
+  return refreshed;
+}
+
 }  // namespace gateway
 }  // namespace painlessmesh
 

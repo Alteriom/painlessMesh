@@ -45,6 +45,13 @@
 #define NODE_TIMEOUT 10 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
 
+// A gateway relays to the Internet with blocking HTTPClient calls, from inside
+// the cooperative scheduler. Those calls must finish well inside NODE_TIMEOUT
+// or the gateway's peers reap connections to a node that is perfectly healthy
+// (issues #318, #332). The socket-timeout budget that enforces this is derived
+// from NODE_TIMEOUT in painlessmesh/gateway.hpp -- see GATEWAY_HTTP_TIMEOUT_MS
+// there. Raising NODE_TIMEOUT raises that budget with it.
+
 #ifdef ESP32
 #include <AsyncTCP.h>
 #include <WiFi.h>
