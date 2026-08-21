@@ -90,7 +90,9 @@ inline void yield() {}
 #else
 #define PAINLESSMESH_ENABLE_OTA
 #endif
+#ifndef NODE_TIMEOUT
 #define NODE_TIMEOUT 10 * TASK_SECOND
+#endif
 
 #ifndef MIN_FREE_MEMORY
 #define MIN_FREE_MEMORY 4000

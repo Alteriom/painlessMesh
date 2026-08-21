@@ -95,7 +95,16 @@
 #define MAX_MESSAGE_QUEUE 50
 #endif
 
+// The mesh watchdog. Overridable, because the documented remedy for an endpoint
+// that needs longer than the derived gateway budget is to raise this and
+// GATEWAY_HTTP_TIMEOUT_MS together (CHANGELOG, SECURITY.md). Unguarded, a
+// -DNODE_TIMEOUT on the build line was either silently overwritten here or a
+// macro-redefinition error under -Werror, so that remedy could not be followed
+// -- the same shape as the `#undef PAINLESSMESH_ENABLE_OTA` advice this
+// release also had to fix. Pinned by test/catch/catch_node_timeout_override.cpp.
+#ifndef NODE_TIMEOUT
 #define NODE_TIMEOUT 10 * TASK_SECOND
+#endif
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
 
 // A gateway relays to the Internet with blocking HTTPClient calls, from inside

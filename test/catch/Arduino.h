@@ -104,7 +104,9 @@ class __FlashStringHelper {
 #define PAINLESSMESH_ENABLE_OTA
 #endif
 
+#ifndef NODE_TIMEOUT
 #define NODE_TIMEOUT 5 * TASK_SECOND
+#endif
 
 typedef std::string TSTRING;
 

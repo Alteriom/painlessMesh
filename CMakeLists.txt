@@ -28,6 +28,17 @@ if(TARGET catch_ota_disabled)
   target_compile_definitions(catch_ota_disabled PRIVATE PAINLESSMESH_DISABLE_OTA)
 endif()
 
+# NODE_TIMEOUT is the one macro operators are actually told to raise (see the
+# gateway entry in CHANGELOG.md). Supplied per target rather than #defined in
+# the source, for the same reason as above: the documented form is a build
+# flag, and it has to reach every TU. 20s keeps the derived gateway budget
+# inside the watchdog, which is the invariant the override must preserve.
+if(TARGET catch_node_timeout_override)
+  target_compile_definitions(catch_node_timeout_override PRIVATE
+    "NODE_TIMEOUT=(20*TASK_SECOND)"
+    "PAINLESSMESH_TEST_NODE_TIMEOUT_S=20")
+endif()
+
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 add_executable(catch_tcp_integration test/boost/tcp_integration.cpp test/catch/fake_serial.cpp src/scheduler.cpp src/connection.cpp)
