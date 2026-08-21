@@ -2470,7 +2470,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           // watchdog so no peer is reaped while the gateway is occupied.
           for (auto&& conn : this->subs) {
             if (conn) {
-              conn->timeOutTask.disable();
               conn->timeOutTask.restartDelayed();
             }
           }

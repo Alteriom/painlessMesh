@@ -27,10 +27,10 @@
 #define PAINLESSMESH_ENABLE_OTA
 
 // Enable ACK (message acknowledgment) tracker.
-// Disable on ESP8266 to recover the ~640 bytes used by the 32-slot
-// pending-ack map (see painlessmesh/message_tracker.hpp).
-// In 2.0 this defaults ON; it will remain default-ON in future releases.
-#ifndef PAINLESSMESH_ENABLE_ACK
+// Enabled by default.  Define PAINLESSMESH_DISABLE_ACK before including
+// painlessMesh.h to opt out (e.g. on ESP8266 to reclaim ~640 bytes of
+// RAM used by the pending-ack map in painlessmesh/message_tracker.hpp).
+#ifndef PAINLESSMESH_DISABLE_ACK
 #define PAINLESSMESH_ENABLE_ACK
 #endif
 
