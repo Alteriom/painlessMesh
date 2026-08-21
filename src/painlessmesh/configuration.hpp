@@ -24,10 +24,13 @@
 #define PAINLESSMESH_ENABLE_ARDUINO_WIFI
 
 // Enable OTA support. Define PAINLESSMESH_DISABLE_OTA to compile the OTA
-// plugin out entirely (see SECURITY.md §OTA). It has to be a build flag --
-// `-DPAINLESSMESH_DISABLE_OTA`, or platformio.ini `build_flags` -- because a
-// `#undef PAINLESSMESH_ENABLE_OTA` in the sketch runs before painlessMesh.h
-// includes this header, which then defines the macro straight back.
+// plugin out entirely (SECURITY.md, "OTA: integrity checked, not
+// authenticated"). Prefer the build flag -- `-DPAINLESSMESH_DISABLE_OTA`, or
+// platformio.ini `build_flags` -- so it covers every translation unit; a
+// `#define PAINLESSMESH_DISABLE_OTA` above `#include <painlessMesh.h>` covers
+// only that one. What cannot work is `#undef PAINLESSMESH_ENABLE_OTA`: it runs
+// before painlessMesh.h includes this header, which then defines the macro
+// straight back.
 #ifndef PAINLESSMESH_DISABLE_OTA
 #define PAINLESSMESH_ENABLE_OTA
 #endif
