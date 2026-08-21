@@ -240,7 +240,7 @@ void changedConnectionCallback() {
 
 ## See Also
 
-- [Installation Guide](Installation)
-- [Examples](Examples)
+- [Installation Guide](../getting-started/installation.md)
+- [Examples](../tutorials/basic-examples.md)
 - [GitHub Repository](https://github.com/Alteriom/painlessMesh)
 - [Release Notes](https://github.com/Alteriom/painlessMesh/releases)
