@@ -133,15 +133,18 @@ Fixed in v2.0 (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
 - A `static_assert` fails the build if the two *socket* timeouts — the request
   and the captive-portal probe — reach `NODE_TIMEOUT` between them. Raising
   one without raising `NODE_TIMEOUT` is a compile error, not a field outage.
-- Every direct peer's timeout task is restarted **after** the blocking call
+- Every direct peer's timeout task is compensated **after** the blocking call
   returns, not before it. Refreshing beforehand is the half that cannot work:
   the deadline is wall-clock, so pushing it out ahead of a stall longer than
   the window changes nothing.
-  **Known gap (issue #417):** that restart resets each watchdog to a full
-  `NODE_TIMEOUT` rather than giving back only the time the scheduler could not
-  observe the peer, and it runs on exit paths that never blocked. A peer that
-  has genuinely stopped answering therefore has its timeout renewed by *other*
-  peers' gateway traffic and is never reaped.
+- The compensation equals the **measured stall** (issue #417): each running
+  watchdog's deadline is postponed by exactly the time the scheduler was
+  held, via `Task::adjust()`, so a watchdog only ever measures time the mesh
+  could actually observe the peer. Exit paths that never blocked compensate
+  nothing. A peer that has genuinely stopped answering is therefore still
+  reaped on schedule even under continuous gateway traffic from other peers
+  — the earlier full-`NODE_TIMEOUT` reset kept such peers alive
+  indefinitely.
 
 This is a **partial mitigation**, not a closed hole. It does not make the call
 asynchronous — a gateway still stops servicing mesh traffic for the duration of

@@ -67,10 +67,9 @@
 #endif
 
 // NOTE: there is likewise no PAINLESSMESH_DISABLE_ACK flag. The one this
-// branch briefly carried gated only the painlessmesh/message_tracker.hpp
-// include -- which gateway.hpp pulls in unconditionally anyway -- and
-// MessageTracker has no instance anywhere under src/. It is dead code (#386),
-// so the flag reclaimed nothing and its advertised RAM saving was not real.
+// branch briefly carried gated only the (since-deleted, #386) dead
+// painlessmesh/message_tracker.hpp include, so the flag reclaimed nothing
+// and its advertised RAM saving was not real.
 //
 // That is NOT a claim that acknowledgment is free. The delivery-ack subsystem
 // (painlessmesh/ack.hpp) is a different thing and is genuinely allocated:

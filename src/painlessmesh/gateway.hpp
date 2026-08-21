@@ -33,7 +33,6 @@
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
-#include "painlessmesh/message_tracker.hpp"
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
 
@@ -1117,8 +1116,7 @@ class GatewayAckPackage : public plugin::SinglePackage {
  *             expires -- caching lowers how often that unbounded call happens,
  *             not how long it can take.
  *
- *          See SECURITY.md "Gateway blocking: the mesh partition risk". The
- *          compensation applied after a stall is separately unsound (#417).
+ *          See SECURITY.md "Gateway blocking: the mesh partition risk".
  */
 constexpr unsigned long gatewayBlockingBudgetMs() {
   return static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
@@ -1139,17 +1137,31 @@ static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
               "gateway. Raise NODE_TIMEOUT if you need a longer HTTP timeout.");
 
 /**
- * @brief Re-arm the mesh watchdog on every peer that currently has one running.
+ * @brief Give every peer's running watchdog back the time a blocking call hid.
  *
  * Call this immediately after returning from a blocking Internet call, before
- * the scheduler next runs.
+ * the scheduler next runs, passing the measured wall-clock duration of the
+ * stall.
  *
  * Nothing executes while the gateway is inside `HTTPClient::GET()`/`POST()`,
  * but wall-clock time keeps passing. So a `timeOutTask` whose NODE_TIMEOUT
  * deadline fell during the stall is already overdue when the scheduler
  * resumes, and fires on the very next `execute()` -- closing a peer that never
- * actually went missing. Re-arming gives each peer a full fresh window to
- * answer now that the CPU is available again.
+ * actually went missing (issues #318, #332).
+ *
+ * The compensation equals the measured stall, no more (issue #417): each
+ * enabled watchdog's existing deadline is postponed by `stalledMs` via
+ * `Task::adjust()`, which extends `iDelay` without touching the task's
+ * baseline. A peer's watchdog therefore measures only time the mesh was
+ * actually able to observe the peer. The earlier implementation restarted
+ * every watchdog from zero (`restartDelayed()`) on every exit path -- which
+ * meant any live peer's gateway traffic granted a genuinely dead peer a
+ * fresh full NODE_TIMEOUT, so the dead peer was never reaped.
+ * `Task::delay()` would be wrong in the other direction: it resets the
+ * baseline to now, shortening the deadline of a peer that still had more
+ * than `stalledMs` remaining and disconnecting healthy peers early.
+ *
+ * Paths that did not block must pass 0 and compensate nothing.
  *
  * Only *enabled* watchdogs are touched, and this matters: `timeOutTask` is
  * armed by `nodeSyncTask` when a sync request goes out and disabled again when
@@ -1165,23 +1177,19 @@ static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
  *
  * @tparam T   Mesh type exposing `subs` (see painlessmesh::layout::Layout).
  * @param mesh The mesh whose direct peer connections should be refreshed.
- * @return Number of peers whose watchdog was re-armed.
+ * @param stalledMs Measured wall-clock duration of the blocking section, in
+ *        milliseconds. 0 means nothing blocked and nothing is compensated.
+ * @return Number of peers whose watchdog deadline was postponed.
  */
-// KNOWN DEFECT (#417): this restarts each watchdog from zero rather than
-// giving back the time the scheduler could not observe the peer. Callers invoke
-// it on every exit path, including the WiFi-disconnected and cached-probe paths
-// that never blocked, so a peer that has genuinely stopped answering NODE_SYNC
-// has its timeout renewed by any *other* peer's gateway traffic and is never
-// reaped. Compensating by the measured stall via Task::adjust() is the fix;
-// Task::delay() is not, it resets the baseline and would disconnect healthy
-// peers early.
 template <typename T>
-size_t refreshPeerWatchdogs(T& mesh) {
+size_t refreshPeerWatchdogs(T& mesh, unsigned long stalledMs) {
+  if (stalledMs == 0) return 0;  // nothing blocked, nothing to give back
   size_t refreshed = 0;
   for (auto&& connection : mesh.subs) {
     if (!connection) continue;
     if (!connection->timeOutTask.isEnabled()) continue;
-    connection->timeOutTask.restartDelayed();
+    connection->timeOutTask.adjust(
+        static_cast<long>(stalledMs * TASK_MILLISECOND));
     ++refreshed;
   }
   return refreshed;

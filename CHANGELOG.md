@@ -33,15 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     and the DNS probe takes no timeout at all, so a request can still overrun
     the watchdog. See #416 — and do not read this entry as the #318 / #332
     partition being impossible, only much harder to reach.
-  - After a blocking request returns, the gateway re-arms the watchdog on
-    *every* peer that had one running, so an overdue deadline gets a fresh
-    window instead of firing immediately. Watchdogs that were not already
-    running are deliberately left alone: arming one for an idle-but-healthy
-    link would close it. **Known defect (#417):** that re-arm grants a full
-    `NODE_TIMEOUT` rather than only the time the scheduler could not observe
-    the peer, and runs even on exit paths that never blocked, so a peer that
-    has genuinely stopped answering can be kept alive indefinitely by other
-    peers' gateway traffic.
+  - After a blocking request returns, the gateway postpones the watchdog
+    deadline on *every* peer that had one running by the **measured stall**
+    (`Task::adjust()`, issue #417), so an overdue deadline gets back exactly
+    the time the scheduler could not observe the peer — no more. Watchdogs
+    that were not already running are deliberately left alone: arming one
+    for an idle-but-healthy link would close it. Exit paths that never
+    blocked compensate nothing, so a genuinely dead peer is still reaped on
+    schedule even under continuous gateway traffic from other peers.
 
   **This changes a default.** If you relay to an endpoint that genuinely needs
   longer than 5s, raise `GATEWAY_HTTP_TIMEOUT_MS` *and* `NODE_TIMEOUT`
@@ -85,11 +84,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0] - 2026-08-20
 
+### Added (post-review series)
+
+- **Unified send path: `SendOptions` (#384)** — `sendSingle()` and
+  `sendBroadcast()` gained overloads taking a
+  `painlessmesh::SendOptions{priority, ackCallback, ackTimeoutMs}` struct,
+  so a message can be both prioritized and delivery-confirmed in one call —
+  something the separate priority and ack overload families could not
+  express. All pre-existing overloads still compile and now delegate to the
+  unified path.
+- **Priority is carried across hops (#384)** — the priority level is now
+  serialized on the wire (as `"prio"`, only when it deviates from NORMAL, so
+  default sends carry zero overhead) and every forwarding node re-enqueues
+  the package at the sender's priority. Previously priority only affected
+  the first hop's transmit queue and was silently dropped on forwarding.
+  Pre-2.0 nodes ignore the field and forward at normal priority. Named
+  constants `PRIORITY_CRITICAL/HIGH/NORMAL/LOW` are exposed in
+  `painlessmesh::protocol`.
+
+### Fixed (post-review series)
+
+- **Gateway watchdog compensation now equals the measured stall (#417)** —
+  `gateway::refreshPeerWatchdogs()` takes the measured blocking duration and
+  postpones each running peer watchdog by exactly that long via
+  `Task::adjust()`, instead of restarting every watchdog from zero on every
+  exit path. The full reset was strictly more generous than the time the
+  scheduler actually lost, and the excess starved the reaper: a genuinely
+  dead peer stayed connected indefinitely as long as any *live* peer
+  generated gateway traffic more often than `NODE_TIMEOUT`. Paths that never
+  blocked now compensate nothing. Regression-tested in
+  `catch_gateway_watchdog.cpp`, including the dead-peer-under-continuous-
+  traffic case.
+- **Outbound send buffer is bounded (#388)** — each connection's
+  `SentBuffer` now holds at most `PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES`
+  (default 64, build-time overridable) messages. Previously a peer that
+  stopped draining (stalled TCP connection) grew the outbound list until
+  allocation failed on the ESP8266 heap. At the cap, an incoming message
+  evicts the newest message of a strictly lower priority class (mirroring
+  `MessageQueue::makeSpace()`); if nothing lower-priority is queued, the
+  push is rejected and the send reports failure. Drops are counted in
+  `getStats().dropped`; a partially-transmitted message is never evicted.
+
+### Removed (post-review series)
+
+- **`MessageTracker` dead code (#386)** — `message_tracker.hpp` defined a
+  full dedup/ack-tracking class that was `#include`d but never instantiated
+  or called anywhere in the tree, costing compile time and flash in every
+  build. Removed together with its unit test. Broadcast flood dedup, the
+  integration it was meant for, remains future work with its own design
+  pass.
+
+- **Routing no longer copies the connection list per packet (#387)** — every
+  `router::` send/broadcast/forward took the mesh layout **by value**,
+  copying a `std::list` of `shared_ptr`s (one heap allocation per
+  connection) on every packet sent, broadcast, or forwarded. All routing
+  functions now take the layout by const reference — measurable allocation
+  and fragmentation relief on ESP8266.
+
 Feature release adding per-message delivery confirmation (issue #379). The
 release is a major version bump because it introduces a new wire-protocol
 message type: pre-2.0 nodes forward acknowledgment packets but never send
 them, so delivery confirmation only works reliably once every participating
 node runs 2.0.0. All existing sketches compile and behave unchanged.
+
+### Mixed-fleet rollout order
+
+During a rolling upgrade, a v1.x node never replies with a `MESSAGE_ACK`, so
+a v2.0 sender's delivery callback fires `delivered = false` against every
+un-upgraded peer — indistinguishable from real packet loss. This is not a
+bug in the ACK feature; it is the expected behavior of a mixed fleet.
+**Upgrade leaf/receiver nodes before the senders that will use the ack
+callbacks**, and only rely on `delivered = false` as a loss signal once the
+whole mesh runs 2.0.0. The same applies to cross-hop priority: pre-2.0
+forwarders ignore the `prio` field and forward at normal priority, so
+priority guarantees only hold end-to-end on an upgraded path.
 
 ### Added
 
