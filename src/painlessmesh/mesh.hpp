@@ -249,10 +249,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
           this->ackTracker.collectAck(variant.msgId(), variant.from(),
                                       static_cast<uint32_t>(millis()),
                                       results);
-          for (auto&& result : results) {
-            this->addTask([result]() {
-              result.callback(result.nodeId, result.delivered,
-                              result.latencyMs);
+          if (!results.empty()) {
+            this->addTask([results]() {
+              for (const auto& result : results) {
+                result.callback(result.nodeId, result.delivered,
+                                result.latencyMs);
+              }
             });
           }
           return false;
@@ -3396,7 +3398,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
             }
           },
           this->nodeId % ACK_BROADCAST_JITTER_MS);
-    } else if (!broadcastAckTask->isEnabled()) {
+    } else if (!broadcastAckTask->isEnabled() ||
+               broadcastAckTask->isLastIteration()) {
       broadcastAckTask->restartDelayed();
     }
   }

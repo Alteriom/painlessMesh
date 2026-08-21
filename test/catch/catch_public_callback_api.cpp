@@ -116,7 +116,7 @@ SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
         mesh.stop();
         mesh.init(&scheduler, /*nodeId=*/1234567);
       },
-      5000, 100));
+      5000, static_cast<uint32_t>(millis())));
 
   ack::MessageAckPackage pkg(/*fromNode=*/999, /*destNode=*/1234567, msgId);
   protocol::Variant var(&pkg);
@@ -138,7 +138,7 @@ SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
       [&](uint32_t, bool delivered, uint32_t) {
         nextGenerationRan = delivered;
       },
-      5000, 100));
+      5000, static_cast<uint32_t>(millis())));
   ack::MessageAckPackage nextPkg(/*fromNode=*/999, /*destNode=*/1234567,
                                  nextMsgId);
   protocol::Variant nextVar(&nextPkg);
@@ -150,6 +150,36 @@ SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
   mesh.taskList.front()->forceNextIteration();
   scheduler.execute();
   REQUIRE(nextGenerationRan);
+}
+
+SCENARIO("A deferred delivery batch survives mesh stop in its first callback") {
+  Scheduler scheduler;
+  TestMesh<Connection> mesh;
+  mesh.init(&scheduler, /*nodeId=*/1234567);
+  scheduler.enable();
+  std::vector<uint32_t> callbackNodes;
+  const auto msgId = mesh.ackTracker.nextMessageId();
+  const auto now = static_cast<uint32_t>(millis());
+  REQUIRE(mesh.ackTracker.track(
+      msgId, {999, 1000},
+      [&](uint32_t nodeId, bool delivered, uint32_t) {
+        REQUIRE_FALSE(delivered);
+        callbackNodes.push_back(nodeId);
+        if (callbackNodes.size() == 1) mesh.stop();
+      },
+      1, now - 2));
+
+  ack::MessageAckPackage pkg(/*fromNode=*/999, /*destNode=*/1234567, msgId);
+  protocol::Variant var(&pkg);
+  mesh.callbackList.execute(protocol::MESSAGE_ACK, var,
+                            std::shared_ptr<Connection>(), 0);
+
+  REQUIRE(callbackNodes.empty());
+  REQUIRE(mesh.taskList.size() == 1);
+  mesh.taskList.front()->forceNextIteration();
+  scheduler.execute();
+  const std::vector<uint32_t> expectedNodes{999, 1000};
+  REQUIRE(callbackNodes == expectedNodes);
 }
 
 SCENARIO("Callbacks registered after a deferred clear survive dispatch") {

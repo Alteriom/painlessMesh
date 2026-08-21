@@ -81,10 +81,14 @@ void transmitPending() {
 }
 
 void sendReading() {
+  if (pending.inFlight) {
+    Serial.println("Previous reading still awaiting acknowledgment, skipping");
+    return;
+  }
   if (pending.payload.length() > 0) {
-    // Previous reading still unconfirmed — in a real application you
-    // might queue multiple readings instead of overwriting
-    Serial.println("Previous reading still pending, overwriting");
+    // A previous attempt had no route. Replace that unsent reading; a real
+    // application might queue multiple readings instead.
+    Serial.println("Previous unsent reading still pending, overwriting");
   }
   pending.payload =
       String("{\"sensor\":\"temp\",\"value\":") + String(random(15, 30)) +
