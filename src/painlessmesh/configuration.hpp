@@ -66,10 +66,18 @@
     "PAINLESSMESH_OTA_REQUIRE_SIGNATURE is not implemented: painlessMesh does not verify OTA image signatures. Use -DPAINLESSMESH_DISABLE_OTA to compile OTA out, or drop this define."
 #endif
 
-// NOTE: there is likewise no PAINLESSMESH_DISABLE_ACK flag. MessageTracker
-// (painlessmesh/message_tracker.hpp) is a header-only utility the sketch
-// instantiates and sizes itself; the library holds no tracker instance, so
-// there is no library-side allocation for such a flag to reclaim.
+// NOTE: there is likewise no PAINLESSMESH_DISABLE_ACK flag. The one this
+// branch briefly carried gated only the painlessmesh/message_tracker.hpp
+// include -- which gateway.hpp pulls in unconditionally anyway -- and
+// MessageTracker has no instance anywhere under src/. It is dead code (#386),
+// so the flag reclaimed nothing and its advertised RAM saving was not real.
+//
+// That is NOT a claim that acknowledgment is free. The delivery-ack subsystem
+// (painlessmesh/ack.hpp) is a different thing and is genuinely allocated:
+// Mesh holds an ack::AckTracker member whose std::map grows with each
+// in-flight tracked message. Nothing compiles that out today. If a
+// memory-constrained target needs it gone, that is a design question for the
+// ack feature (#379), not a flag to reinstate here.
 
 // NOTE: `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` are kept as deprecated
 // no-op compatibility macros. The library does not read either macro:
