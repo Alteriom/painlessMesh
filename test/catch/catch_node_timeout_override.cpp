@@ -51,9 +51,11 @@ SCENARIO("NODE_TIMEOUT is overridable from the build line") {
       // derived from NODE_TIMEOUT, so raising one raises the budget with it --
       // which is what makes "raise both together" work rather than trip the
       // static_assert in gateway.hpp.
-      REQUIRE(GATEWAY_HTTP_TIMEOUT_MS == PAINLESSMESH_TEST_NODE_TIMEOUT_S * 1000 / 2);
+      REQUIRE(GATEWAY_HTTP_TIMEOUT_MS == PAINLESSMESH_TEST_NODE_TIMEOUT_S * 1000 / 5);
       REQUIRE(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS ==
-              PAINLESSMESH_TEST_NODE_TIMEOUT_S * 1000 / 5);
+              PAINLESSMESH_TEST_NODE_TIMEOUT_S * 1000 / 10);
+      REQUIRE(GATEWAY_DNS_TIMEOUT_MS ==
+              PAINLESSMESH_TEST_NODE_TIMEOUT_S * 1000 / 10);
     }
 
     THEN("the blocking budget still fits inside the raised watchdog") {

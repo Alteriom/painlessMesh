@@ -31,8 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     The assertion bounds the values you configure, not the wall clock:
     `HTTPClient::setTimeout()` limits one socket wait rather than a whole call,
     and the DNS probe takes no timeout at all, so a request can still overrun
-    the watchdog. See #416 — and do not read this entry as the #318 / #332
-    partition being impossible, only much harder to reach.
+    the watchdog. *(Superseded later in this release — see the #416 entry
+    under 2.0.0: the budget now counts both socket waits per HTTP call and
+    the DNS probe is bounded on ESP8266 / skipped on ESP32.)*
   - After a blocking request returns, the gateway postpones the watchdog
     deadline on *every* peer that had one running by the **measured stall**
     (`Task::adjust()`, issue #417), so an overdue deadline gets back exactly
@@ -104,6 +105,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed (post-review series)
 
+- **Gateway blocking budget is now a wall-clock model, DNS included (#416)**
+  — `gatewayBlockingBudgetMs()` counts **both** socket waits of each HTTP
+  call (request/header read plus body read — `HTTPClient::setTimeout()`
+  bounds one wait, not a whole call) for the destination request *and* the
+  captive-portal probe, plus a new `GATEWAY_DNS_TIMEOUT_MS` term for the
+  DNS reachability probe. On ESP8266 the probe now uses the `hostByName()`
+  timeout overload; on ESP32, whose core has no resolver timeout, the
+  standalone probe is skipped and the (timed) captive-portal probe
+  establishes reachability instead. **Defaults changed to keep the honest
+  budget inside `NODE_TIMEOUT`:** at the stock 10 s watchdog,
+  `GATEWAY_HTTP_TIMEOUT_MS` is now 2000 ms (was 5000) and
+  `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS` 1000 ms (was 2000); raise them
+  together with `NODE_TIMEOUT` if your endpoint needs longer — the
+  `static_assert` enforces the pairing. One residual is documented rather
+  than closed: ESP32's in-request hostname resolution happens inside the
+  core before the socket timeout applies and cannot be bounded there;
+  SECURITY.md states it plainly.
 - **Gateway watchdog compensation now equals the measured stall (#417)** —
   `gateway::refreshPeerWatchdogs()` takes the measured blocking duration and
   postpones each running peer watchdog by exactly that long via
