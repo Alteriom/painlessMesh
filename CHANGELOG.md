@@ -22,11 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only, and did so *before* the stall — which cannot work, since the deadline
   is wall-clock. Both halves are now addressed:
 
-  - `GATEWAY_HTTP_TIMEOUT_MS` defaults to **5000** (was a hardcoded 30000) and
-    is now a user-overridable macro in `painlessmesh/configuration.hpp`. A new
-    compile-time assertion keeps it, plus the captive-portal probe, below
+  - `GATEWAY_HTTP_TIMEOUT_MS` is now a user-overridable macro **derived from
+    `NODE_TIMEOUT`** (`painlessmesh/gateway.hpp`), yielding **5000ms** at the
+    stock 10s watchdog where it was previously a hardcoded 30000. A
+    compile-time assertion keeps it, plus the captive-portal probe, inside
     `NODE_TIMEOUT` — exceeding the mesh watchdog is now a build error rather
-    than a field partition.
+    than a field partition, and raising `NODE_TIMEOUT` raises the budget with
+    it automatically.
   - After a blocking request returns, the gateway re-arms the watchdog on
     *every* peer that had one running, so an overdue deadline gets a fresh
     window instead of firing immediately. Watchdogs that were not already
@@ -43,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   request's own timeout, on the scheduler. It is now cached for
   `GATEWAY_CONNECTIVITY_CACHE_MS` (60s, matching `hasActualInternetAccess()`)
   and its socket timeout is bounded by `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS`
-  (2000ms, was 5000ms).
+  (`NODE_TIMEOUT / 5`, so 2000ms at the stock watchdog; was a flat 5000ms).
 
 ### Security
 

@@ -1057,6 +1057,41 @@ class GatewayAckPackage : public plugin::SinglePackage {
 // Scheduler-stall protection for blocking gateway requests
 // ===========================================================================
 
+// The socket timeouts below are derived from NODE_TIMEOUT rather than written
+// as absolute numbers, so a gateway request cannot outlast the mesh watchdog in
+// *any* build. That is not hypothetical tidiness: the host test environment
+// overrides NODE_TIMEOUT to 5s (test/catch/Arduino.h shadows configuration.hpp
+// wholesale via its include guard), so hardcoded defaults sized for the 10s
+// production watchdog would blow the assertion below there.
+//
+// They live in this header, not in configuration.hpp, for the same reason --
+// gateway.hpp is reached through both configurations, configuration.hpp is not.
+//
+// At the production NODE_TIMEOUT of 10s this gives 5000ms for the request and
+// 2000ms for the captive-portal probe. Dividing by TASK_MILLISECOND first
+// normalises out the scheduler resolution, so the result is milliseconds under
+// _TASK_MICRO_RES too.
+
+/** Socket timeout, in milliseconds, for a gateway Internet request. */
+#ifndef GATEWAY_HTTP_TIMEOUT_MS
+#define GATEWAY_HTTP_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 2)
+#endif
+
+/** Socket timeout, in milliseconds, for the captive-portal probe. */
+#ifndef GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS
+#define GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 5)
+#endif
+
+/** How long, in milliseconds, a connectivity probe result stays cached.
+ *
+ * Both the DNS reachability check and the captive-portal probe are network
+ * round trips. Running them per message would put an Internet round trip in
+ * front of every single mesh->Internet send.
+ */
+#ifndef GATEWAY_CONNECTIVITY_CACHE_MS
+#define GATEWAY_CONNECTIVITY_CACHE_MS 60000UL
+#endif
+
 /**
  * @brief Total time the gateway may spend inside blocking Internet calls
  *        while handling a single GATEWAY_DATA package, in milliseconds.

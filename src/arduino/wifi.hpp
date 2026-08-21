@@ -2467,8 +2467,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Limitations:
    * - HTTP redirects (3xx) are not automatically followed
    * - Only 2xx status codes are treated as success
-   * - Request timeout is GATEWAY_HTTP_TIMEOUT_MS, which must stay below
-   *   NODE_TIMEOUT (see painlessmesh/configuration.hpp)
+   * - Request timeout is GATEWAY_HTTP_TIMEOUT_MS, which is derived from
+   *   NODE_TIMEOUT and asserted to stay below it (see
+   *   painlessmesh/gateway.hpp)
    */
   void initGatewayInternetHandler() {
     using namespace logger;

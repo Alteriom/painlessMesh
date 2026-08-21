@@ -104,6 +104,17 @@ SCENARIO("The gateway blocking budget fits inside the mesh watchdog") {
               static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
                   static_cast<unsigned long>(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS));
     }
+
+    THEN("it leaves real headroom, not just a strict inequality") {
+      // Fitting by 1ms would satisfy the static_assert and still partition the
+      // mesh: the peer's deadline is already partly spent by the time its
+      // request reaches a gateway that is mid-stall. Require a quarter of
+      // NODE_TIMEOUT to be left over.
+      auto budget =
+          painlessmesh::gateway::gatewayBlockingBudgetMs() * TASK_MILLISECOND;
+      auto watchdog = static_cast<unsigned long>(NODE_TIMEOUT);
+      REQUIRE(watchdog - budget >= watchdog / 4);
+    }
   }
 }
 
