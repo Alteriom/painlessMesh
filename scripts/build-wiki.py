@@ -24,6 +24,9 @@ DOC_ALIASES = {
     "../docs/troubleshooting/debugging.md":
         "troubleshooting-common-issues.md",
     "../docs/troubleshooting/faq.md": "troubleshooting-faq.md",
+    "wiki/Installation": "getting-started-installation.md",
+    "wiki/Contributing": "Home.md#contributing",
+    "wiki/Examples": "Examples.md",
 }
 REPOSITORY_BASE = "https://github.com/Alteriom/painlessMesh/"
 MARKDOWN_LINK = re.compile(r"(\[[^\]]*\]\()([^)]+)(\))")
@@ -32,6 +35,7 @@ DOXYGEN_BASE = "https://alteriom.github.io/painlessMesh/api-reference/"
 RELATIVE_DOXYGEN_LINK = re.compile(
     r"(?:\.\./)+api-reference/([^\s\"'()]+\.html(?:#[^\s\"'()]*)?)"
 )
+EXTENSIONLESS_PAGE = re.compile(r"^[A-Za-z0-9_./-]+$")
 
 
 def wiki_name(relative_path: Path) -> str:
@@ -53,6 +57,16 @@ def rewrite_links(content: str, source_relative: Path,
             posixpath.join(source_relative.parent.as_posix(), path)
         )
         target = page_names.get(resolved)
+        extensionless_page = (
+            not posixpath.splitext(path)[1] and
+            EXTENSIONLESS_PAGE.fullmatch(path) is not None
+        )
+        if target is None and extensionless_page:
+            target = page_names.get(resolved + ".md")
+        if target is None and extensionless_page:
+            published_target = path + ".md"
+            if published_target in page_names.values():
+                target = published_target
         if target is not None:
             rewritten = target
             if separator:
@@ -69,9 +83,10 @@ def rewrite_links(content: str, source_relative: Path,
                     rewritten += "#" + fragment
                 return rewritten
 
-        if path.endswith(".md"):
+        if path.endswith(".md") or extensionless_page:
             raise ValueError(
-                f"Unresolved Markdown link in {source_relative}: {destination}"
+                f"Unresolved wiki page link in {source_relative}: "
+                f"{destination}"
             )
         return destination
 
