@@ -95,7 +95,12 @@ class __FlashStringHelper {
 // so that a translation unit opting out with PAINLESSMESH_DISABLE_OTA gets
 // an OTA-free build here too -- an unconditional define would silently put
 // OTA back and make the opt-out untestable on the desktop harness.
-#ifndef PAINLESSMESH_DISABLE_OTA
+#ifdef PAINLESSMESH_DISABLE_OTA
+#ifdef PAINLESSMESH_ENABLE_OTA
+#error \
+    "PAINLESSMESH_DISABLE_OTA and PAINLESSMESH_ENABLE_OTA are both defined."
+#endif
+#else
 #define PAINLESSMESH_ENABLE_OTA
 #endif
 

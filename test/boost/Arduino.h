@@ -82,7 +82,12 @@ inline void yield() {}
 
 #define PAINLESSMESH_ENABLE_STD_STRING
 // Guarded to match painlessmesh/configuration.hpp -- see test/catch/Arduino.h.
-#ifndef PAINLESSMESH_DISABLE_OTA
+#ifdef PAINLESSMESH_DISABLE_OTA
+#ifdef PAINLESSMESH_ENABLE_OTA
+#error \
+    "PAINLESSMESH_DISABLE_OTA and PAINLESSMESH_ENABLE_OTA are both defined."
+#endif
+#else
 #define PAINLESSMESH_ENABLE_OTA
 #endif
 #define NODE_TIMEOUT 10 * TASK_SECOND

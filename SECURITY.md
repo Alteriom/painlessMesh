@@ -59,6 +59,11 @@ Mitigations available today:
   build_flags = -DPAINLESSMESH_DISABLE_OTA
   ```
 
+  If your build flags already carry `-DPAINLESSMESH_ENABLE_OTA`, delete it.
+  OTA is on by default, so it was redundant, and defining both is a compile
+  error rather than a silent no-op — an externally-supplied enable would
+  otherwise survive the opt-out and compile OTA back in.
+
   It has to be the build flag, so that every translation unit sees it. A
   `#define` above the sketch's `#include <painlessMesh.h>` is not a narrower
   version of the same thing — `src/wifi.cpp` and `src/painlessMeshSTA.cpp`

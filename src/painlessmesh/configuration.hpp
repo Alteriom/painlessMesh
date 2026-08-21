@@ -38,7 +38,19 @@
 // `#undef PAINLESSMESH_ENABLE_OTA` does not work either: it runs before
 // painlessMesh.h includes this header, which then defines the macro straight
 // back.
-#ifndef PAINLESSMESH_DISABLE_OTA
+#ifdef PAINLESSMESH_DISABLE_OTA
+// Opting out is not the same as declining to define. If the build already
+// supplies PAINLESSMESH_ENABLE_OTA -- redundantly, since it is the default --
+// then merely skipping the definition below leaves that one standing and every
+// #ifdef downstream still compiles OTA in, on a build that looks like it opted
+// out. That is a security control failing open and saying nothing, which is
+// the failure mode this opt-out exists to remove. Refuse the contradiction
+// rather than guessing which flag was meant.
+#ifdef PAINLESSMESH_ENABLE_OTA
+#error \
+    "PAINLESSMESH_DISABLE_OTA and PAINLESSMESH_ENABLE_OTA are both defined. Remove -DPAINLESSMESH_ENABLE_OTA from your build flags: OTA is on by default, so the disable flag alone is what you want."
+#endif
+#else
 #define PAINLESSMESH_ENABLE_OTA
 #endif
 
