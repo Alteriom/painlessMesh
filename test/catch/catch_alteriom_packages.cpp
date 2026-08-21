@@ -188,6 +188,9 @@ SCENARIO("Alteriom packages can be used with PackageHandler") {
         class MockConnection : public layout::Neighbour {
         public:
             bool addMessage(TSTRING msg) { return true; }
+            bool addMessageWithPriority(TSTRING msg, uint8_t priority) {
+                return true;
+            }
         };
         
         auto handler = plugin::PackageHandler<MockConnection>();

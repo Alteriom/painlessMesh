@@ -1782,7 +1782,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Send election message using raw broadcast to preserve type
     // BRIDGE_ELECTION
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
 
     Log(CONNECTION, "startBridgeElection(): Candidacy broadcast sent\n");
 
@@ -1959,7 +1959,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Send takeover message using raw broadcast to preserve type
     // BRIDGE_TAKEOVER
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
 
     // Give time for announcement to propagate before channel switch
     // Allow event loop processing during hardware settling
@@ -2246,7 +2246,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Using sendBroadcast(msg) would wrap it in type 8 (BROADCAST) and hide
     // type BRIDGE_STATUS
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
   }
 
   /**
@@ -2501,14 +2501,22 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           // before the stall rather than after it, which is the half that
           // cannot work: the deadline is wall-clock, so pushing it out ahead of
           // a stall longer than the window changes nothing.
-          auto finish = [this, &pkg](bool ok, uint16_t code,
-                                     const TSTRING& err) {
-            auto refreshed = gateway::refreshPeerWatchdogs(*this);
+          //
+          // Compensation is by the *measured* stall (issue #417): exit paths
+          // that never blocked measure ~0 ms and grant nothing, so a peer
+          // that genuinely stopped answering NODE_SYNC still gets reaped even
+          // under continuous gateway traffic from other peers.
+          const auto blockingStartedMs = millis();
+          auto finish = [this, &pkg, blockingStartedMs](bool ok, uint16_t code,
+                                                        const TSTRING& err) {
+            const auto stalledMs = millis() - blockingStartedMs;
+            auto refreshed = gateway::refreshPeerWatchdogs(*this, stalledMs);
             if (refreshed > 0) {
               Log(COMMUNICATION,
-                  "Gateway re-armed mesh watchdog on %u peer(s) after blocking "
-                  "Internet request\n",
-                  static_cast<unsigned>(refreshed));
+                  "Gateway postponed the mesh watchdog on %u peer(s) by %lu ms "
+                  "after a blocking Internet request\n",
+                  static_cast<unsigned>(refreshed),
+                  static_cast<unsigned long>(stalledMs));
             }
             this->sendGatewayAck(pkg, ok, code, err);
           };

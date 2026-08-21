@@ -136,10 +136,9 @@ bool sendBroadcast(TSTRING msg, bool includeSelf,
   before bursts.
 - Message ids are seeded randomly at `init()` so a delayed ACK from before
   a reboot cannot be mistaken for a fresh message's acknowledgment.
-- The priority overloads (`sendSingle(dest, msg, priorityLevel)` /
-  `sendBroadcast(msg, priorityLevel, includeSelf)`) cannot currently be
-  combined with a delivery callback — priority and confirmation are
-  mutually exclusive per call.
+- To combine priority with a delivery callback, use the `SendOptions`
+  overloads (below) — the separate priority and ack overloads remain for
+  backwards compatibility but cannot express both in one call.
 - Power note: while any ack is outstanding, the scheduler polls timeouts
   every `PAINLESSMESH_ACK_CHECK_INTERVAL_MS` (default 100 ms) for up to
   `ackTimeoutMs`. Battery/light-sleep nodes can override the interval at
@@ -155,6 +154,42 @@ mesh.sendSingle(gatewayId, msg,
     Serial.printf("Delivery to %u timed out\n", nodeId);
 });
 ```
+
+#### `SendOptions` — unified send path (v2.0.0+)
+
+`painlessmesh::SendOptions` bundles priority and delivery confirmation into
+one composable struct; every other `sendSingle()` / `sendBroadcast()`
+overload is a thin wrapper over these two:
+
+```cpp
+struct painlessmesh::SendOptions {
+  uint8_t priority = PRIORITY_NORMAL;  // PRIORITY_CRITICAL(0) … PRIORITY_LOW(3)
+  painlessmesh::ack::deliveryCallback_t ackCallback = nullptr;
+  uint32_t ackTimeoutMs = 5000;
+};
+
+bool sendSingle(uint32_t destId, TSTRING msg,
+                const painlessmesh::SendOptions& options);
+bool sendBroadcast(TSTRING msg, const painlessmesh::SendOptions& options,
+                   bool includeSelf = false);
+```
+
+```cpp
+painlessmesh::SendOptions options;
+options.priority = painlessmesh::protocol::PRIORITY_HIGH;
+options.ackCallback = [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  if (!delivered) Serial.printf("Node %u missed the alarm\n", nodeId);
+};
+mesh.sendBroadcast(alarmMsg, options);
+```
+
+**Priority is carried across hops (v2.0.0+).** The priority level is
+serialized on the wire (as `"prio"`, only when it deviates from
+`PRIORITY_NORMAL`, so default sends carry zero overhead) and every
+forwarding node re-enqueues the package at the sender's priority. Before
+v2.0.0 priority only affected the first hop's transmit queue and was
+silently dropped on forwarding. Pre-2.0 nodes ignore the field and forward
+at normal priority.
 
 #### `checkAcks()`
 

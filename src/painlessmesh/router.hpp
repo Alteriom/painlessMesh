@@ -17,8 +17,12 @@ namespace painlessmesh {
  * Helper functions to route messages
  */
 namespace router {
+// Layouts are taken by const reference throughout this header: Layout<T>::subs
+// is a std::list of shared_ptrs, so passing by value used to copy the whole
+// connection list (one heap allocation per connection) on every packet sent,
+// broadcast or forwarded (issue #387).
 template <class T>
-std::shared_ptr<T> findRoute(layout::Layout<T> tree,
+std::shared_ptr<T> findRoute(const layout::Layout<T>& tree,
                              std::function<bool(std::shared_ptr<T>)> func) {
   auto route = std::find_if(tree.subs.begin(), tree.subs.end(), func);
   if (route == tree.subs.end()) return NULL;
@@ -26,7 +30,7 @@ std::shared_ptr<T> findRoute(layout::Layout<T> tree,
 }
 
 template <class T>
-std::shared_ptr<T> findRoute(layout::Layout<T> tree, uint32_t nodeId) {
+std::shared_ptr<T> findRoute(const layout::Layout<T>& tree, uint32_t nodeId) {
   return findRoute<T>(tree, [nodeId](std::shared_ptr<T> s) {
     return layout::contains((*s), nodeId);
   });
@@ -95,107 +99,78 @@ bool sendWithPriority(protocol::Variant&& variant, std::shared_ptr<U> conn, uint
   return conn->addMessageWithPriority(msg, priorityLevel);
 }
 
-template <class T, class U>
-bool send(T& package, layout::Layout<U> layout) {
-  painlessmesh::protocol::Variant variant(package);
+// The layout-level send and broadcast functions below all funnel into the
+// protocol::Variant& core overloads, which enqueue at the priority carried in
+// the package's "prio" field (PRIORITY_NORMAL when absent). This is what keeps
+// a sender's priority attached to a package across intermediate hops instead
+// of silently dropping it to NORMAL after the first hop (issue #384): the
+// forwarding path in routePackage() re-reads the field from the wire.
+
+template <class U>
+bool send(protocol::Variant& variant, const layout::Layout<U>& layout) {
   TSTRING msg;
   variant.printTo(msg);
   auto conn = findRoute<U>(layout, variant.dest());
-  if (conn) return conn->addMessage(msg);
+  if (conn) return conn->addMessageWithPriority(msg, variant.priority());
   return false;
+}
+
+template <class T, class U>
+bool send(T& package, const layout::Layout<U>& layout) {
+  painlessmesh::protocol::Variant variant(package);
+  return send<U>(variant, layout);
+}
+
+template <class T, class U>
+bool send(T&& package, const layout::Layout<U>& layout) {
+  painlessmesh::protocol::Variant variant(package);
+  return send<U>(variant, layout);
 }
 
 template <class U>
-bool send(protocol::Variant& variant, layout::Layout<U> layout) {
-  TSTRING msg;
-  variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest());
-  if (conn) return conn->addMessage(msg);
-  return false;
-}
-
-template <class T, class U>
-bool send(T&& package, layout::Layout<U> layout) {
-  painlessmesh::protocol::Variant variant(package);
-  TSTRING msg;
-  variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest());
-  if (conn) return conn->addMessage(msg);
-  return false;
-}
-
-template <class U>
-bool send(protocol::Variant&& variant, layout::Layout<U> layout) {
-  TSTRING msg;
-  variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest());
-  if (conn) return conn->addMessage(msg);
-  return false;
-}
-
-template <class T, class U>
-size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
-  painlessmesh::protocol::Variant variant(package);
-  TSTRING msg;
-  variant.printTo(msg);
-  size_t i = 0;
-  for (auto&& conn : layout.subs) {
-    if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
-      if (sent) ++i;
-    }
-  }
-  return i;
-}
-
-template <class T, class U>
-size_t broadcast(T&& package, layout::Layout<U> layout, uint32_t exclude) {
-  painlessmesh::protocol::Variant variant(package);
-  TSTRING msg;
-  variant.printTo(msg);
-  size_t i = 0;
-  for (auto&& conn : layout.subs) {
-    if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
-      if (sent) ++i;
-    }
-  }
-  return i;
+bool send(protocol::Variant&& variant, const layout::Layout<U>& layout) {
+  return send<U>(variant, layout);
 }
 
 template <class T>
-size_t broadcast(protocol::Variant& variant, layout::Layout<T> layout,
+size_t broadcast(protocol::Variant& variant, const layout::Layout<T>& layout,
                  uint32_t exclude) {
   TSTRING msg;
   variant.printTo(msg);
+  const auto priority = variant.priority();
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
+      auto sent = conn->addMessageWithPriority(msg, priority);
       if (sent) ++i;
     }
   }
   return i;
 }
 
-template <class T>
-size_t broadcast(protocol::Variant&& variant, layout::Layout<T> layout,
+template <class T, class U>
+size_t broadcast(T& package, const layout::Layout<U>& layout,
                  uint32_t exclude) {
-  TSTRING msg;
-  variant.printTo(msg);
-  size_t i = 0;
-  for (auto&& conn : layout.subs) {
-    if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
-      if (sent) ++i;
-    }
-  }
-  return i;
+  painlessmesh::protocol::Variant variant(package);
+  return broadcast<U>(variant, layout, exclude);
+}
+
+template <class T, class U>
+size_t broadcast(T&& package, const layout::Layout<U>& layout,
+                 uint32_t exclude) {
+  painlessmesh::protocol::Variant variant(package);
+  return broadcast<U>(variant, layout, exclude);
 }
 
 template <class T>
-void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
-                  const TSTRING& pkg,
+size_t broadcast(protocol::Variant&& variant, const layout::Layout<T>& layout,
+                 uint32_t exclude) {
+  return broadcast<T>(variant, layout, exclude);
+}
+
+template <class T>
+void routePackage(const layout::Layout<T>& layout,
+                  std::shared_ptr<T> connection, const TSTRING& pkg,
                   callback::MeshPackageCallbackList<T>& cbl,
                   uint32_t receivedAt) {
   using namespace logger;

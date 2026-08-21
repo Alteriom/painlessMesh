@@ -392,8 +392,24 @@ Use `mesh.pendingAcks()` to see how many messages are still unconfirmed and
 `mesh.checkAcks()` to poll timeouts manually (they are also processed inside
 `mesh.update()`). At most `PAINLESSMESH_MAX_PENDING_ACKS` (default 32)
 messages can await confirmation at once — beyond that the send returns
-`false` and nothing is sent. Note that the priority-level send overloads
-cannot be combined with a delivery callback.
+`false` and nothing is sent.
+
+To combine a priority level with a delivery callback in one call, pass a
+`painlessmesh::SendOptions` struct instead of using the separate overloads:
+
+```cpp
+painlessmesh::SendOptions options;
+options.priority = painlessmesh::protocol::PRIORITY_HIGH;
+options.ackCallback = [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  // ...
+};
+mesh.sendSingle(targetNode, msg, options);
+mesh.sendBroadcast(msg, options);  // includeSelf as optional third argument
+```
+
+Since v2.0.0 the priority level is carried on the wire, so intermediate
+nodes forward a prioritized message at the sender's priority instead of
+dropping it to normal after the first hop.
 
 #### Callbacks
 

@@ -16,7 +16,6 @@
 #include "painlessmesh/gateway.hpp"
 #include "painlessmesh/logger.hpp"
 #include "painlessmesh/message_queue.hpp"
-#include "painlessmesh/message_tracker.hpp"
 #include "painlessmesh/ntp.hpp"
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
@@ -39,6 +38,38 @@ typedef std::function<void(uint32_t bridgeNodeId, bool internetAvailable)> bridg
 typedef std::function<void(uint32_t timestamp)> rtcSyncCompleteCallback_t;
 typedef std::function<void(bool available)> localInternetChangedCallback_t;
 typedef std::function<void(uint32_t oldPrimary, uint32_t newPrimary)> gatewayChangedCallback_t;
+
+/**
+ * Options for sendSingle() / sendBroadcast() (issue #384)
+ *
+ * Bundles the outbound queue priority and the optional delivery confirmation
+ * into one composable struct, so a message can be both prioritized and
+ * acknowledgment-tracked in a single call — something the separate priority
+ * and ack overloads cannot express:
+ *
+ * \code
+ * painlessmesh::SendOptions options;
+ * options.priority = painlessmesh::protocol::PRIORITY_HIGH;
+ * options.ackCallback = [](uint32_t nodeId, bool delivered, uint32_t ms) {};
+ * mesh.sendSingle(dest, msg, options);
+ * \endcode
+ *
+ * The priority is carried on the wire (serialized as "prio" only when it
+ * deviates from PRIORITY_NORMAL), so intermediate nodes re-enqueue a
+ * forwarded package at the sender's priority instead of dropping it to
+ * NORMAL after the first hop.
+ */
+struct SendOptions {
+  /** Outbound queue priority: PRIORITY_CRITICAL (0), PRIORITY_HIGH (1),
+   * PRIORITY_NORMAL (2, default) or PRIORITY_LOW (3). */
+  uint8_t priority = protocol::PRIORITY_NORMAL;
+  /** Optional delivery confirmation callback; fires once per expected node
+   * with delivered = true and the round-trip latency, or delivered = false
+   * on timeout. nullptr (default) disables tracking. */
+  ack::deliveryCallback_t ackCallback = nullptr;
+  /** How long to wait for acknowledgments before reporting failure. */
+  uint32_t ackTimeoutMs = 5000;
+};
 
 /**
  * Callback type for Internet request results
@@ -451,12 +482,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return true if everything works, false if not.
    */
   bool sendSingle(uint32_t destId, TSTRING msg) {
-    Log(logger::COMMUNICATION, "sendSingle(): dest=%u msg=%s\n", destId,
-        msg.c_str());
-    auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
-    return painlessmesh::router::send<T>(single, (*this));
+    return sendSingle(destId, msg, SendOptions());
   }
-  
+
   /** Send message to a specific node with priority
    *
    * @param destId The nodeId of the node to send it to.
@@ -466,12 +494,45 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return true if everything works, false if not.
    */
   bool sendSingle(uint32_t destId, TSTRING msg, uint8_t priorityLevel) {
-    Log(logger::COMMUNICATION, "sendSingle(): dest=%u msg=%s priority=%u\n", destId,
-        msg.c_str(), priorityLevel);
+    SendOptions options;
+    options.priority = priorityLevel;
+    return sendSingle(destId, msg, options);
+  }
+
+  /** Send message to a specific node — unified path (issue #384)
+   *
+   * All sendSingle() overloads funnel into this one. Priority and delivery
+   * confirmation compose freely; see SendOptions for the semantics of each
+   * field.
+   *
+   * @param destId The nodeId of the node to send it to.
+   * @param msg The message to send
+   * @param options Priority and/or delivery confirmation options.
+   *
+   * @return true if the message was queued for sending, false if not (no
+   *         route to destination, or — when an ackCallback is set —
+   *         PAINLESSMESH_MAX_PENDING_ACKS messages already await
+   *         acknowledgment; in both cases nothing is sent and the callback
+   *         will not fire).
+   */
+  bool sendSingle(uint32_t destId, TSTRING msg, const SendOptions& options) {
+    Log(logger::COMMUNICATION, "sendSingle(): dest=%u msg=%s priority=%u%s\n",
+        destId, msg.c_str(), options.priority,
+        options.ackCallback ? " with ack" : "");
     auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
-    auto conn = painlessmesh::router::findRoute<T>((*this), destId);
-    if (!conn) return false;
-    return painlessmesh::router::sendWithPriority<painlessmesh::protocol::Single, T>(single, conn, priorityLevel);
+    single.priority = options.priority;
+    if (!options.ackCallback)
+      return painlessmesh::router::send<T>(single, (*this));
+    if (ackTracker.full()) {
+      Log(logger::ERROR, "sendSingle(): pending-ack limit reached\n");
+      return false;
+    }
+    single.msgId = ackTracker.nextMessageId();
+    if (!painlessmesh::router::send<T>(single, (*this))) return false;
+    ackTracker.track(single.msgId, {destId}, options.ackCallback,
+                     options.ackTimeoutMs, static_cast<uint32_t>(millis()));
+    this->ensureAckScheduling();
+    return true;
   }
 
   /** Send message to a specific node with delivery confirmation
@@ -508,20 +569,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool sendSingle(uint32_t destId, TSTRING msg,
                   ack::deliveryCallback_t ackCallback,
                   uint32_t ackTimeoutMs = 5000) {
-    if (!ackCallback) return sendSingle(destId, msg);
-    if (ackTracker.full()) {
-      Log(logger::ERROR, "sendSingle(): pending-ack limit reached\n");
-      return false;
-    }
-    Log(logger::COMMUNICATION, "sendSingle(): dest=%u msg=%s with ack\n",
-        destId, msg.c_str());
-    auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
-    single.msgId = ackTracker.nextMessageId();
-    if (!painlessmesh::router::send<T>(single, (*this))) return false;
-    ackTracker.track(single.msgId, {destId}, ackCallback, ackTimeoutMs,
-                     static_cast<uint32_t>(millis()));
-    this->ensureAckScheduling();
-    return true;
+    SendOptions options;
+    options.ackCallback = ackCallback;
+    options.ackTimeoutMs = ackTimeoutMs;
+    return sendSingle(destId, msg, options);
   }
 
   /** Broadcast a message to every node on the mesh network.
@@ -531,16 +582,75 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return true if everything works, false if not
    */
   bool sendBroadcast(TSTRING msg, bool includeSelf = false) {
+    return sendBroadcast(msg, SendOptions(), includeSelf);
+  }
+
+  /** Broadcast a message to every node — unified path (issue #384)
+   *
+   * All sendBroadcast() overloads funnel into this one. Priority and
+   * delivery confirmation compose freely; see SendOptions for the semantics
+   * of each field. With an ackCallback set, the set of nodes expected to
+   * acknowledge is snapshotted from the current mesh layout (excluding this
+   * node) when the broadcast is sent, and the callback fires once per
+   * expected node. ackTimeoutMs values below 1000 ms are raised to 1000 ms
+   * so the 50 ms ACK jitter window still leaves time for routed round-trip
+   * delivery.
+   *
+   * @param msg The message to broadcast
+   * @param options Priority and/or delivery confirmation options.
+   * @param includeSelf Send message to myself as well. Default is false.
+   *
+   * @return Without an ackCallback: true if the message was queued to at
+   *         least one peer. With an ackCallback: true if the message was
+   *         queued and at least one node is expected to acknowledge, false
+   *         otherwise — including when PAINLESSMESH_MAX_PENDING_ACKS
+   *         messages already await acknowledgment (nothing is sent; the
+   *         callback will not fire).
+   */
+  bool sendBroadcast(TSTRING msg, const SendOptions& options,
+                     bool includeSelf = false) {
     using namespace logger;
-    Log(COMMUNICATION, "sendBroadcast(): msg=%s\n", msg.c_str());
+    Log(COMMUNICATION, "sendBroadcast(): msg=%s priority=%u%s\n", msg.c_str(),
+        options.priority, options.ackCallback ? " with ack" : "");
     painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
+    pkg.priority = options.priority;
+
+    if (!options.ackCallback) {
+      auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
+      if (includeSelf) {
+        protocol::Variant var(pkg);
+        this->callbackList.execute(var.type(), var, NULL, 0);
+      }
+      return success > 0;
+    }
+
+    if (ackTracker.full()) {
+      Log(ERROR, "sendBroadcast(): pending-ack limit reached\n");
+      return false;
+    }
+    // Broadcast recipients intentionally jitter ACK replies across this
+    // window. A shorter deadline would deterministically time out nodes
+    // whose slot falls after it, even when delivery is immediate.
+    auto ackTimeoutMs = options.ackTimeoutMs;
+    if (ackTimeoutMs < ACK_BROADCAST_MIN_TIMEOUT_MS)
+      ackTimeoutMs = ACK_BROADCAST_MIN_TIMEOUT_MS;
+    auto expected = this->getNodeList(false);
+    pkg.msgId = ackTracker.nextMessageId();
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
+    const bool trackingPeers = success > 0 && !expected.empty();
+    if (trackingPeers) {
+      ackTracker.track(pkg.msgId, expected, options.ackCallback, ackTimeoutMs,
+                       static_cast<uint32_t>(millis()));
+      this->ensureAckScheduling();
+    }
     if (includeSelf) {
       protocol::Variant var(pkg);
       this->callbackList.execute(var.type(), var, NULL, 0);
     }
-    if (success > 0) return true;
-    return false;
+    // Do not access mesh state after self-delivery: an onReceive callback
+    // may have called stop(). Local delivery still occurs without peers,
+    // while the return value continues to describe peer ACK tracking.
+    return trackingPeers;
   }
   
   /** Broadcast a message with per-node delivery confirmation
@@ -575,36 +685,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool sendBroadcast(TSTRING msg, bool includeSelf,
                      ack::deliveryCallback_t ackCallback,
                      uint32_t ackTimeoutMs = 5000) {
-    if (!ackCallback) return sendBroadcast(msg, includeSelf);
-    using namespace logger;
-    if (ackTracker.full()) {
-      Log(ERROR, "sendBroadcast(): pending-ack limit reached\n");
-      return false;
-    }
-    Log(COMMUNICATION, "sendBroadcast(): msg=%s with ack\n", msg.c_str());
-    // Broadcast recipients intentionally jitter ACK replies across this
-    // window. A shorter deadline would deterministically time out nodes
-    // whose slot falls after it, even when delivery is immediate.
-    if (ackTimeoutMs < ACK_BROADCAST_MIN_TIMEOUT_MS)
-      ackTimeoutMs = ACK_BROADCAST_MIN_TIMEOUT_MS;
-    auto expected = this->getNodeList(false);
-    painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
-    pkg.msgId = ackTracker.nextMessageId();
-    auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
-    const bool trackingPeers = success > 0 && !expected.empty();
-    if (trackingPeers) {
-      ackTracker.track(pkg.msgId, expected, ackCallback, ackTimeoutMs,
-                       static_cast<uint32_t>(millis()));
-      this->ensureAckScheduling();
-    }
-    if (includeSelf) {
-      protocol::Variant var(pkg);
-      this->callbackList.execute(var.type(), var, NULL, 0);
-    }
-    // Do not access mesh state after self-delivery: an onReceive callback
-    // may have called stop(). Local delivery still occurs without peers,
-    // while the return value continues to describe peer ACK tracking.
-    return trackingPeers;
+    SendOptions options;
+    options.ackCallback = ackCallback;
+    options.ackTimeoutMs = ackTimeoutMs;
+    return sendBroadcast(msg, options, includeSelf);
   }
 
   /** Process pending delivery acknowledgments (non-blocking poll)
@@ -653,30 +737,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
           int>::type = 0>
   bool sendBroadcast(TSTRING msg, Priority priorityLevel,
                      IncludeSelf includeSelf = false) {
-    using namespace logger;
-    const auto priority = static_cast<uint8_t>(priorityLevel);
-    Log(COMMUNICATION, "sendBroadcast(): msg=%s priority=%u\n", msg.c_str(),
-        priority);
-    painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
-    
-    // Broadcast to all connections with priority
-    size_t success = 0;
-    for (auto&& conn : this->subs) {
-      if (conn->nodeId != 0) {
-        painlessmesh::protocol::Variant variant(pkg);
-        TSTRING msgStr;
-        variant.printTo(msgStr);
-        auto sent = conn->addMessageWithPriority(msgStr, priority);
-        if (sent) ++success;
-      }
-    }
-    
-    if (includeSelf) {
-      protocol::Variant var(pkg);
-      this->callbackList.execute(var.type(), var, NULL, 0);
-    }
-    if (success > 0) return true;
-    return false;
+    SendOptions options;
+    options.priority = static_cast<uint8_t>(priorityLevel);
+    return sendBroadcast(msg, options, includeSelf);
   }
 
   /** Sends a node a packet to measure network trip delay to that node.

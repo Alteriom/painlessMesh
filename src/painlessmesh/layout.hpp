@@ -44,12 +44,12 @@ class Layout {
    * On the ESP hardware nodeId is uniquely calculated from the MAC address of
    * the node.
    */
-  uint32_t getNodeId() { return nodeId; }
+  uint32_t getNodeId() const { return nodeId; }
 
   /**
    * Check whether this node is a root node.
    */
-  bool isRoot() { return root; }
+  bool isRoot() const { return root; }
 
   protocol::NodeTree asNodeTree() {
     auto nt = protocol::NodeTree(nodeId, root, hasTimeAuthority);
