@@ -13,6 +13,15 @@
 // not by a #define here: it has to be set before any painlessMesh header is
 // parsed in every translation unit of the target, which is what the documented
 // build-flag form does.
+//
+// LIMITATION: this file cannot pin the production guard. Arduino.h below is
+// test/catch/Arduino.h, which defines _PAINLESS_MESH_CONFIGURATION_HPP_ and
+// supplies its own guarded NODE_TIMEOUT, so the #ifndef in the real header is
+// never parsed here. If configuration.hpp went unconditional again, this test
+// would still pass on the shim's guard. test/ci/tuned-timeouts/ covers that: a
+// shim-free PlatformIO build of the real header on both cores. What this file
+// adds is cheap per-commit proof on three compilers that the override reaches
+// the derived gateway budget and keeps it inside the watchdog.
 
 #define CATCH_CONFIG_MAIN
 #include "catch2/catch.hpp"
