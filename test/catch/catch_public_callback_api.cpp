@@ -106,6 +106,7 @@ SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
   Scheduler scheduler;
   TestMesh<Connection> mesh;
   mesh.init(&scheduler, /*nodeId=*/1234567);
+  scheduler.enable();
   bool callbackRan = false;
   const auto msgId = mesh.ackTracker.nextMessageId();
   REQUIRE(mesh.ackTracker.track(
@@ -242,6 +243,7 @@ SCENARIO("Broadcast acknowledgment task restarts after its first run") {
   Scheduler scheduler;
   TestMesh<Connection> mesh;
   mesh.init(&scheduler, /*nodeId=*/1234550);
+  scheduler.enable();
 
   for (uint32_t msgId = 1; msgId <= 2; ++msgId) {
     TSTRING body = "restart";
