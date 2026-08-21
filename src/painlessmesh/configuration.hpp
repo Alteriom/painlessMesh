@@ -23,23 +23,31 @@
 // Enable (arduino) wifi support
 #define PAINLESSMESH_ENABLE_ARDUINO_WIFI
 
-// Enable OTA support
+// Enable OTA support. Define PAINLESSMESH_DISABLE_OTA to compile the OTA
+// plugin out entirely (see SECURITY.md §OTA). It has to be a build flag --
+// `-DPAINLESSMESH_DISABLE_OTA`, or platformio.ini `build_flags` -- because a
+// `#undef PAINLESSMESH_ENABLE_OTA` in the sketch runs before painlessMesh.h
+// includes this header, which then defines the macro straight back.
+#ifndef PAINLESSMESH_DISABLE_OTA
 #define PAINLESSMESH_ENABLE_OTA
-
-// Enable ACK (message acknowledgment) tracker.
-// Enabled by default.  Define PAINLESSMESH_DISABLE_ACK before including
-// painlessMesh.h to opt out (e.g. on ESP8266 to reclaim ~640 bytes of
-// RAM used by the pending-ack map in painlessmesh/message_tracker.hpp).
-#ifndef PAINLESSMESH_DISABLE_ACK
-#define PAINLESSMESH_ENABLE_ACK
 #endif
 
-// Require a cryptographic signature on every incoming OTA firmware image.
-// Default-OFF in v2.0 so existing field fleets can upgrade without
-// bricking.  Default-ON in v3.0.  Set this macro before including
-// painlessMesh.h to enforce signature verification in v2.0.
-// (See SECURITY.md §OTA for the key-management story.)
-// #define PAINLESSMESH_OTA_REQUIRE_SIGNATURE
+// NOTE: there is deliberately no PAINLESSMESH_OTA_REQUIRE_SIGNATURE flag.
+// OTA acceptance (painlessmesh/ota.hpp, OTA_OP_CODES::DATA) authenticates
+// nothing -- it matches the sender-supplied md5/role/hardware tuple -- so a
+// flag that did not gate that path would read as a security control while
+// enforcing nothing. Defining it fails the build rather than passing
+// silently, so no fleet can ship believing its OTA images are verified.
+// Compiling OTA out is the only mitigation the library offers today.
+#ifdef PAINLESSMESH_OTA_REQUIRE_SIGNATURE
+#error \
+    "PAINLESSMESH_OTA_REQUIRE_SIGNATURE is not implemented: painlessMesh does not verify OTA image signatures. Use -DPAINLESSMESH_DISABLE_OTA to compile OTA out, or drop this define."
+#endif
+
+// NOTE: there is likewise no PAINLESSMESH_DISABLE_ACK flag. MessageTracker
+// (painlessmesh/message_tracker.hpp) is a header-only utility the sketch
+// instantiates and sizes itself; the library holds no tracker instance, so
+// there is no library-side allocation for such a flag to reclaim.
 
 // NOTE: `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` are kept as deprecated
 // no-op compatibility macros. The library does not read either macro:

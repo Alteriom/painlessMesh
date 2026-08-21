@@ -2477,8 +2477,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         "initGatewayInternetHandler(): Registering GATEWAY_DATA handler\n");
 
     this->callbackList.onPackage(
-         protocol::GATEWAY_DATA, [this](protocol::Variant& variant,
-                                        std::shared_ptr<Connection> connection, uint32_t) {
+        protocol::GATEWAY_DATA, [this](protocol::Variant& variant,
+                                       std::shared_ptr<Connection>, uint32_t) {
           auto pkg = variant.to<gateway::GatewayDataPackage>();
 
           Log(COMMUNICATION,

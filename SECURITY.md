@@ -131,13 +131,30 @@ documented gap is less harmful than an inaccurate assurance.
   Any mesh node that has the mesh password can push firmware to any other node
   by supplying a matching `md5 + role + hardware` tuple
   (`ota.hpp`, `OTA_OP_CODES::DATA` handler).
-- `PAINLESSMESH_ENABLE_OTA` is **on by default**.  Disable it at compile time
-  (`#undef PAINLESSMESH_ENABLE_OTA`) if OTA is not required.
-- **v2.0 preview**: a `PAINLESSMESH_OTA_REQUIRE_SIGNATURE` compile flag has
-  been added (default **off**).  The signing verification back-end will be
-  implemented behind this flag during the v2.0 cycle.  The flag will default
-  **on** in v3.0.  Do not assume signature verification is active unless you
-  explicitly define the macro.
+- **Mitigation**: `PAINLESSMESH_ENABLE_OTA` is **on by default**; compiling OTA
+  out is the only mitigation the library offers today.  Opt out with a *build
+  flag*, not a `#undef`:
+
+  ```ini
+  ; platformio.ini
+  build_flags = -DPAINLESSMESH_DISABLE_OTA
+  ```
+
+  A `#define PAINLESSMESH_DISABLE_OTA` placed above `#include <painlessMesh.h>`
+  works for that one translation unit; the build flag is preferred because it
+  applies to all of them.  What does **not** work is `#undef
+  PAINLESSMESH_ENABLE_OTA` — it runs before `painlessMesh.h` includes
+  `configuration.hpp`, which then defines the macro straight back.  Earlier
+  revisions of this document recommended exactly that; it was a no-op.
+
+  An OTA-free build is compiled and run in CI on every commit
+  (`test/catch/catch_ota_disabled.cpp`), so this mitigation cannot silently
+  rot again.
+- **There is no signature flag.**  `PAINLESSMESH_OTA_REQUIRE_SIGNATURE` is
+  rejected with a compile error rather than accepted as a no-op, so no build
+  can claim an enforcement the library does not perform.  Signed OTA is
+  roadmap work; when it lands it will gate the `DATA` handler itself, and this
+  section will say so.
 
 ### Gateway HTTPS (sendToInternet)
 
@@ -158,9 +175,15 @@ documented gap is less harmful than an inaccurate assurance.
   longer than `NODE_TIMEOUT` (10 s).  A slow server response could block the
   cooperative `TaskScheduler` long enough for every peer's timeout task to
   fire, partitioning the mesh (reported in issues #318, #332).
-- **Fixed in v2.0**: `GATEWAY_HTTP_TIMEOUT_MS` is now 8 s.  All direct peer
-  connection timeouts are refreshed before the HTTP call so that a slow but
-  sub-8 s response does not cause a partition.
+- **Fixed in v2.0** (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
+  `GATEWAY_HTTP_TIMEOUT_MS` is derived from `NODE_TIMEOUT` rather than
+  hardcoded (`NODE_TIMEOUT / 2`, so 5 s at the default 10 s), and a
+  `static_assert` fails the build if the total blocking budget — the request
+  plus the captive-portal probe — ever reaches `NODE_TIMEOUT`.
+- Every direct peer's timeout task is restarted **after** the blocking call
+  returns, not before it.  The deadline is wall-clock, so pushing it out ahead
+  of the stall is the half that cannot work: a peer whose deadline fell inside
+  the stall is already overdue the moment the scheduler resumes.
 
 ## Security Update Process
 

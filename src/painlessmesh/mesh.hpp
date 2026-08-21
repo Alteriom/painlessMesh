@@ -14,9 +14,7 @@
 #include "painlessmesh/gateway.hpp"
 #include "painlessmesh/logger.hpp"
 #include "painlessmesh/message_queue.hpp"
-#ifdef PAINLESSMESH_ENABLE_ACK
 #include "painlessmesh/message_tracker.hpp"
-#endif
 #include "painlessmesh/ntp.hpp"
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
