@@ -118,10 +118,9 @@ Fixed in v2.0 (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
 
 - `GATEWAY_HTTP_TIMEOUT_MS` is derived from `NODE_TIMEOUT` rather than
   hardcoded — `NODE_TIMEOUT / 2`, so 5 s at the default.
-- A `static_assert` fails the build if the total blocking budget — the request
-  plus the captive-portal probe — ever reaches `NODE_TIMEOUT`. Raising the
-  timeout without raising `NODE_TIMEOUT` is a compile error, not a field
-  outage.
+- A `static_assert` fails the build if the two *socket* timeouts — the request
+  and the captive-portal probe — reach `NODE_TIMEOUT` between them. Raising
+  one without raising `NODE_TIMEOUT` is a compile error, not a field outage.
 - Every direct peer's timeout task is restarted **after** the blocking call
   returns, not before it. Refreshing beforehand is the half that cannot work:
   the deadline is wall-clock, so pushing it out ahead of a stall longer than
@@ -129,6 +128,19 @@ Fixed in v2.0 (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
 
 This bounds the damage; it does not make the call asynchronous. A gateway
 still stops servicing mesh traffic for up to `NODE_TIMEOUT` per request.
+
+**Known gap — DNS is not inside that budget (issue #416).** On the first
+request, and again whenever the 60 s connectivity cache expires,
+`hasActualInternetAccess()` resolves a well-known hostname with
+`WiFi.hostByName()` before either timed call runs. That overload takes no
+timeout argument, so the stall is whatever the platform's resolver does, and
+`gatewayBlockingBudgetMs()` does not count it — caching lowers how often the
+unbounded call happens, not how long it can take. A gateway on a network with
+slow or blackholed DNS can therefore still overrun `NODE_TIMEOUT` and
+partition the mesh, at roughly one request per minute rather than every
+request. **Do not read the `static_assert` as a guarantee that a gateway
+cannot outlast the watchdog.** Bounding DNS needs a per-platform timeout API
+and is tracked in #416.
 
 ### Denial of service
 

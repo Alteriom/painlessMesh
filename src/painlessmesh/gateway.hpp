@@ -1093,11 +1093,22 @@ class GatewayAckPackage : public plugin::SinglePackage {
 #endif
 
 /**
- * @brief Total time the gateway may spend inside blocking Internet calls
- *        while handling a single GATEWAY_DATA package, in milliseconds.
+ * @brief Combined ceiling of the gateway's two *timed* blocking calls, in
+ *        milliseconds.
  *
  * The captive-portal probe runs before the request itself, so the two socket
- * timeouts stack. DNS reachability is cached and is not counted here.
+ * timeouts stack.
+ *
+ * @warning This is not the total stall on the GATEWAY_DATA path. The DNS
+ *          probe in hasActualInternetAccess() calls WiFi.hostByName() with no
+ *          timeout argument, so its worst case is whatever the platform
+ *          resolver does and it cannot be expressed here. It runs on the first
+ *          request and again whenever GATEWAY_CONNECTIVITY_CACHE_MS expires --
+ *          caching lowers how often that unbounded call happens, not how long
+ *          it can take. A gateway behind slow or blackholed DNS can still
+ *          overrun NODE_TIMEOUT and partition the mesh despite the assertion
+ *          below holding. Tracked in issue #416; see SECURITY.md
+ *          "Gateway blocking: the mesh partition risk".
  */
 constexpr unsigned long gatewayBlockingBudgetMs() {
   return static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
@@ -1105,9 +1116,11 @@ constexpr unsigned long gatewayBlockingBudgetMs() {
 }
 
 // A gateway that can block longer than the mesh watchdog partitions the mesh
-// around itself (issues #318, #332). Catch that at compile time. TASK_
-// constants are scaled by the scheduler's resolution, so the comparison is
-// written in scheduler units to stay correct under _TASK_MICRO_RES too.
+// around itself (issues #318, #332). Catch what is expressible at compile time
+// -- the two socket timeouts; see the DNS caveat above for what this does not
+// cover. TASK_ constants are scaled by the scheduler's resolution, so the
+// comparison is written in scheduler units to stay correct under
+// _TASK_MICRO_RES too.
 static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
               "Gateway blocking budget (GATEWAY_HTTP_TIMEOUT_MS + "
               "GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS) must stay below NODE_TIMEOUT, "
