@@ -2434,14 +2434,18 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    *
    * Security notes:
    * - HTTPS on ESP8266 uses setInsecure() which disables SSL certificate
-   * validation to reduce memory overhead. This makes connections vulnerable to
-   * MITM attacks.
-   * - ESP32 uses default SSL settings with certificate validation.
+   *   validation to reduce memory overhead. This makes connections vulnerable
+   *   to MITM attacks.
+   * - ESP32 calls http.begin(url) with no trust anchor configured.  The
+   *   underlying WiFiClientSecure accepts any certificate by default, so
+   *   HTTPS connections on ESP32 are also susceptible to MITM attacks.
+   *   A configurable trust-anchor API (setCACert / cert bundle) is planned
+   *   for v2.1.
    *
    * Limitations:
    * - HTTP redirects (3xx) are not automatically followed
    * - Only 2xx status codes are treated as success
-   * - Request timeout is fixed at 30 seconds
+   * - Request timeout is capped below NODE_TIMEOUT to avoid mesh partitions
    */
   void initGatewayInternetHandler() {
     using namespace logger;
@@ -2457,18 +2461,21 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               "Gateway received Internet request: msgId=%u dest=%s\n",
               pkg.messageId, pkg.destination.c_str());
 
-          // Disable connection timeout during HTTP request processing
-          // HTTP requests can take up to 30 seconds (GATEWAY_HTTP_TIMEOUT_MS)
-          // but mesh connections timeout after 10 seconds (NODE_TIMEOUT).
-          // We disable the timeout here to prevent connection drop during
-          // long-running HTTP requests. The timeout will be automatically
-          // re-enabled when the next sync packet is received.
-          if (connection) {
-            connection->timeOutTask.disable();
-            Log(COMMUNICATION,
-                "Gateway disabled connection timeout for node %u during HTTP request\n",
-                connection->nodeId);
+          // Refresh every peer's connection-timeout watchdog before making
+          // the (potentially slow) HTTP request.  Previously this code
+          // disabled only the *requesting* connection's timeOutTask, which
+          // (a) left all other peers' 10-second counters running and
+          // (b) leaked the disabled task for peers that never sent another
+          // sync packet.  Instead we restart every direct connection's
+          // watchdog so no peer is reaped while the gateway is occupied.
+          for (auto&& conn : this->subs) {
+            if (conn) {
+              conn->timeOutTask.disable();
+              conn->timeOutTask.restartDelayed();
+            }
           }
+          Log(COMMUNICATION,
+              "Gateway refreshed all peer timeouts before HTTP request\n");
 
           // Check Internet connectivity
           // First check WiFi status for quick fail
@@ -2509,7 +2516,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
           if (pkg.destination.startsWith("https://")) {
 #ifdef ESP32
-            // ESP32: Use default SSL settings with certificate validation
+            // ESP32: http.begin(url) with no trust anchor — certificate
+            // validation is NOT enforced.  See SECURITY.md for details.
+            // A setCACert() API is planned for v2.1.
             http.begin(pkg.destination.c_str());
 #elif defined(ESP8266)
             // ESP8266: Use insecure mode to reduce memory overhead
@@ -2796,7 +2805,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   static const uint8_t MAX_WIFI_CHANNEL =
       14;  // Support channels 1-14 for regions that allow it
   static const uint32_t GATEWAY_HTTP_TIMEOUT_MS =
-      30000;  // 30 second timeout for gateway HTTP requests
+      8000;  // 8 second HTTP timeout — must stay below NODE_TIMEOUT (10 s)
+             // to prevent gateway from partitioning the mesh while waiting
+             // for a slow server response (see issues #318, #332).
 
   /**
    * Initialize shared gateway monitoring

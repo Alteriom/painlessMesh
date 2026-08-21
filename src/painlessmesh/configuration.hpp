@@ -26,6 +26,21 @@
 // Enable OTA support
 #define PAINLESSMESH_ENABLE_OTA
 
+// Enable ACK (message acknowledgment) tracker.
+// Disable on ESP8266 to recover the ~640 bytes used by the 32-slot
+// pending-ack map (see painlessmesh/message_tracker.hpp).
+// In 2.0 this defaults ON; it will remain default-ON in future releases.
+#ifndef PAINLESSMESH_ENABLE_ACK
+#define PAINLESSMESH_ENABLE_ACK
+#endif
+
+// Require a cryptographic signature on every incoming OTA firmware image.
+// Default-OFF in v2.0 so existing field fleets can upgrade without
+// bricking.  Default-ON in v3.0.  Set this macro before including
+// painlessMesh.h to enforce signature verification in v2.0.
+// (See SECURITY.md §OTA for the key-management story.)
+// #define PAINLESSMESH_OTA_REQUIRE_SIGNATURE
+
 // NOTE: `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` are kept as deprecated
 // no-op compatibility macros. The library does not read either macro:
 // the auto-flushing message queue they were meant to tune never landed
