@@ -12,7 +12,13 @@
 // shims (test/catch/Arduino.h, test/boost/Arduino.h) defined
 // PAINLESSMESH_ENABLE_OTA a second time, so fixing configuration.hpp alone
 // still produced an OTA build here. Both now mirror the same guard.
-#define PAINLESSMESH_DISABLE_OTA
+//
+// PAINLESSMESH_DISABLE_OTA is deliberately NOT defined in this file. It comes
+// from target_compile_definitions() in CMakeLists.txt, because that is the
+// only correct way to set it: defining it in one source file would give that
+// translation unit a painlessmesh::Mesh with different members than the rest
+// of the link, which is an ODR violation with no required diagnostic. The
+// test sets it the way SECURITY.md tells operators to.
 
 #define CATCH_CONFIG_MAIN
 #include "catch2/catch.hpp"
@@ -23,6 +29,11 @@ using namespace painlessmesh;
 
 // Declare logger for test environment
 painlessmesh::logger::LogClass Log;
+
+#ifndef PAINLESSMESH_DISABLE_OTA
+#error \
+    "PAINLESSMESH_DISABLE_OTA is missing -- it must come from target_compile_definitions() in CMakeLists.txt, or this test proves nothing."
+#endif
 
 #ifdef PAINLESSMESH_ENABLE_OTA
 #error \

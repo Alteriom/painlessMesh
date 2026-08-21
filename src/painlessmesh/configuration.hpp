@@ -25,12 +25,19 @@
 
 // Enable OTA support. Define PAINLESSMESH_DISABLE_OTA to compile the OTA
 // plugin out entirely (SECURITY.md, "OTA: integrity checked, not
-// authenticated"). Prefer the build flag -- `-DPAINLESSMESH_DISABLE_OTA`, or
-// platformio.ini `build_flags` -- so it covers every translation unit; a
-// `#define PAINLESSMESH_DISABLE_OTA` above `#include <painlessMesh.h>` covers
-// only that one. What cannot work is `#undef PAINLESSMESH_ENABLE_OTA`: it runs
-// before painlessMesh.h includes this header, which then defines the macro
-// straight back.
+// authenticated").
+//
+// It must be a *build flag* -- `-DPAINLESSMESH_DISABLE_OTA`, or platformio.ini
+// `build_flags` -- so that every translation unit sees it. A `#define` above
+// the sketch's `#include <painlessMesh.h>` is not a narrower version of the
+// same thing, it is a bug: src/wifi.cpp and src/painlessMeshSTA.cpp compile
+// separately without it and would reach painlessmesh::Mesh with the OTA
+// members present, while the sketch sees the same class without them. That is
+// an ODR violation, and the standard requires no diagnostic for it.
+//
+// `#undef PAINLESSMESH_ENABLE_OTA` does not work either: it runs before
+// painlessMesh.h includes this header, which then defines the macro straight
+// back.
 #ifndef PAINLESSMESH_DISABLE_OTA
 #define PAINLESSMESH_ENABLE_OTA
 #endif

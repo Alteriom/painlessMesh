@@ -19,6 +19,15 @@ foreach(TESTFILE ${TESTFILES})
     target_include_directories(${NAME} PUBLIC test/include/ test/catch/ test/ArduinoJson/src/ src/ test/TaskScheduler/src examples/)
 endforeach()
 
+# The OTA opt-out is a build-flag-only mechanism. Setting it in a single
+# source file would give that translation unit a painlessmesh::Mesh with
+# different members than the rest of the link -- an ODR violation with no
+# required diagnostic -- so catch_ota_disabled gets it per target, for every
+# TU in the target, exactly as SECURITY.md tells operators to set it.
+if(TARGET catch_ota_disabled)
+  target_compile_definitions(catch_ota_disabled PRIVATE PAINLESSMESH_DISABLE_OTA)
+endif()
+
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 add_executable(catch_tcp_integration test/boost/tcp_integration.cpp test/catch/fake_serial.cpp src/scheduler.cpp src/connection.cpp)

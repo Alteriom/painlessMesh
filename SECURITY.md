@@ -59,9 +59,13 @@ Mitigations available today:
   build_flags = -DPAINLESSMESH_DISABLE_OTA
   ```
 
-  A `#define PAINLESSMESH_DISABLE_OTA` above `#include <painlessMesh.h>` works
-  for that one translation unit; the build flag is preferred because it applies
-  to all of them.
+  It has to be the build flag, so that every translation unit sees it. A
+  `#define` above the sketch's `#include <painlessMesh.h>` is not a narrower
+  version of the same thing — `src/wifi.cpp` and `src/painlessMeshSTA.cpp`
+  compile separately without it and would see `painlessmesh::Mesh` *with* the
+  OTA members while your sketch sees it without them. That is an ODR
+  violation, for which the standard requires no diagnostic: it can link
+  cleanly and misbehave at runtime.
 - Use distinct `role`/`hardware` strings so an announcement cannot fan out
   across an entire fleet.
 
@@ -72,8 +76,9 @@ long after a `-U` or a sketch-level `#undef` had been applied, so operators
 who followed that advice shipped OTA code believing they had removed it. v2.0
 guards the default definition, which is what makes
 `-DPAINLESSMESH_DISABLE_OTA` above effective. An OTA-free build is compiled
-and run in CI on every commit (`test/catch/catch_ota_disabled.cpp`) so the
-mitigation cannot quietly rot a second time.
+and run in CI on every commit (`test/catch/catch_ota_disabled.cpp`, which
+takes the flag from the build system rather than from a `#define`, for the
+reason above) so the mitigation cannot quietly rot a second time.
 
 Signed OTA is roadmap work and is **not** in v2.0. There is deliberately no
 flag for it: `PAINLESSMESH_OTA_REQUIRE_SIGNATURE` is rejected with a compile
