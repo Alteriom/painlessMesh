@@ -228,11 +228,11 @@ class AckTracker {
    */
   size_t expire(uint32_t now) {
     std::list<DeliveryResult> results;
-    auto pending = collectExpired(now, results);
+    collectExpired(now, results);
     for (const auto& result : results) {
       result.callback(result.nodeId, result.delivered, result.latencyMs);
     }
-    return pending;
+    return entries.size();
   }
 
   /**
