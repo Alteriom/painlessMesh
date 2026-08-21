@@ -123,7 +123,9 @@ SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
                             std::shared_ptr<Connection>(), 0);
 
   REQUIRE_FALSE(callbackRan);
-  for (size_t i = 0; i < 3 && !callbackRan; ++i) scheduler.execute();
+  REQUIRE(mesh.taskList.size() == 1);
+  mesh.taskList.front()->forceNextIteration();
+  scheduler.execute();
   REQUIRE(callbackRan);
   REQUIRE(mesh.ackTracker.pending() == 0);
   REQUIRE(mesh.callbackList.size() > 0);
@@ -143,7 +145,9 @@ SCENARIO("Delivery callbacks may restart the mesh during package dispatch") {
                             std::shared_ptr<Connection>(), 0);
   REQUIRE_FALSE(nextGenerationRan);
   REQUIRE(mesh.ackTracker.pending() == 0);
-  for (size_t i = 0; i < 3 && !nextGenerationRan; ++i) scheduler.execute();
+  REQUIRE(mesh.taskList.size() == 1);
+  mesh.taskList.front()->forceNextIteration();
+  scheduler.execute();
   REQUIRE(nextGenerationRan);
 }
 
@@ -247,8 +251,9 @@ SCENARIO("Broadcast acknowledgment task restarts after its first run") {
     mesh.callbackList.execute(protocol::BROADCAST, var,
                               std::shared_ptr<Connection>(), 0);
     REQUIRE(mesh.pendingBroadcastAcks.size() == 1);
-    for (size_t i = 0; i < 3 && !mesh.pendingBroadcastAcks.empty(); ++i)
-      scheduler.execute();
+    REQUIRE(mesh.broadcastAckTask);
+    mesh.broadcastAckTask->forceNextIteration();
+    scheduler.execute();
     REQUIRE(mesh.pendingBroadcastAcks.empty());
   }
 }
