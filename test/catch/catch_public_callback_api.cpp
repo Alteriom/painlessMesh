@@ -41,6 +41,7 @@ class TestMesh : public Mesh<T> {
   using plugin::PackageHandler<T>::quarantinedTasks;
   using Mesh<T>::addTask;
   using Mesh<T>::ackTracker;
+  using Mesh<T>::broadcastAckTask;
   using Mesh<T>::pendingBroadcastAcks;
   using Mesh<T>::retiredSchedulers;
 };
@@ -233,6 +234,25 @@ SCENARIO("Broadcast acknowledgment bursts use one bounded scheduler task") {
           PAINLESSMESH_MAX_QUEUED_BROADCAST_ACKS);
 }
 
+SCENARIO("Broadcast acknowledgment task restarts after its first run") {
+  Scheduler scheduler;
+  TestMesh<Connection> mesh;
+  mesh.init(&scheduler, /*nodeId=*/1234550);
+
+  for (uint32_t msgId = 1; msgId <= 2; ++msgId) {
+    TSTRING body = "restart";
+    protocol::Broadcast pkg(/*fromID=*/999, /*destID=*/0, body);
+    pkg.msgId = msgId;
+    protocol::Variant var(pkg);
+    mesh.callbackList.execute(protocol::BROADCAST, var,
+                              std::shared_ptr<Connection>(), 0);
+    REQUIRE(mesh.pendingBroadcastAcks.size() == 1);
+    for (size_t i = 0; i < 3 && !mesh.pendingBroadcastAcks.empty(); ++i)
+      scheduler.execute();
+    REQUIRE(mesh.pendingBroadcastAcks.empty());
+  }
+}
+
 SCENARIO("Confirmed peerless broadcasts still deliver to self") {
   Scheduler scheduler;
   TestMesh<Connection> mesh;
@@ -269,6 +289,10 @@ SCENARIO("Named broadcast delivery handlers select acknowledgment overload") {
   const auto integerBoolQueued =
       mesh.sendBroadcast("named-int", 0, namedDeliveryHandler);
   REQUIRE_FALSE(integerBoolQueued);
+  REQUIRE(selfDeliveries == 0);
+
+  const auto enumPriorityQueued = mesh.sendBroadcast("enum", PRIORITY_HIGH);
+  REQUIRE_FALSE(enumPriorityQueued);
   REQUIRE(selfDeliveries == 0);
 }
 

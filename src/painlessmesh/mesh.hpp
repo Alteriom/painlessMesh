@@ -633,7 +633,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       typename Priority,
       typename IncludeSelf = bool,
       typename std::enable_if<
-          std::is_integral<typename std::decay<Priority>::type>::value &&
+          (std::is_integral<typename std::decay<Priority>::type>::value ||
+           std::is_enum<typename std::decay<Priority>::type>::value) &&
               !std::is_same<typename std::decay<Priority>::type, bool>::value &&
               std::is_same<typename std::decay<IncludeSelf>::type, bool>::value,
           int>::type = 0>
@@ -3396,7 +3397,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
           },
           this->nodeId % ACK_BROADCAST_JITTER_MS);
     } else if (!broadcastAckTask->isEnabled()) {
-      broadcastAckTask->enableDelayed();
+      broadcastAckTask->restartDelayed();
     }
   }
 
