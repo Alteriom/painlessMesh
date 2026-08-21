@@ -9,6 +9,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Gateway Internet requests partitioned the mesh around the gateway
+  (#318, #332)** — the gateway relays messages from inside the cooperative
+  TaskScheduler using blocking `HTTPClient` calls, so nothing else ran for the
+  duration while wall-clock time kept passing. With a 30s HTTP timeout against
+  a 10s `NODE_TIMEOUT`, every peer watchdog that fell due mid-request fired the
+  instant the scheduler resumed, closing connections to nodes that had never
+  gone missing. Users reported this as *"Internet available via gateway: YES /
+  Mesh connections active: NO"*.
+
+  The previous mitigation disabled `timeOutTask` on the requesting connection
+  only, and did so *before* the stall — which cannot work, since the deadline
+  is wall-clock. Both halves are now addressed:
+
+  - `GATEWAY_HTTP_TIMEOUT_MS` defaults to **5000** (was a hardcoded 30000) and
+    is now a user-overridable macro in `painlessmesh/configuration.hpp`. A new
+    compile-time assertion keeps it, plus the captive-portal probe, below
+    `NODE_TIMEOUT` — exceeding the mesh watchdog is now a build error rather
+    than a field partition.
+  - After a blocking request returns, the gateway re-arms the watchdog on
+    *every* peer that had one running, so an overdue deadline gets a fresh
+    window instead of firing immediately. Watchdogs that were not already
+    running are deliberately left alone: arming one for an idle-but-healthy
+    link would close it.
+
+  **This changes a default.** If you relay to an endpoint that genuinely needs
+  longer than 5s, raise `GATEWAY_HTTP_TIMEOUT_MS` *and* `NODE_TIMEOUT`
+  together; the assertion will tell you if you raise only one.
+
+- **Captive-portal probe ran on every gateway message** — `detectCaptivePortal()`
+  made an uncached HTTP round trip to `captive.apple.com` before *each*
+  mesh→Internet send, stacking a full external round trip on top of the
+  request's own timeout, on the scheduler. It is now cached for
+  `GATEWAY_CONNECTIVITY_CACHE_MS` (60s, matching `hasActualInternetAccess()`)
+  and its socket timeout is bounded by `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS`
+  (2000ms, was 5000ms).
+
+### Security
+
+- **Corrected a false claim about gateway TLS.** The source comment on
+  `initGatewayInternetHandler()` asserted that "ESP32 uses default SSL settings
+  with certificate validation". Nothing in `src/` ever backed that: there is no
+  `setCACert`, no certificate bundle and no fingerprint API anywhere in the
+  library, and the ESP32 path calls bare `http.begin(url)`. Gateway HTTPS is
+  transport encryption **without** peer authentication on both targets.
+  No behaviour changed — only the claim.
+
+- **Added a threat model to `SECURITY.md`** covering mesh membership
+  (one shared password, no per-node identity or revocation), OTA (MD5 is an
+  integrity check against an unauthenticated announcer, not a signature),
+  gateway TLS, and the absence of rate limiting — along with which of these are
+  known-and-documented rather than reportable vulnerabilities.
+
 - **`mqttBridge` example fails to compile in Arduino IDE (#398)** — the
   `PubSubClient` library was missing from `library.properties`'s `depends`
   field, so installing/updating this library through the Arduino IDE Library

@@ -45,6 +45,45 @@
 #define NODE_TIMEOUT 10 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
 
+// ---------------------------------------------------------------------------
+// Gateway blocking-request budget
+// ---------------------------------------------------------------------------
+//
+// The gateway's Internet handler runs inside the cooperative TaskScheduler, so
+// every millisecond it spends inside a blocking HTTPClient call is a
+// millisecond in which no mesh task runs -- including the node-sync replies
+// that every peer's NODE_TIMEOUT watchdog is waiting for. If the gateway can
+// block for longer than NODE_TIMEOUT, its peers reap a connection to a node
+// that is perfectly healthy, and the mesh partitions around the gateway with
+// the reported signature "Internet available via gateway: YES / Mesh
+// connections active: NO" (issues #318, #332).
+//
+// The budgets below therefore have to add up to comfortably less than
+// NODE_TIMEOUT. `painlessmesh::gateway::gatewayBlockingBudgetMs()` static
+// asserts exactly that, so raising one of these past the watchdog is a compile
+// error rather than a field partition. If you genuinely need a longer HTTP
+// timeout, raise NODE_TIMEOUT with it.
+
+/** Socket timeout, in milliseconds, for a gateway Internet request. */
+#ifndef GATEWAY_HTTP_TIMEOUT_MS
+#define GATEWAY_HTTP_TIMEOUT_MS 5000UL
+#endif
+
+/** Socket timeout, in milliseconds, for the captive-portal probe. */
+#ifndef GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS
+#define GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS 2000UL
+#endif
+
+/** How long, in milliseconds, a connectivity probe result stays cached.
+ *
+ * Both the DNS reachability check and the captive-portal probe are network
+ * round trips. Running them per message would put an unbounded Internet round
+ * trip in front of every single mesh->Internet send.
+ */
+#ifndef GATEWAY_CONNECTIVITY_CACHE_MS
+#define GATEWAY_CONNECTIVITY_CACHE_MS 60000UL
+#endif
+
 #ifdef ESP32
 #include <AsyncTCP.h>
 #include <WiFi.h>

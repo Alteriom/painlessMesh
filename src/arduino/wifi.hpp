@@ -2265,7 +2265,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     static uint32_t lastCheckTime = 0;
     static bool lastResult = false;
     uint32_t now = millis();
-    if (lastCheckTime > 0 && (now - lastCheckTime) < 60000) {
+    if (lastCheckTime > 0 && (now - lastCheckTime) < GATEWAY_CONNECTIVITY_CACHE_MS) {
       return lastResult;
     }
 
@@ -2341,8 +2341,24 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     using namespace logger;
     
 #if defined(ESP32) || defined(ESP8266)
+    // Cache the verdict, exactly as hasActualInternetAccess() does. This probe
+    // is a full HTTP round trip to an external host; running it per message
+    // put that round trip in front of every single mesh->Internet send, on the
+    // cooperative scheduler, where it stacks with the request's own timeout.
+    static uint32_t lastCheckTime = 0;
+    static bool lastResult = true;
+    uint32_t now = millis();
+    if (lastCheckTime > 0 && (now - lastCheckTime) < GATEWAY_CONNECTIVITY_CACHE_MS) {
+      return lastResult;
+    }
+
+    // Record the attempt up front so that every early return below is cached
+    // too -- otherwise a failing probe would be retried on every message.
+    lastCheckTime = millis();
+    lastResult = false;
+
     HTTPClient http;
-    http.setTimeout(5000);  // 5 second timeout for quick check
+    http.setTimeout(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS);
     
     WiFiClient client;
     
@@ -2387,6 +2403,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
     
     Log(COMMUNICATION, "detectCaptivePortal(): No captive portal detected\n");
+    lastResult = true;
     return true;
     
 #else
@@ -2433,15 +2450,25 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * makes the request, and sends back a GATEWAY_ACK with the result.
    *
    * Security notes:
-   * - HTTPS on ESP8266 uses setInsecure() which disables SSL certificate
-   * validation to reduce memory overhead. This makes connections vulnerable to
-   * MITM attacks.
-   * - ESP32 uses default SSL settings with certificate validation.
+   * - Neither target authenticates the TLS peer. The library configures no
+   *   trust anchor anywhere: there is no setCACert, no certificate bundle and
+   *   no fingerprint API on the gateway config, so an https:// destination is
+   *   not protected against an active man in the middle.
+   *   - ESP8266 calls setInsecure(), which disables certificate validation
+   *     outright.
+   *   - ESP32 calls http.begin(url) with no trust anchor supplied. What that
+   *     yields depends entirely on the Arduino-ESP32 core in use; do not read
+   *     it as verified. (An earlier revision of this comment claimed ESP32
+   *     "uses default SSL settings with certificate validation" -- that was
+   *     never backed by anything in src/.)
+   *   Treat gateway HTTPS as transport encryption without authentication, and
+   *   see SECURITY.md for the full threat model.
    *
    * Limitations:
    * - HTTP redirects (3xx) are not automatically followed
    * - Only 2xx status codes are treated as success
-   * - Request timeout is fixed at 30 seconds
+   * - Request timeout is GATEWAY_HTTP_TIMEOUT_MS, which must stay below
+   *   NODE_TIMEOUT (see painlessmesh/configuration.hpp)
    */
   void initGatewayInternetHandler() {
     using namespace logger;
@@ -2450,44 +2477,59 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->callbackList.onPackage(
         protocol::GATEWAY_DATA, [this](protocol::Variant& variant,
-                                       std::shared_ptr<Connection> connection, uint32_t) {
+                                       std::shared_ptr<Connection>, uint32_t) {
           auto pkg = variant.to<gateway::GatewayDataPackage>();
 
           Log(COMMUNICATION,
               "Gateway received Internet request: msgId=%u dest=%s\n",
               pkg.messageId, pkg.destination.c_str());
 
-          // Disable connection timeout during HTTP request processing
-          // HTTP requests can take up to 30 seconds (GATEWAY_HTTP_TIMEOUT_MS)
-          // but mesh connections timeout after 10 seconds (NODE_TIMEOUT).
-          // We disable the timeout here to prevent connection drop during
-          // long-running HTTP requests. The timeout will be automatically
-          // re-enabled when the next sync packet is received.
-          if (connection) {
-            connection->timeOutTask.disable();
-            Log(COMMUNICATION,
-                "Gateway disabled connection timeout for node %u during HTTP request\n",
-                connection->nodeId);
-          }
+          // Every exit path below goes through finish(), which re-arms the
+          // mesh watchdog on all peers before the ack is routed.
+          //
+          // Everything from here on can block: the connectivity probes are
+          // network round trips and the request itself runs to
+          // GATEWAY_HTTP_TIMEOUT_MS. Nothing on the cooperative scheduler runs
+          // during that, but wall-clock time keeps passing, so any peer whose
+          // NODE_TIMEOUT deadline fell inside the stall is overdue the instant
+          // the scheduler resumes and gets closed despite never having gone
+          // missing (issues #318, #332).
+          //
+          // The previous mitigation disabled timeOutTask on the requesting
+          // connection only. That left every other peer exposed, and it acted
+          // before the stall rather than after it, which is the half that
+          // cannot work: the deadline is wall-clock, so pushing it out ahead of
+          // a stall longer than the window changes nothing.
+          auto finish = [this, &pkg](bool ok, uint16_t code,
+                                     const TSTRING& err) {
+            auto refreshed = gateway::refreshPeerWatchdogs(*this);
+            if (refreshed > 0) {
+              Log(COMMUNICATION,
+                  "Gateway re-armed mesh watchdog on %u peer(s) after blocking "
+                  "Internet request\n",
+                  static_cast<unsigned>(refreshed));
+            }
+            this->sendGatewayAck(pkg, ok, code, err);
+          };
 
           // Check Internet connectivity
           // First check WiFi status for quick fail
           if (WiFi.status() != WL_CONNECTED) {
-            sendGatewayAck(pkg, false, 0, "Gateway WiFi not connected");
+            finish(false, 0, "Gateway WiFi not connected");
             return true;  // Consume package - we handled it (with error)
           }
           
           // Then check actual internet access (DNS resolution)
           // This detects when WiFi is connected but router has no internet
           if (!hasActualInternetAccess()) {
-            sendGatewayAck(pkg, false, 0, "Router has no internet access - check WAN connection");
+            finish(false, 0, "Router has no internet access - check WAN connection");
             return true;  // Consume package - we handled it (with error)
           }
           
           // Finally, check for captive portal interference
           // This detects when DNS works but HTTP requests are intercepted
           if (!detectCaptivePortal()) {
-            sendGatewayAck(pkg, false, 0, "Captive portal detected - requires web authentication. Check router/WiFi settings");
+            finish(false, 0, "Captive portal detected - requires web authentication. Check router/WiFi settings");
             return true;  // Consume package - we handled it (with error)
           }
 
@@ -2509,7 +2551,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
           if (pkg.destination.startsWith("https://")) {
 #ifdef ESP32
-            // ESP32: Use default SSL settings with certificate validation
+            // ESP32: no trust anchor is configured, so the certificate is not
+            // validated against anything this library supplies. See the
+            // security notes on initGatewayInternetHandler() and SECURITY.md.
             http.begin(pkg.destination.c_str());
 #elif defined(ESP8266)
             // ESP8266: Use insecure mode to reduce memory overhead
@@ -2589,10 +2633,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           http.end();
 
           // Send acknowledgment back
-          sendGatewayAck(pkg, success, httpCode, error);
+          finish(success, httpCode, error);
 #else
         // Non-ESP platform - send error
-        sendGatewayAck(pkg, false, 0, "HTTP client not available on this platform");
+        finish(false, 0, "HTTP client not available on this platform");
 #endif
 
           return true;  // Consume package - we have processed it and sent
@@ -2795,8 +2839,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   static const uint8_t MIN_WIFI_CHANNEL = 1;
   static const uint8_t MAX_WIFI_CHANNEL =
       14;  // Support channels 1-14 for regions that allow it
-  static const uint32_t GATEWAY_HTTP_TIMEOUT_MS =
-      30000;  // 30 second timeout for gateway HTTP requests
 
   /**
    * Initialize shared gateway monitoring
