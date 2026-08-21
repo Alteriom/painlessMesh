@@ -2287,9 +2287,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Using Google's servers as they have high availability globally
     IPAddress result;
 
-#if defined(ESP32) || defined(ESP8266)
-    // Both ESP32 and ESP8266 support WiFi.hostByName()
-    int dnsResult = WiFi.hostByName("www.google.com", result);
+#if defined(ESP8266)
+    // ESP8266's hostByName() has a timeout overload, so the resolver cannot
+    // stall the cooperative scheduler past GATEWAY_DNS_TIMEOUT_MS — that term
+    // is part of gatewayBlockingBudgetMs() and covered by its static_assert
+    // (issue #416).
+    int dnsResult =
+        WiFi.hostByName("www.google.com", result, GATEWAY_DNS_TIMEOUT_MS);
 
     // Check if DNS resolution succeeded
     if (dnsResult != 1) {
@@ -2308,6 +2312,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       lastResult = false;
       return false;
     }
+#elif defined(ESP32)
+    // ESP32's hostByName() has no timeout parameter in the cores this library
+    // targets, so a standalone DNS probe would be an unbounded stall on the
+    // cooperative scheduler whenever DNS is slow or blackholed — the exact
+    // failure mode of issues #318/#332, recurring once per
+    // GATEWAY_CONNECTIVITY_CACHE_MS. The probe is therefore skipped on ESP32
+    // (issue #416): actual reachability is established by the captive-portal
+    // probe that runs right after this check on the same path — an HTTP
+    // round trip bounded by GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS that fails on
+    // a router without Internet just as the DNS probe would.
+    (void)result;
+    lastCheckTime = millis();
+    lastResult = true;
+    return true;
 #else
     // Other platforms: assume internet is available if WiFi connected
     // (no reliable way to test without platform-specific APIs)

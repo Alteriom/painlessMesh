@@ -99,10 +99,14 @@ SCENARIO("The gateway blocking budget fits inside the mesh watchdog") {
               static_cast<unsigned long>(NODE_TIMEOUT));
     }
 
-    THEN("the budget is the sum of the two blocking socket timeouts") {
+    THEN("the budget counts both socket waits of each HTTP call plus DNS") {
+      // Each HTTPClient chain can wait twice (GET/POST + body read), and the
+      // DNS reachability probe (ESP8266) runs before them — issue #416.
       REQUIRE(painlessmesh::gateway::gatewayBlockingBudgetMs() ==
-              static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
-                  static_cast<unsigned long>(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS));
+              2UL * static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
+                  2UL * static_cast<unsigned long>(
+                            GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS) +
+                  static_cast<unsigned long>(GATEWAY_DNS_TIMEOUT_MS));
     }
 
     THEN("it leaves real headroom, not just a strict inequality") {

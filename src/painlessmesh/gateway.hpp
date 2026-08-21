@@ -1071,14 +1071,35 @@ class GatewayAckPackage : public plugin::SinglePackage {
 // normalises out the scheduler resolution, so the result is milliseconds under
 // _TASK_MICRO_RES too.
 
-/** Socket timeout, in milliseconds, for a gateway Internet request. */
+/** Socket timeout, in milliseconds, for a gateway Internet request.
+ *
+ * An HTTPClient call chain can wait on the socket twice — once sending the
+ * request/reading the headers and once reading the body — so the blocking
+ * budget below counts this value twice (issue #416). That is why the default
+ * is NODE_TIMEOUT/5 rather than the pre-2.0 NODE_TIMEOUT/2: the *wall-clock*
+ * worst case of the request, not one socket wait, has to fit inside the mesh
+ * watchdog. Endpoints that genuinely need longer must raise NODE_TIMEOUT
+ * along with this (the static_assert below enforces that). */
 #ifndef GATEWAY_HTTP_TIMEOUT_MS
-#define GATEWAY_HTTP_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 2)
+#define GATEWAY_HTTP_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 5)
 #endif
 
-/** Socket timeout, in milliseconds, for the captive-portal probe. */
+/** Socket timeout, in milliseconds, for the captive-portal probe. Counted
+ * twice in the blocking budget, same as GATEWAY_HTTP_TIMEOUT_MS. */
 #ifndef GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS
-#define GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 5)
+#define GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 10)
+#endif
+
+/** Timeout, in milliseconds, for the DNS reachability probe (issue #416).
+ *
+ * Only the ESP8266 core exposes a hostByName() overload with a timeout
+ * parameter; on ESP32 the probe is skipped entirely (the captive-portal
+ * probe, which is an HTTP round trip bounded by
+ * GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS, establishes reachability instead).
+ * The budget counts this term unconditionally, which is conservative on
+ * ESP32. */
+#ifndef GATEWAY_DNS_TIMEOUT_MS
+#define GATEWAY_DNS_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 10)
 #endif
 
 /** How long, in milliseconds, a connectivity probe result stays cached.
@@ -1092,49 +1113,44 @@ class GatewayAckPackage : public plugin::SinglePackage {
 #endif
 
 /**
- * @brief Combined ceiling of the gateway's two *timed* blocking calls, in
- *        milliseconds.
+ * @brief Wall-clock ceiling of the gateway's blocking calls on the
+ *        GATEWAY_DATA path, in milliseconds (issue #416).
  *
- * The captive-portal probe runs before the request itself, so the two socket
- * timeouts stack.
+ * Each HTTPClient call chain is counted at *two* socket waits — GET()/POST()
+ * (send + header read) and getString() (body read) — because
+ * HTTPClient::setTimeout() bounds an individual socket wait, not the whole
+ * call. The captive-portal probe and the destination request both have that
+ * shape and run back to back, and the DNS reachability probe (bounded by
+ * GATEWAY_DNS_TIMEOUT_MS on ESP8266, skipped on ESP32) runs before them
+ * whenever the GATEWAY_CONNECTIVITY_CACHE_MS window has expired.
  *
- * @warning This is NOT the total stall on the GATEWAY_DATA path, and the
- *          assertion below can hold while the path still overruns
- *          NODE_TIMEOUT. Two reasons, both tracked in issue #416:
- *
- *          1. HTTPClient::setTimeout() bounds an individual socket wait, not
- *             the whole call. detectCaptivePortal() waits twice against the
- *             same server -- GET() then getString() -- so a server that delays
- *             the headers and then the body spends roughly 2x
- *             GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS before the destination request
- *             starts, and that request has the same shape. Each term here is a
- *             per-wait timeout being summed as if it were a per-call ceiling.
- *          2. The DNS probe in hasActualInternetAccess() calls
- *             WiFi.hostByName() with no timeout argument at all, so its worst
- *             case is whatever the platform resolver does. It runs on the
- *             first request and whenever GATEWAY_CONNECTIVITY_CACHE_MS
- *             expires -- caching lowers how often that unbounded call happens,
- *             not how long it can take.
- *
- *          See SECURITY.md "Gateway blocking: the mesh partition risk".
+ * @warning One residual is not in this budget: the HTTP calls resolve their
+ *          hostnames inside the platform core before their socket timeout
+ *          applies, and on ESP32 that in-request resolver wait is not
+ *          separately boundable in the cores this library targets. On a
+ *          network with blackholed DNS the request path can therefore still
+ *          exceed this ceiling on ESP32. See SECURITY.md "Gateway blocking:
+ *          the mesh partition risk".
  */
 constexpr unsigned long gatewayBlockingBudgetMs() {
-  return static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
-         static_cast<unsigned long>(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS);
+  return 2UL * static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
+         2UL * static_cast<unsigned long>(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS) +
+         static_cast<unsigned long>(GATEWAY_DNS_TIMEOUT_MS);
 }
 
 // A gateway that can block longer than the mesh watchdog partitions the mesh
 // around itself (issues #318, #332). Catch what is expressible at compile time
-// -- the two socket timeouts; see the DNS caveat above for what this does not
-// cover. TASK_ constants are scaled by the scheduler's resolution, so the
-// comparison is written in scheduler units to stay correct under
-// _TASK_MICRO_RES too.
+// -- both socket waits of each HTTP call plus the DNS probe; see the ESP32
+// resolver caveat above for the one wait this cannot cover. TASK_ constants
+// are scaled by the scheduler's resolution, so the comparison is written in
+// scheduler units to stay correct under _TASK_MICRO_RES too.
 static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
-              "Gateway blocking budget (GATEWAY_HTTP_TIMEOUT_MS + "
-              "GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS) must stay below NODE_TIMEOUT, "
-              "or a gateway request stalls the scheduler for longer than its "
-              "peers are willing to wait and the mesh partitions around the "
-              "gateway. Raise NODE_TIMEOUT if you need a longer HTTP timeout.");
+              "Gateway blocking budget (2x GATEWAY_HTTP_TIMEOUT_MS + 2x "
+              "GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS + GATEWAY_DNS_TIMEOUT_MS) "
+              "must stay below NODE_TIMEOUT, or a gateway request stalls the "
+              "scheduler for longer than its peers are willing to wait and "
+              "the mesh partitions around the gateway. Raise NODE_TIMEOUT if "
+              "you need a longer HTTP timeout.");
 
 /**
  * @brief Give every peer's running watchdog back the time a blocking call hid.

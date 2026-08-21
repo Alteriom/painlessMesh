@@ -129,10 +129,19 @@ gateway (issues #318, #332).
 Fixed in v2.0 (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
 
 - `GATEWAY_HTTP_TIMEOUT_MS` is derived from `NODE_TIMEOUT` rather than
-  hardcoded — `NODE_TIMEOUT / 2`, so 5 s at the default.
-- A `static_assert` fails the build if the two *socket* timeouts — the request
-  and the captive-portal probe — reach `NODE_TIMEOUT` between them. Raising
-  one without raising `NODE_TIMEOUT` is a compile error, not a field outage.
+  hardcoded — `NODE_TIMEOUT / 5`, so 2 s at the default. Each HTTP call chain
+  is budgeted at **two** socket waits (`GET()`/`POST()` plus the body read),
+  because `HTTPClient::setTimeout()` bounds one socket wait, not a whole
+  call (issue #416).
+- The DNS reachability probe is bounded too: on ESP8266 it uses the
+  `hostByName()` timeout overload with `GATEWAY_DNS_TIMEOUT_MS`
+  (`NODE_TIMEOUT / 10`); on ESP32, whose core exposes no resolver timeout,
+  the standalone probe is **skipped** and reachability is established by the
+  captive-portal probe, an HTTP round trip that is itself timed.
+- A `static_assert` fails the build if the full budget — both socket waits
+  of the request and of the captive-portal probe, plus the DNS probe —
+  reaches `NODE_TIMEOUT`. Raising one timeout without raising `NODE_TIMEOUT`
+  is a compile error, not a field outage.
 - Every direct peer's timeout task is compensated **after** the blocking call
   returns, not before it. Refreshing beforehand is the half that cannot work:
   the deadline is wall-clock, so pushing it out ahead of a stall longer than
@@ -146,35 +155,22 @@ Fixed in v2.0 (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
   — the earlier full-`NODE_TIMEOUT` reset kept such peers alive
   indefinitely.
 
-This is a **partial mitigation**, not a closed hole. It does not make the call
-asynchronous — a gateway still stops servicing mesh traffic for the duration of
-every request — and the two gaps below mean that duration has no enforced
-ceiling. Do not read this section as "the partition reported in #318 / #332 can
-no longer happen". It is much harder to hit, and the common case of a merely
-slow endpoint is now bounded; a hostile or pathologically slow one, or slow
-DNS, is not. #416 tracks closing it.
+This remains a **mitigation**, not an architectural fix: it does not make the
+call asynchronous, so a gateway still stops servicing mesh traffic for the
+duration of every request — the duration is just bounded now. The
+asynchronous rework is 2.1 material.
 
-**Known gap — the budget is not a wall-clock ceiling (issue #416).**
-`HTTPClient::setTimeout()` bounds one socket wait, not a whole call. The
-captive-portal probe waits twice against the same server (`GET()`, then
-`getString()`), so a server that stalls the headers and then the body spends
-about twice `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS` before the destination request
-even starts — and that request has the same shape. The `static_assert` sums
-per-wait timeouts as though they were per-call ceilings, so the timed path
-alone can overrun `NODE_TIMEOUT`.
-
-**Known gap — DNS is not inside that budget either (also #416).** On the first
-request, and again whenever the 60 s connectivity cache expires,
-`hasActualInternetAccess()` resolves a well-known hostname with
-`WiFi.hostByName()` before either timed call runs. That overload takes no
-timeout argument, so the stall is whatever the platform's resolver does, and
-`gatewayBlockingBudgetMs()` does not count it — caching lowers how often the
-unbounded call happens, not how long it can take. A gateway on a network with
-slow or blackholed DNS can therefore still overrun `NODE_TIMEOUT` and
-partition the mesh, at roughly one request per minute rather than every
-request. **Do not read the `static_assert` as a guarantee that a gateway
-cannot outlast the watchdog.** Bounding DNS needs a per-platform timeout API
-and is tracked in #416.
+**Residual gap — the in-request resolver on ESP32 (issue #416).** The HTTP
+calls resolve their destination hostnames inside the platform core *before*
+their socket timeout applies. On ESP8266 the core's resolver honours a
+timeout; on ESP32 that in-request wait is not separately boundable in the
+cores this library targets, so on a network with blackholed DNS the request
+path can still exceed the budget on ESP32 — at most once per
+`GATEWAY_CONNECTIVITY_CACHE_MS` window in the common case, since failed
+probes are cached. Relaying to IP-literal destinations avoids the resolver
+entirely. Hardware verification of the bounded behaviour on both cores
+against an unreachable DNS server is still outstanding; #416 stays open for
+that.
 
 ### Denial of service
 

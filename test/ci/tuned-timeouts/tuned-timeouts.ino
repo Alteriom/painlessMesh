@@ -19,11 +19,14 @@
 // static_assert in gateway.hpp. Written against TASK_MILLISECOND so it holds
 // under _TASK_MICRO_RES too.
 static_assert(GATEWAY_HTTP_TIMEOUT_MS ==
-                  (20 * TASK_SECOND) / TASK_MILLISECOND / 2,
+                  (20 * TASK_SECOND) / TASK_MILLISECOND / 5,
               "GATEWAY_HTTP_TIMEOUT_MS stopped tracking NODE_TIMEOUT");
 static_assert(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS ==
-                  (20 * TASK_SECOND) / TASK_MILLISECOND / 5,
+                  (20 * TASK_SECOND) / TASK_MILLISECOND / 10,
               "GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS stopped tracking NODE_TIMEOUT");
+static_assert(GATEWAY_DNS_TIMEOUT_MS ==
+                  (20 * TASK_SECOND) / TASK_MILLISECOND / 10,
+              "GATEWAY_DNS_TIMEOUT_MS stopped tracking NODE_TIMEOUT");
 
 #define MESH_PREFIX "whateverYouLike"
 #define MESH_PASSWORD "somethingSneaky"
