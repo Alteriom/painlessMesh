@@ -7,9 +7,11 @@
 #include <map>
 #include <set>
 #include <queue>
+#include <type_traits>
 
 #include "painlessmesh/configuration.hpp"
 
+#include "painlessmesh/ack.hpp"
 #include "painlessmesh/connection.hpp"
 #include "painlessmesh/gateway.hpp"
 #include "painlessmesh/logger.hpp"
@@ -20,6 +22,7 @@
 #include "painlessmesh/protocol.hpp"
 #include "painlessmesh/rtc.hpp"
 #include "painlessmesh/tcp.hpp"
+#include "painlessmesh/validation.hpp"
 
 #ifdef PAINLESSMESH_ENABLE_OTA
 #include "painlessmesh/ota.hpp"
@@ -206,10 +209,56 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 #endif
 
     // Add package handlers
-    this->callbackList = painlessmesh::ntp::addPackageCallback(
-        std::move(this->callbackList), (*this));
-    this->callbackList = painlessmesh::router::addPackageCallback(
-        std::move(this->callbackList), (*this));
+    painlessmesh::ntp::addPackageCallback(this->callbackList, (*this));
+    painlessmesh::router::addPackageCallback(this->callbackList, (*this));
+
+    // Seed delivery-confirmation ids with a random value so they do not
+    // restart at 1 after a reboot — a delayed ACK for a pre-reboot
+    // message could otherwise match a fresh message's id and report a
+    // false delivered = true.
+    ackTracker.seed(validation::SecureRandom::generate());
+
+    // Per-message delivery confirmation (issue #379): reply with an ACK
+    // when a received application message carries a msgId. Uses the
+    // Variant field peeks — the common no-ack case must not pay for a
+    // full package materialization on every received message.
+    auto autoAck = [this](protocol::Variant& variant, std::shared_ptr<T>,
+                          uint32_t) {
+      auto msgId = variant.msgId();
+      if (msgId == 0) return false;
+      auto origin = variant.from();
+      if (origin == 0 || origin == this->nodeId) return false;
+      if (variant.type() == protocol::BROADCAST) {
+        // Stagger broadcast ACKs by nodeId so N nodes do not fire N
+        // unicast ACKs at the sender in the same instant
+        this->queueBroadcastAck(origin, msgId);
+      } else {
+        auto ackPkg = ack::MessageAckPackage(this->nodeId, origin, msgId);
+        this->sendPackage(&ackPkg);
+      }
+      return false;
+    };
+    this->callbackList.onPackage(protocol::SINGLE, autoAck);
+    this->callbackList.onPackage(protocol::BROADCAST, autoAck);
+
+    // Match incoming ACKs to messages awaiting delivery confirmation
+    this->callbackList.onPackage(
+        protocol::MESSAGE_ACK,
+        [this](protocol::Variant& variant, std::shared_ptr<T>, uint32_t) {
+          std::list<ack::DeliveryResult> results;
+          this->ackTracker.collectAck(variant.msgId(), variant.from(),
+                                      static_cast<uint32_t>(millis()),
+                                      results);
+          if (!results.empty()) {
+            this->addTask([results]() {
+              for (const auto& result : results) {
+                result.callback(result.nodeId, result.delivered,
+                                result.latencyMs);
+              }
+            });
+          }
+          return false;
+        });
 
     // Add bridge status package handler (Type BRIDGE_STATUS)
     // This will be called when any node receives a bridge status broadcast
@@ -344,6 +393,17 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       (*conn)->close();
       this->eraseClosedConnections();
     }
+    // Disable the ack task BEFORE nulling the member: if stop() was
+    // reached from inside the task's own callback, the lambda's
+    // this->ackCheckTask guard is useless once the member is null and
+    // the task would keep firing forever on an external scheduler.
+    if (ackCheckTask) ackCheckTask->disable();
+    if (broadcastAckTask) broadcastAckTask->disable();
+    ackTracker.clear();
+    pendingBroadcastAcks.clear();
+    ackCheckTask = nullptr;
+    broadcastAckTask = nullptr;
+
     plugin::PackageHandler<T>::stop(mScheduler);
 
     newConnectionCallbacks.clear();
@@ -351,8 +411,18 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     changedConnectionCallbacks.clear();
 
     if (!isExternalScheduler) {
-      delete mScheduler;
-      mScheduler = nullptr;
+      if (mScheduler && mScheduler->getCurrentTask() != nullptr) {
+        // stop() was reached from inside a scheduler callback (e.g. a
+        // delivery/timeout callback). Deleting the scheduler here would
+        // free the object whose execute() is still on the call stack —
+        // the same bug class as issue #373. Retire it until execute()
+        // unwinds, then reclaim it during the next update.
+        retiredSchedulers.push_back(mScheduler);
+        mScheduler = nullptr;
+      } else {
+        delete mScheduler;
+        mScheduler = nullptr;
+      }
     }
   }
 
@@ -363,6 +433,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   void update(void) {
     if (semaphoreTake()) {
+      plugin::PackageHandler<T>::reclaimQuarantinedTasks();
+      reclaimRetiredSchedulers();
       // Check if something is executed (returns false)
       if (!mScheduler->execute())
         Log(logger::GENERAL, "update(): Scheduler executed a task\n");
@@ -402,6 +474,56 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return painlessmesh::router::sendWithPriority<painlessmesh::protocol::Single, T>(single, conn, priorityLevel);
   }
 
+  /** Send message to a specific node with delivery confirmation
+   *
+   * The message is tagged with a unique id and the destination node
+   * automatically replies with an acknowledgment. The callback fires
+   * exactly once: with delivered = true and the measured round-trip
+   * latency when the ACK arrives, or with delivered = false when
+   * ackTimeoutMs elapses without an ACK. ACK processing happens inside
+   * mesh.update() — no blocking waits.
+   *
+   * \code
+   * mesh.sendSingle(dest, msg,
+   *                 [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+   *   if (delivered)
+   *     Serial.printf("Node %u confirmed in %u ms\n", nodeId, latencyMs);
+   *   else
+   *     Serial.printf("Delivery to %u timed out\n", nodeId);
+   * });
+   * \endcode
+   *
+   * @param destId The nodeId of the node to send it to.
+   * @param msg The message to send
+   * @param ackCallback Delivery confirmation callback. Passing nullptr
+   *        behaves exactly like the plain sendSingle().
+   * @param ackTimeoutMs How long to wait for the acknowledgment (default
+   *        5000 ms).
+   *
+   * @return true if the message was queued for sending, false if not (no
+   *         route to destination, or PAINLESSMESH_MAX_PENDING_ACKS
+   *         messages already await acknowledgment — in both cases nothing
+   *         is sent and the callback will not fire).
+   */
+  bool sendSingle(uint32_t destId, TSTRING msg,
+                  ack::deliveryCallback_t ackCallback,
+                  uint32_t ackTimeoutMs = 5000) {
+    if (!ackCallback) return sendSingle(destId, msg);
+    if (ackTracker.full()) {
+      Log(logger::ERROR, "sendSingle(): pending-ack limit reached\n");
+      return false;
+    }
+    Log(logger::COMMUNICATION, "sendSingle(): dest=%u msg=%s with ack\n",
+        destId, msg.c_str());
+    auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
+    single.msgId = ackTracker.nextMessageId();
+    if (!painlessmesh::router::send<T>(single, (*this))) return false;
+    ackTracker.track(single.msgId, {destId}, ackCallback, ackTimeoutMs,
+                     static_cast<uint32_t>(millis()));
+    this->ensureAckScheduling();
+    return true;
+  }
+
   /** Broadcast a message to every node on the mesh network.
    *
    * @param includeSelf Send message to myself as well. Default is false.
@@ -421,6 +543,97 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return false;
   }
   
+  /** Broadcast a message with per-node delivery confirmation
+   *
+   * The set of nodes expected to acknowledge is snapshotted from the
+   * current mesh layout (excluding this node) when the broadcast is sent.
+   * The callback fires once per expected node: with delivered = true and
+   * the round-trip latency when that node's ACK arrives, or with
+   * delivered = false when ackTimeoutMs elapses. The local node never
+   * acknowledges itself, even with includeSelf = true.
+   *
+   * Note: includeSelf and ackCallback are deliberately non-defaulted on
+   * this overload; C++ overload resolution against the priority overload
+   * would otherwise be ambiguous or, worse, silently convert a lambda to
+   * bool.
+   *
+   * @param msg The message to broadcast
+   * @param includeSelf Send message to myself as well.
+   * @param ackCallback Delivery confirmation callback, fired once per
+   *        node. Passing nullptr behaves like the plain sendBroadcast().
+   * @param ackTimeoutMs How long to wait for acknowledgments (default
+   *        5000 ms). Values below 1000 ms are raised to 1000 ms so the
+   *        50 ms jitter window still leaves time for routed round-trip
+   *        delivery.
+   *
+   * @return true if the message was queued and at least one node is
+   *         expected to acknowledge, false otherwise — including when
+   *         PAINLESSMESH_MAX_PENDING_ACKS messages already await
+   *         acknowledgment (nothing is sent; the callback will not
+   *         fire).
+   */
+  bool sendBroadcast(TSTRING msg, bool includeSelf,
+                     ack::deliveryCallback_t ackCallback,
+                     uint32_t ackTimeoutMs = 5000) {
+    if (!ackCallback) return sendBroadcast(msg, includeSelf);
+    using namespace logger;
+    if (ackTracker.full()) {
+      Log(ERROR, "sendBroadcast(): pending-ack limit reached\n");
+      return false;
+    }
+    Log(COMMUNICATION, "sendBroadcast(): msg=%s with ack\n", msg.c_str());
+    // Broadcast recipients intentionally jitter ACK replies across this
+    // window. A shorter deadline would deterministically time out nodes
+    // whose slot falls after it, even when delivery is immediate.
+    if (ackTimeoutMs < ACK_BROADCAST_MIN_TIMEOUT_MS)
+      ackTimeoutMs = ACK_BROADCAST_MIN_TIMEOUT_MS;
+    auto expected = this->getNodeList(false);
+    painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
+    pkg.msgId = ackTracker.nextMessageId();
+    auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
+    const bool trackingPeers = success > 0 && !expected.empty();
+    if (trackingPeers) {
+      ackTracker.track(pkg.msgId, expected, ackCallback, ackTimeoutMs,
+                       static_cast<uint32_t>(millis()));
+      this->ensureAckScheduling();
+    }
+    if (includeSelf) {
+      protocol::Variant var(pkg);
+      this->callbackList.execute(var.type(), var, NULL, 0);
+    }
+    // Do not access mesh state after self-delivery: an onReceive callback
+    // may have called stop(). Local delivery still occurs without peers,
+    // while the return value continues to describe peer ACK tracking.
+    return trackingPeers;
+  }
+
+  /** Process pending delivery acknowledgments (non-blocking poll)
+   *
+   * Schedules timeout callbacks for messages whose acknowledgment window has
+   * elapsed. Callbacks run on a later scheduler pass, after the current mesh
+   * dispatch has unwound. This also happens automatically inside
+   * mesh.update(), so calling it manually is only needed in tight loops that
+   * want prompt timeout detection.
+   *
+   * @return Number of messages still awaiting acknowledgment
+   */
+  size_t checkAcks() {
+    std::list<ack::DeliveryResult> results;
+    auto pending = ackTracker.collectExpired(static_cast<uint32_t>(millis()),
+                                             results);
+    if (!results.empty()) {
+      this->addTask([results]() {
+        for (const auto& result : results) {
+          result.callback(result.nodeId, result.delivered, result.latencyMs);
+        }
+      });
+    }
+    return pending;
+  }
+
+  /** Number of messages still awaiting delivery acknowledgment */
+  size_t pendingAcks() const { return ackTracker.pending(); }
+
   /** Broadcast a message with priority to every node on the mesh network.
    *
    * @param msg The message to broadcast
@@ -429,9 +642,21 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    *
    * @return true if everything works, false if not
    */
-  bool sendBroadcast(TSTRING msg, uint8_t priorityLevel, bool includeSelf = false) {
+  template <
+      typename Priority,
+      typename IncludeSelf = bool,
+      typename std::enable_if<
+          (std::is_integral<typename std::decay<Priority>::type>::value ||
+           std::is_enum<typename std::decay<Priority>::type>::value) &&
+              !std::is_same<typename std::decay<Priority>::type, bool>::value &&
+              std::is_same<typename std::decay<IncludeSelf>::type, bool>::value,
+          int>::type = 0>
+  bool sendBroadcast(TSTRING msg, Priority priorityLevel,
+                     IncludeSelf includeSelf = false) {
     using namespace logger;
-    Log(COMMUNICATION, "sendBroadcast(): msg=%s priority=%u\n", msg.c_str(), priorityLevel);
+    const auto priority = static_cast<uint8_t>(priorityLevel);
+    Log(COMMUNICATION, "sendBroadcast(): msg=%s priority=%u\n", msg.c_str(),
+        priority);
     painlessmesh::protocol::Broadcast pkg(this->nodeId, 0, msg);
     
     // Broadcast to all connections with priority
@@ -441,7 +666,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         painlessmesh::protocol::Variant variant(pkg);
         TSTRING msgStr;
         variant.printTo(msgStr);
-        auto sent = conn->addMessageWithPriority(msgStr, priorityLevel);
+        auto sent = conn->addMessageWithPriority(msgStr, priority);
         if (sent) ++success;
       }
     }
@@ -483,6 +708,15 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    *    Serial.println(msg);
    * });
    * \endcode
+   *
+   * \note **Accumulates — does not replace.** Calling onReceive() a second
+   * time does not overwrite the previous handler; both handlers are invoked
+   * for every subsequent message, in the order they were registered. This
+   * mirrors the other on...() setters on this class (onNewConnection,
+   * onDroppedConnection, onChangedConnections, onNodeTimeAdjusted,
+   * onNodeDelayReceived). There is currently no public API to unregister
+   * a handler; if you need replace-semantics, keep a single dispatcher
+   * lambda and mutate the target it dispatches to.
    */
   void onReceive(receivedCallback_t onReceive) {
     using namespace painlessmesh;
@@ -3129,11 +3363,99 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
   ~Mesh() {
     this->stop();
+    plugin::PackageHandler<T>::reclaimQuarantinedTasks();
+    reclaimRetiredSchedulers();
     if (!isExternalScheduler) delete mScheduler;
     if (messageQueue) delete messageQueue;
   }
 
  protected:
+  void reclaimRetiredSchedulers() {
+    for (auto it = retiredSchedulers.begin();
+         it != retiredSchedulers.end();) {
+      if ((*it)->getCurrentTask() != nullptr) {
+        ++it;
+        continue;
+      }
+      delete *it;
+      it = retiredSchedulers.erase(it);
+    }
+  }
+
+  std::list<Scheduler*> retiredSchedulers = {};
+
+  void queueBroadcastAck(uint32_t origin, uint32_t msgId) {
+    const auto key = std::make_pair(origin, msgId);
+    if (std::find(pendingBroadcastAcks.begin(), pendingBroadcastAcks.end(),
+                  key) != pendingBroadcastAcks.end())
+      return;
+    if (pendingBroadcastAcks.size() >= MAX_QUEUED_BROADCAST_ACKS) {
+      Log(logger::ERROR, "Mesh: broadcast-ack queue limit (%u) reached\n",
+          (unsigned)MAX_QUEUED_BROADCAST_ACKS);
+      return;
+    }
+    pendingBroadcastAcks.push_back(key);
+    if (!broadcastAckTask) {
+      broadcastAckTask = this->addTask(
+          [this]() {
+            while (!this->pendingBroadcastAcks.empty()) {
+              auto queued = std::move(this->pendingBroadcastAcks);
+              this->pendingBroadcastAcks.clear();
+              for (const auto& item : queued) {
+                auto pkg = ack::MessageAckPackage(this->nodeId, item.first,
+                                                  item.second);
+                this->sendPackage(&pkg);
+              }
+            }
+          },
+          this->nodeId % ACK_BROADCAST_JITTER_MS);
+    } else if (!broadcastAckTask->isEnabled() ||
+               broadcastAckTask->isLastIteration()) {
+      broadcastAckTask->restartDelayed();
+    }
+  }
+
+  /**
+   * Make sure the periodic ack-timeout task is running
+   *
+   * The task disables itself as soon as no acknowledgments are pending,
+   * so there is zero scheduler overhead when the ack API is not in use.
+   */
+  void ensureAckScheduling() {
+    if (!ackCheckTask) {
+      ackCheckTask = this->addTask(ACK_CHECK_INTERVAL_MS, TASK_FOREVER,
+                                   [this]() {
+                                     if (this->checkAcks() == 0 &&
+                                         this->ackCheckTask)
+                                       this->ackCheckTask->disable();
+                                   });
+    } else if (!ackCheckTask->isEnabled()) {
+      ackCheckTask->enable();
+    }
+  }
+
+  // Poll interval for ack timeouts while acks are pending. Note for
+  // battery/light-sleep nodes: while any ack is outstanding the
+  // scheduler wakes at this cadence for up to ackTimeoutMs; override at
+  // build time (coarser is cheaper, timeout resolution degrades
+  // accordingly).
+#ifndef PAINLESSMESH_ACK_CHECK_INTERVAL_MS
+#define PAINLESSMESH_ACK_CHECK_INTERVAL_MS 100
+#endif
+  static constexpr unsigned long ACK_CHECK_INTERVAL_MS =
+      PAINLESSMESH_ACK_CHECK_INTERVAL_MS;
+  // Broadcast ACK replies are staggered by nodeId within this window so
+  // N nodes do not converge N simultaneous unicasts on the sender
+  static constexpr uint32_t ACK_BROADCAST_JITTER_MS = 50;
+  // Allow the jittered ACK to traverse a multi-hop route after its slot.
+  static constexpr uint32_t ACK_BROADCAST_MIN_TIMEOUT_MS = 1000;
+  static constexpr size_t MAX_QUEUED_BROADCAST_ACKS =
+      PAINLESSMESH_MAX_QUEUED_BROADCAST_ACKS;
+  ack::AckTracker ackTracker;
+  std::shared_ptr<Task> ackCheckTask;
+  std::vector<std::pair<uint32_t, uint32_t> > pendingBroadcastAcks;
+  std::shared_ptr<Task> broadcastAckTask;
+
   void setScheduler(Scheduler *baseScheduler) {
     this->mScheduler = baseScheduler;
     isExternalScheduler = true;

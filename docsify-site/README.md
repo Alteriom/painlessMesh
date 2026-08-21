@@ -12,44 +12,28 @@ Welcome to the comprehensive documentation for painlessMesh - a user-friendly ES
 ### Architecture & Design  
 - [Mesh Architecture](architecture/mesh-architecture.md) - How painlessMesh works internally
 - [Plugin System](architecture/plugin-system.md) - Understanding the plugin architecture
-- [Message Routing](architecture/routing.md) - Message routing algorithms and strategies
-- [Time Synchronization](architecture/time-sync.md) - Mesh-wide time synchronization
 
 ### API Reference
 - [Core API](api/core-api.md) - Main painlessMesh class methods
-- [Plugin API](api/plugin-api.md) - Creating custom packages and plugins
+- [Plugin System](architecture/plugin-system.md) - Creating custom packages and plugins
 - [Configuration](api/configuration.md) - Configuration options and constants
 - [Callbacks](api/callbacks.md) - Event handling and callbacks
 
 ### Tutorials & Examples
 - [Basic Examples](tutorials/basic-examples.md) - Simple mesh networking examples
-- [Custom Packages](tutorials/custom-packages.md) - Creating your own message types
-- [Sensor Networks](tutorials/sensor-networks.md) - Building IoT sensor networks
-- [Bridge Applications](tutorials/bridge-apps.md) - Connecting mesh to external networks
+- [Alteriom Packages](alteriom/packages.md) - Type-safe message packages and creating your own
+- [Bridge to Internet](https://github.com/Alteriom/painlessMesh/blob/main/BRIDGE_TO_INTERNET.md) - Connecting mesh to external networks
 
 ### Alteriom Extensions
 - [Alteriom Overview](alteriom/overview.md) - Alteriom-specific functionality
-- [Sensor Packages](alteriom/sensor-packages.md) - Environmental sensor data handling
-- [Command System](alteriom/command-system.md) - Device command and control
-- [Status Monitoring](alteriom/status-monitoring.md) - Device health and diagnostics
-
-### Advanced Topics
-- [Performance Optimization](advanced/performance.md) - Optimizing mesh performance
-- [Memory Management](advanced/memory.md) - Managing ESP8266/ESP32 memory constraints
-- [Security Considerations](advanced/security.md) - Securing your mesh network
-- [OTA Updates](advanced/ota.md) - Over-the-air firmware updates in mesh
 
 ### Troubleshooting
 - [Common Issues](troubleshooting/common-issues.md) - Solutions to frequent problems
-- [Debugging Guide](troubleshooting/debugging.md) - Tools and techniques for debugging
 - [FAQ](troubleshooting/faq.md) - Frequently asked questions
-- [Network Issues](troubleshooting/network-issues.md) - Connectivity and mesh topology problems
 
 ### Development
-- [Contributing](development/contributing.md) - How to contribute to painlessMesh
-- [Building & Testing](development/building.md) - Development environment setup
-- [Documentation](development/documentation.md) - Contributing to documentation
-- [Release Process](development/releases.md) - Understanding releases and versioning
+- [Contributing](https://github.com/Alteriom/painlessMesh/blob/main/CONTRIBUTING.md) - How to contribute to painlessMesh
+- [Release Process](https://github.com/Alteriom/painlessMesh/blob/main/RELEASE_GUIDE.md) - Understanding releases and versioning
 
 ## Quick Links
 
@@ -68,4 +52,4 @@ Welcome to the comprehensive documentation for painlessMesh - a user-friendly ES
 
 ---
 
-This documentation is maintained by the painlessMesh community. Contributions are welcome! See our [Documentation Contributing Guide](development/documentation.md) to get started.
+This documentation is maintained by the painlessMesh community. Contributions are welcome! See our [Contributing Guide](https://github.com/Alteriom/painlessMesh/blob/main/CONTRIBUTING.md) to get started.

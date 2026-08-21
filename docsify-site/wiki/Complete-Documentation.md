@@ -39,7 +39,7 @@ Welcome to the complete documentation for Alteriom painlessMesh Library!
 Tools → Manage Libraries → Search "Alteriom PainlessMesh"
 
 # PlatformIO
-lib_deps = alteriom/painlessMesh@^1.6.1
+lib_deps = alteriom/painlessMesh@^2.0.0
 
 # NPM
 npm install @alteriom/painlessmesh

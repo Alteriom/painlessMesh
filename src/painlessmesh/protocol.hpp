@@ -62,6 +62,9 @@ constexpr int GATEWAY_DATA = 620;       // Gateway data package for Internet rou
 constexpr int GATEWAY_ACK = 621;        // Gateway acknowledgment package
 constexpr int GATEWAY_HEARTBEAT = 622;  // Gateway heartbeat for health monitoring
 
+// Message delivery confirmation types
+constexpr int MESSAGE_ACK = 630;        // Per-message delivery acknowledgment (issue #379)
+
 class PackageInterface {
  public:
   virtual JsonObject addTo(JsonObject&& jsonObj) const = 0;
@@ -81,6 +84,9 @@ class Single : public PackageInterface {
   uint32_t from;
   uint32_t dest;
   TSTRING msg = "";
+  // Non-zero when the sender requested a delivery acknowledgment. Only
+  // serialized when set, so plain sends carry zero overhead.
+  uint32_t msgId = 0;
 
   Single() {}
   Single(uint32_t fromID, uint32_t destID, TSTRING& message) {
@@ -93,6 +99,7 @@ class Single : public PackageInterface {
     dest = jsonObj["dest"].as<uint32_t>();
     from = jsonObj["from"].as<uint32_t>();
     msg = jsonObj["msg"].as<TSTRING>();
+    msgId = jsonObj["msgId"] | (uint32_t)0;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -100,12 +107,13 @@ class Single : public PackageInterface {
     jsonObj["dest"] = dest;
     jsonObj["from"] = from;
     jsonObj["msg"] = msg;
+    if (msgId != 0) jsonObj["msgId"] = msgId;
     return jsonObj;
   }
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4) + ceil(1.1 * msg.length());
+    return JSON_OBJECT_SIZE(msgId != 0 ? 5 : 4) + ceil(1.1 * msg.length());
   }
 #endif
 };
@@ -127,7 +135,7 @@ class Broadcast : public Single {
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4) + ceil(1.1 * msg.length());
+    return JSON_OBJECT_SIZE(msgId != 0 ? 5 : 4) + ceil(1.1 * msg.length());
   }
 #endif
 };
@@ -716,6 +724,22 @@ class Variant {
    * Return package type
    */
   int type() { return jsonObj["type"].as<int>(); }
+
+  /**
+   * Origin node of the package (0 if not present)
+   *
+   * Lightweight field peek — unlike to<T>() this does not materialize a
+   * package object or copy the message payload.
+   */
+  uint32_t from() { return jsonObj["from"] | (uint32_t)0; }
+
+  /**
+   * Delivery-confirmation id of the package (0 = no ack requested)
+   *
+   * Lightweight field peek — unlike to<T>() this does not materialize a
+   * package object or copy the message payload.
+   */
+  uint32_t msgId() { return jsonObj["msgId"] | (uint32_t)0; }
 
   /**
    * Package routing method

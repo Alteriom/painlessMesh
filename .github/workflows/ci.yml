@@ -114,7 +114,9 @@ jobs:
             core: esp32:esp32
             async_lib: AsyncTCP
           - board: esp8266
-            fqbn: esp8266:esp8266:generic
+            # nodemcuv2 (not generic): examples use NodeMCU pin aliases
+            # (D8 etc.) and the example platformio.ini targets nodemcuv2
+            fqbn: esp8266:esp8266:nodemcuv2
             core: esp8266:esp8266
             async_lib: ESPAsyncTCP
     
@@ -164,30 +166,40 @@ jobs:
 
       - name: Install library dependencies
         run: |
-          arduino-cli --config-dir test/ci/ lib install \
-            ArduinoJson \
-            TaskScheduler \
-            ${{ matrix.async_lib }} \
-            PubSubClient
+          # "Async TCP" is the maintained ESP32Async v3.x library that
+          # library.json declares (esp32async/AsyncTCP ^3.4.7) and that
+          # ESP Async WebServer v3 requires — NOT the legacy v1 "AsyncTCP"
+          arduino-cli lib install ArduinoJson TaskScheduler "Async TCP" ESPAsyncTCP PubSubClient "ESP Async WebServer" --config-dir test/ci/
 
       - name: Install library from source
         run: |
-          mkdir -p ~/Arduino/libraries/painlessMesh
-          cp -r src examples library.properties ~/Arduino/libraries/painlessMesh/
+          # Resolve the sketchbook/user dir from the SAME config the compile
+          # step uses, so the source copy is guaranteed to be visible
+          USER_DIR=$(arduino-cli config get directories.user --config-dir test/ci/)
+          echo "Arduino user dir: $USER_DIR"
+          mkdir -p "$USER_DIR/libraries/painlessMesh"
+          cp -r src examples library.properties "$USER_DIR/libraries/painlessMesh/"
 
       - name: Compile examples
         run: |
-          for example in examples/*/; do
-            if [ "$(basename "$example")" = "webServer" ]; then
-              echo "Skipping example with external dependency not available via Arduino Library Manager: $example"
-              continue
+          # NOTE: an earlier version tested [ -f "${example}*.ino" ] — a
+          # quoted glob that never matches, so no example was ever compiled.
+          # Compile every proper sketch dir (dir name == ino name), including
+          # nested ones (e.g. examples/priority/priority_basic_example/).
+          failed=0
+          while read -r ino; do
+            dir=$(dirname "$ino")
+            base=$(basename "$dir")
+            if [ "$(basename "$ino")" = "$base.ino" ]; then
+              echo "::group::Building example: $dir"
+              if ! arduino-cli compile --config-dir test/ci/ --fqbn ${{ matrix.fqbn }} "$dir"; then
+                echo "::error::Example failed to compile: $dir"
+                failed=1
+              fi
+              echo "::endgroup::"
             fi
-            sketch="${example}$(basename "$example").ino"
-            if [ -f "$sketch" ]; then
-              echo "Building example: $example"
-              arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example" --config-dir test/ci/
-            fi
-          done
+          done < <(find examples -name '*.ino' | sort)
+          exit $failed
 
   build-platformio:
     name: PlatformIO Build Test  

@@ -75,6 +75,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `knolleary/PubSubClient` package used by `examples/bridge` to avoid
   ambiguous package name resolution in PlatformIO.
 
+## [2.0.0] - 2026-08-20
+
+Feature release adding per-message delivery confirmation (issue #379). The
+release is a major version bump because it introduces a new wire-protocol
+message type: pre-2.0 nodes forward acknowledgment packets but never send
+them, so delivery confirmation only works reliably once every participating
+node runs 2.0.0. All existing sketches compile and behave unchanged.
+
+### Added
+
+- **Per-message delivery confirmation and acknowledgment API (#379)** —
+  `sendSingle()` and `sendBroadcast()` gained overloads that accept a
+  `painlessmesh::ack::deliveryCallback_t` callback and an acknowledgment
+  timeout (default 5000 ms). When a callback is provided the outgoing
+  message is tagged with a unique `msgId`, the receiving node automatically
+  replies with a `MessageAckPackage` (new protocol type 630, routed as a
+  SINGLE package so it traverses multiple hops), and the callback fires
+  with `delivered = true` plus the measured round-trip latency — or
+  `delivered = false` when the timeout elapses. Broadcast tracking
+  snapshots the mesh layout at send time and fires the callback once per
+  expected node.
+- `checkAcks()` — non-blocking poll that processes acknowledgment timeouts
+  and returns the number of messages still pending (timeouts are also
+  processed automatically inside `mesh.update()`).
+- `pendingAcks()` — number of messages still awaiting acknowledgment.
+- New header `painlessmesh/ack.hpp` with the platform-independent
+  `AckTracker` (unit-tested, uint32 wraparound safe) and
+  `MessageAckPackage`.
+- Arduino examples `reliableSensorLogging` (buffered retries until the
+  gateway confirms) and `commandControl` (per-node broadcast confirmation).
+- Unit tests (`catch_message_ack.cpp`) covering serialization, ack
+  matching, timeout, duplicate/unknown acks, broadcast fan-in and clock
+  wraparound, plus an end-to-end multi-node scenario in the TCP
+  integration suite.
+
+### Changed
+
+- `protocol::Single` / `protocol::Broadcast` carry an optional `msgId`
+  field. It is only serialized when delivery confirmation was requested,
+  so plain sends have zero added wire overhead.
+- `protocol::Variant` gained lightweight `from()` and `msgId()` field
+  peeks; the receive-path ACK handlers use them instead of materializing
+  a full package (no per-message payload copy on the hot path).
+
+### Hardening (post-review, pre-release)
+
+A full adversarial review of the ACK feature before release led to:
+
+- `AckTracker::expire()` now collects and erases expired entries before
+  firing any callback — a delivery callback that reentered the tracker
+  (retry `track()`, `checkAcks()`, or `clear()` via `mesh.stop()`) could
+  previously invalidate the live iterator (use-after-free).
+- `mesh.stop()` reached from inside a scheduler callback no longer
+  deletes the internally-owned `Scheduler` out from under its own
+  `execute()` (same bug class as #373); the ack poll task is also
+  disabled before its handle is cleared so a reentrant stop cannot
+  orphan it.
+- Message ids are seeded from `validation::SecureRandom` at `init()` —
+  previously the counter restarted at 1 every boot, so a delayed
+  pre-reboot ACK could confirm a fresh message (false
+  `delivered = true`).
+- Pending acknowledgments are capped at `PAINLESSMESH_MAX_PENDING_ACKS`
+  (default 32, build-time overridable); sends beyond the cap are
+  rejected instead of growing the tracker unbounded on the ESP8266 heap.
+- Broadcast ACK replies are staggered by nodeId within a 50 ms window so
+  an N-node broadcast does not converge N simultaneous ACK unicasts on
+  the sender.
+- The ack timeout poll interval is build-time configurable
+  (`PAINLESSMESH_ACK_CHECK_INTERVAL_MS`, default 100 ms) and its
+  battery/light-sleep implications are documented.
+
+### CI / packaging fixes
+
+- Fixed the Arduino example-compile loop in CI (`ci.yml`): a quoted glob
+  meant **no example sketch was ever compiled** — the job reported green
+  while compiling nothing. All examples now build for esp32 and esp8266
+  on every PR.
+- Added the two new examples to `library.json`'s `examples` array so
+  they appear in the PlatformIO registry listing.
+- `doxygen/Doxyfile` `PROJECT_NUMBER` bumped from the stale v1.6.1 to
+  v2.0.0; stale 1.6.1 install snippets in the wiki docs updated.
+- Wiki sync now publishes `docsify-site/` documentation (it previously
+  copied from a `docs/` directory that does not exist) and triggers on
+  docsify changes.
+- Removed dead links from the docsify sidebar.
+
+
 ## [1.10.0] - 2026-08-12
 
 Feature release making the TCP connect-retry envelope tunable per mesh instance
@@ -149,6 +236,7 @@ macros keep their historical values for source compatibility.
   `painlessmesh::plugin::BridgeCoordinationPackage`, matching the
   convention used across every other example (otaSender, namedMesh,
   alteriom_*).
+
 
 ## [1.9.21] - 2026-08-04
 

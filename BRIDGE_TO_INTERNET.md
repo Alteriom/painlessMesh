@@ -133,7 +133,7 @@ Nodes automatically follow the mesh if the bridge changes channels:
 - If the mesh is found on a different channel, nodes automatically switch to that channel
 - This ensures the mesh stays connected even if the bridge switches channels (e.g., during bridge election)
 
-For detailed information about channel synchronization, see [Channel Synchronization Documentation](docs/CHANNEL_SYNCHRONIZATION.md).
+For detailed information, see [Automatic Channel Re-synchronization](#automatic-channel-re-synchronization).
 
 ## Manual Configuration (Legacy Approach)
 
@@ -199,7 +199,7 @@ When using the legacy `stationManual()` approach, the library will automatically
    - Call `mesh.setRoot(true)` on the bridge node
    - Call `mesh.setContainsRoot(true)` on all mesh nodes for optimal routing
 
-3. **ESP32-C6 Compatibility**: If using ESP32-C6 or experiencing crashes with `tcp_alloc` errors, ensure you have AsyncTCP v3.3.0+ installed. See the [ESP32-C6 Compatibility Guide](docs/troubleshooting/ESP32_C6_COMPATIBILITY.md) for details.
+3. **ESP32-C6 Compatibility**: If using ESP32-C6 or experiencing crashes with `tcp_alloc` errors, ensure you have AsyncTCP v3.3.0+ installed. See the [dependency requirements](Home#dependencies) for details.
 
 ## Complete Examples
 
@@ -254,7 +254,7 @@ Great question! The library now offers **three ways** to connect a bridge:
 2. **Convenience**: Pass credentials directly to `init()` (new feature)
 3. **Modern**: Use `initAsBridge()` with auto-detection (recommended)
 
-See [Station Credentials Design Rationale](docs/design/STATION_CREDENTIALS_DESIGN.md) for detailed explanations and comparisons.
+The [three bridge initialization approaches](#why-does-meshinit-require-a-separate-meshstationmanual-call) above explain the available tradeoffs.
 
 ## Additional Resources
 
@@ -262,6 +262,6 @@ See [Station Credentials Design Rationale](docs/design/STATION_CREDENTIALS_DESIG
 - [Bridge Examples](https://github.com/Alteriom/painlessMesh/tree/main/examples/bridge)
 - [MQTT Bridge Example](https://github.com/Alteriom/painlessMesh/tree/main/examples/mqttBridge)
 - [Configuration API Reference](https://github.com/Alteriom/painlessMesh/wiki)
-- [Station Credentials Design](docs/design/STATION_CREDENTIALS_DESIGN.md) - Why three approaches exist
+- [Bridge Initialization Approaches](#why-does-meshinit-require-a-separate-meshstationmanual-call) - Why three approaches exist
 
 Feel free to ask if you need help with specific use cases like MQTT integration, web servers, or custom data forwarding!
