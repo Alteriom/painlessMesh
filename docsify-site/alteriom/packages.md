@@ -665,6 +665,32 @@ mesh.onBridgeCoordinationChanged(
 - Automatic traffic shaping
 - Conflict resolution
 
+### MessageAckPackage (Type 630)
+
+Internal package for per-message delivery confirmation (v2.0.0+). Sent
+automatically by the receiving node when an application message carries a
+`msgId` (i.e. the sender passed a delivery callback to `sendSingle()` or
+`sendBroadcast()`). Applications do not construct this package themselves —
+use the delivery callback API instead:
+
+```cpp
+mesh.sendSingle(destId, msg,
+                [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  // delivered == true  → nodeId confirmed receipt (latencyMs round trip)
+  // delivered == false → no acknowledgment within the timeout
+});
+```
+
+**Fields:**
+- `from` (uint32_t) - Acknowledging node
+- `dest` (uint32_t) - Original sender the ACK is routed back to
+- `msgId` (uint32_t) - ID of the message being acknowledged
+
+**Wire notes:**
+- Routed as a SINGLE package, so it traverses multiple hops
+- Pre-2.0 nodes forward the package but never generate it — delivery
+  confirmation requires v2.0.0+ on every participating node
+
 ## Complete Package Type Reference
 
 | Type | Class | Version | Purpose |
@@ -684,9 +710,12 @@ mesh.onBridgeCoordinationChanged(
 | 612 | `BridgeTakeoverPackage` | v1.8.0+ | Bridge transition |
 | 613 | `BridgeCoordinationPackage` | v1.8.0+ | Multi-bridge coordination |
 | 614 | `NTPTimeSyncPackage` | v1.8.0+ | NTP time distribution |
+| 620 | `GatewayDataPackage` | v1.9.0+ | Internet-bound data routing |
+| 621 | `GatewayAckPackage` | v1.9.0+ | Gateway delivery acknowledgment |
+| 622 | `GatewayHeartbeatPackage` | v1.9.0+ | Gateway health monitoring |
+| 630 | `MessageAckPackage` | v2.0.0+ | Per-message delivery acknowledgment |
 
 See also:
-- [Sensor Networks Tutorial](sensor-networks.md) - Real-world applications
-- [Examples](examples.md) - Complete working examples
-- [Custom Packages Tutorial](../tutorials/custom-packages.md) - Creating your own packages
+- [Alteriom Overview](overview.md) - Extension architecture and goals
+- [Basic Examples](../tutorials/basic-examples.md) - Complete working examples
 - [Bridge Failover Guide](../../BRIDGE_TO_INTERNET.md) - Bridge setup and failover

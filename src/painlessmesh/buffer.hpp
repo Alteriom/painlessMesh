@@ -108,6 +108,16 @@ inline void ReceiveBuffer<std::string>::stringAppend(std::string &buffer,
 }
 #endif
 
+// Maximum number of messages a single connection's SentBuffer may hold
+// (issue #388). Without a cap, a peer that stops draining (stalled TCP
+// connection) grows the outbound list until allocation fails on the ESP8266
+// heap. When the buffer is full, an incoming message evicts the newest
+// message of a strictly lower priority class; if nothing lower-priority is
+// queued, the incoming message itself is rejected (push returns false).
+#ifndef PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES
+#define PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES 64
+#endif
+
 /**
  * Structure to hold a message with its priority level
  */
@@ -135,14 +145,16 @@ class SentBuffer {
    *
    * \param message The message to queue
    * \param priority Whether this is a high priority message (legacy bool API)
+   * \return true if the message was queued, false if the buffer is full and
+   *         nothing lower-priority could be evicted (issue #388)
    *
    * Legacy API: High priority messages (true) will be sent to the front of the buffer
    * This maintains backward compatibility with existing code.
    */
-  void push(const T &message, bool priority = false) {
+  bool push(const T &message, bool priority = false) {
     // Legacy API: map bool to uint8_t priority (false=2 NORMAL, true=1 HIGH)
     uint8_t priorityLevel = priority ? 1 : 2;
-    pushWithPriority(message, priorityLevel);
+    return pushWithPriority(message, priorityLevel);
   }
 
   /**
@@ -150,15 +162,31 @@ class SentBuffer {
    *
    * \param message The message to queue
    * \param priorityLevel Priority level: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
+   * \return true if the message was queued, false if the buffer is full and
+   *         nothing lower-priority could be evicted (issue #388)
    *
    * Messages are scheduled in priority order. Within same priority, FIFO order is maintained.
+   *
+   * The buffer holds at most PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES entries.
+   * At the cap, the newest message of a strictly lower priority class is
+   * evicted to make room (mirroring MessageQueue::makeSpace(): CRITICAL
+   * evicts HIGH/NORMAL/LOW, HIGH evicts NORMAL/LOW, NORMAL evicts LOW, LOW
+   * evicts nothing); when no lower-priority message exists the incoming
+   * message is rejected. Either way the drop is counted in
+   * getStats().dropped.
    */
-  void pushWithPriority(const T &message, uint8_t priorityLevel) {
+  bool pushWithPriority(const T &message, uint8_t priorityLevel) {
     // Clamp priority to valid range
     if (priorityLevel > 3) priorityLevel = 3;
-    
+
+    if (prioritizedMessages.size() >= PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES &&
+        !evictLowerPriority(priorityLevel)) {
+      messagesDropped++;
+      return false;
+    }
+
     prioritizedMessages.push_back(PrioritizedMessage<T>(message, priorityLevel));
-    
+
     // Track statistics
     totalMessagesQueued++;
     switch(priorityLevel) {
@@ -167,6 +195,7 @@ class SentBuffer {
       case 2: normalQueued++; break;
       case 3: lowQueued++; break;
     }
+    return true;
   }
 
   /**
@@ -264,9 +293,10 @@ class SentBuffer {
 
   bool empty() { return prioritizedMessages.empty(); }
 
-  void clear() { 
-    prioritizedMessages.clear(); 
+  void clear() {
+    prioritizedMessages.clear();
     current_read_iterator = prioritizedMessages.end();
+    messagesDropped = 0;
     totalMessagesQueued = 0;
     criticalQueued = highQueued = normalQueued = lowQueued = 0;
     criticalSent = highSent = normalSent = lowSent = 0;
@@ -292,10 +322,14 @@ class SentBuffer {
     uint32_t highSent;
     uint32_t normalSent;
     uint32_t lowSent;
+    // Messages lost to the PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES cap:
+    // evicted from the buffer or rejected on push (issue #388)
+    uint32_t dropped;
   };
-  
+
   SendStats getStats() const {
     SendStats stats;
+    stats.dropped = messagesDropped;
     stats.totalQueued = totalMessagesQueued;
     stats.criticalQueued = criticalQueued;
     stats.highQueued = highQueued;
@@ -316,6 +350,7 @@ class SentBuffer {
   typename std::list<PrioritizedMessage<T>>::iterator current_read_iterator;
   
   // Statistics tracking
+  uint32_t messagesDropped = 0;
   uint32_t totalMessagesQueued = 0;
   uint32_t criticalQueued = 0;
   uint32_t highQueued = 0;
@@ -378,6 +413,33 @@ class SentBuffer {
       return it->priority;
     }
     return 2;  // NORMAL default
+  }
+
+  /**
+   * Evict a message of a strictly lower priority class than the incoming
+   * one to make room (issue #388). Prefers the newest message of the lowest
+   * class present; never evicts the message a partial read is in progress
+   * on. Returns false when nothing lower-priority is queued.
+   */
+  bool evictLowerPriority(uint8_t newPriority) {
+    auto victim = prioritizedMessages.end();
+    for (auto it = prioritizedMessages.begin();
+         it != prioritizedMessages.end(); ++it) {
+      if (!clean && it == current_read_iterator) continue;
+      if (it->priority <= newPriority) continue;
+      // >= keeps walking forward within the lowest class, so the newest
+      // (last-queued) entry of that class is the one dropped
+      if (victim == prioritizedMessages.end() ||
+          it->priority >= victim->priority)
+        victim = it;
+    }
+    if (victim == prioritizedMessages.end()) return false;
+    messagesDropped++;
+    prioritizedMessages.erase(victim);
+    // The cached read iterator may point at the erased node; recompute on
+    // the next read. A partial read in progress (!clean) is never evicted.
+    if (clean) current_read_iterator = prioritizedMessages.end();
+    return true;
   }
 
   inline void stringEraseFront(T &string, size_t length) {

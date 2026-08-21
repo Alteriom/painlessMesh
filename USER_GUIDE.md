@@ -360,6 +360,57 @@ bool sendSingle(uint32_t dest, String &msg);
 
 **Returns:** `true` if successful
 
+**Delivery confirmation (v2.0.0+)** - Both send functions accept an optional
+delivery callback for reliable communication:
+
+```cpp
+bool sendSingle(uint32_t dest, String &msg,
+                painlessmesh::ack::deliveryCallback_t ackCallback,
+                uint32_t ackTimeoutMs = 5000);
+bool sendBroadcast(String &msg, bool includeSelf,
+                   painlessmesh::ack::deliveryCallback_t ackCallback,
+                   uint32_t ackTimeoutMs = 5000);
+```
+
+When a callback is given, the receiving node automatically acknowledges the
+message and the callback fires with `delivered = true` and the round-trip
+latency, or `delivered = false` after the timeout. For broadcasts the
+callback fires once per node in the mesh. See the `reliableSensorLogging`
+and `commandControl` examples:
+
+```cpp
+mesh.sendSingle(gatewayId, msg,
+                [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  if (delivered)
+    Serial.printf("Node %u confirmed in %u ms\n", nodeId, latencyMs);
+  else
+    Serial.printf("Delivery to %u timed out\n", nodeId);
+});
+```
+
+Use `mesh.pendingAcks()` to see how many messages are still unconfirmed and
+`mesh.checkAcks()` to poll timeouts manually (they are also processed inside
+`mesh.update()`). At most `PAINLESSMESH_MAX_PENDING_ACKS` (default 32)
+messages can await confirmation at once — beyond that the send returns
+`false` and nothing is sent.
+
+To combine a priority level with a delivery callback in one call, pass a
+`painlessmesh::SendOptions` struct instead of using the separate overloads:
+
+```cpp
+painlessmesh::SendOptions options;
+options.priority = painlessmesh::protocol::PRIORITY_HIGH;
+options.ackCallback = [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  // ...
+};
+mesh.sendSingle(targetNode, msg, options);
+mesh.sendBroadcast(msg, options);  // includeSelf as optional third argument
+```
+
+Since v2.0.0 the priority level is carried on the wire, so intermediate
+nodes forward a prioritized message at the sender's priority instead of
+dropping it to normal after the first hop.
+
 #### Callbacks
 
 **`onReceive()`** - Message received callback

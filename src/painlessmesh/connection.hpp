@@ -275,19 +275,21 @@ class BufferedConnection
   }
 
   bool write(const TSTRING &data, bool priority = false) {
-    sentBuffer.push(data, priority);
+    // false = outbound buffer at PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES and
+    // nothing lower-priority to evict (issue #388)
+    if (!sentBuffer.push(data, priority)) return false;
     sentBufferTask.forceNextIteration();
     return true;
   }
-  
+
   /**
    * Write data with explicit priority level (0-3)
-   * 
+   *
    * \param data The data to send
    * \param priorityLevel Priority level: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
    */
   bool writeWithPriority(const TSTRING &data, uint8_t priorityLevel) {
-    sentBuffer.pushWithPriority(data, priorityLevel);
+    if (!sentBuffer.pushWithPriority(data, priorityLevel)) return false;
     sentBufferTask.forceNextIteration();
     return true;
   }

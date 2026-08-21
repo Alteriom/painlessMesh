@@ -394,6 +394,6 @@ When the mesh splits into separate networks:
 ## Next Steps
 
 - Learn about the [Plugin System](plugin-system.md)
-- Understand [Message Routing](routing.md) in detail
-- Explore [Time Synchronization](time-sync.md) mechanisms
-- See [Performance Optimization](../advanced/performance.md) techniques
+- Understand [Message Routing](mesh-architecture.md#message-routing) in detail
+- Explore [Time Synchronization](mesh-architecture.md#time-synchronization) mechanisms
+- See [Performance Optimization](../api/configuration.md#performance-configuration) techniques

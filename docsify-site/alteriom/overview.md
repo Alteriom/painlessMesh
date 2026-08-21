@@ -577,10 +577,10 @@ See [Bridge Failover Guide](../../BRIDGE_TO_INTERNET.md) for implementation deta
 
 ## Next Steps
 
-- Learn about [Sensor Packages](sensor-packages.md) in detail
-- Explore [Command System](command-system.md) implementation
-- Study [Status Monitoring](status-monitoring.md) patterns
-- See [Tutorial Examples](../tutorials/sensor-networks.md) for hands-on practice
+- Learn about [Sensor Packages](packages.md#sensorpackage-type-200) in detail
+- Explore [Command System](overview.md#custom-command-types) implementation
+- Study [Status Monitoring](overview.md#status-monitoring) patterns
+- See the [Sensor Network Pattern](overview.md#sensor-network-pattern) for a hands-on example
 - Review [Complete Package Reference](packages.md) for all package types
 
 The Alteriom extensions provide a solid foundation for building robust IoT applications with painlessMesh. They demonstrate production-ready patterns while remaining flexible enough to adapt to your specific needs.

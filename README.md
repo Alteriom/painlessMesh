@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.10.0** - Tunable TCP connect-retry behaviour via `setTcpRetryConfig()` (#378)
+**Version 2.0.0** - Per-message delivery confirmation and acknowledgment API (#379)
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -560,9 +560,17 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.10.0 (August 12, 2026)
+## Latest Release: v2.0.0 (August 20, 2026)
 
-**Tunable TCP Connect-Retry Behaviour (issue #378)**
+**Per-Message Delivery Confirmation & Acknowledgment API (issue #379)**
+
+- `sendSingle()` and `sendBroadcast()` accept an optional delivery callback — fires with `delivered=true` and round-trip latency on acknowledgment, or `delivered=false` on timeout
+- Receiving nodes acknowledge automatically; ACKs route across multiple hops (new protocol type 630)
+- Zero wire/CPU overhead when no callback is requested; existing sketches compile unchanged
+- New `checkAcks()` / `pendingAcks()` APIs and examples `reliableSensorLogging`, `commandControl`
+- Major version bump: mixed networks with pre-2.0 nodes forward ACK traffic but never acknowledge, so delivery confirmation needs 2.0.0 on all participating nodes
+
+**Previous Release: v1.10.0 (August 12, 2026)** — Tunable TCP Connect-Retry Behaviour (issue #378)
 
 - The five TCP connect-retry values that were hardcoded in `tcp.hpp` are now tunable per mesh instance via `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()` (#378, PR #395)
 - Defaults match the previous constants exactly — **no behaviour change unless you call the setter**
@@ -573,9 +581,7 @@ These are the message types used by applications built on painlessMesh:
 
 > **npm users:** v1.9.21 was never published to npm ([#381](https://github.com/Alteriom/painlessMesh/issues/381) — expired token). npm's previous version is 1.9.20, so upgrading from npm picks up both releases. GitHub, PlatformIO and Arduino were unaffected.
 
-**Previous Release: v1.9.21 (August 4, 2026)**
-
-**Crash Fixes: Task & TCP Connection Lifecycle (issue #373)**
+**Previous Release: v1.9.21 (August 4, 2026)** — Crash Fixes: Task & TCP Connection Lifecycle (issue #373)
 
 - Fixed use-after-free in `Task::disable()` that crashed nodes on every peer disconnect (#373, PR #376 by @vaz82)
 - Fixed `PackageHandler::stop()` destroying the currently-executing task during bridge promotion

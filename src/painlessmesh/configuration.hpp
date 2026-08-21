@@ -23,8 +23,60 @@
 // Enable (arduino) wifi support
 #define PAINLESSMESH_ENABLE_ARDUINO_WIFI
 
-// Enable OTA support
+// Enable OTA support. Define PAINLESSMESH_DISABLE_OTA to compile the OTA
+// plugin out entirely (SECURITY.md, "OTA: integrity checked, not
+// authenticated").
+//
+// It must be a *build flag* -- `-DPAINLESSMESH_DISABLE_OTA`, or platformio.ini
+// `build_flags` -- so that every translation unit sees it. A `#define` above
+// the sketch's `#include <painlessMesh.h>` is not a narrower version of the
+// same thing, it is a bug: src/wifi.cpp and src/painlessMeshSTA.cpp compile
+// separately without it and would reach painlessmesh::Mesh with the OTA
+// members present, while the sketch sees the same class without them. That is
+// an ODR violation, and the standard requires no diagnostic for it.
+//
+// `#undef PAINLESSMESH_ENABLE_OTA` does not work either: it runs before
+// painlessMesh.h includes this header, which then defines the macro straight
+// back.
+#ifdef PAINLESSMESH_DISABLE_OTA
+// Opting out is not the same as declining to define. If the build already
+// supplies PAINLESSMESH_ENABLE_OTA -- redundantly, since it is the default --
+// then merely skipping the definition below leaves that one standing and every
+// #ifdef downstream still compiles OTA in, on a build that looks like it opted
+// out. That is a security control failing open and saying nothing, which is
+// the failure mode this opt-out exists to remove. Refuse the contradiction
+// rather than guessing which flag was meant.
+#ifdef PAINLESSMESH_ENABLE_OTA
+#error \
+    "PAINLESSMESH_DISABLE_OTA and PAINLESSMESH_ENABLE_OTA are both defined. Remove -DPAINLESSMESH_ENABLE_OTA from your build flags: OTA is on by default, so the disable flag alone is what you want."
+#endif
+#else
 #define PAINLESSMESH_ENABLE_OTA
+#endif
+
+// NOTE: there is deliberately no PAINLESSMESH_OTA_REQUIRE_SIGNATURE flag.
+// OTA acceptance (painlessmesh/ota.hpp, OTA_OP_CODES::DATA) authenticates
+// nothing -- it matches the sender-supplied md5/role/hardware tuple -- so a
+// flag that did not gate that path would read as a security control while
+// enforcing nothing. Defining it fails the build rather than passing
+// silently, so no fleet can ship believing its OTA images are verified.
+// Compiling OTA out is the only mitigation the library offers today.
+#ifdef PAINLESSMESH_OTA_REQUIRE_SIGNATURE
+#error \
+    "PAINLESSMESH_OTA_REQUIRE_SIGNATURE is not implemented: painlessMesh does not verify OTA image signatures. Use -DPAINLESSMESH_DISABLE_OTA to compile OTA out, or drop this define."
+#endif
+
+// NOTE: there is likewise no PAINLESSMESH_DISABLE_ACK flag. The one this
+// branch briefly carried gated only the (since-deleted, #386) dead
+// painlessmesh/message_tracker.hpp include, so the flag reclaimed nothing
+// and its advertised RAM saving was not real.
+//
+// That is NOT a claim that acknowledgment is free. The delivery-ack subsystem
+// (painlessmesh/ack.hpp) is a different thing and is genuinely allocated:
+// Mesh holds an ack::AckTracker member whose std::map grows with each
+// in-flight tracked message. Nothing compiles that out today. If a
+// memory-constrained target needs it gone, that is a design question for the
+// ack feature (#379), not a flag to reinstate here.
 
 // NOTE: `MIN_FREE_MEMORY` and `MAX_MESSAGE_QUEUE` are kept as deprecated
 // no-op compatibility macros. The library does not read either macro:
@@ -42,7 +94,16 @@
 #define MAX_MESSAGE_QUEUE 50
 #endif
 
+// The mesh watchdog. Overridable, because the documented remedy for an endpoint
+// that needs longer than the derived gateway budget is to raise this and
+// GATEWAY_HTTP_TIMEOUT_MS together (CHANGELOG, SECURITY.md). Unguarded, a
+// -DNODE_TIMEOUT on the build line was either silently overwritten here or a
+// macro-redefinition error under -Werror, so that remedy could not be followed
+// -- the same shape as the `#undef PAINLESSMESH_ENABLE_OTA` advice this
+// release also had to fix. Pinned by test/catch/catch_node_timeout_override.cpp.
+#ifndef NODE_TIMEOUT
 #define NODE_TIMEOUT 10 * TASK_SECOND
+#endif
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
 
 // A gateway relays to the Internet with blocking HTTPClient calls, from inside
