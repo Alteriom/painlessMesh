@@ -223,6 +223,22 @@ jobs:
           bash test/ci/test_platformio.sh --example basic
           bash test/ci/test_platformio.sh --example alteriom
 
+      - name: Build documented build-flag configurations
+        run: |
+          # Each project pins a build flag the docs tell operators to set:
+          # -DPAINLESSMESH_DISABLE_OTA (the only mitigation for unauthenticated
+          # mesh OTA) and -DNODE_TIMEOUT (the documented remedy for an endpoint
+          # slower than the derived gateway budget).
+          #
+          # They exist as PlatformIO projects rather than desktop tests because
+          # test/catch/Arduino.h defines _PAINLESS_MESH_CONFIGURATION_HPP_ and
+          # supplies its own copies of these macros, so a catch test never
+          # parses the guards in painlessmesh/configuration.hpp and would stay
+          # green if they were dropped. These have no shim, and apply each flag
+          # to every translation unit -- the documented form.
+          (cd test/ci/no-ota && pio run -e esp32 && pio run -e esp8266)
+          (cd test/ci/tuned-timeouts && pio run -e esp32 && pio run -e esp8266)
+
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
