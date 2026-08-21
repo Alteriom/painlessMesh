@@ -609,15 +609,26 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
   /** Process pending delivery acknowledgments (non-blocking poll)
    *
-   * Fires timeout callbacks for messages whose acknowledgment window has
-   * elapsed. This also happens automatically inside mesh.update(), so
-   * calling it manually is only needed in tight loops that want prompt
-   * timeout detection.
+   * Schedules timeout callbacks for messages whose acknowledgment window has
+   * elapsed. Callbacks run on a later scheduler pass, after the current mesh
+   * dispatch has unwound. This also happens automatically inside
+   * mesh.update(), so calling it manually is only needed in tight loops that
+   * want prompt timeout detection.
    *
    * @return Number of messages still awaiting acknowledgment
    */
   size_t checkAcks() {
-    return ackTracker.expire(static_cast<uint32_t>(millis()));
+    std::list<ack::DeliveryResult> results;
+    auto pending = ackTracker.collectExpired(static_cast<uint32_t>(millis()),
+                                             results);
+    if (!results.empty()) {
+      this->addTask([results]() {
+        for (const auto& result : results) {
+          result.callback(result.nodeId, result.delivered, result.latencyMs);
+        }
+      });
+    }
+    return pending;
   }
 
   /** Number of messages still awaiting delivery acknowledgment */

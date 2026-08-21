@@ -227,8 +227,23 @@ class AckTracker {
    * @return Number of messages still awaiting acknowledgment
    */
   size_t expire(uint32_t now) {
-    // Collect expired entries and erase them from the map BEFORE running
-    // any user callback: a callback may reenter this tracker (track a
+    std::list<DeliveryResult> results;
+    auto pending = collectExpired(now, results);
+    for (const auto& result : results) {
+      result.callback(result.nodeId, result.delivered, result.latencyMs);
+    }
+    return pending;
+  }
+
+  /**
+   * Collect timeout results without invoking user callbacks
+   *
+   * Mesh uses this form to defer callbacks until receive dispatch has
+   * unwound. Direct AckTracker users retain the synchronous expire() API.
+   */
+  size_t collectExpired(uint32_t now, std::list<DeliveryResult>& results) {
+    // Collect expired entries and erase them from the map BEFORE exposing
+    // results to user callbacks: a callback may reenter this tracker (track a
     // retry, call clear() via mesh.stop(), or poll checkAcks()), which
     // would invalidate a live iterator into `entries`.
     std::list<PendingAck> expired;
@@ -244,7 +259,8 @@ class AckTracker {
       for (auto&& nodeId : entry.waitingFor) {
         Log(logger::COMMUNICATION,
             "AckTracker: timeout waiting for ack from %u\n", nodeId);
-        entry.callback(nodeId, false, entry.timeoutMs);
+        results.push_back(
+            DeliveryResult(entry.callback, nodeId, false, entry.timeoutMs));
       }
     }
     return entries.size();

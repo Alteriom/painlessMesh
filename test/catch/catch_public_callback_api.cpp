@@ -182,6 +182,32 @@ SCENARIO("A deferred delivery batch survives mesh stop in its first callback") {
   REQUIRE(callbackNodes == expectedNodes);
 }
 
+SCENARIO("Mesh timeout callbacks run as one deferred batch") {
+  Scheduler scheduler;
+  TestMesh<Connection> mesh;
+  mesh.init(&scheduler, /*nodeId=*/1234567);
+  scheduler.enable();
+  std::vector<uint32_t> callbackNodes;
+  const auto msgId = mesh.ackTracker.nextMessageId();
+  const auto now = static_cast<uint32_t>(millis());
+  REQUIRE(mesh.ackTracker.track(
+      msgId, {999, 1000},
+      [&](uint32_t nodeId, bool delivered, uint32_t) {
+        REQUIRE_FALSE(delivered);
+        callbackNodes.push_back(nodeId);
+        if (callbackNodes.size() == 1) mesh.stop();
+      },
+      1, now - 2));
+
+  REQUIRE(mesh.checkAcks() == 0);
+  REQUIRE(callbackNodes.empty());
+  REQUIRE(mesh.taskList.size() == 1);
+  mesh.taskList.front()->forceNextIteration();
+  scheduler.execute();
+  const std::vector<uint32_t> expectedNodes{999, 1000};
+  REQUIRE(callbackNodes == expectedNodes);
+}
+
 SCENARIO("Callbacks registered after a deferred clear survive dispatch") {
   callback::PackageCallbackList<int> callbacks;
   size_t nextGenerationCalls = 0;
