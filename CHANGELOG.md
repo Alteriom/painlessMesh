@@ -25,15 +25,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GATEWAY_HTTP_TIMEOUT_MS` is now a user-overridable macro **derived from
     `NODE_TIMEOUT`** (`painlessmesh/gateway.hpp`), yielding **5000ms** at the
     stock 10s watchdog where it was previously a hardcoded 30000. A
-    compile-time assertion keeps it, plus the captive-portal probe, inside
-    `NODE_TIMEOUT` — exceeding the mesh watchdog is now a build error rather
-    than a field partition, and raising `NODE_TIMEOUT` raises the budget with
-    it automatically.
+    compile-time assertion keeps the two configured socket timeouts, plus the
+    captive-portal probe, inside `NODE_TIMEOUT`, and raising `NODE_TIMEOUT`
+    raises the budget with it automatically. **This is a partial mitigation.**
+    The assertion bounds the values you configure, not the wall clock:
+    `HTTPClient::setTimeout()` limits one socket wait rather than a whole call,
+    and the DNS probe takes no timeout at all, so a request can still overrun
+    the watchdog. See #416 — and do not read this entry as the #318 / #332
+    partition being impossible, only much harder to reach.
   - After a blocking request returns, the gateway re-arms the watchdog on
     *every* peer that had one running, so an overdue deadline gets a fresh
     window instead of firing immediately. Watchdogs that were not already
     running are deliberately left alone: arming one for an idle-but-healthy
-    link would close it.
+    link would close it. **Known defect (#417):** that re-arm grants a full
+    `NODE_TIMEOUT` rather than only the time the scheduler could not observe
+    the peer, and runs even on exit paths that never blocked, so a peer that
+    has genuinely stopped answering can be kept alive indefinitely by other
+    peers' gateway traffic.
 
   **This changes a default.** If you relay to an endpoint that genuinely needs
   longer than 5s, raise `GATEWAY_HTTP_TIMEOUT_MS` *and* `NODE_TIMEOUT`

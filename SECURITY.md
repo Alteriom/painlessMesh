@@ -143,8 +143,13 @@ Fixed in v2.0 (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
   has genuinely stopped answering therefore has its timeout renewed by *other*
   peers' gateway traffic and is never reaped.
 
-This bounds the damage; it does not make the call asynchronous. A gateway
-still stops servicing mesh traffic for up to `NODE_TIMEOUT` per request.
+This is a **partial mitigation**, not a closed hole. It does not make the call
+asynchronous — a gateway still stops servicing mesh traffic for the duration of
+every request — and the two gaps below mean that duration has no enforced
+ceiling. Do not read this section as "the partition reported in #318 / #332 can
+no longer happen". It is much harder to hit, and the common case of a merely
+slow endpoint is now bounded; a hostile or pathologically slow one, or slow
+DNS, is not. #416 tracks closing it.
 
 **Known gap — the budget is not a wall-clock ceiling (issue #416).**
 `HTTPClient::setTimeout()` bounds one socket wait, not a whole call. The
