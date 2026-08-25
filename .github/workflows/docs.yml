@@ -142,7 +142,7 @@ jobs:
 
       - name: Setup Pages
         id: pages-setup
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v6
         continue-on-error: true
 
       - name: Upload artifact (if Pages configured)
