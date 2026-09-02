@@ -2455,6 +2455,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     ack.error = error;
     ack.timestamp = this->getNodeTime();
 
+    if (request.originNode == this->nodeId) {
+      protocol::Variant variant(&ack);
+      this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
+      Log(COMMUNICATION,
+          "Completed local GATEWAY_ACK (success=%d, http=%d)\n", success,
+          httpStatus);
+      return;
+    }
+
     auto conn = router::findRoute<Connection>((*this), request.originNode);
     if (conn) {
       protocol::Variant variant(&ack);

@@ -1576,11 +1576,39 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     Log(COMMUNICATION, "sendToInternet(): msgId=%u dest=%s priority=%u\n",
         messageId, destination.c_str(), priority);
 
-    // Check if we have local Internet access
-    // Note: Even with local Internet, we still use the gateway protocol for consistency.
-    // A future optimization could bypass the mesh for nodes with direct Internet access.
+    // A shared gateway can execute its own gateway package locally. Keep the
+    // same package handler, pending-request tracking and callback semantics,
+    // but do not require a mesh peer merely to reach this node's own uplink.
     if (hasLocalInternet()) {
-      Log(COMMUNICATION, "sendToInternet(): Local Internet available, using gateway protocol for consistency\n");
+      PendingInternetRequest request;
+      request.messageId = messageId;
+      request.timestamp = millis();
+      request.retryCount = 0;
+      request.maxRetries = internetRetryCount;
+      request.priority = priority;
+      request.timeoutMs = internetRequestTimeout;
+      request.retryDelayMs = internetRetryDelay;
+      request.gatewayNodeId = this->nodeId;
+      request.destination = destination;
+      request.payload = payload;
+      request.callback = callback;
+      pendingInternetRequests[messageId] = request;
+
+      gateway::GatewayDataPackage pkg;
+      pkg.from = this->nodeId;
+      pkg.dest = this->nodeId;
+      pkg.messageId = messageId;
+      pkg.originNode = this->nodeId;
+      pkg.timestamp = this->getNodeTime();
+      pkg.priority = priority;
+      pkg.destination = destination;
+      pkg.payload = payload;
+      pkg.contentType = "application/json";
+      pkg.retryCount = 0;
+      pkg.requiresAck = true;
+      protocol::Variant variant(&pkg);
+      this->callbackList.execute(protocol::GATEWAY_DATA, variant, nullptr, 0);
+      return messageId;
     }
 
     // Validate mesh connectivity before attempting to send
