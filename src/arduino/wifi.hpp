@@ -699,6 +699,14 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Step 5: Setup gateway Internet handler
     initGatewayInternetHandler();
 
+    // Step 6: Start the health checker that drives hasLocalInternet().
+    // Previously shared-gateway nodes associated and received an IP address,
+    // but the checker was never configured or scheduled, so local Internet
+    // availability remained false forever and every request was needlessly
+    // routed toward a mesh gateway.
+    configureInternetHealthCheck(_sharedGatewayConfig);
+    enableInternetHealthCheck();
+
     // Store router credentials for reconnection
     setRouterCredentials(routerSSID, routerPassword);
 
