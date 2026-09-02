@@ -1171,6 +1171,22 @@ static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
               "you need a longer HTTP timeout.");
 
 /**
+ * Reserve the blocking HTTP budget on the requester's route watchdog.
+ *
+ * A gateway compensates its own peer watchdogs after a blocking request, but
+ * it cannot modify the requester's timer. That timer may already be partly
+ * spent, so extend its existing deadline by the bounded gateway budget before
+ * sending. Disabled watchdogs remain disabled.
+ */
+template <typename T>
+bool reserveGatewayBlockingBudget(T& connection) {
+  if (!connection.timeOutTask.isEnabled()) return false;
+  connection.timeOutTask.adjust(static_cast<long>(
+      gatewayBlockingBudgetMs() * TASK_MILLISECOND));
+  return true;
+}
+
+/**
  * @brief Give every peer's running watchdog back the time a blocking call hid.
  *
  * Call this immediately after returning from a blocking Internet call, before
@@ -1207,7 +1223,8 @@ static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
  * This protects the gateway's own view of its peers. The peers' view of the
  * gateway depends on keeping the stall shorter than their watchdog, which is
  * what gatewayBlockingBudgetMs() is meant to bound -- though see the @warning
- * there for why that bound is not airtight (#416). Both halves are needed.
+ * there for why that bound is not airtight (#416). Request-side reservation
+ * plus gateway-side compensation are both needed.
  *
  * @tparam T   Mesh type exposing `subs` (see painlessmesh::layout::Layout).
  * @param mesh The mesh whose direct peer connections should be refreshed.

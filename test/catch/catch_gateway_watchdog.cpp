@@ -10,13 +10,15 @@
  * Users reported the resulting partition as "Internet available via gateway:
  * YES / Mesh connections active: NO".
  *
- * The fix has two halves, and both are covered here:
+ * The fix has three parts, and all are covered here:
  *
  *  1. gatewayBlockingBudgetMs() must stay under NODE_TIMEOUT, so a stall can
  *     never outlast what a *remote* peer is willing to wait for a node-sync
  *     reply. Nothing the gateway does locally can help that peer; only being
  *     quick enough can.
- *  2. refreshPeerWatchdogs() re-arms the gateway's own view of its peers after
+ *  2. reserveGatewayBlockingBudget() extends an armed watchdog on the
+ *     requester's route before the gateway starts blocking.
+ *  3. refreshPeerWatchdogs() re-arms the gateway's own view of its peers after
  *     a stall, so overdue watchdogs get a fresh window instead of firing
  *     immediately.
  *
@@ -118,6 +120,37 @@ SCENARIO("The gateway blocking budget fits inside the mesh watchdog") {
           painlessmesh::gateway::gatewayBlockingBudgetMs() * TASK_MILLISECOND;
       auto watchdog = static_cast<unsigned long>(NODE_TIMEOUT);
       REQUIRE(watchdog - budget >= watchdog / 4);
+    }
+  }
+}
+
+SCENARIO("A requester reserves the gateway blocking budget on its route") {
+  GIVEN("a partly-spent armed route watchdog") {
+    Scheduler scheduler;
+    FakeMesh mesh;
+    auto gateway = addPeer(mesh, scheduler, 1);
+    gateway->timeOutTask.restartDelayed();
+    pump(scheduler, kWatchdogMs / 2);
+
+    WHEN("the requester reserves a bounded blocking window") {
+      REQUIRE(painlessmesh::gateway::reserveGatewayBlockingBudget(*gateway));
+
+      THEN("the original deadline does not expire immediately") {
+        pump(scheduler, kWatchdogMs);
+        REQUIRE_FALSE(gateway->closed);
+      }
+    }
+  }
+
+  GIVEN("an idle route with no outstanding node-sync watchdog") {
+    Scheduler scheduler;
+    FakeMesh mesh;
+    auto gateway = addPeer(mesh, scheduler, 1);
+
+    THEN("reserving a gateway budget does not invent a deadline") {
+      REQUIRE_FALSE(
+          painlessmesh::gateway::reserveGatewayBlockingBudget(*gateway));
+      REQUIRE_FALSE(gateway->timeOutTask.isEnabled());
     }
   }
 }
