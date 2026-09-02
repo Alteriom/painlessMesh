@@ -33,6 +33,10 @@
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
+
+#if defined(ESP32) || defined(ESP8266)
+#include <WiFiClient.h>
+#endif
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
 
@@ -596,11 +600,25 @@ class InternetHealthChecker {
     }
     status_.lastError = "Mock: No Internet in test environment";
     return false;
+#elif defined(ESP32) || defined(ESP8266)
+    WiFiClient client;
+    uint32_t started = millis();
+#ifdef ESP32
+    bool connected = client.connect(checkHost_.c_str(), checkPort_, checkTimeout_);
 #else
-    // Arduino/ESP environment - actual TCP check
-    // Note: WiFiClient usage is handled in the arduino-specific code
-    // This base implementation returns false; override in wifi.hpp
-    status_.lastError = "Not implemented in base class";
+    // ESP8266's WiFiClient lacks ESP32's per-connect timeout overload.
+    client.setTimeout((checkTimeout_ + 999) / 1000);
+    bool connected = client.connect(checkHost_.c_str(), checkPort_);
+#endif
+    status_.lastLatencyMs = millis() - started;
+    if (!connected) {
+      status_.lastError = "TCP connectivity check failed";
+      return false;
+    }
+    client.stop();
+    return true;
+#else
+    status_.lastError = "Internet health checks are unsupported on this platform";
     return false;
 #endif
   }

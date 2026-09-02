@@ -699,6 +699,14 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Step 5: Setup gateway Internet handler
     initGatewayInternetHandler();
 
+    // Step 6: Start the health checker that drives hasLocalInternet().
+    // Previously shared-gateway nodes associated and received an IP address,
+    // but the checker was never configured or scheduled, so local Internet
+    // availability remained false forever and every request was needlessly
+    // routed toward a mesh gateway.
+    configureInternetHealthCheck(_sharedGatewayConfig);
+    enableInternetHealthCheck();
+
     // Store router credentials for reconnection
     setRouterCredentials(routerSSID, routerPassword);
 
@@ -2446,6 +2454,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     ack.httpStatus = httpStatus;
     ack.error = error;
     ack.timestamp = this->getNodeTime();
+
+    if (request.originNode == this->nodeId) {
+      protocol::Variant variant(&ack);
+      this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
+      Log(COMMUNICATION,
+          "Completed local GATEWAY_ACK (success=%d, http=%d)\n", success,
+          httpStatus);
+      return;
+    }
 
     auto conn = router::findRoute<Connection>((*this), request.originNode);
     if (conn) {
