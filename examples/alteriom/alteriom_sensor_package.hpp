@@ -1234,8 +1234,7 @@ class BridgeStatusPackage : public painlessmesh::plugin::BroadcastPackage {
  * Election process:
  * 1. Bridge failure detected (no heartbeat for 60+ seconds)
  * 2. Nodes broadcast BridgeElectionPackage with router RSSI and channel
- * 3.
- * 5-second collection window for all candidates
+ * 3. 5-second collection window for all candidates
  * 4. Each node evaluates all candidates locally (deterministic)
  * 5. Winner promotes itself to bridge, others remain as regular nodes
  *

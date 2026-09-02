@@ -580,9 +580,8 @@ mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
 See `examples/tcpRetryConfig/` for real-time, high-reliability and
 battery-saver profiles, and the API docs for the full tuning guidance.
 
-> **Note:** these defaults were deliberately raised in 1.9.x to fix real-world
-> mesh instability. Tuning them down can reintroduce connection churn and rapid
-> reconnect loops.
+> **Note:** these production defaults prevent connection churn and rapid
+> reconnect loops. Tuning them down can reintroduce mesh instability.
 
 ---
 
