@@ -62,7 +62,7 @@ The protocol layer uses several internal message types for mesh management:
 | 4 | TIME_SYNC | Synchronizes clocks across all mesh nodes |
 | 5 | NODE_SYNC_REQUEST | Requests node list and topology information |
 | 6 | NODE_SYNC_REPLY | Responds with node list and topology data |
-| 7 | CONTROL | Reserved control messages |
+| 7 | CONTROL | Deprecated control messages (no longer used) |
 | 8 | BROADCAST | Routes application messages to all mesh nodes |
 | 9 | SINGLE | Routes application messages to a specific node |
 

@@ -1233,9 +1233,8 @@ class BridgeStatusPackage : public painlessmesh::plugin::BroadcastPackage {
  *
  * Election process:
  * 1. Bridge failure detected (no heartbeat for 60+ seconds)
- * 2. Nodes broadcast BridgeElectionPackage with router RSSI and channel
- * 3.
- * 5-second collection window for all candidates
+ * 2. Nodes broadcast BridgeElectionPackage with their router RSSI
+ * 3. 5-second collection window for all candidates
  * 4. Each node evaluates all candidates locally (deterministic)
  * 5. Winner promotes itself to bridge, others remain as regular nodes
  *
@@ -1243,12 +1242,11 @@ class BridgeStatusPackage : public painlessmesh::plugin::BroadcastPackage {
  */
 class BridgeElectionPackage : public painlessmesh::plugin::BroadcastPackage {
  public:
-  int8_t routerRSSI = 0;      // Router WiFi signal strength in dBm (-127 to 0)
-  uint8_t routerChannel = 0;  // Channel the candidate would use as bridge
-  uint32_t uptime = 0;        // Node uptime in milliseconds
-  uint32_t freeMemory = 0;    // Free memory in bytes
-  uint32_t timestamp = 0;     // Election timestamp
-  TSTRING routerSSID = "";    // Router SSID (for verification)
+  int8_t routerRSSI = 0;    // Router WiFi signal strength in dBm (-127 to 0)
+  uint32_t uptime = 0;      // Node uptime in milliseconds
+  uint32_t freeMemory = 0;  // Free memory in bytes
+  uint32_t timestamp = 0;   // Election timestamp
+  TSTRING routerSSID = "";  // Router SSID (for verification)
 
   // MQTT Schema v0.7.3+ message_type
   uint16_t messageType = 611;  // BRIDGE_ELECTION
@@ -1257,7 +1255,6 @@ class BridgeElectionPackage : public painlessmesh::plugin::BroadcastPackage {
 
   BridgeElectionPackage(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
     routerRSSI = jsonObj["routerRSSI"] | 0;
-    routerChannel = jsonObj["routerChannel"] | 0;
     uptime = jsonObj["uptime"] | 0;
     freeMemory = jsonObj["freeMemory"] | 0;
     timestamp = jsonObj["timestamp"] | 0;
@@ -1268,7 +1265,6 @@ class BridgeElectionPackage : public painlessmesh::plugin::BroadcastPackage {
   JsonObject addTo(JsonObject&& jsonObj) const {
     jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
     jsonObj["routerRSSI"] = routerRSSI;
-    jsonObj["routerChannel"] = routerChannel;
     jsonObj["uptime"] = uptime;
     jsonObj["freeMemory"] = freeMemory;
     jsonObj["timestamp"] = timestamp;
@@ -1279,7 +1275,7 @@ class BridgeElectionPackage : public painlessmesh::plugin::BroadcastPackage {
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 7) + routerSSID.length();
+    return JSON_OBJECT_SIZE(noJsonFields + 6) + routerSSID.length();
   }
 #endif
 };
@@ -1298,9 +1294,8 @@ class BridgeTakeoverPackage : public painlessmesh::plugin::BroadcastPackage {
   uint32_t previousBridge = 0;  // Previous bridge node ID (0 if none)
   TSTRING reason =
       "";  // Reason for takeover (e.g., "Election winner - best router signal")
-  int8_t routerRSSI = 0;      // New bridge's router signal strength
-  uint8_t routerChannel = 0;  // Channel peers follow during takeover
-  uint32_t timestamp = 0;     // Takeover timestamp
+  int8_t routerRSSI = 0;   // New bridge's router signal strength
+  uint32_t timestamp = 0;  // Takeover timestamp
 
   // MQTT Schema v0.7.3+ message_type
   uint16_t messageType = 612;  // BRIDGE_TAKEOVER
@@ -1311,7 +1306,6 @@ class BridgeTakeoverPackage : public painlessmesh::plugin::BroadcastPackage {
     previousBridge = jsonObj["previousBridge"] | 0;
     reason = jsonObj["reason"].as<TSTRING>();
     routerRSSI = jsonObj["routerRSSI"] | 0;
-    routerChannel = jsonObj["routerChannel"] | 0;
     timestamp = jsonObj["timestamp"] | 0;
     messageType = jsonObj["message_type"] | 612;
   }
@@ -1321,7 +1315,6 @@ class BridgeTakeoverPackage : public painlessmesh::plugin::BroadcastPackage {
     jsonObj["previousBridge"] = previousBridge;
     jsonObj["reason"] = reason;
     jsonObj["routerRSSI"] = routerRSSI;
-    jsonObj["routerChannel"] = routerChannel;
     jsonObj["timestamp"] = timestamp;
     jsonObj["message_type"] = messageType;
     return jsonObj;
@@ -1329,7 +1322,7 @@ class BridgeTakeoverPackage : public painlessmesh::plugin::BroadcastPackage {
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 6) + reason.length();
+    return JSON_OBJECT_SIZE(noJsonFields + 5) + reason.length();
   }
 #endif
 };

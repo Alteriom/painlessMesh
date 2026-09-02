@@ -184,7 +184,7 @@ void bridgeRoleCallback(bool isBridge, const String& reason) {
 
 See [bridge_failover example](examples/bridge_failover/) for complete documentation.
 
-#### 🌉 Multi-Bridge Coordination
+#### 🌉 Multi-Bridge Coordination (v1.8.2)
 
 **Enterprise Load Balancing and Geographic Redundancy**
 
@@ -232,7 +232,7 @@ mesh.onBridgeCoordinationChanged(
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for multi-bridge documentation.
 
-#### 📬 Message Queue for Offline Mode
+#### 📬 Message Queue for Offline Mode (v1.8.2)
 
 **Zero Data Loss During Internet Outages**
 
@@ -262,7 +262,7 @@ mesh.queueMessage(bridgeNodeId, criticalAlarm);
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for message queue documentation.
 
-#### 🌐 Shared Gateway Mode
+#### 🌐 Shared Gateway Mode (v1.9.0+)
 
 **All Nodes as Internet Gateways with Automatic Failover**
 
@@ -502,7 +502,7 @@ These types are used internally by painlessMesh for mesh management and are hand
 | 4 | `TIME_SYNC` | Time synchronization protocol messages |
 | 5 | `NODE_SYNC_REQUEST` | Node discovery and topology requests |
 | 6 | `NODE_SYNC_REPLY` | Node discovery and topology responses |
-| 7 | `CONTROL` | Reserved control messages |
+| 7 | `CONTROL` | Deprecated control messages |
 | 8 | `BROADCAST` | Internal broadcast routing indicator |
 | 9 | `SINGLE` | Internal single-node routing indicator |
 
@@ -516,19 +516,19 @@ These are the message types used by applications built on painlessMesh:
 |------|-------|---------|--------|
 | 200 | `SensorPackage` | Environmental data | `temperature`, `humidity`, `pressure`, `sensorId`, `timestamp`, `batteryLevel` |
 | 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
-| 204 | `MetricsPackage` | Sensor metrics (schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
-| 400 | `CommandPackage` | Device control | `command`, `targetDevice`, `parameters`, `commandId` |
-| 600 | `MeshNodeListPackage` | Mesh node list (`MESH_NODE_LIST`) | `nodes[]` (nodeId, status, lastSeen, signalStrength), `nodeCount`, `meshId` |
-| 601 | `MeshTopologyPackage` | Mesh topology (`MESH_TOPOLOGY`) | `connections[]` (fromNode, toNode, linkQuality, latencyMs), `rootNode` |
-| 602 | `MeshAlertPackage` | Mesh alerts (`MESH_ALERT`) | `alerts[]` (alertType, severity, message, nodeId), `alertCount` |
-| 603 | `MeshBridgePackage` | Mesh bridge (`MESH_BRIDGE`) | `meshProtocol`, `fromNodeId`, `toNodeId`, `meshType`, `rawPayload`, `rssi`, `hopCount` |
+| 204 | `MetricsPackage` | Sensor metrics (v1.7.7+, aligns with schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
+| 400 | `CommandPackage` | Device control (v1.7.7+, moved from 201) | `command`, `targetDevice`, `parameters`, `commandId` |
+| 600 | `MeshNodeListPackage` | Mesh node list (v1.7.7+, MESH_NODE_LIST) | `nodes[]` (nodeId, status, lastSeen, signalStrength), `nodeCount`, `meshId` |
+| 601 | `MeshTopologyPackage` | Mesh topology (v1.7.7+, MESH_TOPOLOGY) | `connections[]` (fromNode, toNode, linkQuality, latencyMs), `rootNode` |
+| 602 | `MeshAlertPackage` | Mesh alerts (v1.7.7+, MESH_ALERT) | `alerts[]` (alertType, severity, message, nodeId), `alertCount` |
+| 603 | `MeshBridgePackage` | Mesh bridge (v1.7.7+, MESH_BRIDGE) | `meshProtocol`, `fromNodeId`, `toNodeId`, `meshType`, `rawPayload`, `rssi`, `hopCount` |
 | 604 | `EnhancedStatusPackage` | Mesh status (MESH_STATUS per schema v0.7.2+) | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate` |
-| 605 | `HealthCheckPackage` | Mesh metrics (`MESH_METRICS`, schema v0.7.2+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
-| 610 | `BridgeStatusPackage` | Bridge health monitoring (`BRIDGE_STATUS`) | `internetConnected`, `routerRSSI`, `routerChannel`, `uptime`, `gatewayIP`, `timestamp` |
-| 611 | `BridgeElectionPackage` | Bridge failover election (`BRIDGE_ELECTION`) | `routerRSSI`, `routerChannel`, `uptime`, `freeMemory`, `timestamp`, `routerSSID` |
-| 612 | `BridgeTakeoverPackage` | Bridge role announcement (`BRIDGE_TAKEOVER`) | `previousBridge`, `reason`, `routerChannel`, `timestamp` |
-| 613 | `BridgeCoordinationPackage` | Multi-bridge coordination (`BRIDGE_COORDINATION`) | `priority`, `role`, `peerBridges[]`, `load`, `timestamp` |
-| 614 | `NTPTimeSyncPackage` | NTP time synchronization (`TIME_SYNC_NTP`) | `ntpTime`, `accuracy`, `source`, `timestamp` |
+| 605 | `HealthCheckPackage` | Mesh metrics (v1.7.7+, MESH_METRICS per schema v0.7.2+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
+| 610 | `BridgeStatusPackage` | Bridge health monitoring (v1.8.0+, BRIDGE_STATUS per schema v0.7.3+) | `internetConnected`, `routerRSSI`, `routerChannel`, `uptime`, `gatewayIP`, `timestamp` |
+| 611 | `BridgeElectionPackage` | Bridge failover election (v1.8.0+, BRIDGE_ELECTION per schema v0.7.3+) | `routerRSSI`, `uptime`, `freeMemory`, `timestamp`, `routerSSID` |
+| 612 | `BridgeTakeoverPackage` | Bridge role announcement (v1.8.0+, BRIDGE_TAKEOVER per schema v0.7.3+) | `previousBridge`, `reason`, `timestamp` |
+| 613 | `BridgeCoordinationPackage` | Multi-bridge coordination (v1.8.2+, BRIDGE_COORDINATION) | `priority`, `role`, `peerBridges[]`, `load`, `timestamp` |
+| 614 | `NTPTimeSyncPackage` | NTP time synchronization (v1.8.0+, TIME_SYNC_NTP per schema v0.7.3+) | `ntpTime`, `accuracy`, `source`, `timestamp` |
 
 ## Key Features
 
@@ -568,9 +568,43 @@ These are the message types used by applications built on painlessMesh:
 - Receiving nodes acknowledge automatically; ACKs route across multiple hops (new protocol type 630)
 - Zero wire/CPU overhead when no callback is requested; existing sketches compile unchanged
 - New `checkAcks()` / `pendingAcks()` APIs and examples `reliableSensorLogging`, `commandControl`
-- Delivery confirmation requires version 2.0 on every participating node.
-- Gateway failover announces the elected bridge's router channel so peers move
-  with it immediately and preserve the mesh during takeover.
+- Major version bump: mixed networks with pre-2.0 nodes forward ACK traffic but never acknowledge, so delivery confirmation needs 2.0.0 on all participating nodes
+
+**Previous Release: v1.10.0 (August 12, 2026)** — Tunable TCP Connect-Retry Behaviour (issue #378)
+
+- The five TCP connect-retry values that were hardcoded in `tcp.hpp` are now tunable per mesh instance via `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()` (#378, PR #395)
+- Defaults match the previous constants exactly — **no behaviour change unless you call the setter**
+- New `examples/tcpRetryConfig/` with real-time, high-reliability and battery-saver profiles
+- `MessageQueue` documentation corrected: it is a manual buffer, never an auto-flush queue (#385)
+- `MIN_FREE_MEMORY` / `MAX_MESSAGE_QUEUE` deprecated as ignored no-ops, values preserved for source compatibility (#385)
+- Fixed `bridge_failover` example failing to compile on an unqualified `plugin::` type (#360)
+
+> **npm users:** v1.9.21 was never published to npm ([#381](https://github.com/Alteriom/painlessMesh/issues/381) — expired token). npm's previous version is 1.9.20, so upgrading from npm picks up both releases. GitHub, PlatformIO and Arduino were unaffected.
+
+**Previous Release: v1.9.21 (August 4, 2026)** — Crash Fixes: Task & TCP Connection Lifecycle (issue #373)
+
+- Fixed use-after-free in `Task::disable()` that crashed nodes on every peer disconnect (#373, PR #376 by @vaz82)
+- Fixed `PackageHandler::stop()` destroying the currently-executing task during bridge promotion
+- Fixed stale-pcb heap corruption window in `~BufferedConnection()` and an `onError`/`onConnect` double-handling race
+- New AddressSanitizer CI job and regression test for the task/connection cleanup lifecycle
+
+**Previous Release: v1.9.20 (March 27, 2026)** — Full repo cleanup, bug fixes & bridge coordination callbacks:
+
+- New `onBridgeCoordination()` and `onBridgeCoordinationChanged()` monitoring callbacks
+- Fixed 13 critical/high/medium bugs (double-free, RSSI overflow, memory leaks, blocking delays)
+- Removed ~3,600 lines of dead code and 40 AI-generated docs
+- Fixed all CI/CD workflows (corrected action versions)
+- Removed 15 fake test files, fixed test infrastructure
+- Documentation consistency audit — fixed broken links, API examples, version references
+
+**Recent Key Features (v1.9.0 - v1.9.16):**
+
+- 🔍 **Mesh Connectivity Detection** - New `hasActiveMeshConnections()` and `getLastKnownBridge()` APIs
+- 🌉 **Improved Bridge Detection** - `getPrimaryBridge()` returns last known bridge when disconnected
+- ⚡ **Enhanced TCP Reliability** - Exponential backoff and increased retries for mesh connections
+- 🛡️ **Race Condition Fixes** - Improved bridge status and connection validation
+- 📦 **Consolidated Examples** - Streamlined to 15 essential examples
+- ⚙️ **Configurable Election Timing** - Prevent split-brain with `setElectionStartupDelay()` and `setElectionRandomDelay()`
 
 **[📋 Full CHANGELOG](CHANGELOG.md)**
 
@@ -650,7 +684,7 @@ painlessMesh features a state-of-the-art automated CI/CD pipeline:
 ./scripts/validate-release.sh    # Validate release readiness
 
 # Edit CHANGELOG.md, then commit with release prefix
-git commit -am "release: vX.Y.Z"
+git commit -am "release: v1.5.7"
 git push origin main  # Triggers automated release
 ```
 

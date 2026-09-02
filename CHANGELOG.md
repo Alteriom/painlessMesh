@@ -9,17 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Gateway takeover left the mesh partitioned on the old radio channel** — a
-  failover candidate correctly moved its AP+STA radio to the Internet router's
-  channel after election, but peers learned only that a takeover occurred, not
-  which channel to follow. They remained disconnected until the slow
-  all-channel recovery scan, exceeding the failover deadline and leaving
-  `getPrimaryGateway()` at zero. Election and takeover packages now carry the
-  candidate's router channel. Peers validate the announcement, discard stale
-  scan state, move both interfaces after the takeover has propagated, and
-  resume discovery immediately. A missed or older takeover message remains
-  compatible with the existing scan-based recovery path.
-
 - **Gateway Internet requests partitioned the mesh around the gateway
   (#318, #332)** — the gateway relays messages from inside the cooperative
   TaskScheduler using blocking `HTTPClient` calls, so nothing else ran for the

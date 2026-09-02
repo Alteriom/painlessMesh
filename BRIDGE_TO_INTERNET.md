@@ -6,7 +6,7 @@ You can bridge your mesh network to the Internet by creating a **gateway node** 
 
 The **bridge-centric approach** automatically detects your router's channel and configures the mesh accordingly. No manual channel configuration required!
 
-### Resilient Initialization
+### Resilient Initialization (v1.9.7+)
 
 **Power-up order no longer matters!** The bridge will initialize successfully even if:
 - Router is not yet powered on
@@ -129,16 +129,13 @@ STARTUP: Mesh channel auto-detected: 6
 
 Nodes automatically follow the mesh if the bridge changes channels:
 
-- During failover, the takeover message announces the new router channel and
-  peers switch immediately
-- If a takeover message is missed, nodes trigger a full-channel recovery scan
-  after repeated empty scans
+- When nodes can't find the mesh on their current channel for ~30 seconds, they trigger a full channel scan
 - If the mesh is found on a different channel, nodes automatically switch to that channel
 - This ensures the mesh stays connected even if the bridge switches channels (e.g., during bridge election)
 
 For detailed information, see [Automatic Channel Re-synchronization](#automatic-channel-re-synchronization).
 
-## Manual Channel Configuration
+## Manual Configuration (Legacy Approach)
 
 If you prefer the traditional approach or need more control, you can still manually configure the channel:
 
@@ -179,7 +176,7 @@ The new `initAsBridge()` method automatically handles all channel detection and 
 
 #### With Manual Configuration
 
-When using `stationManual()`, the library automatically handles channel switching. The ESP32/ESP8266 will:
+When using the legacy `stationManual()` approach, the library will automatically handle channel switching. The ESP32/ESP8266 will:
 
 1. Initially operate the mesh AP on your specified channel (e.g., channel 6)
 2. Automatically switch to the router's channel when connecting via `stationManual()`
