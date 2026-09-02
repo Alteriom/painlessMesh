@@ -1671,6 +1671,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     bool sent = false;
     auto conn = painlessmesh::router::findRoute<T>((*this), gateway->nodeId);
     if (conn) {
+      // HTTP runs on the gateway's cooperative scheduler. Preserve this
+      // requester's route until the corresponding acknowledgment can return.
+      painlessmesh::gateway::reserveGatewayBlockingBudget(*conn);
       sent = painlessmesh::router::sendWithPriority(pkg, conn, priority);
       if (!sent) {
         Log(ERROR, "sendToInternet(): sendWithPriority failed to gateway %u (send buffer full?)\n", gateway->nodeId);
@@ -2039,6 +2042,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     auto conn = painlessmesh::router::findRoute<T>((*this), gateway->nodeId);
     bool sent = false;
     if (conn) {
+      painlessmesh::gateway::reserveGatewayBlockingBudget(*conn);
       sent = painlessmesh::router::sendWithPriority(pkg, conn, request.priority);
     }
 

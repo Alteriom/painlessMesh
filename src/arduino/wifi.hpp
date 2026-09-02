@@ -2441,8 +2441,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Helper method to send gateway acknowledgment
    */
-  void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
-                      uint16_t httpStatus, const TSTRING& error) {
+  void sendGatewayAck(
+      const gateway::GatewayDataPackage& request, bool success,
+      uint16_t httpStatus, const TSTRING& error,
+      std::shared_ptr<Connection> ingressConnection = nullptr) {
     using namespace logger;
 
     gateway::GatewayAckPackage ack;
@@ -2465,6 +2467,18 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
 
     auto conn = router::findRoute<Connection>((*this), request.originNode);
+    if (!conn && ingressConnection) {
+      // A newly promoted gateway can receive data before its NodeTree has
+      // converged enough for findRoute() to resolve the request origin.  The
+      // ingress connection is nevertheless a valid reverse path: the request
+      // just arrived through it and every intermediate node can continue
+      // routing the addressed acknowledgment toward originNode.
+      conn = ingressConnection;
+      Log(COMMUNICATION,
+          "Routing GATEWAY_ACK to node %u through request ingress while "
+          "topology converges\n",
+          request.originNode);
+    }
     if (conn) {
       protocol::Variant variant(&ack);
       router::send(std::move(variant), conn);
@@ -2513,7 +2527,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->callbackList.onPackage(
         protocol::GATEWAY_DATA, [this](protocol::Variant& variant,
-                                       std::shared_ptr<Connection>, uint32_t) {
+                                       std::shared_ptr<Connection> ingress,
+                                       uint32_t) {
           auto pkg = variant.to<gateway::GatewayDataPackage>();
 
           Log(COMMUNICATION,
@@ -2542,8 +2557,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           // that genuinely stopped answering NODE_SYNC still gets reaped even
           // under continuous gateway traffic from other peers.
           const auto blockingStartedMs = millis();
-          auto finish = [this, &pkg, blockingStartedMs](bool ok, uint16_t code,
-                                                        const TSTRING& err) {
+          auto finish = [this, &pkg, ingress, blockingStartedMs](
+                            bool ok, uint16_t code, const TSTRING& err) {
             const auto stalledMs = millis() - blockingStartedMs;
             auto refreshed = gateway::refreshPeerWatchdogs(*this, stalledMs);
             if (refreshed > 0) {
@@ -2553,7 +2568,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                   static_cast<unsigned>(refreshed),
                   static_cast<unsigned long>(stalledMs));
             }
-            this->sendGatewayAck(pkg, ok, code, err);
+            this->sendGatewayAck(pkg, ok, code, err, ingress);
           };
 
           // Check Internet connectivity
