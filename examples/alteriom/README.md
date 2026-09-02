@@ -44,7 +44,7 @@ Extended status package with comprehensive health metrics (18 fields).
 - `avgLatency`, `packetLossRate`, `throughput` - Performance metrics
 - `alertFlags`, `lastError` - Alert system
 
-### MetricsPackage (Type 204) - NEW in v1.7.7
+### MetricsPackage (Type 204)
 Comprehensive performance metrics for detailed monitoring and dashboards.
 
 **Key Fields:**
@@ -61,7 +61,7 @@ Comprehensive performance metrics for detailed monitoring and dashboards.
 - Network throughput analysis
 - Latency monitoring
 
-### HealthCheckPackage (Type 605) - NEW in v1.7.7
+### HealthCheckPackage (Type 605)
 Proactive health monitoring with problem detection and recommendations.
 
 **Key Fields:**
@@ -93,7 +93,7 @@ Proactive health monitoring with problem detection and recommendations.
 - Automated alerting
 - Memory leak detection
 
-### MeshNodeListPackage (Type 600) - NEW in v1.7.7
+### MeshNodeListPackage (Type 600)
 List of all nodes in the mesh network with their status.
 
 **Fields:**
@@ -110,7 +110,7 @@ List of all nodes in the mesh network with their status.
 - Network health visualization
 - Device inventory management
 
-### MeshTopologyPackage (Type 601) - NEW in v1.7.7
+### MeshTopologyPackage (Type 601)
 Mesh network topology with all connections between nodes.
 
 **Fields:**
@@ -128,7 +128,7 @@ Mesh network topology with all connections between nodes.
 - Network optimization
 - Path analysis
 
-### MeshAlertPackage (Type 602) - NEW in v1.7.7
+### MeshAlertPackage (Type 602)
 Mesh network alerts for critical events and warnings.
 
 **Fields:**
@@ -147,7 +147,7 @@ Mesh network alerts for critical events and warnings.
 - Problem notification
 - Event logging
 
-### MeshBridgePackage (Type 603) - NEW in v1.7.7
+### MeshBridgePackage (Type 603)
 Bridge package for encapsulating native mesh protocol messages.
 
 **Fields:**
@@ -184,7 +184,7 @@ OTA enhancement example demonstrating:
 - Alert system implementation
 - Usage patterns for advanced features
 
-### `metrics_health_node.ino` (NEW in v1.7.7)
+### `metrics_health_node.ino`
 Comprehensive monitoring node example demonstrating:
 - MetricsPackage (Type 204) collection and broadcasting
 - HealthCheckPackage (Type 605) proactive monitoring (MESH_METRICS)

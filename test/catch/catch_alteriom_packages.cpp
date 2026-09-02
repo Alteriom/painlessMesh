@@ -1518,6 +1518,7 @@ SCENARIO("BridgeElectionPackage serialization works correctly") {
         auto pkg = BridgeElectionPackage();
         pkg.from = 98765;
         pkg.routerRSSI = -42;
+        pkg.routerChannel = 6;
         pkg.uptime = 3600000;  // 1 hour in milliseconds
         pkg.freeMemory = 150000;
         pkg.timestamp = 1609459200;
@@ -1534,6 +1535,7 @@ SCENARIO("BridgeElectionPackage serialization works correctly") {
             THEN("Should result in the same values") {
                 REQUIRE(pkg2.from == pkg.from);
                 REQUIRE(pkg2.routerRSSI == pkg.routerRSSI);
+                REQUIRE(pkg2.routerChannel == pkg.routerChannel);
                 REQUIRE(pkg2.uptime == pkg.uptime);
                 REQUIRE(pkg2.freeMemory == pkg.freeMemory);
                 REQUIRE(pkg2.timestamp == pkg.timestamp);
@@ -1597,6 +1599,7 @@ SCENARIO("BridgeTakeoverPackage serialization works correctly") {
         pkg.previousBridge = 12345;
         pkg.reason = "Election winner - best router signal";
         pkg.routerRSSI = -35;
+        pkg.routerChannel = 6;
         pkg.timestamp = 1609459400;
         
         REQUIRE(pkg.routing == router::BROADCAST);
@@ -1612,6 +1615,7 @@ SCENARIO("BridgeTakeoverPackage serialization works correctly") {
                 REQUIRE(pkg2.previousBridge == pkg.previousBridge);
                 REQUIRE(pkg2.reason == pkg.reason);
                 REQUIRE(pkg2.routerRSSI == pkg.routerRSSI);
+                REQUIRE(pkg2.routerChannel == pkg.routerChannel);
                 REQUIRE(pkg2.timestamp == pkg.timestamp);
                 REQUIRE(pkg2.routing == pkg.routing);
                 REQUIRE(pkg2.type == pkg.type);

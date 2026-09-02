@@ -35,7 +35,7 @@ mesh.sendPackage(&sensor);
 
 ### CommandPackage (Type 400)
 
-For sending control commands to specific devices in the mesh. (Type moved from 201 to 400 in v1.7.7+)
+For sending control commands to specific devices in the mesh.
 
 ```cpp
 CommandPackage cmd;
@@ -65,7 +65,7 @@ status.deviceStatus = 1;        // OPERATIONAL
 status.uptime = millis() / 1000;
 status.freeMemory = ESP.getFreeHeap();
 status.wifiStrength = WiFi.RSSI();
-status.firmwareVersion = "1.2.3";
+status.firmwareVersion = "2.0.0";
 
 // Broadcast to all nodes
 mesh.sendPackage(&status);
@@ -88,7 +88,7 @@ void setup() {
     
     // Register package handlers
     mesh.onPackage(200, handleSensorData);
-    mesh.onPackage(400, handleCommand);  // Updated to 400 in v1.7.7+
+    mesh.onPackage(400, handleCommand);
     mesh.onPackage(202, handleStatus);
 }
 
@@ -495,7 +495,7 @@ void handleSensorData(protocol::Variant& variant) {
 }
 ```
 
-## Bridge Failover Packages (v1.8.0+)
+## Bridge Failover Packages
 
 ### BridgeStatusPackage (Type 610)
 
@@ -539,6 +539,7 @@ For coordinating automatic bridge failover elections.
 ```cpp
 BridgeElectionPackage election;
 election.routerRSSI = WiFi.RSSI();    // -127 to 0 dBm
+election.routerChannel = WiFi.channel();
 election.uptime = millis();
 election.freeMemory = ESP.getFreeHeap();
 election.timestamp = mesh.getNodeTime();
@@ -550,6 +551,7 @@ mesh.sendPackage(&election);
 
 **Fields:**
 - `routerRSSI` (int8_t) - Router WiFi signal strength (-127 to 0 dBm)
+- `routerChannel` (uint8_t) - Router channel used if this candidate wins
 - `uptime` (uint32_t) - Node uptime in milliseconds
 - `freeMemory` (uint32_t) - Free memory in bytes
 - `timestamp` (uint32_t) - Election timestamp
@@ -569,6 +571,7 @@ For announcing bridge role transitions.
 BridgeTakeoverPackage takeover;
 takeover.previousBridge = oldBridgeNodeId;  // 0 if none
 takeover.reason = "Internet connectivity lost";
+takeover.routerChannel = WiFi.channel();
 takeover.timestamp = mesh.getNodeTime();
 
 // Announce new bridge role
@@ -578,6 +581,7 @@ mesh.sendPackage(&takeover);
 **Fields:**
 - `previousBridge` (uint32_t) - Previous bridge node ID (0 if none)
 - `reason` (TSTRING) - Takeover reason description
+- `routerChannel` (uint8_t) - Channel peers must follow during takeover
 - `timestamp` (uint32_t) - Takeover timestamp
 
 **Use Cases:**
@@ -688,32 +692,31 @@ mesh.sendSingle(destId, msg,
 
 **Wire notes:**
 - Routed as a SINGLE package, so it traverses multiple hops
-- Pre-2.0 nodes forward the package but never generate it — delivery
-  confirmation requires v2.0.0+ on every participating node
+- Delivery confirmation requires version 2.0 on every participating node.
 
 ## Complete Package Type Reference
 
-| Type | Class | Version | Purpose |
-|------|-------|---------|---------|
-| 200 | `SensorPackage` | v1.0.0+ | Environmental sensor data |
-| 202 | `StatusPackage` | v1.0.0+ | Device health monitoring |
-| 204 | `MetricsPackage` | v1.7.7+ | Performance metrics |
-| 400 | `CommandPackage` | v1.7.7+ | Device control (moved from 201) |
-| 600 | `MeshNodeListPackage` | v1.7.7+ | Node inventory |
-| 601 | `MeshTopologyPackage` | v1.7.7+ | Network topology |
-| 602 | `MeshAlertPackage` | v1.7.7+ | Network alerts |
-| 603 | `MeshBridgePackage` | v1.7.7+ | Protocol bridging |
-| 604 | `EnhancedStatusPackage` | v1.7.7+ | Mesh-wide status |
-| 605 | `HealthCheckPackage` | v1.7.7+ | Proactive health monitoring |
-| 610 | `BridgeStatusPackage` | v1.8.0+ | Bridge health monitoring |
-| 611 | `BridgeElectionPackage` | v1.8.0+ | Failover election |
-| 612 | `BridgeTakeoverPackage` | v1.8.0+ | Bridge transition |
-| 613 | `BridgeCoordinationPackage` | v1.8.0+ | Multi-bridge coordination |
-| 614 | `NTPTimeSyncPackage` | v1.8.0+ | NTP time distribution |
-| 620 | `GatewayDataPackage` | v1.9.0+ | Internet-bound data routing |
-| 621 | `GatewayAckPackage` | v1.9.0+ | Gateway delivery acknowledgment |
-| 622 | `GatewayHeartbeatPackage` | v1.9.0+ | Gateway health monitoring |
-| 630 | `MessageAckPackage` | v2.0.0+ | Per-message delivery acknowledgment |
+| Type | Class | Purpose |
+|------|-------|---------|
+| 200 | `SensorPackage` | Environmental sensor data |
+| 202 | `StatusPackage` | Device health monitoring |
+| 204 | `MetricsPackage` | Performance metrics |
+| 400 | `CommandPackage` | Device control |
+| 600 | `MeshNodeListPackage` | Node inventory |
+| 601 | `MeshTopologyPackage` | Network topology |
+| 602 | `MeshAlertPackage` | Network alerts |
+| 603 | `MeshBridgePackage` | Protocol bridging |
+| 604 | `EnhancedStatusPackage` | Mesh-wide status |
+| 605 | `HealthCheckPackage` | Proactive health monitoring |
+| 610 | `BridgeStatusPackage` | Bridge health monitoring |
+| 611 | `BridgeElectionPackage` | Failover election |
+| 612 | `BridgeTakeoverPackage` | Bridge transition and channel handoff |
+| 613 | `BridgeCoordinationPackage` | Multi-bridge coordination |
+| 614 | `NTPTimeSyncPackage` | NTP time distribution |
+| 620 | `GatewayDataPackage` | Internet-bound data routing |
+| 621 | `GatewayAckPackage` | Gateway delivery acknowledgment |
+| 622 | `GatewayHeartbeatPackage` | Gateway health monitoring |
+| 630 | `MessageAckPackage` | Per-message delivery acknowledgment |
 
 See also:
 - [Alteriom Overview](overview.md) - Extension architecture and goals

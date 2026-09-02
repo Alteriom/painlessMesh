@@ -112,11 +112,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           if (obj["routerRSSI"].is<int>()) {
             uint32_t fromNode = obj["from"];
             int8_t routerRSSI = obj["routerRSSI"];
+            uint8_t routerChannel = obj["routerChannel"] | 0;
             uint32_t uptime = obj["uptime"] | 0;
             uint32_t freeMemory = obj["freeMemory"] | 0;
 
-            this->handleBridgeElection(fromNode, routerRSSI, uptime,
-                                       freeMemory);
+            this->handleBridgeElection(fromNode, routerRSSI, routerChannel,
+                                       uptime, freeMemory);
 
             Log(CONNECTION, "Bridge election candidate from %u: RSSI %d dBm\n",
                 fromNode, routerRSSI);
@@ -139,9 +140,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             uint32_t newBridge = obj["from"];
             uint32_t previousBridge = obj["previousBridge"];
             TSTRING reason = obj["reason"].as<TSTRING>();
+            uint8_t routerChannel = obj["routerChannel"] | 0;
 
-            Log(CONNECTION, "Bridge takeover: Node %u replaced %u (%s)\n",
-                newBridge, previousBridge, reason.c_str());
+            Log(CONNECTION,
+                "Bridge takeover: Node %u replaced %u on channel %u (%s)\n",
+                newBridge, previousBridge, routerChannel, reason.c_str());
+
+            // AP+STA radios must use one channel. Follow the elected bridge
+            // promptly instead of waiting for the slow empty-scan recovery.
+            if (gateway::shouldFollowBridgeChannel(
+                    this->nodeId, newBridge, _meshChannel, routerChannel)) {
+              this->addTask(1000, TASK_ONCE, [this, routerChannel]() {
+                stationScan.followBridgeChannel(routerChannel);
+              });
+            }
 
             // Notify callback if this node was not the winner
             if (newBridge != this->nodeId && bridgeRoleChangedCallback) {
@@ -1664,7 +1676,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * @param routerSSID SSID of router to scan for
    * @return RSSI in dBm (negative number, -127 to 0), or 0 if not found
    */
-  int8_t scanRouterSignalStrength(TSTRING routerSSID) {
+  int8_t scanRouterSignalStrength(TSTRING routerSSID,
+                                  uint8_t* routerChannel = nullptr) {
     using namespace logger;
     Log(CONNECTION, "scanRouterSignalStrength(): Scanning for %s...\n",
         routerSSID.c_str());
@@ -1675,9 +1688,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     for (int i = 0; i < n; i++) {
       if (WiFi.SSID(i) == routerSSID) {
         int8_t rssi = WiFi.RSSI(i);
+        uint8_t channel = WiFi.channel(i);
+        if (routerChannel != nullptr) *routerChannel = channel;
         Log(CONNECTION,
-            "scanRouterSignalStrength(): Found %s with RSSI %d dBm\n",
-            routerSSID.c_str(), rssi);
+            "scanRouterSignalStrength(): Found %s with RSSI %d dBm on "
+            "channel %u\n",
+            routerSSID.c_str(), rssi, channel);
         return rssi;
       }
     }
@@ -1747,7 +1763,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     electionState = ELECTION_SCANNING;
 
     // Scan for router to get RSSI
-    int8_t routerRSSI = scanRouterSignalStrength(routerSSID);
+    uint8_t routerChannel = 0;
+    int8_t routerRSSI =
+        scanRouterSignalStrength(routerSSID, &routerChannel);
 
     if (routerRSSI == 0) {
       Log(CONNECTION,
@@ -1766,6 +1784,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     BridgeCandidate selfCandidate;
     selfCandidate.nodeId = this->nodeId;
     selfCandidate.routerRSSI = routerRSSI;
+    selfCandidate.routerChannel = routerChannel;
     selfCandidate.uptime = millis();
     selfCandidate.freeMemory = ESP.getFreeHeap();
     electionCandidates.push_back(selfCandidate);
@@ -1778,6 +1797,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["from"] = this->nodeId;
     obj["routing"] = 2;  // BROADCAST
     obj["routerRSSI"] = routerRSSI;
+    obj["routerChannel"] = routerChannel;
     obj["uptime"] = millis();
     obj["freeMemory"] = ESP.getFreeHeap();
     obj["timestamp"] = this->getNodeTime();
@@ -1910,7 +1930,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     if (winner->nodeId == this->nodeId) {
       Log(CONNECTION, "[TARGET] I WON! Promoting to bridge...\n");
-      promoteToBridge();
+      promoteToBridge(winner->routerChannel);
     } else {
       Log(CONNECTION, "Winner is node %u, remaining as regular node\n",
           winner->nodeId);
@@ -1932,7 +1952,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Instead, we schedule the actual promotion work to run after the current
    * task completes, allowing safe cleanup of task structures.
    */
-  void promoteToBridge() {
+  void promoteToBridge(uint8_t routerChannel) {
     using namespace logger;
 
     Log(STARTUP, "=== Becoming Bridge Node ===\n");
@@ -1958,6 +1978,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["previousBridge"] = previousBridgeId;
     obj["reason"] = "Election winner - best router signal";
     obj["routerRSSI"] = 0;  // Not yet connected to router
+    obj["routerChannel"] = routerChannel;
     obj["timestamp"] = this->getNodeTime();
     obj["message_type"] = protocol::BRIDGE_TAKEOVER;
 
@@ -2160,7 +2181,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Called by package handler when election message arrives
    */
   void handleBridgeElection(uint32_t fromNode, int8_t routerRSSI,
-                            uint32_t uptime, uint32_t freeMemory) {
+                            uint8_t routerChannel, uint32_t uptime,
+                            uint32_t freeMemory) {
     using namespace logger;
 
     if (electionState != ELECTION_COLLECTING) {
@@ -2182,6 +2204,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     BridgeCandidate candidate;
     candidate.nodeId = fromNode;
     candidate.routerRSSI = routerRSSI;
+    candidate.routerChannel = routerChannel;
     candidate.uptime = uptime;
     candidate.freeMemory = freeMemory;
 
@@ -2818,6 +2841,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   struct BridgeCandidate {
     uint32_t nodeId;
     int8_t routerRSSI;
+    uint8_t routerChannel;
     uint32_t uptime;
     uint32_t freeMemory;
   };

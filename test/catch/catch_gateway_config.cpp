@@ -11,6 +11,17 @@ using namespace painlessmesh::gateway;
 // Logger for test environment
 painlessmesh::logger::LogClass Log;
 
+SCENARIO("Bridge takeover channel handoff is fail closed") {
+    constexpr uint32_t localNode = 100;
+    constexpr uint32_t electedBridge = 200;
+
+    REQUIRE(shouldFollowBridgeChannel(localNode, electedBridge, 1, 6));
+    REQUIRE_FALSE(shouldFollowBridgeChannel(localNode, localNode, 1, 6));
+    REQUIRE_FALSE(shouldFollowBridgeChannel(localNode, electedBridge, 6, 6));
+    REQUIRE_FALSE(shouldFollowBridgeChannel(localNode, electedBridge, 1, 0));
+    REQUIRE_FALSE(shouldFollowBridgeChannel(localNode, electedBridge, 1, 14));
+}
+
 SCENARIO("SharedGatewayConfig has sensible defaults") {
     GIVEN("A default SharedGatewayConfig") {
         SharedGatewayConfig config;
