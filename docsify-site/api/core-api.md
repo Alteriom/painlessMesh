@@ -183,13 +183,10 @@ options.ackCallback = [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
 mesh.sendBroadcast(alarmMsg, options);
 ```
 
-**Priority is carried across hops (v2.0.0+).** The priority level is
+**Priority is carried across hops in version 2.0.** The priority level is
 serialized on the wire (as `"prio"`, only when it deviates from
 `PRIORITY_NORMAL`, so default sends carry zero overhead) and every
-forwarding node re-enqueues the package at the sender's priority. Before
-v2.0.0 priority only affected the first hop's transmit queue and was
-silently dropped on forwarding. Pre-2.0 nodes ignore the field and forward
-at normal priority.
+forwarding node re-enqueues the package at the sender's priority.
 
 #### `checkAcks()`
 

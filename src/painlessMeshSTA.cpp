@@ -40,7 +40,7 @@ void ICACHE_FLASH_ATTR StationScan::init(painlessmesh::wifi::Mesh *pMesh,
 void ICACHE_FLASH_ATTR StationScan::stationScan() {
   using namespace painlessmesh::logger;
   Log(CONNECTION, "stationScan(): %s\n", ssid.c_str());
-  
+
   // If channel is 0, auto-detect the mesh channel first
   if (channel == 0) {
     Log(STARTUP, "stationScan(): Auto-detecting mesh channel...\n");
@@ -49,7 +49,8 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
       uint8_t oldChannel = mesh->_meshChannel;
       mesh->_meshChannel = detectedChannel;
       channel = detectedChannel;
-      Log(STARTUP, "stationScan(): Mesh channel auto-detected: %d\n", detectedChannel);
+      Log(STARTUP, "stationScan(): Mesh channel auto-detected: %d\n",
+          detectedChannel);
       // init() has already created the AP.  When channel 0 was requested and
       // no peer was visible during that first instant, the ESP Wi-Fi stack
       // created it on channel 1.  Recreate it on the detected channel before
@@ -160,11 +161,14 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   });
 }
 
-void ICACHE_FLASH_ATTR StationScan::blockNodeAfterTCPFailure(uint32_t nodeId, uint32_t blockDurationMs) {
+void ICACHE_FLASH_ATTR StationScan::blockNodeAfterTCPFailure(
+    uint32_t nodeId, uint32_t blockDurationMs) {
   using namespace painlessmesh::logger;
   uint32_t blockUntil = millis() + blockDurationMs;
   tcpFailureBlocklist[nodeId] = blockUntil;
-  Log(CONNECTION, "blockNodeAfterTCPFailure(): Node %u blocked until %u (duration: %u ms)\n",
+  Log(CONNECTION,
+      "blockNodeAfterTCPFailure(): Node %u blocked until %u (duration: %u "
+      "ms)\n",
       nodeId, blockUntil, blockDurationMs);
 }
 
@@ -173,12 +177,13 @@ bool ICACHE_FLASH_ATTR StationScan::isNodeBlocked(uint32_t nodeId) const {
   if (it == tcpFailureBlocklist.end()) {
     return false;  // Not in blocklist
   }
-  
+
   uint32_t now = millis();
   uint32_t blockUntil = it->second;
-  
+
   // Handle millis() rollover using signed arithmetic
-  // If blockUntil - now is positive and < MILLIS_ROLLOVER_THRESHOLD, the block is still active
+  // If blockUntil - now is positive and < MILLIS_ROLLOVER_THRESHOLD, the block
+  // is still active
   int32_t timeRemaining = (int32_t)(blockUntil - now);
   return (timeRemaining > 0 && timeRemaining < MILLIS_ROLLOVER_THRESHOLD);
 }
@@ -186,15 +191,18 @@ bool ICACHE_FLASH_ATTR StationScan::isNodeBlocked(uint32_t nodeId) const {
 void ICACHE_FLASH_ATTR StationScan::cleanupBlocklist() {
   using namespace painlessmesh::logger;
   uint32_t now = millis();
-  
+
   auto it = tcpFailureBlocklist.begin();
   while (it != tcpFailureBlocklist.end()) {
     uint32_t blockUntil = it->second;
     int32_t timeRemaining = (int32_t)(blockUntil - now);
-    
-    // Remove expired entries (timeRemaining <= 0 or in far future due to rollover)
+
+    // Remove expired entries (timeRemaining <= 0 or in far future due to
+    // rollover)
     if (timeRemaining <= 0 || timeRemaining >= MILLIS_ROLLOVER_THRESHOLD) {
-      Log(CONNECTION, "cleanupBlocklist(): Removing expired entry for node %u\n", it->first);
+      Log(CONNECTION,
+          "cleanupBlocklist(): Removing expired entry for node %u\n",
+          it->first);
       it = tcpFailureBlocklist.erase(it);
     } else {
       ++it;
@@ -205,26 +213,28 @@ void ICACHE_FLASH_ATTR StationScan::cleanupBlocklist() {
 void ICACHE_FLASH_ATTR StationScan::filterAPs() {
   // First, clean up expired blocklist entries
   cleanupBlocklist();
-  
+
   auto ap = aps.begin();
   while (ap != aps.end()) {
     auto apNodeId = painlessmesh::tcp::encodeNodeId(ap->bssid);
-    
+
     // Filter out nodes we're already connected to
     if (painlessmesh::router::findRoute<painlessmesh::Connection>(
             (*mesh), apNodeId) != NULL) {
       ap = aps.erase(ap);
       continue;
     }
-    
+
     // Filter out nodes that are temporarily blocked due to TCP failures
     if (isNodeBlocked(apNodeId)) {
       using namespace painlessmesh::logger;
-      Log(CONNECTION, "filterAPs(): Skipping blocked node %u (TCP server unresponsive)\n", apNodeId);
+      Log(CONNECTION,
+          "filterAPs(): Skipping blocked node %u (TCP server unresponsive)\n",
+          apNodeId);
       ap = aps.erase(ap);
       continue;
     }
-    
+
     ap++;
   }
 }
@@ -233,11 +243,11 @@ void ICACHE_FLASH_ATTR StationScan::requestIP(WiFi_AP_Record_t &ap) {
   using namespace painlessmesh::logger;
   Log(CONNECTION, "connectToAP(): Best AP is %u<---\n",
       painlessmesh::tcp::encodeNodeId(ap.bssid));
-  Log(CONNECTION, "requestIP(): Connecting to %s (channel: %d, BSSID: %02X:%02X:%02X:%02X:%02X:%02X)\n", 
-      ap.ssid.c_str(), 
-      mesh->_meshChannel,
-      ap.bssid[0], ap.bssid[1], ap.bssid[2], 
-      ap.bssid[3], ap.bssid[4], ap.bssid[5]);
+  Log(CONNECTION,
+      "requestIP(): Connecting to %s (channel: %d, BSSID: "
+      "%02X:%02X:%02X:%02X:%02X:%02X)\n",
+      ap.ssid.c_str(), mesh->_meshChannel, ap.bssid[0], ap.bssid[1],
+      ap.bssid[2], ap.bssid[3], ap.bssid[4], ap.bssid[5]);
   WiFi.begin(ap.ssid.c_str(), password.c_str(), mesh->_meshChannel, ap.bssid);
   return;
 }
@@ -264,8 +274,9 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
       } else {
         // For manual router connections, reconnect directly using WiFi.begin()
         // Don't rely on scan results since router may be on different channel
-        Log(CONNECTION, 
-            "connectToAP(): Manual connection - attempting to reconnect to %s\n",
+        Log(CONNECTION,
+            "connectToAP(): Manual connection - attempting to reconnect to "
+            "%s\n",
             ssid.c_str());
         WiFi.begin(ssid.c_str(), password.c_str());
         task.enableDelayed(SCAN_INTERVAL);
@@ -277,51 +288,57 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   if (aps.empty()) {
     // No unknown nodes found
     consecutiveEmptyScans++;
-    
+
     // If we've had multiple consecutive empty scans and we're not connected,
     // trigger a full channel re-scan to find the mesh
-    if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD && 
-        WiFi.status() != WL_CONNECTED &&
-        channel > 0) {
+    if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD &&
+        WiFi.status() != WL_CONNECTED && channel > 0) {
       Log(CONNECTION,
-          "connectToAP(): No mesh nodes found for %d scans, triggering channel re-detection\n",
+          "connectToAP(): No mesh nodes found for %d scans, triggering channel "
+          "re-detection\n",
           consecutiveEmptyScans);
-      
+
       // Perform full channel scan to find the mesh
       uint8_t detectedChannel = scanForMeshChannel(ssid, hidden);
       if (detectedChannel > 0 && detectedChannel != mesh->_meshChannel) {
         Log(CONNECTION,
-            "connectToAP(): Mesh found on different channel %d (was %d), updating...\n",
+            "connectToAP(): Mesh found on different channel %d (was %d), "
+            "updating...\n",
             detectedChannel, mesh->_meshChannel);
-        
+
         // Update mesh channel
         uint8_t oldChannel = mesh->_meshChannel;
         mesh->_meshChannel = detectedChannel;
         channel = detectedChannel;
-        
+
         // Restart AP on new channel to match the mesh
-        // This ensures this node's AP is also discoverable on the correct channel
+        // This ensures this node's AP is also discoverable on the correct
+        // channel
         if (WiFi.getMode() & WIFI_AP) {
           Log(CONNECTION,
               "connectToAP(): Restarting AP from channel %d to channel %d\n",
               oldChannel, detectedChannel);
-          
+
           // Disconnect AP and allow WiFi stack to fully reset
           // Using true parameter ensures DHCP server is properly stopped
           WiFi.softAPdisconnect(true);
           delay(200);  // Increased delay to ensure complete WiFi stack reset
-          
-          // Call apInit via friend class access (StationScan is friend of wifi::Mesh)
+
+          // Call apInit via friend class access (StationScan is friend of
+          // wifi::Mesh)
           mesh->apInit(mesh->getNodeId());
-          
+
           // Additional stabilization delay after AP restart
-          // This ensures DHCP server is fully initialized before clients connect
+          // This ensures DHCP server is fully initialized before clients
+          // connect
           delay(100);
-          
-          Log(CONNECTION, "connectToAP(): AP restarted on channel %d\n", detectedChannel);
+
+          Log(CONNECTION, "connectToAP(): AP restarted on channel %d\n",
+              detectedChannel);
         }
         // Reset counter only when mesh is found on a new channel
-        // This allows isolated bridge retry to continue when mesh is truly absent
+        // This allows isolated bridge retry to continue when mesh is truly
+        // absent
         consecutiveEmptyScans = 0;
       } else if (detectedChannel == 0) {
         Log(CONNECTION,
@@ -331,15 +348,17 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
         // the counter exceeds ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD
       } else {
         // detectedChannel == mesh->_meshChannel
-        // Mesh found on same channel we're already on - no channel change needed
-        // Reset counter since mesh exists, nodes may appear in subsequent scans
+        // Mesh found on same channel we're already on - no channel change
+        // needed Reset counter since mesh exists, nodes may appear in
+        // subsequent scans
         Log(CONNECTION,
-            "connectToAP(): Mesh found on current channel %d, no channel change needed\n",
+            "connectToAP(): Mesh found on current channel %d, no channel "
+            "change needed\n",
             detectedChannel);
         consecutiveEmptyScans = 0;
       }
     }
-    
+
     if (WiFi.status() == WL_CONNECTED &&
         !(mesh->shouldContainRoot && !isRooted)) {
       // if already connected -> scan slow
@@ -399,48 +418,99 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   }
 }
 
+bool ICACHE_FLASH_ATTR StationScan::followBridgeChannel(uint8_t targetChannel) {
+  using namespace painlessmesh::logger;
+
+  if (!painlessmesh::gateway::isValidMeshChannel(targetChannel) ||
+      mesh == nullptr) {
+    Log(ERROR, "followBridgeChannel(): Ignoring invalid bridge channel %u\n",
+        targetChannel);
+    return false;
+  }
+
+  if (mesh->_meshChannel == targetChannel) return false;
+
+  uint8_t previousChannel = mesh->_meshChannel;
+  Log(CONNECTION,
+      "followBridgeChannel(): Moving mesh from channel %u to bridge channel "
+      "%u\n",
+      previousChannel, targetChannel);
+
+  // Discard any asynchronous result from the old channel before changing the
+  // radio, otherwise its callback can move the node back after the takeover.
+  WiFi.scanDelete();
+  task.disable();
+  mesh->closeConnectionSTA();
+  WiFi.disconnect();
+  delay(100);
+
+  mesh->_meshChannel = targetChannel;
+  channel = targetChannel;
+  consecutiveEmptyScans = 0;
+
+  if (WiFi.getMode() & WIFI_AP) {
+    WiFi.softAPdisconnect(true);
+    delay(100);
+    mesh->apInit(mesh->getNodeId());
+    delay(100);
+  }
+
+  // Resume discovery immediately. The old recovery path required repeated
+  // empty scans and exceeded the gateway failover contract.
+  task.enable();
+  task.forceNextIteration();
+  return true;
+}
+
 // Helper function to scan all channels for a specific mesh SSID
 // Returns the channel number if found, or 0 if not found
-uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool meshHidden) {
+uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID,
+                                                          bool meshHidden) {
   using namespace painlessmesh::logger;
-  Log(CONNECTION, "scanForMeshChannel(): Scanning all channels for mesh '%s'...\n", meshSSID.c_str());
-  
+  Log(CONNECTION,
+      "scanForMeshChannel(): Scanning all channels for mesh '%s'...\n",
+      meshSSID.c_str());
+
   // Scan all channels (0 means scan all)
 #ifdef ESP32
   int16_t numNetworks = WiFi.scanNetworks(false, meshHidden, false, 300U, 0);
 #elif defined(ESP8266)
   int16_t numNetworks = WiFi.scanNetworks(false, meshHidden, 0);
 #endif
-  
+
   if (numNetworks == WIFI_SCAN_FAILED) {
     Log(ERROR, "scanForMeshChannel(): WiFi scan failed\n");
     return 0;
   }
-  
+
   Log(CONNECTION, "scanForMeshChannel(): Found %d networks\n", numNetworks);
-  
+
   // Search for the mesh SSID in scan results
   for (int16_t i = 0; i < numNetworks; ++i) {
     TSTRING foundSSID = WiFi.SSID(i);
     uint8_t foundChannel = WiFi.channel(i);
     int32_t rssi = WiFi.RSSI(i);
-    
+
     // Check if this is our mesh network
     if (foundSSID == meshSSID || (foundSSID == "" && meshHidden)) {
       // Validate channel is in valid range (1-13 for 2.4GHz)
       if (foundChannel >= 1 && foundChannel <= 13) {
-        Log(CONNECTION, "scanForMeshChannel(): Found mesh on channel %d (RSSI: %d)\n", 
+        Log(CONNECTION,
+            "scanForMeshChannel(): Found mesh on channel %d (RSSI: %d)\n",
             foundChannel, rssi);
         WiFi.scanDelete();
         return foundChannel;
       } else {
-        Log(ERROR, "scanForMeshChannel(): Found mesh on invalid channel %d, ignoring\n", 
+        Log(ERROR,
+            "scanForMeshChannel(): Found mesh on invalid channel %d, "
+            "ignoring\n",
             foundChannel);
       }
     }
   }
-  
-  Log(CONNECTION, "scanForMeshChannel(): Mesh '%s' not found on any channel\n", meshSSID.c_str());
+
+  Log(CONNECTION, "scanForMeshChannel(): Mesh '%s' not found on any channel\n",
+      meshSSID.c_str());
   WiFi.scanDelete();
   return 0;  // Not found
 }

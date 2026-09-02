@@ -112,11 +112,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           if (obj["routerRSSI"].is<int>()) {
             uint32_t fromNode = obj["from"];
             int8_t routerRSSI = obj["routerRSSI"];
+            uint8_t routerChannel = obj["routerChannel"] | 0;
             uint32_t uptime = obj["uptime"] | 0;
             uint32_t freeMemory = obj["freeMemory"] | 0;
 
-            this->handleBridgeElection(fromNode, routerRSSI, uptime,
-                                       freeMemory);
+            this->handleBridgeElection(fromNode, routerRSSI, routerChannel,
+                                       uptime, freeMemory);
 
             Log(CONNECTION, "Bridge election candidate from %u: RSSI %d dBm\n",
                 fromNode, routerRSSI);
@@ -139,9 +140,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             uint32_t newBridge = obj["from"];
             uint32_t previousBridge = obj["previousBridge"];
             TSTRING reason = obj["reason"].as<TSTRING>();
+            uint8_t routerChannel = obj["routerChannel"] | 0;
 
-            Log(CONNECTION, "Bridge takeover: Node %u replaced %u (%s)\n",
-                newBridge, previousBridge, reason.c_str());
+            Log(CONNECTION,
+                "Bridge takeover: Node %u replaced %u on channel %u (%s)\n",
+                newBridge, previousBridge, routerChannel, reason.c_str());
+
+            // AP+STA radios must use one channel. Follow the elected bridge
+            // promptly instead of waiting for the slow empty-scan recovery.
+            if (gateway::shouldFollowBridgeChannel(
+                    this->nodeId, newBridge, _meshChannel, routerChannel)) {
+              this->addTask(1000, TASK_ONCE, [this, routerChannel]() {
+                stationScan.followBridgeChannel(routerChannel);
+              });
+            }
 
             // Notify callback if this node was not the winner
             if (newBridge != this->nodeId && bridgeRoleChangedCallback) {
@@ -386,7 +398,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     using namespace logger;
 
     Log(STARTUP, "=== Bridge Mode Initialization ===\n");
-    Log(STARTUP, "Step 1: Attempting to connect to router %s...\n", routerSSID.c_str());
+    Log(STARTUP, "Step 1: Attempting to connect to router %s...\n",
+        routerSSID.c_str());
 
     // Store router credentials for future connection attempts
     setRouterCredentials(routerSSID, routerPassword);
@@ -411,7 +424,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     int timeout = 30;  // 30 seconds timeout
     while (WiFi.status() != WL_CONNECTED && timeout > 0) {
       // Allow event loop processing during hardware settling
-      for (int i = 0; i < 100; i++) { delay(10); yield(); }
+      for (int i = 0; i < 100; i++) {
+        delay(10);
+        yield();
+      }
       timeout--;
       Log(STARTUP, ".");
     }
@@ -424,35 +440,41 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       // Validate channel is in valid range (1-13 for 2.4GHz)
       if (detectedChannel < 1 || detectedChannel > 13) {
         Log(ERROR,
-            "\n[FAIL] Invalid channel detected: %d, falling back to channel 1\n",
+            "\n[FAIL] Invalid channel detected: %d, falling back to channel "
+            "1\n",
             detectedChannel);
         detectedChannel = 1;
       } else {
-        Log(STARTUP, "\n[OK] Router connected on channel %d\n", detectedChannel);
+        Log(STARTUP, "\n[OK] Router connected on channel %d\n",
+            detectedChannel);
         Log(STARTUP, "[OK] Router IP: %s\n", WiFi.localIP().toString().c_str());
         routerConnected = true;
       }
     } else {
-      Log(STARTUP, "\n[WARN] Router connection unavailable during initialization\n");
-      
+      Log(STARTUP,
+          "\n[WARN] Router connection unavailable during initialization\n");
+
       // Scan for router to detect its channel even though we can't connect
       // This minimizes channel mismatch when router becomes available later
-      Log(STARTUP, "[WARN] Scanning for router '%s' to detect channel...\n", routerSSID.c_str());
-      
+      Log(STARTUP, "[WARN] Scanning for router '%s' to detect channel...\n",
+          routerSSID.c_str());
+
       // ESP32 and ESP8266 have different scanNetworks signatures
 #ifdef ESP32
       int16_t numNetworks = WiFi.scanNetworks(false, false, false, 300U, 0);
 #elif defined(ESP8266)
       int16_t numNetworks = WiFi.scanNetworks(false, false, 0);
 #endif
-      
+
       if (numNetworks > 0) {
         for (int16_t i = 0; i < numNetworks; i++) {
           if (WiFi.SSID(i) == routerSSID) {
             uint8_t scannedChannel = WiFi.channel(i);
             if (scannedChannel >= 1 && scannedChannel <= 13) {
               detectedChannel = scannedChannel;
-              Log(STARTUP, "[OK] Router found on channel %d (not connected, will retry)\n", 
+              Log(STARTUP,
+                  "[OK] Router found on channel %d (not connected, will "
+                  "retry)\n",
                   detectedChannel);
               break;
             }
@@ -460,13 +482,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         }
         WiFi.scanDelete();
       }
-      
+
       if (detectedChannel == 1) {
-        Log(STARTUP, "[WARN] Router not found in scan, using default channel %d\n", detectedChannel);
+        Log(STARTUP,
+            "[WARN] Router not found in scan, using default channel %d\n",
+            detectedChannel);
       }
-      
-      Log(STARTUP, "[WARN] Proceeding with bridge setup on channel %d\n", detectedChannel);
-      Log(STARTUP, "[WARN] Bridge will retry router connection in background\n");
+
+      Log(STARTUP, "[WARN] Proceeding with bridge setup on channel %d\n",
+          detectedChannel);
+      Log(STARTUP,
+          "[WARN] Bridge will retry router connection in background\n");
     }
 
     Log(STARTUP, "Step 2: Initializing mesh on channel %d...\n",
@@ -489,7 +515,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Step 4: Configure as root/bridge node
     // Bridge role is established regardless of router connectivity
-    // This ensures mesh nodes can connect and the bridge can provide mesh services
+    // This ensures mesh nodes can connect and the bridge can provide mesh
+    // services
     this->setRoot(true);
     this->setContainsRoot(true);
 
@@ -501,18 +528,21 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     Log(STARTUP, "=== Bridge Mode Active ===\n");
     Log(STARTUP, "  Mesh SSID: %s\n", meshSSID.c_str());
-    Log(STARTUP, "  Mesh Channel: %d%s\n", detectedChannel, 
+    Log(STARTUP, "  Mesh Channel: %d%s\n", detectedChannel,
         routerConnected ? " (matches router)" : " (default, router pending)");
     Log(STARTUP, "  Router: %s%s\n", routerSSID.c_str(),
         routerConnected ? " (connected)" : " (will retry)");
     Log(STARTUP, "  Port: %d\n", port);
-    
+
     if (!routerConnected) {
       Log(STARTUP, "\nINFO: Bridge initialized without router connection\n");
-      Log(STARTUP, "INFO: Mesh network is active and accepting node connections\n");
-      Log(STARTUP, "INFO: Router connection will be established automatically when available\n");
+      Log(STARTUP,
+          "INFO: Mesh network is active and accepting node connections\n");
+      Log(STARTUP,
+          "INFO: Router connection will be established automatically when "
+          "available\n");
     }
-    
+
     // Always returns true: bridge mesh functionality is active regardless of
     // router connection status. The router connection is opportunistic.
     return true;
@@ -642,7 +672,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     int timeout = ROUTER_CONNECTION_TIMEOUT_SECONDS;
     while (WiFi.status() != WL_CONNECTED && timeout > 0) {
       // Allow event loop processing during hardware settling
-      for (int i = 0; i < 100; i++) { delay(10); yield(); }
+      for (int i = 0; i < 100; i++) {
+        delay(10);
+        yield();
+      }
       timeout--;
       Log(STARTUP, ".");
     }
@@ -655,15 +688,18 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       if (detectedChannel < MIN_WIFI_CHANNEL ||
           detectedChannel > MAX_WIFI_CHANNEL) {
         Log(ERROR,
-            "\n[FAIL] Invalid channel detected: %d, falling back to channel 1\n",
+            "\n[FAIL] Invalid channel detected: %d, falling back to channel "
+            "1\n",
             detectedChannel);
         detectedChannel = 1;
       } else {
-        Log(STARTUP, "\n[OK] Router connected on channel %d\n", detectedChannel);
+        Log(STARTUP, "\n[OK] Router connected on channel %d\n",
+            detectedChannel);
         Log(STARTUP, "[OK] Router IP: %s\n", WiFi.localIP().toString().c_str());
       }
     } else {
-      Log(ERROR, "\n[FAIL] Failed to connect to router during channel detection\n");
+      Log(ERROR,
+          "\n[FAIL] Failed to connect to router during channel detection\n");
       Log(ERROR,
           "Continuing with default channel 1, will retry router connection "
           "later\n");
@@ -869,7 +905,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                 "tcpConnect(): Starting TCP connection after stabilization\n");
             AsyncClient* pConn = new AsyncClient();
             // Use wifi::Mesh type to enable blocklist functionality
-            // This allows tcp::connect to call blockNodeAfterTCPFailure on retry exhaustion
+            // This allows tcp::connect to call blockNodeAfterTCPFailure on
+            // retry exhaustion
             painlessmesh::tcp::connect<Connection, wifi::Mesh>(
                 (*pConn), targetIP, targetPort, (*this));
           });
@@ -880,27 +917,32 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
   /**
    * Block a node after TCP connection failure
-   * 
-   * This prevents the node from being repeatedly selected for connection attempts
-   * when its TCP server is unresponsive. The block is temporary and will expire
-   * after the configured duration.
-   * 
+   *
+   * This prevents the node from being repeatedly selected for connection
+   * attempts when its TCP server is unresponsive. The block is temporary and
+   * will expire after the configured duration.
+   *
    * @param ip The IP address of the failed node
-   * @param blockDurationMs Duration to block the node in milliseconds (default: 60s)
+   * @param blockDurationMs Duration to block the node in milliseconds (default:
+   * 60s)
    */
-  void blockNodeAfterTCPFailure(IPAddress ip, uint32_t blockDurationMs = painlessmesh::tcp::TCP_FAILURE_BLOCK_DURATION_MS) {
+  void blockNodeAfterTCPFailure(
+      IPAddress ip, uint32_t blockDurationMs =
+                        painlessmesh::tcp::TCP_FAILURE_BLOCK_DURATION_MS) {
     using namespace logger;
     uint32_t nodeId = painlessmesh::tcp::decodeNodeIdFromIP(ip);
-    
+
     if (nodeId == 0) {
-      Log(CONNECTION, "blockNodeAfterTCPFailure(): Invalid mesh IP %s, cannot block\n",
+      Log(CONNECTION,
+          "blockNodeAfterTCPFailure(): Invalid mesh IP %s, cannot block\n",
           ip.toString().c_str());
       return;
     }
-    
-    Log(CONNECTION, "blockNodeAfterTCPFailure(): Blocking node %u (IP: %s) for %u ms\n",
+
+    Log(CONNECTION,
+        "blockNodeAfterTCPFailure(): Blocking node %u (IP: %s) for %u ms\n",
         nodeId, ip.toString().c_str(), blockDurationMs);
-    
+
     stationScan.blockNodeAfterTCPFailure(nodeId, blockDurationMs);
   }
 
@@ -1032,50 +1074,47 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Non-bridge nodes don't run initBridgeCoordination(), so register
     // a Type 613 handler here so they can still receive coordination traffic.
     if (!this->isBridge()) {
-      this->callbackList.onPackage(
-          613,
-          [this](protocol::Variant& variant, std::shared_ptr<Connection>,
-                 uint32_t) {
-            JsonDocument doc;
-            TSTRING str;
-            variant.printTo(str);
-            deserializeJson(doc, str);
-            JsonObject obj = doc.as<JsonObject>();
+      this->callbackList.onPackage(613, [this](protocol::Variant& variant,
+                                               std::shared_ptr<Connection>,
+                                               uint32_t) {
+        JsonDocument doc;
+        TSTRING str;
+        variant.printTo(str);
+        deserializeJson(doc, str);
+        JsonObject obj = doc.as<JsonObject>();
 
-            if (obj["priority"].is<unsigned int>()) {
-              uint32_t fromNode = obj["from"];
-              plugin::BridgeCoordinationPackage pkg(obj);
+        if (obj["priority"].is<unsigned int>()) {
+          uint32_t fromNode = obj["from"];
+          plugin::BridgeCoordinationPackage pkg(obj);
 
-              if (this->bridgeCoordinationCallback) {
-                this->bridgeCoordinationCallback(pkg, fromNode);
-              }
+          if (this->bridgeCoordinationCallback) {
+            this->bridgeCoordinationCallback(pkg, fromNode);
+          }
 
-              // Change detection for non-bridge nodes
-              if (this->bridgeCoordinationChangedCallback) {
-                auto it = this->lastBridgeCoordinationState.find(fromNode);
-                if (it == this->lastBridgeCoordinationState.end()) {
-                  this->lastBridgeCoordinationState[fromNode] = {
-                      pkg.priority, pkg.role, pkg.load, (uint32_t)millis()};
-                  this->bridgeCoordinationChangedCallback(pkg, fromNode,
-                                                          "new");
-                } else {
-                  auto& prev = it->second;
-                  bool changed = (prev.priority != pkg.priority ||
-                                  prev.role != pkg.role ||
-                                  prev.load != pkg.load);
-                  prev.priority = pkg.priority;
-                  prev.role = pkg.role;
-                  prev.load = pkg.load;
-                  prev.lastSeen = (uint32_t)millis();
-                  if (changed) {
-                    this->bridgeCoordinationChangedCallback(pkg, fromNode,
-                                                            "updated");
-                  }
-                }
+          // Change detection for non-bridge nodes
+          if (this->bridgeCoordinationChangedCallback) {
+            auto it = this->lastBridgeCoordinationState.find(fromNode);
+            if (it == this->lastBridgeCoordinationState.end()) {
+              this->lastBridgeCoordinationState[fromNode] = {
+                  pkg.priority, pkg.role, pkg.load, (uint32_t)millis()};
+              this->bridgeCoordinationChangedCallback(pkg, fromNode, "new");
+            } else {
+              auto& prev = it->second;
+              bool changed = (prev.priority != pkg.priority ||
+                              prev.role != pkg.role || prev.load != pkg.load);
+              prev.priority = pkg.priority;
+              prev.role = pkg.role;
+              prev.load = pkg.load;
+              prev.lastSeen = (uint32_t)millis();
+              if (changed) {
+                this->bridgeCoordinationChangedCallback(pkg, fromNode,
+                                                        "updated");
               }
             }
-            return false;
-          });
+          }
+        }
+        return false;
+      });
       Log(GENERAL,
           "onBridgeCoordination(): Registered Type 613 handler for non-bridge "
           "node\n");
@@ -1100,28 +1139,27 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Start periodic lost-detection task (every 30 seconds, check for
     // bridges that haven't sent a coordination message in 60 seconds)
-    bridgeLostDetectionTask = this->addTask(
-        30000, TASK_FOREVER, [this]() {
-          uint32_t now = (uint32_t)millis();
-          for (auto it = this->lastBridgeCoordinationState.begin();
-               it != this->lastBridgeCoordinationState.end();) {
-            if ((now - it->second.lastSeen) > 60000) {
-              uint32_t lostNode = it->first;
-              // Create a package with last known state for the callback
-              plugin::BridgeCoordinationPackage pkg;
-              pkg.from = lostNode;
-              pkg.priority = it->second.priority;
-              pkg.role = it->second.role;
-              pkg.load = it->second.load;
-              it = this->lastBridgeCoordinationState.erase(it);
-              if (this->bridgeCoordinationChangedCallback) {
-                this->bridgeCoordinationChangedCallback(pkg, lostNode, "lost");
-              }
-            } else {
-              ++it;
-            }
+    bridgeLostDetectionTask = this->addTask(30000, TASK_FOREVER, [this]() {
+      uint32_t now = (uint32_t)millis();
+      for (auto it = this->lastBridgeCoordinationState.begin();
+           it != this->lastBridgeCoordinationState.end();) {
+        if ((now - it->second.lastSeen) > 60000) {
+          uint32_t lostNode = it->first;
+          // Create a package with last known state for the callback
+          plugin::BridgeCoordinationPackage pkg;
+          pkg.from = lostNode;
+          pkg.priority = it->second.priority;
+          pkg.role = it->second.role;
+          pkg.load = it->second.load;
+          it = this->lastBridgeCoordinationState.erase(it);
+          if (this->bridgeCoordinationChangedCallback) {
+            this->bridgeCoordinationChangedCallback(pkg, lostNode, "lost");
           }
-        });
+        } else {
+          ++it;
+        }
+      }
+    });
 
     Log(GENERAL,
         "onBridgeCoordinationChanged(): Lost detection task started "
@@ -1393,10 +1431,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         "initBridgeStatusBroadcast(): Setting up bridge status broadcast\n");
 
     // CRITICAL FIX: Schedule tasks with a small delay to avoid crashes when
-    // called immediately after stop()/init cycle. The delay allows the scheduler
-    // and internal task structures to stabilize before adding new tasks.
-    // This fixes the "Load access fault" Guru Meditation error that occurred
-    // when promoting to bridge role.
+    // called immediately after stop()/init cycle. The delay allows the
+    // scheduler and internal task structures to stabilize before adding new
+    // tasks. This fixes the "Load access fault" Guru Meditation error that
+    // occurred when promoting to bridge role.
     const uint32_t INIT_DELAY_MS = 100;
 
     // Register ourselves as a bridge in the knownBridges list
@@ -1424,8 +1462,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Create periodic task to broadcast bridge status
     // Schedule with delay to avoid crashes during stop/init cycle
     this->addTask(INIT_DELAY_MS, TASK_ONCE, [this]() {
-      bridgeStatusTask = this->addTask(this->bridgeStatusIntervalMs, TASK_FOREVER,
-                                       [this]() { this->sendBridgeStatus(); });
+      bridgeStatusTask =
+          this->addTask(this->bridgeStatusIntervalMs, TASK_FOREVER,
+                        [this]() { this->sendBridgeStatus(); });
     });
 
     // Send immediate broadcast so nodes can discover this bridge right away
@@ -1581,8 +1620,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               } else {
                 auto& prev = it->second;
                 bool changed = (prev.priority != priority ||
-                                prev.role != role ||
-                                prev.load != load);
+                                prev.role != role || prev.load != load);
                 prev.priority = priority;
                 prev.role = role;
                 prev.load = load;
@@ -1664,7 +1702,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * @param routerSSID SSID of router to scan for
    * @return RSSI in dBm (negative number, -127 to 0), or 0 if not found
    */
-  int8_t scanRouterSignalStrength(TSTRING routerSSID) {
+  int8_t scanRouterSignalStrength(TSTRING routerSSID,
+                                  uint8_t* routerChannel = nullptr) {
     using namespace logger;
     Log(CONNECTION, "scanRouterSignalStrength(): Scanning for %s...\n",
         routerSSID.c_str());
@@ -1675,9 +1714,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     for (int i = 0; i < n; i++) {
       if (WiFi.SSID(i) == routerSSID) {
         int8_t rssi = WiFi.RSSI(i);
+        uint8_t channel = WiFi.channel(i);
+        if (routerChannel != nullptr) *routerChannel = channel;
         Log(CONNECTION,
-            "scanRouterSignalStrength(): Found %s with RSSI %d dBm\n",
-            routerSSID.c_str(), rssi);
+            "scanRouterSignalStrength(): Found %s with RSSI %d dBm on "
+            "channel %u\n",
+            routerSSID.c_str(), rssi, channel);
         return rssi;
       }
     }
@@ -1747,7 +1789,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     electionState = ELECTION_SCANNING;
 
     // Scan for router to get RSSI
-    int8_t routerRSSI = scanRouterSignalStrength(routerSSID);
+    uint8_t routerChannel = 0;
+    int8_t routerRSSI = scanRouterSignalStrength(routerSSID, &routerChannel);
 
     if (routerRSSI == 0) {
       Log(CONNECTION,
@@ -1766,6 +1809,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     BridgeCandidate selfCandidate;
     selfCandidate.nodeId = this->nodeId;
     selfCandidate.routerRSSI = routerRSSI;
+    selfCandidate.routerChannel = routerChannel;
     selfCandidate.uptime = millis();
     selfCandidate.freeMemory = ESP.getFreeHeap();
     electionCandidates.push_back(selfCandidate);
@@ -1778,6 +1822,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["from"] = this->nodeId;
     obj["routing"] = 2;  // BROADCAST
     obj["routerRSSI"] = routerRSSI;
+    obj["routerChannel"] = routerChannel;
     obj["uptime"] = millis();
     obj["freeMemory"] = ESP.getFreeHeap();
     obj["timestamp"] = this->getNodeTime();
@@ -1910,7 +1955,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     if (winner->nodeId == this->nodeId) {
       Log(CONNECTION, "[TARGET] I WON! Promoting to bridge...\n");
-      promoteToBridge();
+      promoteToBridge(winner->routerChannel);
     } else {
       Log(CONNECTION, "Winner is node %u, remaining as regular node\n",
           winner->nodeId);
@@ -1923,25 +1968,26 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Promote this node to bridge role
    * Called when node wins election
-   * 
+   *
    * CRITICAL: This function is called from within evaluateElection() which
    * runs as a scheduled task. We MUST NOT call stop() synchronously here
    * because that would clear the taskList while the current task is executing,
    * causing a use-after-free crash when the task tries to return to scheduler.
-   * 
+   *
    * Instead, we schedule the actual promotion work to run after the current
    * task completes, allowing safe cleanup of task structures.
    */
-  void promoteToBridge() {
+  void promoteToBridge(uint8_t routerChannel) {
     using namespace logger;
 
     Log(STARTUP, "=== Becoming Bridge Node ===\n");
-    Log(STARTUP, "Scheduling bridge promotion (async to avoid task corruption)\n");
+    Log(STARTUP,
+        "Scheduling bridge promotion (async to avoid task corruption)\n");
 
     // Store previous bridge (if any)
     // SAFETY: Use getPrimaryGateway() which returns the nodeId value directly
-    // instead of getPrimaryBridge() which returns a pointer to a vector element.
-    // This avoids crashes from dangling pointers that can occur if the 
+    // instead of getPrimaryBridge() which returns a pointer to a vector
+    // element. This avoids crashes from dangling pointers that can occur if the
     // knownBridges vector is modified between pointer retrieval and use.
     uint32_t previousBridgeId = this->getPrimaryGateway();
 
@@ -1958,6 +2004,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["previousBridge"] = previousBridgeId;
     obj["reason"] = "Election winner - best router signal";
     obj["routerRSSI"] = 0;  // Not yet connected to router
+    obj["routerChannel"] = routerChannel;
     obj["timestamp"] = this->getNodeTime();
     obj["message_type"] = protocol::BRIDGE_TAKEOVER;
 
@@ -1971,8 +2018,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Give time for announcement to propagate before channel switch
     // Allow event loop processing during hardware settling
-    for (int i = 0; i < 100; i++) { delay(10); yield(); }
-    Log(STARTUP, "[OK] Takeover announcement sent on channel %d\n", _meshChannel);
+    for (int i = 0; i < 100; i++) {
+      delay(10);
+      yield();
+    }
+    Log(STARTUP, "[OK] Takeover announcement sent on channel %d\n",
+        _meshChannel);
 
     // Save current mesh configuration to restore if bridge init fails.
     // The copies below are captured by value into the deferred lambda so the
@@ -1988,54 +2039,64 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     TSTRING savedMeshPassword = _meshPassword;
     TSTRING savedRouterSSID = routerSSID;
     TSTRING savedRouterPassword = routerPassword;
-    Scheduler *savedScheduler = mScheduler;
+    Scheduler* savedScheduler = mScheduler;
     auto savedBridgeRoleChangedCallback = bridgeRoleChangedCallback;
 
-    // CRITICAL FIX: Schedule the stop/reinit work to run after current task completes
-    // This prevents use-after-free crash when stop() clears taskList while
-    // evaluateElection() task is still executing
-    // Use minimal delay to allow current task to complete first
-    this->addTask(ASYNC_PROMOTION_DELAY_MS, TASK_ONCE,
-                  [this, savedChannel, savedMeshSSID, savedMeshPassword,
-                   savedRouterSSID, savedRouterPassword, savedScheduler,
-                   savedBridgeRoleChangedCallback]() {
-      using namespace logger;
-      
-      Log(STARTUP, "Executing bridge promotion (stop/reinit cycle)\n");
-      
-      // Now reconfigure as bridge (this will switch to router's channel)
-      this->stop();
-      // Allow event loop processing during hardware settling
-      for (int i = 0; i < 100; i++) { delay(10); yield(); }
+    // CRITICAL FIX: Schedule the stop/reinit work to run after current task
+    // completes This prevents use-after-free crash when stop() clears taskList
+    // while evaluateElection() task is still executing Use minimal delay to
+    // allow current task to complete first
+    this->addTask(
+        ASYNC_PROMOTION_DELAY_MS, TASK_ONCE,
+        [this, savedChannel, savedMeshSSID, savedMeshPassword, savedRouterSSID,
+         savedRouterPassword, savedScheduler,
+         savedBridgeRoleChangedCallback]() {
+          using namespace logger;
 
-      // initAsBridge always returns true: bridge mesh functionality is active
-      // regardless of router connection status (router connection is opportunistic)
-      this->initAsBridge(savedMeshSSID, savedMeshPassword, savedRouterSSID,
-                         savedRouterPassword, savedScheduler, _meshPort);
+          Log(STARTUP, "Executing bridge promotion (stop/reinit cycle)\n");
 
-      lastRoleChangeTime = millis();
+          // Now reconfigure as bridge (this will switch to router's channel)
+          this->stop();
+          // Allow event loop processing during hardware settling
+          for (int i = 0; i < 100; i++) {
+            delay(10);
+            yield();
+          }
 
-      Log(STARTUP, "[OK] Bridge promotion complete on channel %d\n", _meshChannel);
+          // initAsBridge always returns true: bridge mesh functionality is
+          // active regardless of router connection status (router connection is
+          // opportunistic)
+          this->initAsBridge(savedMeshSSID, savedMeshPassword, savedRouterSSID,
+                             savedRouterPassword, savedScheduler, _meshPort);
 
-      // Notify via callback
-      if (savedBridgeRoleChangedCallback) {
-        static const TSTRING reason = "Election winner - best router signal";
-        savedBridgeRoleChangedCallback(true, reason);
-      }
+          lastRoleChangeTime = millis();
 
-      // Note: The initial takeover announcement was already sent earlier
-      // before the channel switch. The follow-up announcement that was previously
-      // scheduled here has been removed to avoid potential crashes from scheduling
-      // tasks immediately after stop()/reinit cycle.
-      //
-      // The bridge status broadcast system (initialized by initAsBridge via
-      // initBridgeStatusBroadcast) will continue to inform nodes about the new
-      // bridge through periodic broadcasts. Nodes that switched channels will
-      // discover the new bridge through these status broadcasts.
-      Log(STARTUP,
-          "Bridge takeover complete. Status broadcasts will announce bridge to "
-          "network.\n");
-    });
+          Log(STARTUP, "[OK] Bridge promotion complete on channel %d\n",
+              _meshChannel);
+
+          // Notify via callback
+          if (savedBridgeRoleChangedCallback) {
+            static const TSTRING reason =
+                "Election winner - best router signal";
+            savedBridgeRoleChangedCallback(true, reason);
+          }
+
+          // Note: The initial takeover announcement was already sent earlier
+          // before the channel switch. The follow-up announcement that was
+          // previously scheduled here has been removed to avoid potential
+          // crashes from scheduling tasks immediately after stop()/reinit
+          // cycle.
+          //
+          // The bridge status broadcast system (initialized by initAsBridge via
+          // initBridgeStatusBroadcast) will continue to inform nodes about the
+          // new bridge through periodic broadcasts. Nodes that switched
+          // channels will discover the new bridge through these status
+          // broadcasts.
+          Log(STARTUP,
+              "Bridge takeover complete. Status broadcasts will announce "
+              "bridge to "
+              "network.\n");
+        });
   }
 
   /**
@@ -2103,54 +2164,62 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     TSTRING savedMeshPassword = _meshPassword;
     TSTRING savedRouterSSID = routerSSID;
     TSTRING savedRouterPassword = routerPassword;
-    Scheduler *savedScheduler = mScheduler;
+    Scheduler* savedScheduler = mScheduler;
     auto savedBridgeRoleChangedCallback = bridgeRoleChangedCallback;
 
-    // CRITICAL FIX: Schedule the stop/reinit work to run after current task completes
-    // This prevents use-after-free crash when stop() clears taskList while
-    // the retry task is still executing
-    // Use minimal delay to allow current task to complete first
-    this->addTask(ASYNC_PROMOTION_DELAY_MS, TASK_ONCE,
-                  [this, savedChannel, savedMeshSSID, savedMeshPassword,
-                   savedRouterSSID, savedRouterPassword, savedScheduler,
-                   savedBridgeRoleChangedCallback]() {
-      using namespace logger;
-      
-      Log(CONNECTION, "Executing isolated bridge promotion (stop/reinit cycle)\n");
-      
-      // Stop current mesh operations
-      this->stop();
-      // Allow event loop processing during hardware settling
-      for (int i = 0; i < 100; i++) { delay(10); yield(); }
+    // CRITICAL FIX: Schedule the stop/reinit work to run after current task
+    // completes This prevents use-after-free crash when stop() clears taskList
+    // while the retry task is still executing Use minimal delay to allow
+    // current task to complete first
+    this->addTask(
+        ASYNC_PROMOTION_DELAY_MS, TASK_ONCE,
+        [this, savedChannel, savedMeshSSID, savedMeshPassword, savedRouterSSID,
+         savedRouterPassword, savedScheduler,
+         savedBridgeRoleChangedCallback]() {
+          using namespace logger;
 
-      // initAsBridge always returns true: bridge mesh functionality is active
-      // regardless of router connection status (router connection is opportunistic)
-      this->initAsBridge(savedMeshSSID, savedMeshPassword, savedRouterSSID,
-                         savedRouterPassword, savedScheduler, _meshPort);
+          Log(CONNECTION,
+              "Executing isolated bridge promotion (stop/reinit cycle)\n");
 
-      // Reset retry counter
-      _isolatedBridgeRetryAttempts = 0;
-      lastRoleChangeTime = millis();
+          // Stop current mesh operations
+          this->stop();
+          // Allow event loop processing during hardware settling
+          for (int i = 0; i < 100; i++) {
+            delay(10);
+            yield();
+          }
 
-      Log(STARTUP, "[OK] Isolated bridge promotion complete on channel %d\n",
-          _meshChannel);
+          // initAsBridge always returns true: bridge mesh functionality is
+          // active regardless of router connection status (router connection is
+          // opportunistic)
+          this->initAsBridge(savedMeshSSID, savedMeshPassword, savedRouterSSID,
+                             savedRouterPassword, savedScheduler, _meshPort);
 
-      // Notify via callback
-      if (savedBridgeRoleChangedCallback) {
-        static const TSTRING reason = "Isolated node promoted to bridge";
-        savedBridgeRoleChangedCallback(true, reason);
-      }
+          // Reset retry counter
+          _isolatedBridgeRetryAttempts = 0;
+          lastRoleChangeTime = millis();
 
-      // Note: Bridge status announcement will be sent automatically by
-      // initBridgeStatusBroadcast() which is called by initAsBridge().
-      // The immediate broadcast is scheduled in that function, so we don't
-      // need to schedule another one here. This avoids potential crashes from
-      // scheduling tasks immediately after stop()/reinit cycle.
-      // The initBridgeStatusBroadcast() also sets up periodic broadcasts.
-      Log(STARTUP,
-          "Bridge status announcement will be sent by bridge status broadcast "
-          "system\n");
-    });
+          Log(STARTUP,
+              "[OK] Isolated bridge promotion complete on channel %d\n",
+              _meshChannel);
+
+          // Notify via callback
+          if (savedBridgeRoleChangedCallback) {
+            static const TSTRING reason = "Isolated node promoted to bridge";
+            savedBridgeRoleChangedCallback(true, reason);
+          }
+
+          // Note: Bridge status announcement will be sent automatically by
+          // initBridgeStatusBroadcast() which is called by initAsBridge().
+          // The immediate broadcast is scheduled in that function, so we don't
+          // need to schedule another one here. This avoids potential crashes
+          // from scheduling tasks immediately after stop()/reinit cycle. The
+          // initBridgeStatusBroadcast() also sets up periodic broadcasts.
+          Log(STARTUP,
+              "Bridge status announcement will be sent by bridge status "
+              "broadcast "
+              "system\n");
+        });
 
     return true;  // Count as an attempt - we scheduled the promotion
   }
@@ -2160,7 +2229,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Called by package handler when election message arrives
    */
   void handleBridgeElection(uint32_t fromNode, int8_t routerRSSI,
-                            uint32_t uptime, uint32_t freeMemory) {
+                            uint8_t routerChannel, uint32_t uptime,
+                            uint32_t freeMemory) {
     using namespace logger;
 
     if (electionState != ELECTION_COLLECTING) {
@@ -2182,6 +2252,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     BridgeCandidate candidate;
     candidate.nodeId = fromNode;
     candidate.routerRSSI = routerRSSI;
+    candidate.routerChannel = routerChannel;
     candidate.uptime = uptime;
     candidate.freeMemory = freeMemory;
 
@@ -2259,11 +2330,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
   /**
    * Check if gateway has actual internet connectivity
-   * 
+   *
    * Tests DNS resolution to detect scenarios where WiFi is connected
    * but the router has no internet access. This provides early detection
    * before attempting HTTP requests that would timeout or fail.
-   * 
+   *
    * @return true if internet is accessible, false otherwise
    */
   bool hasActualInternetAccess() {
@@ -2273,7 +2344,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     static uint32_t lastCheckTime = 0;
     static bool lastResult = false;
     uint32_t now = millis();
-    if (lastCheckTime > 0 && (now - lastCheckTime) < GATEWAY_CONNECTIVITY_CACHE_MS) {
+    if (lastCheckTime > 0 &&
+        (now - lastCheckTime) < GATEWAY_CONNECTIVITY_CACHE_MS) {
       return lastResult;
     }
 
@@ -2305,17 +2377,23 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Check if DNS resolution succeeded
     if (dnsResult != 1) {
-      Log(COMMUNICATION, "hasActualInternetAccess(): DNS resolution failed (code=%d)\n", dnsResult);
+      Log(COMMUNICATION,
+          "hasActualInternetAccess(): DNS resolution failed (code=%d)\n",
+          dnsResult);
       lastCheckTime = millis();
       lastResult = false;
       return false;
     }
 
     // Additional validation: Check if resolved IP is valid
-    // Some ESP8266 versions may return success but set IP to 255.255.255.255 on error
-    if (result == IPAddress(0, 0, 0, 0) || result == IPAddress(255, 255, 255, 255)) {
+    // Some ESP8266 versions may return success but set IP to 255.255.255.255 on
+    // error
+    if (result == IPAddress(0, 0, 0, 0) ||
+        result == IPAddress(255, 255, 255, 255)) {
       TSTRING resultStr = result.toString();
-      Log(COMMUNICATION, "hasActualInternetAccess(): Invalid DNS result IP: %s\n", resultStr.c_str());
+      Log(COMMUNICATION,
+          "hasActualInternetAccess(): Invalid DNS result IP: %s\n",
+          resultStr.c_str());
       lastCheckTime = millis();
       lastResult = false;
       return false;
@@ -2343,7 +2421,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 #endif
 
     TSTRING resultStr = result.toString();
-    Log(COMMUNICATION, "hasActualInternetAccess(): Internet connectivity verified (resolved to %s)\n",
+    Log(COMMUNICATION,
+        "hasActualInternetAccess(): Internet connectivity verified (resolved "
+        "to %s)\n",
         resultStr.c_str());
     lastCheckTime = millis();
     lastResult = true;
@@ -2352,20 +2432,22 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
   /**
    * Detect captive portal by making a lightweight HTTP request
-   * 
+   *
    * Captive portals often allow DNS resolution but intercept HTTP requests,
    * returning redirects, cached responses (HTTP 203), or their own HTML.
    * This function makes a simple HTTP GET request to a known endpoint and
    * verifies the response to detect such interference.
-   * 
+   *
    * Test endpoint used:
-   * - http://captive.apple.com/hotspot-detect.html - Returns "Success" (Apple standard)
-   * 
-   * @return true if no captive portal detected, false if portal found or check fails
+   * - http://captive.apple.com/hotspot-detect.html - Returns "Success" (Apple
+   * standard)
+   *
+   * @return true if no captive portal detected, false if portal found or check
+   * fails
    */
   bool detectCaptivePortal() {
     using namespace logger;
-    
+
 #if defined(ESP32) || defined(ESP8266)
     // Cache the verdict, exactly as hasActualInternetAccess() does. This probe
     // is a full HTTP round trip to an external host; running it per message
@@ -2374,7 +2456,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     static uint32_t lastCheckTime = 0;
     static bool lastResult = true;
     uint32_t now = millis();
-    if (lastCheckTime > 0 && (now - lastCheckTime) < GATEWAY_CONNECTIVITY_CACHE_MS) {
+    if (lastCheckTime > 0 &&
+        (now - lastCheckTime) < GATEWAY_CONNECTIVITY_CACHE_MS) {
       return lastResult;
     }
 
@@ -2385,53 +2468,65 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     HTTPClient http;
     http.setTimeout(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS);
-    
+
     WiFiClient client;
-    
+
     // Use Apple's captive portal detection endpoint
     // This is a well-maintained, reliable endpoint used by iOS devices
     const char* testUrl = "http://captive.apple.com/hotspot-detect.html";
-    
+
     Log(COMMUNICATION, "detectCaptivePortal(): Testing %s\n", testUrl);
-    
+
 #ifdef ESP8266
     if (!http.begin(client, testUrl)) {
-      Log(COMMUNICATION, "detectCaptivePortal(): Failed to begin HTTP client - treating as potential network restriction\n");
-      return false;  // Conservative approach: treat initialization failure as potential captive portal or network restriction
+      Log(COMMUNICATION,
+          "detectCaptivePortal(): Failed to begin HTTP client - treating as "
+          "potential network restriction\n");
+      return false;  // Conservative approach: treat initialization failure as
+                     // potential captive portal or network restriction
     }
 #else
     // ESP32
     if (!http.begin(testUrl)) {
-      Log(COMMUNICATION, "detectCaptivePortal(): Failed to begin HTTP client - treating as potential network restriction\n");
+      Log(COMMUNICATION,
+          "detectCaptivePortal(): Failed to begin HTTP client - treating as "
+          "potential network restriction\n");
       return false;
     }
 #endif
-    
+
     int httpCode = http.GET();
-    
+
     if (httpCode != 200) {
-      // Any response other than HTTP 200 indicates captive portal or network issue
-      Log(COMMUNICATION, "detectCaptivePortal(): Unexpected HTTP code %d (expected 200)\n", httpCode);
+      // Any response other than HTTP 200 indicates captive portal or network
+      // issue
+      Log(COMMUNICATION,
+          "detectCaptivePortal(): Unexpected HTTP code %d (expected 200)\n",
+          httpCode);
       http.end();
       return false;
     }
-    
+
     // Check response content
     String response = http.getString();
     http.end();
-    
-    // Verify the response contains "Success" - this is Apple's standard response
-    // Full response: "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"
-    // We check for presence of "Success" to be robust against minor format variations
+
+    // Verify the response contains "Success" - this is Apple's standard
+    // response Full response:
+    // "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>" We
+    // check for presence of "Success" to be robust against minor format
+    // variations
     if (response.indexOf("Success") == -1) {
-      Log(COMMUNICATION, "detectCaptivePortal(): Response doesn't contain 'Success', likely captive portal\n");
+      Log(COMMUNICATION,
+          "detectCaptivePortal(): Response doesn't contain 'Success', likely "
+          "captive portal\n");
       return false;
     }
-    
+
     Log(COMMUNICATION, "detectCaptivePortal(): No captive portal detected\n");
     lastResult = true;
     return true;
-    
+
 #else
     // Non-ESP platforms: can't reliably test, assume no captive portal
     return true;
@@ -2441,10 +2536,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Helper method to send gateway acknowledgment
    */
-  void sendGatewayAck(
-      const gateway::GatewayDataPackage& request, bool success,
-      uint16_t httpStatus, const TSTRING& error,
-      std::shared_ptr<Connection> ingressConnection = nullptr) {
+  void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
+                      uint16_t httpStatus, const TSTRING& error,
+                      std::shared_ptr<Connection> ingressConnection = nullptr) {
     using namespace logger;
 
     gateway::GatewayAckPackage ack;
@@ -2460,9 +2554,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     if (request.originNode == this->nodeId) {
       protocol::Variant variant(&ack);
       this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
-      Log(COMMUNICATION,
-          "Completed local GATEWAY_ACK (success=%d, http=%d)\n", success,
-          httpStatus);
+      Log(COMMUNICATION, "Completed local GATEWAY_ACK (success=%d, http=%d)\n",
+          success, httpStatus);
       return;
     }
 
@@ -2526,9 +2619,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         "initGatewayInternetHandler(): Registering GATEWAY_DATA handler\n");
 
     this->callbackList.onPackage(
-        protocol::GATEWAY_DATA, [this](protocol::Variant& variant,
-                                       std::shared_ptr<Connection> ingress,
-                                       uint32_t) {
+        protocol::GATEWAY_DATA,
+        [this](protocol::Variant& variant, std::shared_ptr<Connection> ingress,
+               uint32_t) {
           auto pkg = variant.to<gateway::GatewayDataPackage>();
 
           Log(COMMUNICATION,
@@ -2577,18 +2670,21 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             finish(false, 0, "Gateway WiFi not connected");
             return true;  // Consume package - we handled it (with error)
           }
-          
+
           // Then check actual internet access (DNS resolution)
           // This detects when WiFi is connected but router has no internet
           if (!hasActualInternetAccess()) {
-            finish(false, 0, "Router has no internet access - check WAN connection");
+            finish(false, 0,
+                   "Router has no internet access - check WAN connection");
             return true;  // Consume package - we handled it (with error)
           }
-          
+
           // Finally, check for captive portal interference
           // This detects when DNS works but HTTP requests are intercepted
           if (!detectCaptivePortal()) {
-            finish(false, 0, "Captive portal detected - requires web authentication. Check router/WiFi settings");
+            finish(false, 0,
+                   "Captive portal detected - requires web authentication. "
+                   "Check router/WiFi settings");
             return true;  // Consume package - we handled it (with error)
           }
 
@@ -2649,32 +2745,39 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             // delivery to the destination service (e.g., WhatsApp API).
             //
             // 3xx redirects are not automatically followed
-            success = (httpCode == 200 || httpCode == 201 || 
-                      httpCode == 202 || httpCode == 204);
-            
+            success = (httpCode == 200 || httpCode == 201 || httpCode == 202 ||
+                       httpCode == 204);
+
             if (success) {
               Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
             } else if (httpCode >= 200 && httpCode < 300) {
               // Other 2xx codes - ambiguous success
-              // HTTP 203 is retryable, so log at COMMUNICATION level to reduce noise
+              // HTTP 203 is retryable, so log at COMMUNICATION level to reduce
+              // noise
               char errorBuf[128];
-              snprintf(errorBuf, sizeof(errorBuf), 
-                      "Ambiguous response - HTTP %d may indicate cached/proxied response, not actual delivery", 
-                      httpCode);
+              snprintf(errorBuf, sizeof(errorBuf),
+                       "Ambiguous response - HTTP %d may indicate "
+                       "cached/proxied response, not actual delivery",
+                       httpCode);
               error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP request ambiguous: code=%d (treated as failure, will retry)\n", httpCode);
+              Log(COMMUNICATION,
+                  "HTTP request ambiguous: code=%d (treated as failure, will "
+                  "retry)\n",
+                  httpCode);
             } else if (httpCode >= 500 && httpCode < 600) {
               // 5xx server errors are retryable, log at COMMUNICATION level
               char errorBuf[32];
               snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
               error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP server error: code=%d (will retry)\n", httpCode);
+              Log(COMMUNICATION, "HTTP server error: code=%d (will retry)\n",
+                  httpCode);
             } else if (httpCode == 429) {
               // HTTP 429 rate limit is retryable, log at COMMUNICATION level
               char errorBuf[32];
               snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
               error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP rate limit: code=%d (will retry)\n", httpCode);
+              Log(COMMUNICATION, "HTTP rate limit: code=%d (will retry)\n",
+                  httpCode);
             } else {
               // 1xx, 3xx, 4xx (except 429) - non-retryable, log at ERROR level
               char errorBuf[32];
@@ -2683,8 +2786,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               Log(ERROR, "HTTP request failed: code=%d\n", httpCode);
             }
           } else {
-            // Network errors (httpCode <= 0) are retryable but indicate serious issues
-            // Keep at ERROR level as they may indicate gateway connectivity problems
+            // Network errors (httpCode <= 0) are retryable but indicate serious
+            // issues Keep at ERROR level as they may indicate gateway
+            // connectivity problems
             error = http.errorToString(httpCode);
             Log(ERROR, "HTTP request failed: %s\n", error.c_str());
           }
@@ -2694,8 +2798,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           // Send acknowledgment back
           finish(success, httpCode, error);
 #else
-        // Non-ESP platform - send error
-        finish(false, 0, "HTTP client not available on this platform");
+          // Non-ESP platform - send error
+          finish(false, 0, "HTTP client not available on this platform");
 #endif
 
           return true;  // Consume package - we have processed it and sent
@@ -2818,6 +2922,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   struct BridgeCandidate {
     uint32_t nodeId;
     int8_t routerRSSI;
+    uint8_t routerChannel;
     uint32_t uptime;
     uint32_t freeMemory;
   };
@@ -2839,7 +2944,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   ElectionState electionState = ELECTION_IDLE;
   uint32_t electionDeadline = 0;
   std::vector<BridgeCandidate> electionCandidates;
-  std::function<void(bool isBridge, const TSTRING& reason)> bridgeRoleChangedCallback;
+  std::function<void(bool isBridge, const TSTRING& reason)>
+      bridgeRoleChangedCallback;
 
   // Isolated bridge retry state and configuration
   uint8_t _isolatedBridgeRetryAttempts = 0;
@@ -2868,7 +2974,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   std::shared_ptr<Task> bridgeCoordinationTask;
   std::map<uint32_t, uint8_t> bridgePriorities;  // nodeId -> priority mapping
   std::vector<uint32_t> knownBridgePeers;        // List of peer bridge node IDs
-  size_t lastSelectedBridgeIndex = 0;   // For round-robin selection
+  size_t lastSelectedBridgeIndex = 0;            // For round-robin selection
 
   // Bridge coordination monitoring callbacks and state
   struct BridgeCoordinationState {
@@ -2878,8 +2984,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     uint32_t lastSeen;
   };
   std::map<uint32_t, BridgeCoordinationState> lastBridgeCoordinationState;
-  std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t)> bridgeCoordinationCallback;
-  std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t, TSTRING)> bridgeCoordinationChangedCallback;
+  std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t)>
+      bridgeCoordinationCallback;
+  std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t,
+                     TSTRING)>
+      bridgeCoordinationChangedCallback;
   std::shared_ptr<Task> bridgeLostDetectionTask;
 
   // Shared gateway mode state and configuration
