@@ -42,18 +42,34 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
   Log(CONNECTION, "stationScan(): %s\n", ssid.c_str());
   
   // If channel is 0, auto-detect the mesh channel first
-  if (channel == 0 && mesh->_meshChannel == 0) {
+  if (channel == 0) {
     Log(STARTUP, "stationScan(): Auto-detecting mesh channel...\n");
     uint8_t detectedChannel = scanForMeshChannel(ssid, hidden);
     if (detectedChannel > 0) {
+      uint8_t oldChannel = mesh->_meshChannel;
       mesh->_meshChannel = detectedChannel;
       channel = detectedChannel;
       Log(STARTUP, "stationScan(): Mesh channel auto-detected: %d\n", detectedChannel);
+      // init() has already created the AP.  When channel 0 was requested and
+      // no peer was visible during that first instant, the ESP Wi-Fi stack
+      // created it on channel 1.  Recreate it on the detected channel before
+      // connecting the station, otherwise a temporary station disconnect can
+      // snap the AP back to channel 1 and isolate a failover candidate.
+      if (oldChannel != detectedChannel && (WiFi.getMode() & WIFI_AP)) {
+        WiFi.softAPdisconnect(true);
+        delay(200);
+        mesh->apInit(mesh->getNodeId());
+        delay(100);
+      }
     } else {
-      // Mesh not found, fall back to channel 1
-      mesh->_meshChannel = 1;
-      channel = 1;
-      Log(CONNECTION, "stationScan(): Mesh not found, falling back to channel 1\n");
+      // Keep channel == 0 so the next station scan retries all-channel
+      // detection.  Permanently replacing it with channel 1 after one miss
+      // made a node unable to follow a bridge that was still starting or had
+      // just moved the mesh to its router channel.
+      if (mesh->_meshChannel == 0) mesh->_meshChannel = 1;
+      Log(CONNECTION,
+          "stationScan(): Mesh not found, using channel 1 temporarily and "
+          "retrying auto-detection\n");
     }
   }
 
