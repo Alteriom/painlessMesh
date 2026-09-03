@@ -35,7 +35,7 @@ This comprehensive guide covers everything you need to build production-ready me
 - **ESP32 & ESP8266 Support** - Full support for both platforms
 - **Memory Efficient** - Optimized for resource-constrained devices
 
-**Alteriom Extensions (v1.7.0+):**
+**Alteriom Extensions:**
 - **Broadcast OTA Distribution** - 98% network traffic reduction for large meshes
 - **MQTT Bridge** - Professional monitoring with Grafana/InfluxDB/Prometheus
 - **Structured Packages** - SensorPackage, CommandPackage, StatusPackage
@@ -580,9 +580,8 @@ mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
 See `examples/tcpRetryConfig/` for real-time, high-reliability and
 battery-saver profiles, and the API docs for the full tuning guidance.
 
-> **Note:** these defaults were deliberately raised in 1.9.x to fix real-world
-> mesh instability. Tuning them down can reintroduce connection churn and rapid
-> reconnect loops.
+> **Note:** these production defaults prevent connection churn and rapid
+> reconnect loops. Tuning them down can reintroduce mesh instability.
 
 ---
 
@@ -724,7 +723,7 @@ status.deviceStatus = 1; // OPERATIONAL
 status.uptime = millis() / 1000;
 status.freeMemory = ESP.getFreeHeap();
 status.wifiStrength = WiFi.RSSI();
-status.firmwareVersion = "1.2.3";
+status.firmwareVersion = "2.0.0";
 
 String json = status.toJsonString();
 mesh.sendBroadcast(json);
@@ -737,7 +736,7 @@ mesh.sendBroadcast(json);
 - Performance tracking
 - Remote troubleshooting
 
-### Advanced Packages (v1.7.0+)
+### Advanced Packages
 
 **MetricsPackage (Type 204)** - Comprehensive performance metrics
 - CPU usage, memory health, network throughput
@@ -750,7 +749,7 @@ mesh.sendBroadcast(json);
 - Memory leak detection
 - Predictive maintenance
 
-**Bridge Packages (v1.8.0+):**
+**Bridge Packages:**
 - **BridgeStatusPackage (Type 610)** - Bridge health monitoring
 - **BridgeElectionPackage (Type 611)** - Automatic failover election
 - **BridgeTakeoverPackage (Type 612)** - Bridge role announcement
@@ -802,7 +801,7 @@ void receivedCallback(uint32_t from, String &msg) {
 }
 ```
 
-### Bridge Failover (v1.8.0+)
+### Bridge Failover
 
 Automatic high-availability for critical systems:
 
@@ -831,7 +830,7 @@ void bridgeRoleCallback(bool isBridge, const String& reason) {
 }
 ```
 
-### Shared Gateway Mode (v1.9.0+)
+### Shared Gateway Mode
 
 All nodes as Internet gateways with automatic failover:
 
@@ -867,7 +866,7 @@ For complete bridge documentation, see [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNE
 
 ## Advanced Features
 
-### Message Queue (v1.8.2+)
+### Message Queue
 
 Zero data loss during Internet outages:
 
@@ -891,13 +890,13 @@ mesh.onQueueFlushed(&queueFlushedCallback);
 - `NORMAL` - Normal priority
 - `LOW` - Dropped first when queue full
 
-### Broadcast OTA (v1.7.0+)
+### Broadcast OTA
 
 Efficient firmware distribution for large meshes:
 
 ```cpp
 // Enable broadcast OTA mode
-mesh.initOTA("MyFirmware", "1.2.3", [](size_t progress, size_t total) {
+mesh.initOTA("MyFirmware", "2.0.0", [](size_t progress, size_t total) {
   Serial.printf("OTA Progress: %d%%\n", (progress * 100) / total);
 });
 
@@ -928,7 +927,7 @@ mqttClient.onMessage([](String topic, String payload) {
 });
 ```
 
-### Multi-Bridge Coordination (v1.8.2+)
+### Multi-Bridge Coordination
 
 Enterprise load balancing:
 
@@ -1283,7 +1282,7 @@ Complete examples are available in the repository (16 examples total):
 
 ## Version Information
 
-This guide is for **AlteriomPainlessMesh v1.9.6** (December 2025)
+This guide covers **AlteriomPainlessMesh 2.0**.
 
 For the latest updates and releases, visit:
 - [GitHub Releases](https://github.com/Alteriom/painlessMesh/releases)

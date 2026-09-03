@@ -399,6 +399,52 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   }
 }
 
+bool ICACHE_FLASH_ATTR StationScan::followBridgeChannel(
+    uint8_t targetChannel) {
+  using namespace painlessmesh::logger;
+
+  if (!painlessmesh::gateway::isValidMeshChannel(targetChannel) ||
+      mesh == nullptr) {
+    Log(ERROR,
+        "followBridgeChannel(): Ignoring invalid bridge channel %u\n",
+        targetChannel);
+    return false;
+  }
+
+  if (mesh->_meshChannel == targetChannel) return false;
+
+  uint8_t previousChannel = mesh->_meshChannel;
+  Log(CONNECTION,
+      "followBridgeChannel(): Moving mesh from channel %u to bridge channel "
+      "%u\n",
+      previousChannel, targetChannel);
+
+  // Discard any asynchronous result from the old channel before changing the
+  // radio, otherwise its callback can move the node back after the takeover.
+  WiFi.scanDelete();
+  task.disable();
+  mesh->closeConnectionSTA();
+  WiFi.disconnect();
+  delay(100);
+
+  mesh->_meshChannel = targetChannel;
+  channel = targetChannel;
+  consecutiveEmptyScans = 0;
+
+  if (WiFi.getMode() & WIFI_AP) {
+    WiFi.softAPdisconnect(true);
+    delay(100);
+    mesh->apInit(mesh->getNodeId());
+    delay(100);
+  }
+
+  // Resume discovery immediately. The old recovery path required repeated
+  // empty scans and exceeded the gateway failover contract.
+  task.enable();
+  task.forceNextIteration();
+  return true;
+}
+
 // Helper function to scan all channels for a specific mesh SSID
 // Returns the channel number if found, or 0 if not found
 uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool meshHidden) {

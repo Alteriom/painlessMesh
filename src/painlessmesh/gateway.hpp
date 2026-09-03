@@ -46,6 +46,21 @@
 namespace painlessmesh {
 namespace gateway {
 
+/** Return whether a channel can be announced for a 2.4 GHz mesh takeover. */
+constexpr bool isValidMeshChannel(uint8_t channel) {
+  return channel >= 1 && channel <= 13;
+}
+
+/** Decide whether a peer must follow an elected bridge to another channel. */
+constexpr bool shouldFollowBridgeChannel(uint32_t localNodeId,
+                                         uint32_t electedBridgeId,
+                                         uint8_t currentChannel,
+                                         uint8_t announcedChannel) {
+  return electedBridgeId != localNodeId &&
+         isValidMeshChannel(announcedChannel) &&
+         announcedChannel != currentChannel;
+}
+
 /**
  * @brief Validation result structure for SharedGatewayConfig
  *

@@ -35,6 +35,8 @@ class StationScan {
   void scanComplete();
   void filterAPs();
   void connectToAP();
+  // Move both Wi-Fi interfaces to a bridge-announced channel immediately.
+  bool followBridgeChannel(uint8_t targetChannel);
   // This one will call the connectToAP next in the task and should be used
   // instead of connectToAP
   void yieldConnectToAP() {

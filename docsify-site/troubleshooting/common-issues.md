@@ -293,9 +293,9 @@ snprintf(buffer, sizeof(buffer), "{\"value\":%d}", value);
 Add to `platformio.ini`:
 ```ini
 lib_deps = 
-    painlessMesh
-    bblanchon/ArduinoJson@^6.21.3
-    arkhipenko/TaskScheduler@^3.7.0
+    alteriom/AlteriomPainlessMesh@^2.0.0
+    bblanchon/ArduinoJson@^7.4.2
+    arkhipenko/TaskScheduler@^4.0.0
 ```
 
 ### Version Compatibility Issues
@@ -318,20 +318,9 @@ Serial.printf("painlessMesh version: %s\n", PAINLESSMESH_VERSION);
 In `platformio.ini`:
 ```ini
 lib_deps = 
-    painlessMesh@1.5.0        # Lock to specific version
-    bblanchon/ArduinoJson@6.21.3
-    arkhipenko/TaskScheduler@3.7.0
-```
-
-#### 3. Update Deprecated APIs
-```cpp
-// Old API (deprecated)
-mesh.onReceive(&receivedCallback);
-
-// New API (if changed in your version)
-mesh.onReceive([](uint32_t from, String& msg) {
-    receivedCallback(from, msg);
-});
+    alteriom/AlteriomPainlessMesh@2.0.0
+    bblanchon/ArduinoJson@7.4.2
+    arkhipenko/TaskScheduler@4.0.0
 ```
 
 ## Performance Issues
