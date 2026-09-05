@@ -789,9 +789,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               // Schedule reconnection after disconnect completes
               // The WiFi event handler will signal when disconnect is complete
               _pendingStationReconnect = true;
-            } else {
-              // Already disconnected, reconnect immediately
+            } else if (_pendingStationReconnect) {
+              // A drop this node asked for: reconnect from the last scan
               handleStationDisconnectComplete();
+            } else {
+              // A drop nobody asked for — the AP this station was on went
+              // away (its node rebooted, or a bridge moved the mesh). Scan
+              // now rather than when the current slow-scan delay runs out,
+              // which is up to four intervals away for a node that was
+              // stable a moment ago.
+              using namespace logger;
+              Log(CONNECTION,
+                  "Station link lost unexpectedly, scanning now\n");
+              this->stationScan.task.forceNextIteration();
             }
           }
         });

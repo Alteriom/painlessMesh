@@ -74,7 +74,7 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
   }
 
 #ifdef ESP32
-  WiFi.scanNetworks(true, hidden, false, 300U, channel);
+  int16_t started = WiFi.scanNetworks(true, hidden, false, 300U, channel);
 #elif defined(ESP8266)
   // WiFi.scanNetworksAsync([&](int networks) { this->scanComplete(); }, true);
   // Try 600 times (60 seconds). If not completed after that, give up
@@ -87,8 +87,22 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
   });
   mesh->mScheduler->addTask(asyncTask);
   asyncTask.enableDelayed();
-  WiFi.scanNetworks(true, hidden, channel);
+  int16_t started = WiFi.scanNetworks(true, hidden, channel);
 #endif
+
+  if (started == WIFI_SCAN_FAILED) {
+    // The radio refused to start a scan — on ESP32 that is what it does
+    // while the station is mid-association. No scan-done event will ever
+    // come, so the ten-interval safety net below would be a five-minute
+    // silence; a node that has just lost its uplink cannot afford it.
+    Log(ERROR, "stationScan(): scan could not start, retrying in %d s\n",
+        (int)(0.5 * SCAN_INTERVAL / TASK_SECOND));
+#ifdef ESP8266
+    asyncTask.disable();
+#endif
+    task.delay(0.5 * SCAN_INTERVAL);
+    return;
+  }
 
   task.delay(10 * SCAN_INTERVAL);  // Scan should be completed by then and next
                                    // step called. If not then we restart here.
@@ -238,6 +252,7 @@ void ICACHE_FLASH_ATTR StationScan::requestIP(WiFi_AP_Record_t &ap) {
       mesh->_meshChannel,
       ap.bssid[0], ap.bssid[1], ap.bssid[2], 
       ap.bssid[3], ap.bssid[4], ap.bssid[5]);
+  connectAttemptStarted = millis();
   WiFi.begin(ap.ssid.c_str(), password.c_str(), mesh->_meshChannel, ap.bssid);
   return;
 }
@@ -273,6 +288,26 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
       }
     }
   }
+
+#ifdef ESP32
+  if (WiFi.status() == WL_IDLE_STATUS &&
+      millis() - connectAttemptStarted > (uint32_t)(0.5 * SCAN_INTERVAL)) {
+    // The Arduino core reports WL_IDLE_STATUS from association until an
+    // address arrives. Half a scan interval after the attempt began, that
+    // means this station is associated with an AP that never gave it an
+    // address — a peer whose DHCP server was restarting, or one that
+    // rebooted under it. Nothing times that out: no disconnect event comes,
+    // and the mesh never learns of the failure. Drop the half-open link;
+    // the disconnect event schedules the rescan.
+    Log(CONNECTION,
+        "connectToAP(): Station associated without an address for %u ms, "
+        "dropping it\n",
+        millis() - connectAttemptStarted);
+    WiFi.disconnect();
+    task.delay(SCAN_INTERVAL);  // Only reached if the event never fires
+    return;
+  }
+#endif
   bool isRooted = layout::isRooted(mesh->asNodeTree());
   if (aps.empty()) {
     // No unknown nodes found
@@ -376,11 +411,13 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
       aps.pop_front();  // drop bestAP from mesh list, so if doesn't work out,
                         // we can try the next one
       requestIP(ap);
-      // Trying to connect, if that fails we will reconnect later
+      // A rejected attempt raises a disconnect event, which rescans at
+      // once; this delay only bounds the silent failures — an association
+      // that never gets an address — and two minutes was too long for a
+      // node whose bridge has just moved.
       Log(CONNECTION,
-          "connectToAP(): Trying to connect, scan rate set to "
-          "4*normal\n");
-      task.delay(4 * SCAN_INTERVAL);
+          "connectToAP(): Trying to connect, next scan in one interval\n");
+      task.delay(SCAN_INTERVAL);
     }
   }
 }

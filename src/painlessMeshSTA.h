@@ -90,6 +90,9 @@ class StationScan {
   
   // Track consecutive scans with no mesh nodes found (for channel re-detection)
   uint16_t consecutiveEmptyScans = 0;
+  // millis() of the last requestIP(), to tell a station that is still
+  // obtaining an address from one that associated and never got one.
+  uint32_t connectAttemptStarted = 0;
   // Empty scans before re-detecting the mesh channel. A disconnected or
   // orphaned node scans every 0.5 * SCAN_INTERVAL = 15 s, so 2 is ~30 s —
   // what the old comment promised while the value of 6 delivered 90 s, long
