@@ -278,51 +278,37 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
     // No unknown nodes found
     consecutiveEmptyScans++;
     
-    // If we've had multiple consecutive empty scans and we're not connected,
-    // trigger a full channel re-scan to find the mesh
-    if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD && 
-        WiFi.status() != WL_CONNECTED &&
+    // Re-detect the mesh channel once the empty scans pile up. Two cases
+    // need it, and the second used to be excluded:
+    //   - the station is disconnected, so the mesh has left this channel;
+    //   - the station is connected but to a partition with no root while the
+    //     mesh is meant to have one — the node is orphaned. That is what a
+    //     bridge start does to everyone it does not directly serve: it moves
+    //     to the router's channel, the nodes it served drop and re-scan, and
+    //     the nodes behind *them* stay connected to each other on the old
+    //     channel, filter their peers as known, count empty scans, and were
+    //     gated out of re-detection by the WL_CONNECTED check for good.
+    bool orphaned = mesh->shouldContainRoot && !isRooted;
+    if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD &&
+        (WiFi.status() != WL_CONNECTED || orphaned) &&
         channel > 0) {
       Log(CONNECTION,
-          "connectToAP(): No mesh nodes found for %d scans, triggering channel re-detection\n",
-          consecutiveEmptyScans);
-      
-      // Perform full channel scan to find the mesh
-      uint8_t detectedChannel = scanForMeshChannel(ssid, hidden);
+          "connectToAP(): No mesh nodes found for %d scans%s, triggering channel re-detection\n",
+          consecutiveEmptyScans, orphaned ? " (connected but unrooted)" : "");
+
+      // Prefer a partition on another channel: the mesh visible on this one
+      // is the partition we are stranded in.
+      uint8_t detectedChannel = scanForMeshChannel(ssid, hidden, mesh->_meshChannel);
       if (detectedChannel > 0 && detectedChannel != mesh->_meshChannel) {
         Log(CONNECTION,
-            "connectToAP(): Mesh found on different channel %d (was %d), updating...\n",
+            "connectToAP(): Mesh found on different channel %d (was %d), following it\n",
             detectedChannel, mesh->_meshChannel);
-        
-        // Update mesh channel
-        uint8_t oldChannel = mesh->_meshChannel;
-        mesh->_meshChannel = detectedChannel;
-        channel = detectedChannel;
-        
-        // Restart AP on new channel to match the mesh
-        // This ensures this node's AP is also discoverable on the correct channel
-        if (WiFi.getMode() & WIFI_AP) {
-          Log(CONNECTION,
-              "connectToAP(): Restarting AP from channel %d to channel %d\n",
-              oldChannel, detectedChannel);
-          
-          // Disconnect AP and allow WiFi stack to fully reset
-          // Using true parameter ensures DHCP server is properly stopped
-          WiFi.softAPdisconnect(true);
-          delay(200);  // Increased delay to ensure complete WiFi stack reset
-          
-          // Call apInit via friend class access (StationScan is friend of wifi::Mesh)
-          mesh->apInit(mesh->getNodeId());
-          
-          // Additional stabilization delay after AP restart
-          // This ensures DHCP server is fully initialized before clients connect
-          delay(100);
-          
-          Log(CONNECTION, "connectToAP(): AP restarted on channel %d\n", detectedChannel);
-        }
-        // Reset counter only when mesh is found on a new channel
-        // This allows isolated bridge retry to continue when mesh is truly absent
-        consecutiveEmptyScans = 0;
+        // followBridgeChannel() does the whole move: it closes the station
+        // link, so an orphan actually leaves its old partition instead of
+        // restarting its AP on the new channel while still attached to the
+        // old one — which is what the inline copy this replaces did.
+        followBridgeChannel(detectedChannel);
+        return;
       } else if (detectedChannel == 0) {
         Log(CONNECTION,
             "connectToAP(): Mesh not found on any channel during re-scan\n");
@@ -447,7 +433,8 @@ bool ICACHE_FLASH_ATTR StationScan::followBridgeChannel(
 
 // Helper function to scan all channels for a specific mesh SSID
 // Returns the channel number if found, or 0 if not found
-uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool meshHidden) {
+uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool meshHidden,
+                                                          uint8_t avoidChannel) {
   using namespace painlessmesh::logger;
   Log(CONNECTION, "scanForMeshChannel(): Scanning all channels for mesh '%s'...\n", meshSSID.c_str());
   
@@ -465,27 +452,39 @@ uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool
   
   Log(CONNECTION, "scanForMeshChannel(): Found %d networks\n", numNetworks);
   
-  // Search for the mesh SSID in scan results
+  // Collect every channel the mesh is on, then choose. Returning the first
+  // match made a stranded node's fate depend on scan order: seeing its own
+  // partition first, it concluded nothing had changed and stayed put.
+  std::vector<painlessmesh::gateway::MeshChannelCandidate> candidates;
   for (int16_t i = 0; i < numNetworks; ++i) {
     TSTRING foundSSID = WiFi.SSID(i);
     uint8_t foundChannel = WiFi.channel(i);
     int32_t rssi = WiFi.RSSI(i);
-    
-    // Check if this is our mesh network
+
     if (foundSSID == meshSSID || (foundSSID == "" && meshHidden)) {
-      // Validate channel is in valid range (1-13 for 2.4GHz)
       if (foundChannel >= 1 && foundChannel <= 13) {
-        Log(CONNECTION, "scanForMeshChannel(): Found mesh on channel %d (RSSI: %d)\n", 
+        Log(CONNECTION, "scanForMeshChannel(): Found mesh on channel %d (RSSI: %d)\n",
             foundChannel, rssi);
-        WiFi.scanDelete();
-        return foundChannel;
+        candidates.push_back({foundChannel, rssi});
       } else {
-        Log(ERROR, "scanForMeshChannel(): Found mesh on invalid channel %d, ignoring\n", 
+        Log(ERROR, "scanForMeshChannel(): Found mesh on invalid channel %d, ignoring\n",
             foundChannel);
       }
     }
   }
-  
+
+  uint8_t chosen = painlessmesh::gateway::pickMeshChannel(candidates, avoidChannel);
+  if (chosen != 0) {
+    if (avoidChannel != 0 && chosen != avoidChannel) {
+      Log(CONNECTION,
+          "scanForMeshChannel(): Mesh also on channel %d; preferring it over "
+          "current channel %d\n",
+          chosen, avoidChannel);
+    }
+    WiFi.scanDelete();
+    return chosen;
+  }
+
   Log(CONNECTION, "scanForMeshChannel(): Mesh '%s' not found on any channel\n", meshSSID.c_str());
   WiFi.scanDelete();
   return 0;  // Not found

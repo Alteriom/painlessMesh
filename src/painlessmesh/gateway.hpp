@@ -42,6 +42,7 @@
 
 #include <functional>
 #include <map>
+#include <vector>
 
 namespace painlessmesh {
 namespace gateway {
@@ -59,6 +60,46 @@ constexpr bool shouldFollowBridgeChannel(uint32_t localNodeId,
   return electedBridgeId != localNodeId &&
          isValidMeshChannel(announcedChannel) &&
          announcedChannel != currentChannel;
+}
+
+/**
+ * @brief One occurrence of the mesh SSID seen by an all-channel scan.
+ */
+struct MeshChannelCandidate {
+  uint8_t channel;
+  int32_t rssi;
+};
+
+/**
+ * @brief Where a node that has lost the mesh should go.
+ *
+ * Channel re-detection runs only after a node's own partition has produced
+ * nothing new for a while, so the mesh it can still see on its *current*
+ * channel is the partition it is stranded in. When the SSID is also visible
+ * on another channel, that is the rest of the network — a bridge that moved
+ * to its router's channel, most often — and the node should go there.
+ *
+ * Returning the first match, as this used to, made the outcome depend on
+ * scan order: a stranded node that happened to see its own partition first
+ * concluded nothing had changed and stayed stranded.
+ *
+ * @param candidates  Every channel the mesh SSID was seen on, with RSSI.
+ * @param avoidChannel The node's current mesh channel; 0 = no preference.
+ * @return The strongest candidate on a channel other than avoidChannel;
+ *         failing that the strongest on avoidChannel; 0 if there are none.
+ */
+inline uint8_t pickMeshChannel(const std::vector<MeshChannelCandidate>& candidates,
+                               uint8_t avoidChannel) {
+  const MeshChannelCandidate* elsewhere = nullptr;
+  const MeshChannelCandidate* here = nullptr;
+  for (const auto& c : candidates) {
+    if (!isValidMeshChannel(c.channel)) continue;
+    const MeshChannelCandidate*& slot = (c.channel == avoidChannel) ? here : elsewhere;
+    if (slot == nullptr || c.rssi > slot->rssi) slot = &c;
+  }
+  if (elsewhere != nullptr) return elsewhere->channel;
+  if (here != nullptr) return here->channel;
+  return 0;
 }
 
 /**

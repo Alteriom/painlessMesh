@@ -1748,7 +1748,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
       // Schedule a retry after channel re-sync has had a chance to run
       // The channel re-sync threshold is StationScan::EMPTY_SCAN_THRESHOLD
-      // scans (default 6) Fast scan interval is 0.5 * SCAN_INTERVAL = 15
+      // scans (2, ~30 s). Fast scan interval is 0.5 * SCAN_INTERVAL = 15
       // seconds Wait for re-sync to complete plus a buffer
       uint32_t retryDelay =
           (StationScan::EMPTY_SCAN_THRESHOLD - emptyScans + 2) * 15000;

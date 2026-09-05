@@ -43,8 +43,12 @@ class StationScan {
     task.yield([this]() { connectToAP(); });
   }
   
-  // Helper to scan all channels for a specific mesh SSID
-  static uint8_t scanForMeshChannel(TSTRING meshSSID, bool meshHidden);
+  // Scan every channel for the mesh SSID. With avoidChannel set, prefer a
+  // channel other than it: re-detection runs when the node's own partition
+  // has gone quiet, so the mesh on its current channel is the partition it
+  // is stranded in, not the one it is looking for.
+  static uint8_t scanForMeshChannel(TSTRING meshSSID, bool meshHidden,
+                                    uint8_t avoidChannel = 0);
   
   // Check if channel re-synchronization is needed or in progress
   bool isChannelResyncNeeded() const {
@@ -86,7 +90,11 @@ class StationScan {
   
   // Track consecutive scans with no mesh nodes found (for channel re-detection)
   uint16_t consecutiveEmptyScans = 0;
-  static const uint16_t EMPTY_SCAN_THRESHOLD = 6; // ~30 seconds at default SCAN_INTERVAL
+  // Empty scans before re-detecting the mesh channel. A disconnected or
+  // orphaned node scans every 0.5 * SCAN_INTERVAL = 15 s, so 2 is ~30 s —
+  // what the old comment promised while the value of 6 delivered 90 s, long
+  // enough for a bridge's followers to miss a 120 s gateway contract.
+  static const uint16_t EMPTY_SCAN_THRESHOLD = 2;
   
   // TCP failure blocklist to prevent infinite retry loops
   // Maps nodeId -> blockUntil timestamp (millis())
