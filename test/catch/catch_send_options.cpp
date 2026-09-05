@@ -95,6 +95,8 @@ namespace {
 
 class MockConnection : public layout::Neighbour {
  public:
+     // A real Connection reports liveness; routing now asks for it.
+     bool connected() const { return true; }
   // (message, priority) pairs in enqueue order
   std::vector<std::pair<std::string, uint8_t>> queued;
 
