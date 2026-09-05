@@ -789,9 +789,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               // Schedule reconnection after disconnect completes
               // The WiFi event handler will signal when disconnect is complete
               _pendingStationReconnect = true;
-            } else {
-              // Already disconnected, reconnect immediately
+            } else if (_pendingStationReconnect) {
+              // A drop this node asked for: reconnect from the last scan
               handleStationDisconnectComplete();
+            } else {
+              // A drop nobody asked for — the AP this station was on went
+              // away (its node rebooted, or a bridge moved the mesh). Scan
+              // now rather than when the current slow-scan delay runs out,
+              // which is up to four intervals away for a node that was
+              // stable a moment ago.
+              using namespace logger;
+              Log(CONNECTION,
+                  "Station link lost unexpectedly, scanning now\n");
+              this->stationScan.task.forceNextIteration();
             }
           }
         });
@@ -1748,7 +1758,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
       // Schedule a retry after channel re-sync has had a chance to run
       // The channel re-sync threshold is StationScan::EMPTY_SCAN_THRESHOLD
-      // scans (default 6) Fast scan interval is 0.5 * SCAN_INTERVAL = 15
+      // scans (2, ~30 s). Fast scan interval is 0.5 * SCAN_INTERVAL = 15
       // seconds Wait for re-sync to complete plus a buffer
       uint32_t retryDelay =
           (StationScan::EMPTY_SCAN_THRESHOLD - emptyScans + 2) * 15000;

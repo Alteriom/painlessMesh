@@ -32,6 +32,14 @@ typedef enum {
 
 class LogClass {
  public:
+  // Where messages go instead of Serial. The sketch owns framing: on a board
+  // whose serial port carries a line protocol, mesh logs written straight to
+  // Serial from a Wi-Fi event task splice into the sketch's own frames, so
+  // the sketch queues them here and writes them between its frames. Called
+  // from whichever task logged, so keep it short and re-entrant.
+  typedef void (*Sink)(LogLevel type, const char *message);
+  void setSink(Sink newSink) { sink = newSink; }
+
   void setLogLevel(uint16_t newTypes) {
     // set the different kinds of debug messages you want to generate.
     types = newTypes;
@@ -81,6 +89,12 @@ class LogClass {
       va_start(args, format);
 
       vsnprintf(str, 200, format, args);
+
+      if (sink) {
+        sink(type, str);
+        va_end(args);
+        return;
+      }
 
       if (types) {
         switch (type) {
@@ -153,6 +167,7 @@ class LogClass {
 
  private:
   uint16_t types = 0;
+  Sink sink = nullptr;
   char str[200];
   std::list<std::pair<uint32_t, TSTRING>> remote_queue;
   uint32_t remote_uuid;
