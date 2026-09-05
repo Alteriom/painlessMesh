@@ -10,13 +10,15 @@
  * Users reported the resulting partition as "Internet available via gateway:
  * YES / Mesh connections active: NO".
  *
- * The fix has two halves, and both are covered here:
+ * The fix has three parts, and all are covered here:
  *
  *  1. gatewayBlockingBudgetMs() must stay under NODE_TIMEOUT, so a stall can
  *     never outlast what a *remote* peer is willing to wait for a node-sync
  *     reply. Nothing the gateway does locally can help that peer; only being
  *     quick enough can.
- *  2. refreshPeerWatchdogs() re-arms the gateway's own view of its peers after
+ *  2. reserveGatewayBlockingBudget() extends an armed watchdog on the
+ *     requester's route before the gateway starts blocking.
+ *  3. refreshPeerWatchdogs() re-arms the gateway's own view of its peers after
  *     a stall, so overdue watchdogs get a fresh window instead of firing
  *     immediately.
  *
@@ -99,10 +101,14 @@ SCENARIO("The gateway blocking budget fits inside the mesh watchdog") {
               static_cast<unsigned long>(NODE_TIMEOUT));
     }
 
-    THEN("the budget is the sum of the two blocking socket timeouts") {
+    THEN("the budget counts both socket waits of each HTTP call plus DNS") {
+      // Each HTTPClient chain can wait twice (GET/POST + body read), and the
+      // DNS reachability probe (ESP8266) runs before them — issue #416.
       REQUIRE(painlessmesh::gateway::gatewayBlockingBudgetMs() ==
-              static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
-                  static_cast<unsigned long>(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS));
+              2UL * static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
+                  2UL * static_cast<unsigned long>(
+                            GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS) +
+                  static_cast<unsigned long>(GATEWAY_DNS_TIMEOUT_MS));
     }
 
     THEN("it leaves real headroom, not just a strict inequality") {
@@ -114,6 +120,37 @@ SCENARIO("The gateway blocking budget fits inside the mesh watchdog") {
           painlessmesh::gateway::gatewayBlockingBudgetMs() * TASK_MILLISECOND;
       auto watchdog = static_cast<unsigned long>(NODE_TIMEOUT);
       REQUIRE(watchdog - budget >= watchdog / 4);
+    }
+  }
+}
+
+SCENARIO("A requester reserves the gateway blocking budget on its route") {
+  GIVEN("a partly-spent armed route watchdog") {
+    Scheduler scheduler;
+    FakeMesh mesh;
+    auto gateway = addPeer(mesh, scheduler, 1);
+    gateway->timeOutTask.restartDelayed();
+    pump(scheduler, kWatchdogMs / 2);
+
+    WHEN("the requester reserves a bounded blocking window") {
+      REQUIRE(painlessmesh::gateway::reserveGatewayBlockingBudget(*gateway));
+
+      THEN("the original deadline does not expire immediately") {
+        pump(scheduler, kWatchdogMs);
+        REQUIRE_FALSE(gateway->closed);
+      }
+    }
+  }
+
+  GIVEN("an idle route with no outstanding node-sync watchdog") {
+    Scheduler scheduler;
+    FakeMesh mesh;
+    auto gateway = addPeer(mesh, scheduler, 1);
+
+    THEN("reserving a gateway budget does not invent a deadline") {
+      REQUIRE_FALSE(
+          painlessmesh::gateway::reserveGatewayBlockingBudget(*gateway));
+      REQUIRE_FALSE(gateway->timeOutTask.isEnabled());
     }
   }
 }
@@ -142,12 +179,13 @@ SCENARIO("A stall reaps peers whose watchdog fell due while the CPU was held") {
       }
     }
 
-    WHEN("the watchdogs are re-armed before the scheduler resumes") {
+    WHEN("the watchdogs are compensated before the scheduler resumes") {
       stall(kWatchdogMs * 3);
-      auto refreshed = painlessmesh::gateway::refreshPeerWatchdogs(mesh);
+      auto refreshed =
+          painlessmesh::gateway::refreshPeerWatchdogs(mesh, kWatchdogMs * 3);
       scheduler.execute();
 
-      THEN("both watchdogs were re-armed") { REQUIRE(refreshed == static_cast<size_t>(2)); }
+      THEN("both watchdogs were compensated") { REQUIRE(refreshed == static_cast<size_t>(2)); }
 
       THEN("neither peer is closed") {
         REQUIRE_FALSE(a->closed);
@@ -175,7 +213,8 @@ SCENARIO("Refreshing never arms a watchdog that was not already running") {
     REQUIRE_FALSE(idle->timeOutTask.isEnabled());
 
     WHEN("the watchdogs are refreshed and the scheduler runs well past NODE_TIMEOUT") {
-      auto refreshed = painlessmesh::gateway::refreshPeerWatchdogs(mesh);
+      auto refreshed =
+          painlessmesh::gateway::refreshPeerWatchdogs(mesh, kWatchdogMs);
       pump(scheduler, kWatchdogMs * 3);
 
       THEN("nothing was re-armed") { REQUIRE(refreshed == static_cast<size_t>(0)); }
@@ -194,7 +233,8 @@ SCENARIO("Refreshing never arms a watchdog that was not already running") {
     armed->timeOutTask.restartDelayed();
 
     WHEN("the watchdogs are refreshed") {
-      auto refreshed = painlessmesh::gateway::refreshPeerWatchdogs(mesh);
+      auto refreshed =
+          painlessmesh::gateway::refreshPeerWatchdogs(mesh, kWatchdogMs);
 
       THEN("only the armed peer is counted") { REQUIRE(refreshed == static_cast<size_t>(1)); }
       THEN("the idle peer stays disabled") {
@@ -209,7 +249,8 @@ SCENARIO("Refreshing tolerates an empty or partly-empty peer list") {
     FakeMesh mesh;
 
     THEN("refreshing is a no-op") {
-      REQUIRE(painlessmesh::gateway::refreshPeerWatchdogs(mesh) == static_cast<size_t>(0));
+      REQUIRE(painlessmesh::gateway::refreshPeerWatchdogs(mesh, kWatchdogMs) ==
+              static_cast<size_t>(0));
     }
   }
 
@@ -224,7 +265,69 @@ SCENARIO("Refreshing tolerates an empty or partly-empty peer list") {
     armed->timeOutTask.restartDelayed();
 
     THEN("the null entry is skipped and the real peer still refreshed") {
-      REQUIRE(painlessmesh::gateway::refreshPeerWatchdogs(mesh) == static_cast<size_t>(1));
+      REQUIRE(painlessmesh::gateway::refreshPeerWatchdogs(mesh, kWatchdogMs) ==
+              static_cast<size_t>(1));
+    }
+  }
+}
+
+SCENARIO("Compensation equals the measured stall, not a full reset (#417)") {
+  GIVEN("a peer with a running watchdog") {
+    Scheduler scheduler;
+    FakeMesh mesh;
+    auto peer = addPeer(mesh, scheduler, 1);
+    peer->timeOutTask.restartDelayed();
+
+    WHEN("a path that never blocked reports a zero stall") {
+      auto refreshed = painlessmesh::gateway::refreshPeerWatchdogs(mesh, 0);
+
+      THEN("nothing is compensated") {
+        REQUIRE(refreshed == static_cast<size_t>(0));
+      }
+
+      THEN("the watchdog still fires on its original schedule") {
+        pump(scheduler, kWatchdogMs * 2);
+        REQUIRE(peer->closed);
+      }
+    }
+
+    WHEN("a short stall is compensated while the peer stays silent") {
+      // A watchdog granted only the measured stall keeps its original
+      // baseline: deadline = armed-at + kWatchdogMs + stall. The peer must
+      // still be reaped shortly after, not handed a full fresh window.
+      stall(kWatchdogMs / 2);
+      painlessmesh::gateway::refreshPeerWatchdogs(mesh, kWatchdogMs / 2);
+
+      THEN("the peer is reaped once its observed time is spent") {
+        pump(scheduler, kWatchdogMs + kWatchdogMs / 2);
+        REQUIRE(peer->closed);
+      }
+    }
+  }
+
+  GIVEN("a dead peer on a gateway with continuous traffic from live peers") {
+    // The regression #417 fixes: with restart-from-zero semantics, every
+    // gateway request from a *live* peer granted the dead peer a fresh full
+    // NODE_TIMEOUT, so as long as traffic kept arriving faster than the
+    // watchdog interval the dead connection was never reaped.
+    Scheduler scheduler;
+    FakeMesh mesh;
+    auto dead = addPeer(mesh, scheduler, 1);
+    dead->timeOutTask.restartDelayed();
+
+    WHEN("stall-compensated refreshes arrive faster than the watchdog window") {
+      // Six cycles of a 10th-of-a-window stall + honest compensation, with
+      // the scheduler observing half a window between them. Under the old
+      // full-reset semantics the watchdog restarts every cycle and never
+      // fires. Under measured-stall compensation the observed time
+      // accumulates past kWatchdogMs and the dead peer is reaped mid-loop.
+      for (int i = 0; i < 6 && !dead->closed; ++i) {
+        stall(kWatchdogMs / 10);
+        painlessmesh::gateway::refreshPeerWatchdogs(mesh, kWatchdogMs / 10);
+        pump(scheduler, kWatchdogMs / 2);
+      }
+
+      THEN("the dead peer is still reaped") { REQUIRE(dead->closed); }
     }
   }
 }

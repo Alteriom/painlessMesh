@@ -33,15 +33,74 @@
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
-#include "painlessmesh/message_tracker.hpp"
+
+#if defined(ESP32) || defined(ESP8266)
+#include <WiFiClient.h>
+#endif
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
 
 #include <functional>
 #include <map>
+#include <vector>
 
 namespace painlessmesh {
 namespace gateway {
+
+/** Return whether a channel can be announced for a 2.4 GHz mesh takeover. */
+constexpr bool isValidMeshChannel(uint8_t channel) {
+  return channel >= 1 && channel <= 13;
+}
+
+/** Decide whether a peer must follow an elected bridge to another channel. */
+constexpr bool shouldFollowBridgeChannel(uint32_t localNodeId,
+                                         uint32_t electedBridgeId,
+                                         uint8_t currentChannel,
+                                         uint8_t announcedChannel) {
+  return electedBridgeId != localNodeId &&
+         isValidMeshChannel(announcedChannel) &&
+         announcedChannel != currentChannel;
+}
+
+/**
+ * @brief One occurrence of the mesh SSID seen by an all-channel scan.
+ */
+struct MeshChannelCandidate {
+  uint8_t channel;
+  int32_t rssi;
+};
+
+/**
+ * @brief Where a node that has lost the mesh should go.
+ *
+ * Channel re-detection runs only after a node's own partition has produced
+ * nothing new for a while, so the mesh it can still see on its *current*
+ * channel is the partition it is stranded in. When the SSID is also visible
+ * on another channel, that is the rest of the network — a bridge that moved
+ * to its router's channel, most often — and the node should go there.
+ *
+ * Returning the first match, as this used to, made the outcome depend on
+ * scan order: a stranded node that happened to see its own partition first
+ * concluded nothing had changed and stayed stranded.
+ *
+ * @param candidates  Every channel the mesh SSID was seen on, with RSSI.
+ * @param avoidChannel The node's current mesh channel; 0 = no preference.
+ * @return The strongest candidate on a channel other than avoidChannel;
+ *         failing that the strongest on avoidChannel; 0 if there are none.
+ */
+inline uint8_t pickMeshChannel(const std::vector<MeshChannelCandidate>& candidates,
+                               uint8_t avoidChannel) {
+  const MeshChannelCandidate* elsewhere = nullptr;
+  const MeshChannelCandidate* here = nullptr;
+  for (const auto& c : candidates) {
+    if (!isValidMeshChannel(c.channel)) continue;
+    const MeshChannelCandidate*& slot = (c.channel == avoidChannel) ? here : elsewhere;
+    if (slot == nullptr || c.rssi > slot->rssi) slot = &c;
+  }
+  if (elsewhere != nullptr) return elsewhere->channel;
+  if (here != nullptr) return here->channel;
+  return 0;
+}
 
 /**
  * @brief Validation result structure for SharedGatewayConfig
@@ -597,11 +656,31 @@ class InternetHealthChecker {
     }
     status_.lastError = "Mock: No Internet in test environment";
     return false;
+#elif defined(ESP32) || defined(ESP8266)
+    WiFiClient client;
+    uint32_t started = millis();
+#ifdef ESP32
+    bool connected = client.connect(checkHost_.c_str(), checkPort_, checkTimeout_);
 #else
-    // Arduino/ESP environment - actual TCP check
-    // Note: WiFiClient usage is handled in the arduino-specific code
-    // This base implementation returns false; override in wifi.hpp
-    status_.lastError = "Not implemented in base class";
+    // ESP8266's WiFiClient lacks ESP32's per-connect timeout overload, so the
+    // timeout is set on the client instead. It is milliseconds, not seconds:
+    // WiFiClient inherits Stream::setTimeout ("maximum milliseconds to wait")
+    // and connect() hands _timeout straight to WiFi.hostByName(), whose
+    // parameter is named timeout_ms. Dividing by 1000 here gave DNS five
+    // milliseconds to resolve, so the check failed every time and an ESP8266
+    // shared gateway never reported local Internet.
+    client.setTimeout(checkTimeout_);
+    bool connected = client.connect(checkHost_.c_str(), checkPort_);
+#endif
+    status_.lastLatencyMs = millis() - started;
+    if (!connected) {
+      status_.lastError = "TCP connectivity check failed";
+      return false;
+    }
+    client.stop();
+    return true;
+#else
+    status_.lastError = "Internet health checks are unsupported on this platform";
     return false;
 #endif
   }
@@ -1072,14 +1151,35 @@ class GatewayAckPackage : public plugin::SinglePackage {
 // normalises out the scheduler resolution, so the result is milliseconds under
 // _TASK_MICRO_RES too.
 
-/** Socket timeout, in milliseconds, for a gateway Internet request. */
+/** Socket timeout, in milliseconds, for a gateway Internet request.
+ *
+ * An HTTPClient call chain can wait on the socket twice — once sending the
+ * request/reading the headers and once reading the body — so the blocking
+ * budget below counts this value twice (issue #416). That is why the default
+ * is NODE_TIMEOUT/5 rather than the pre-2.0 NODE_TIMEOUT/2: the *wall-clock*
+ * worst case of the request, not one socket wait, has to fit inside the mesh
+ * watchdog. Endpoints that genuinely need longer must raise NODE_TIMEOUT
+ * along with this (the static_assert below enforces that). */
 #ifndef GATEWAY_HTTP_TIMEOUT_MS
-#define GATEWAY_HTTP_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 2)
+#define GATEWAY_HTTP_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 5)
 #endif
 
-/** Socket timeout, in milliseconds, for the captive-portal probe. */
+/** Socket timeout, in milliseconds, for the captive-portal probe. Counted
+ * twice in the blocking budget, same as GATEWAY_HTTP_TIMEOUT_MS. */
 #ifndef GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS
-#define GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 5)
+#define GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 10)
+#endif
+
+/** Timeout, in milliseconds, for the DNS reachability probe (issue #416).
+ *
+ * Only the ESP8266 core exposes a hostByName() overload with a timeout
+ * parameter; on ESP32 the probe is skipped entirely (the captive-portal
+ * probe, which is an HTTP round trip bounded by
+ * GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS, establishes reachability instead).
+ * The budget counts this term unconditionally, which is conservative on
+ * ESP32. */
+#ifndef GATEWAY_DNS_TIMEOUT_MS
+#define GATEWAY_DNS_TIMEOUT_MS ((NODE_TIMEOUT) / TASK_MILLISECOND / 10)
 #endif
 
 /** How long, in milliseconds, a connectivity probe result stays cached.
@@ -1093,40 +1193,87 @@ class GatewayAckPackage : public plugin::SinglePackage {
 #endif
 
 /**
- * @brief Total time the gateway may spend inside blocking Internet calls
- *        while handling a single GATEWAY_DATA package, in milliseconds.
+ * @brief Wall-clock ceiling of the gateway's blocking calls on the
+ *        GATEWAY_DATA path, in milliseconds (issue #416).
  *
- * The captive-portal probe runs before the request itself, so the two socket
- * timeouts stack. DNS reachability is cached and is not counted here.
+ * Each HTTPClient call chain is counted at *two* socket waits — GET()/POST()
+ * (send + header read) and getString() (body read) — because
+ * HTTPClient::setTimeout() bounds an individual socket wait, not the whole
+ * call. The captive-portal probe and the destination request both have that
+ * shape and run back to back, and the DNS reachability probe (bounded by
+ * GATEWAY_DNS_TIMEOUT_MS on ESP8266, skipped on ESP32) runs before them
+ * whenever the GATEWAY_CONNECTIVITY_CACHE_MS window has expired.
+ *
+ * @warning One residual is not in this budget: the HTTP calls resolve their
+ *          hostnames inside the platform core before their socket timeout
+ *          applies, and on ESP32 that in-request resolver wait is not
+ *          separately boundable in the cores this library targets. On a
+ *          network with blackholed DNS the request path can therefore still
+ *          exceed this ceiling on ESP32. See SECURITY.md "Gateway blocking:
+ *          the mesh partition risk".
  */
 constexpr unsigned long gatewayBlockingBudgetMs() {
-  return static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
-         static_cast<unsigned long>(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS);
+  return 2UL * static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
+         2UL * static_cast<unsigned long>(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS) +
+         static_cast<unsigned long>(GATEWAY_DNS_TIMEOUT_MS);
 }
 
 // A gateway that can block longer than the mesh watchdog partitions the mesh
-// around itself (issues #318, #332). Catch that at compile time. TASK_
-// constants are scaled by the scheduler's resolution, so the comparison is
-// written in scheduler units to stay correct under _TASK_MICRO_RES too.
+// around itself (issues #318, #332). Catch what is expressible at compile time
+// -- both socket waits of each HTTP call plus the DNS probe; see the ESP32
+// resolver caveat above for the one wait this cannot cover. TASK_ constants
+// are scaled by the scheduler's resolution, so the comparison is written in
+// scheduler units to stay correct under _TASK_MICRO_RES too.
 static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
-              "Gateway blocking budget (GATEWAY_HTTP_TIMEOUT_MS + "
-              "GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS) must stay below NODE_TIMEOUT, "
-              "or a gateway request stalls the scheduler for longer than its "
-              "peers are willing to wait and the mesh partitions around the "
-              "gateway. Raise NODE_TIMEOUT if you need a longer HTTP timeout.");
+              "Gateway blocking budget (2x GATEWAY_HTTP_TIMEOUT_MS + 2x "
+              "GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS + GATEWAY_DNS_TIMEOUT_MS) "
+              "must stay below NODE_TIMEOUT, or a gateway request stalls the "
+              "scheduler for longer than its peers are willing to wait and "
+              "the mesh partitions around the gateway. Raise NODE_TIMEOUT if "
+              "you need a longer HTTP timeout.");
 
 /**
- * @brief Re-arm the mesh watchdog on every peer that currently has one running.
+ * Reserve the blocking HTTP budget on the requester's route watchdog.
+ *
+ * A gateway compensates its own peer watchdogs after a blocking request, but
+ * it cannot modify the requester's timer. That timer may already be partly
+ * spent, so extend its existing deadline by the bounded gateway budget before
+ * sending. Disabled watchdogs remain disabled.
+ */
+template <typename T>
+bool reserveGatewayBlockingBudget(T& connection) {
+  if (!connection.timeOutTask.isEnabled()) return false;
+  connection.timeOutTask.adjust(static_cast<long>(
+      gatewayBlockingBudgetMs() * TASK_MILLISECOND));
+  return true;
+}
+
+/**
+ * @brief Give every peer's running watchdog back the time a blocking call hid.
  *
  * Call this immediately after returning from a blocking Internet call, before
- * the scheduler next runs.
+ * the scheduler next runs, passing the measured wall-clock duration of the
+ * stall.
  *
  * Nothing executes while the gateway is inside `HTTPClient::GET()`/`POST()`,
  * but wall-clock time keeps passing. So a `timeOutTask` whose NODE_TIMEOUT
  * deadline fell during the stall is already overdue when the scheduler
  * resumes, and fires on the very next `execute()` -- closing a peer that never
- * actually went missing. Re-arming gives each peer a full fresh window to
- * answer now that the CPU is available again.
+ * actually went missing (issues #318, #332).
+ *
+ * The compensation equals the measured stall, no more (issue #417): each
+ * enabled watchdog's existing deadline is postponed by `stalledMs` via
+ * `Task::adjust()`, which extends `iDelay` without touching the task's
+ * baseline. A peer's watchdog therefore measures only time the mesh was
+ * actually able to observe the peer. The earlier implementation restarted
+ * every watchdog from zero (`restartDelayed()`) on every exit path -- which
+ * meant any live peer's gateway traffic granted a genuinely dead peer a
+ * fresh full NODE_TIMEOUT, so the dead peer was never reaped.
+ * `Task::delay()` would be wrong in the other direction: it resets the
+ * baseline to now, shortening the deadline of a peer that still had more
+ * than `stalledMs` remaining and disconnecting healthy peers early.
+ *
+ * Paths that did not block must pass 0 and compensate nothing.
  *
  * Only *enabled* watchdogs are touched, and this matters: `timeOutTask` is
  * armed by `nodeSyncTask` when a sync request goes out and disabled again when
@@ -1136,20 +1283,26 @@ static_assert(gatewayBlockingBudgetMs() * TASK_MILLISECOND < NODE_TIMEOUT,
  * reliability fix into a disconnect bug.
  *
  * This protects the gateway's own view of its peers. The peers' view of the
- * gateway is protected by keeping the stall shorter than their watchdog, which
- * is what gatewayBlockingBudgetMs() enforces; the two halves are both needed.
+ * gateway depends on keeping the stall shorter than their watchdog, which is
+ * what gatewayBlockingBudgetMs() is meant to bound -- though see the @warning
+ * there for why that bound is not airtight (#416). Request-side reservation
+ * plus gateway-side compensation are both needed.
  *
  * @tparam T   Mesh type exposing `subs` (see painlessmesh::layout::Layout).
  * @param mesh The mesh whose direct peer connections should be refreshed.
- * @return Number of peers whose watchdog was re-armed.
+ * @param stalledMs Measured wall-clock duration of the blocking section, in
+ *        milliseconds. 0 means nothing blocked and nothing is compensated.
+ * @return Number of peers whose watchdog deadline was postponed.
  */
 template <typename T>
-size_t refreshPeerWatchdogs(T& mesh) {
+size_t refreshPeerWatchdogs(T& mesh, unsigned long stalledMs) {
+  if (stalledMs == 0) return 0;  // nothing blocked, nothing to give back
   size_t refreshed = 0;
   for (auto&& connection : mesh.subs) {
     if (!connection) continue;
     if (!connection->timeOutTask.isEnabled()) continue;
-    connection->timeOutTask.restartDelayed();
+    connection->timeOutTask.adjust(
+        static_cast<long>(stalledMs * TASK_MILLISECOND));
     ++refreshed;
   }
   return refreshed;

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Gateway takeover left the mesh partitioned on the old radio channel** — a
+  failover candidate correctly moved its AP+STA radio to the Internet router's
+  channel after election, but peers learned only that a takeover occurred, not
+  which channel to follow. They remained disconnected until the slow
+  all-channel recovery scan, exceeding the failover deadline and leaving
+  `getPrimaryGateway()` at zero. Election and takeover packages now carry the
+  candidate's router channel. Peers validate the announcement, discard stale
+  scan state, move both interfaces after the takeover has propagated, and
+  resume discovery immediately. A missed or older takeover message remains
+  compatible with the existing scan-based recovery path.
+
 - **Gateway Internet requests partitioned the mesh around the gateway
   (#318, #332)** — the gateway relays messages from inside the cooperative
   TaskScheduler using blocking `HTTPClient` calls, so nothing else ran for the
@@ -25,15 +36,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GATEWAY_HTTP_TIMEOUT_MS` is now a user-overridable macro **derived from
     `NODE_TIMEOUT`** (`painlessmesh/gateway.hpp`), yielding **5000ms** at the
     stock 10s watchdog where it was previously a hardcoded 30000. A
-    compile-time assertion keeps it, plus the captive-portal probe, inside
-    `NODE_TIMEOUT` — exceeding the mesh watchdog is now a build error rather
-    than a field partition, and raising `NODE_TIMEOUT` raises the budget with
-    it automatically.
-  - After a blocking request returns, the gateway re-arms the watchdog on
-    *every* peer that had one running, so an overdue deadline gets a fresh
-    window instead of firing immediately. Watchdogs that were not already
-    running are deliberately left alone: arming one for an idle-but-healthy
-    link would close it.
+    compile-time assertion keeps the two configured socket timeouts, plus the
+    captive-portal probe, inside `NODE_TIMEOUT`, and raising `NODE_TIMEOUT`
+    raises the budget with it automatically. **This is a partial mitigation.**
+    The assertion bounds the values you configure, not the wall clock:
+    `HTTPClient::setTimeout()` limits one socket wait rather than a whole call,
+    and the DNS probe takes no timeout at all, so a request can still overrun
+    the watchdog. *(Superseded later in this release — see the #416 entry
+    under 2.0.0: the budget now counts both socket waits per HTTP call and
+    the DNS probe is bounded on ESP8266 / skipped on ESP32.)*
+  - After a blocking request returns, the gateway postpones the watchdog
+    deadline on *every* peer that had one running by the **measured stall**
+    (`Task::adjust()`, issue #417), so an overdue deadline gets back exactly
+    the time the scheduler could not observe the peer — no more. Watchdogs
+    that were not already running are deliberately left alone: arming one
+    for an idle-but-healthy link would close it. Exit paths that never
+    blocked compensate nothing, so a genuinely dead peer is still reaped on
+    schedule even under continuous gateway traffic from other peers.
 
   **This changes a default.** If you relay to an endpoint that genuinely needs
   longer than 5s, raise `GATEWAY_HTTP_TIMEOUT_MS` *and* `NODE_TIMEOUT`
@@ -74,6 +93,179 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `examples/mqttBridge/platformio.ini` now pins the same
   `knolleary/PubSubClient` package used by `examples/bridge` to avoid
   ambiguous package name resolution in PlatformIO.
+
+## [2.0.0] - 2026-08-20
+
+### Added (post-review series)
+
+- **Unified send path: `SendOptions` (#384)** — `sendSingle()` and
+  `sendBroadcast()` gained overloads taking a
+  `painlessmesh::SendOptions{priority, ackCallback, ackTimeoutMs}` struct,
+  so a message can be both prioritized and delivery-confirmed in one call —
+  something the separate priority and ack overload families could not
+  express. All pre-existing overloads still compile and now delegate to the
+  unified path.
+- **Priority is carried across hops (#384)** — the priority level is now
+  serialized on the wire (as `"prio"`, only when it deviates from NORMAL, so
+  default sends carry zero overhead) and every forwarding node re-enqueues
+  the package at the sender's priority. Previously priority only affected
+  the first hop's transmit queue and was silently dropped on forwarding.
+  Pre-2.0 nodes ignore the field and forward at normal priority. Named
+  constants `PRIORITY_CRITICAL/HIGH/NORMAL/LOW` are exposed in
+  `painlessmesh::protocol`.
+
+### Fixed (post-review series)
+
+- **Gateway blocking budget is now a wall-clock model, DNS included (#416)**
+  — `gatewayBlockingBudgetMs()` counts **both** socket waits of each HTTP
+  call (request/header read plus body read — `HTTPClient::setTimeout()`
+  bounds one wait, not a whole call) for the destination request *and* the
+  captive-portal probe, plus a new `GATEWAY_DNS_TIMEOUT_MS` term for the
+  DNS reachability probe. On ESP8266 the probe now uses the `hostByName()`
+  timeout overload; on ESP32, whose core has no resolver timeout, the
+  standalone probe is skipped and the (timed) captive-portal probe
+  establishes reachability instead. **Defaults changed to keep the honest
+  budget inside `NODE_TIMEOUT`:** at the stock 10 s watchdog,
+  `GATEWAY_HTTP_TIMEOUT_MS` is now 2000 ms (was 5000) and
+  `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS` 1000 ms (was 2000); raise them
+  together with `NODE_TIMEOUT` if your endpoint needs longer — the
+  `static_assert` enforces the pairing. One residual is documented rather
+  than closed: ESP32's in-request hostname resolution happens inside the
+  core before the socket timeout applies and cannot be bounded there;
+  SECURITY.md states it plainly.
+- **Gateway watchdog compensation now equals the measured stall (#417)** —
+  `gateway::refreshPeerWatchdogs()` takes the measured blocking duration and
+  postpones each running peer watchdog by exactly that long via
+  `Task::adjust()`, instead of restarting every watchdog from zero on every
+  exit path. The full reset was strictly more generous than the time the
+  scheduler actually lost, and the excess starved the reaper: a genuinely
+  dead peer stayed connected indefinitely as long as any *live* peer
+  generated gateway traffic more often than `NODE_TIMEOUT`. Paths that never
+  blocked now compensate nothing. Regression-tested in
+  `catch_gateway_watchdog.cpp`, including the dead-peer-under-continuous-
+  traffic case.
+- **Outbound send buffer is bounded (#388)** — each connection's
+  `SentBuffer` now holds at most `PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES`
+  (default 64, build-time overridable) messages. Previously a peer that
+  stopped draining (stalled TCP connection) grew the outbound list until
+  allocation failed on the ESP8266 heap. At the cap, an incoming message
+  evicts the newest message of a strictly lower priority class (mirroring
+  `MessageQueue::makeSpace()`); if nothing lower-priority is queued, the
+  push is rejected and the send reports failure. Drops are counted in
+  `getStats().dropped`; a partially-transmitted message is never evicted.
+
+### Removed (post-review series)
+
+- **`MessageTracker` dead code (#386)** — `message_tracker.hpp` defined a
+  full dedup/ack-tracking class that was `#include`d but never instantiated
+  or called anywhere in the tree, costing compile time and flash in every
+  build. Removed together with its unit test. Broadcast flood dedup, the
+  integration it was meant for, remains future work with its own design
+  pass.
+
+- **Routing no longer copies the connection list per packet (#387)** — every
+  `router::` send/broadcast/forward took the mesh layout **by value**,
+  copying a `std::list` of `shared_ptr`s (one heap allocation per
+  connection) on every packet sent, broadcast, or forwarded. All routing
+  functions now take the layout by const reference — measurable allocation
+  and fragmentation relief on ESP8266.
+
+Feature release adding per-message delivery confirmation (issue #379). The
+release is a major version bump because it introduces a new wire-protocol
+message type: pre-2.0 nodes forward acknowledgment packets but never send
+them, so delivery confirmation only works reliably once every participating
+node runs 2.0.0. All existing sketches compile and behave unchanged.
+
+### Mixed-fleet rollout order
+
+During a rolling upgrade, a v1.x node never replies with a `MESSAGE_ACK`, so
+a v2.0 sender's delivery callback fires `delivered = false` against every
+un-upgraded peer — indistinguishable from real packet loss. This is not a
+bug in the ACK feature; it is the expected behavior of a mixed fleet.
+**Upgrade leaf/receiver nodes before the senders that will use the ack
+callbacks**, and only rely on `delivered = false` as a loss signal once the
+whole mesh runs 2.0.0. The same applies to cross-hop priority: pre-2.0
+forwarders ignore the `prio` field and forward at normal priority, so
+priority guarantees only hold end-to-end on an upgraded path.
+
+### Added
+
+- **Per-message delivery confirmation and acknowledgment API (#379)** —
+  `sendSingle()` and `sendBroadcast()` gained overloads that accept a
+  `painlessmesh::ack::deliveryCallback_t` callback and an acknowledgment
+  timeout (default 5000 ms). When a callback is provided the outgoing
+  message is tagged with a unique `msgId`, the receiving node automatically
+  replies with a `MessageAckPackage` (new protocol type 630, routed as a
+  SINGLE package so it traverses multiple hops), and the callback fires
+  with `delivered = true` plus the measured round-trip latency — or
+  `delivered = false` when the timeout elapses. Broadcast tracking
+  snapshots the mesh layout at send time and fires the callback once per
+  expected node.
+- `checkAcks()` — non-blocking poll that processes acknowledgment timeouts
+  and returns the number of messages still pending (timeouts are also
+  processed automatically inside `mesh.update()`).
+- `pendingAcks()` — number of messages still awaiting acknowledgment.
+- New header `painlessmesh/ack.hpp` with the platform-independent
+  `AckTracker` (unit-tested, uint32 wraparound safe) and
+  `MessageAckPackage`.
+- Arduino examples `reliableSensorLogging` (buffered retries until the
+  gateway confirms) and `commandControl` (per-node broadcast confirmation).
+- Unit tests (`catch_message_ack.cpp`) covering serialization, ack
+  matching, timeout, duplicate/unknown acks, broadcast fan-in and clock
+  wraparound, plus an end-to-end multi-node scenario in the TCP
+  integration suite.
+
+### Changed
+
+- `protocol::Single` / `protocol::Broadcast` carry an optional `msgId`
+  field. It is only serialized when delivery confirmation was requested,
+  so plain sends have zero added wire overhead.
+- `protocol::Variant` gained lightweight `from()` and `msgId()` field
+  peeks; the receive-path ACK handlers use them instead of materializing
+  a full package (no per-message payload copy on the hot path).
+
+### Hardening (post-review, pre-release)
+
+A full adversarial review of the ACK feature before release led to:
+
+- `AckTracker::expire()` now collects and erases expired entries before
+  firing any callback — a delivery callback that reentered the tracker
+  (retry `track()`, `checkAcks()`, or `clear()` via `mesh.stop()`) could
+  previously invalidate the live iterator (use-after-free).
+- `mesh.stop()` reached from inside a scheduler callback no longer
+  deletes the internally-owned `Scheduler` out from under its own
+  `execute()` (same bug class as #373); the ack poll task is also
+  disabled before its handle is cleared so a reentrant stop cannot
+  orphan it.
+- Message ids are seeded from `validation::SecureRandom` at `init()` —
+  previously the counter restarted at 1 every boot, so a delayed
+  pre-reboot ACK could confirm a fresh message (false
+  `delivered = true`).
+- Pending acknowledgments are capped at `PAINLESSMESH_MAX_PENDING_ACKS`
+  (default 32, build-time overridable); sends beyond the cap are
+  rejected instead of growing the tracker unbounded on the ESP8266 heap.
+- Broadcast ACK replies are staggered by nodeId within a 50 ms window so
+  an N-node broadcast does not converge N simultaneous ACK unicasts on
+  the sender.
+- The ack timeout poll interval is build-time configurable
+  (`PAINLESSMESH_ACK_CHECK_INTERVAL_MS`, default 100 ms) and its
+  battery/light-sleep implications are documented.
+
+### CI / packaging fixes
+
+- Fixed the Arduino example-compile loop in CI (`ci.yml`): a quoted glob
+  meant **no example sketch was ever compiled** — the job reported green
+  while compiling nothing. All examples now build for esp32 and esp8266
+  on every PR.
+- Added the two new examples to `library.json`'s `examples` array so
+  they appear in the PlatformIO registry listing.
+- `doxygen/Doxyfile` `PROJECT_NUMBER` bumped from the stale v1.6.1 to
+  v2.0.0; stale 1.6.1 install snippets in the wiki docs updated.
+- Wiki sync now publishes `docsify-site/` documentation (it previously
+  copied from a `docs/` directory that does not exist) and triggers on
+  docsify changes.
+- Removed dead links from the docsify sidebar.
+
 
 ## [1.10.0] - 2026-08-12
 
@@ -149,6 +341,7 @@ macros keep their historical values for source compatibility.
   `painlessmesh::plugin::BridgeCoordinationPackage`, matching the
   convention used across every other example (otaSender, namedMesh,
   alteriom_*).
+
 
 ## [1.9.21] - 2026-08-04
 

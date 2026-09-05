@@ -152,7 +152,7 @@ status.deviceStatus = 0x01;   // Operational
 status.uptime = millis() / 1000;
 status.freeMemory = ESP.getFreeHeap() / 1024;
 status.wifiStrength = 75;
-status.firmwareVersion = "1.6.1-alteriom";
+status.firmwareVersion = "2.0.0-alteriom";
 
 // Broadcast status
 auto variant = painlessmesh::protocol::Variant(&status);
@@ -240,7 +240,7 @@ void changedConnectionCallback() {
 
 ## See Also
 
-- [Installation Guide](Installation)
-- [Examples](Examples)
+- [Installation Guide](../getting-started/installation.md)
+- [Examples](../tutorials/basic-examples.md)
 - [GitHub Repository](https://github.com/Alteriom/painlessMesh)
 - [Release Notes](https://github.com/Alteriom/painlessMesh/releases)

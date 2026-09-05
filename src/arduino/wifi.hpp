@@ -112,11 +112,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           if (obj["routerRSSI"].is<int>()) {
             uint32_t fromNode = obj["from"];
             int8_t routerRSSI = obj["routerRSSI"];
+            uint8_t routerChannel = obj["routerChannel"] | 0;
             uint32_t uptime = obj["uptime"] | 0;
             uint32_t freeMemory = obj["freeMemory"] | 0;
 
-            this->handleBridgeElection(fromNode, routerRSSI, uptime,
-                                       freeMemory);
+            this->handleBridgeElection(fromNode, routerRSSI, routerChannel,
+                                       uptime, freeMemory);
 
             Log(CONNECTION, "Bridge election candidate from %u: RSSI %d dBm\n",
                 fromNode, routerRSSI);
@@ -139,9 +140,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             uint32_t newBridge = obj["from"];
             uint32_t previousBridge = obj["previousBridge"];
             TSTRING reason = obj["reason"].as<TSTRING>();
+            uint8_t routerChannel = obj["routerChannel"] | 0;
 
-            Log(CONNECTION, "Bridge takeover: Node %u replaced %u (%s)\n",
-                newBridge, previousBridge, reason.c_str());
+            Log(CONNECTION,
+                "Bridge takeover: Node %u replaced %u on channel %u (%s)\n",
+                newBridge, previousBridge, routerChannel, reason.c_str());
+
+            // AP+STA radios must use one channel. Follow the elected bridge
+            // promptly instead of waiting for the slow empty-scan recovery.
+            if (gateway::shouldFollowBridgeChannel(
+                    this->nodeId, newBridge, _meshChannel, routerChannel)) {
+              this->addTask(1000, TASK_ONCE, [this, routerChannel]() {
+                stationScan.followBridgeChannel(routerChannel);
+              });
+            }
 
             // Notify callback if this node was not the winner
             if (newBridge != this->nodeId && bridgeRoleChangedCallback) {
@@ -699,6 +711,14 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Step 5: Setup gateway Internet handler
     initGatewayInternetHandler();
 
+    // Step 6: Start the health checker that drives hasLocalInternet().
+    // Previously shared-gateway nodes associated and received an IP address,
+    // but the checker was never configured or scheduled, so local Internet
+    // availability remained false forever and every request was needlessly
+    // routed toward a mesh gateway.
+    configureInternetHealthCheck(_sharedGatewayConfig);
+    enableInternetHealthCheck();
+
     // Store router credentials for reconnection
     setRouterCredentials(routerSSID, routerPassword);
 
@@ -769,9 +789,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               // Schedule reconnection after disconnect completes
               // The WiFi event handler will signal when disconnect is complete
               _pendingStationReconnect = true;
-            } else {
-              // Already disconnected, reconnect immediately
+            } else if (_pendingStationReconnect) {
+              // A drop this node asked for: reconnect from the last scan
               handleStationDisconnectComplete();
+            } else {
+              // A drop nobody asked for — the AP this station was on went
+              // away (its node rebooted, or a bridge moved the mesh). Scan
+              // now rather than when the current slow-scan delay runs out,
+              // which is up to four intervals away for a node that was
+              // stable a moment ago.
+              using namespace logger;
+              Log(CONNECTION,
+                  "Station link lost unexpectedly, scanning now\n");
+              this->stationScan.task.forceNextIteration();
             }
           }
         });
@@ -1656,7 +1686,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * @param routerSSID SSID of router to scan for
    * @return RSSI in dBm (negative number, -127 to 0), or 0 if not found
    */
-  int8_t scanRouterSignalStrength(TSTRING routerSSID) {
+  int8_t scanRouterSignalStrength(TSTRING routerSSID,
+                                  uint8_t* routerChannel = nullptr) {
     using namespace logger;
     Log(CONNECTION, "scanRouterSignalStrength(): Scanning for %s...\n",
         routerSSID.c_str());
@@ -1667,9 +1698,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     for (int i = 0; i < n; i++) {
       if (WiFi.SSID(i) == routerSSID) {
         int8_t rssi = WiFi.RSSI(i);
+        uint8_t channel = WiFi.channel(i);
+        if (routerChannel != nullptr) *routerChannel = channel;
         Log(CONNECTION,
-            "scanRouterSignalStrength(): Found %s with RSSI %d dBm\n",
-            routerSSID.c_str(), rssi);
+            "scanRouterSignalStrength(): Found %s with RSSI %d dBm on "
+            "channel %u\n",
+            routerSSID.c_str(), rssi, channel);
         return rssi;
       }
     }
@@ -1724,7 +1758,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
       // Schedule a retry after channel re-sync has had a chance to run
       // The channel re-sync threshold is StationScan::EMPTY_SCAN_THRESHOLD
-      // scans (default 6) Fast scan interval is 0.5 * SCAN_INTERVAL = 15
+      // scans (2, ~30 s). Fast scan interval is 0.5 * SCAN_INTERVAL = 15
       // seconds Wait for re-sync to complete plus a buffer
       uint32_t retryDelay =
           (StationScan::EMPTY_SCAN_THRESHOLD - emptyScans + 2) * 15000;
@@ -1739,7 +1773,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     electionState = ELECTION_SCANNING;
 
     // Scan for router to get RSSI
-    int8_t routerRSSI = scanRouterSignalStrength(routerSSID);
+    uint8_t routerChannel = 0;
+    int8_t routerRSSI =
+        scanRouterSignalStrength(routerSSID, &routerChannel);
 
     if (routerRSSI == 0) {
       Log(CONNECTION,
@@ -1758,6 +1794,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     BridgeCandidate selfCandidate;
     selfCandidate.nodeId = this->nodeId;
     selfCandidate.routerRSSI = routerRSSI;
+    selfCandidate.routerChannel = routerChannel;
     selfCandidate.uptime = millis();
     selfCandidate.freeMemory = ESP.getFreeHeap();
     electionCandidates.push_back(selfCandidate);
@@ -1770,6 +1807,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["from"] = this->nodeId;
     obj["routing"] = 2;  // BROADCAST
     obj["routerRSSI"] = routerRSSI;
+    obj["routerChannel"] = routerChannel;
     obj["uptime"] = millis();
     obj["freeMemory"] = ESP.getFreeHeap();
     obj["timestamp"] = this->getNodeTime();
@@ -1782,7 +1820,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Send election message using raw broadcast to preserve type
     // BRIDGE_ELECTION
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
 
     Log(CONNECTION, "startBridgeElection(): Candidacy broadcast sent\n");
 
@@ -1902,7 +1940,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     if (winner->nodeId == this->nodeId) {
       Log(CONNECTION, "[TARGET] I WON! Promoting to bridge...\n");
-      promoteToBridge();
+      promoteToBridge(winner->routerChannel);
     } else {
       Log(CONNECTION, "Winner is node %u, remaining as regular node\n",
           winner->nodeId);
@@ -1924,7 +1962,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Instead, we schedule the actual promotion work to run after the current
    * task completes, allowing safe cleanup of task structures.
    */
-  void promoteToBridge() {
+  void promoteToBridge(uint8_t routerChannel) {
     using namespace logger;
 
     Log(STARTUP, "=== Becoming Bridge Node ===\n");
@@ -1950,6 +1988,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["previousBridge"] = previousBridgeId;
     obj["reason"] = "Election winner - best router signal";
     obj["routerRSSI"] = 0;  // Not yet connected to router
+    obj["routerChannel"] = routerChannel;
     obj["timestamp"] = this->getNodeTime();
     obj["message_type"] = protocol::BRIDGE_TAKEOVER;
 
@@ -1959,7 +1998,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Send takeover message using raw broadcast to preserve type
     // BRIDGE_TAKEOVER
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
 
     // Give time for announcement to propagate before channel switch
     // Allow event loop processing during hardware settling
@@ -2152,7 +2191,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Called by package handler when election message arrives
    */
   void handleBridgeElection(uint32_t fromNode, int8_t routerRSSI,
-                            uint32_t uptime, uint32_t freeMemory) {
+                            uint8_t routerChannel, uint32_t uptime,
+                            uint32_t freeMemory) {
     using namespace logger;
 
     if (electionState != ELECTION_COLLECTING) {
@@ -2174,6 +2214,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     BridgeCandidate candidate;
     candidate.nodeId = fromNode;
     candidate.routerRSSI = routerRSSI;
+    candidate.routerChannel = routerChannel;
     candidate.uptime = uptime;
     candidate.freeMemory = freeMemory;
 
@@ -2246,7 +2287,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Using sendBroadcast(msg) would wrap it in type 8 (BROADCAST) and hide
     // type BRIDGE_STATUS
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
   }
 
   /**
@@ -2287,9 +2328,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Using Google's servers as they have high availability globally
     IPAddress result;
 
-#if defined(ESP32) || defined(ESP8266)
-    // Both ESP32 and ESP8266 support WiFi.hostByName()
-    int dnsResult = WiFi.hostByName("www.google.com", result);
+#if defined(ESP8266)
+    // ESP8266's hostByName() has a timeout overload, so the resolver cannot
+    // stall the cooperative scheduler past GATEWAY_DNS_TIMEOUT_MS — that term
+    // is part of gatewayBlockingBudgetMs() and covered by its static_assert
+    // (issue #416).
+    int dnsResult =
+        WiFi.hostByName("www.google.com", result, GATEWAY_DNS_TIMEOUT_MS);
 
     // Check if DNS resolution succeeded
     if (dnsResult != 1) {
@@ -2308,6 +2353,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       lastResult = false;
       return false;
     }
+#elif defined(ESP32)
+    // ESP32's hostByName() has no timeout parameter in the cores this library
+    // targets, so a standalone DNS probe would be an unbounded stall on the
+    // cooperative scheduler whenever DNS is slow or blackholed — the exact
+    // failure mode of issues #318/#332, recurring once per
+    // GATEWAY_CONNECTIVITY_CACHE_MS. The probe is therefore skipped on ESP32
+    // (issue #416): actual reachability is established by the captive-portal
+    // probe that runs right after this check on the same path — an HTTP
+    // round trip bounded by GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS that fails on
+    // a router without Internet just as the DNS probe would.
+    (void)result;
+    lastCheckTime = millis();
+    lastResult = true;
+    return true;
 #else
     // Other platforms: assume internet is available if WiFi connected
     // (no reliable way to test without platform-specific APIs)
@@ -2415,8 +2474,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Helper method to send gateway acknowledgment
    */
-  void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
-                      uint16_t httpStatus, const TSTRING& error) {
+  void sendGatewayAck(
+      const gateway::GatewayDataPackage& request, bool success,
+      uint16_t httpStatus, const TSTRING& error,
+      std::shared_ptr<Connection> ingressConnection = nullptr) {
     using namespace logger;
 
     gateway::GatewayAckPackage ack;
@@ -2429,7 +2490,28 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     ack.error = error;
     ack.timestamp = this->getNodeTime();
 
+    if (request.originNode == this->nodeId) {
+      protocol::Variant variant(&ack);
+      this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
+      Log(COMMUNICATION,
+          "Completed local GATEWAY_ACK (success=%d, http=%d)\n", success,
+          httpStatus);
+      return;
+    }
+
     auto conn = router::findRoute<Connection>((*this), request.originNode);
+    if (!conn && ingressConnection) {
+      // A newly promoted gateway can receive data before its NodeTree has
+      // converged enough for findRoute() to resolve the request origin.  The
+      // ingress connection is nevertheless a valid reverse path: the request
+      // just arrived through it and every intermediate node can continue
+      // routing the addressed acknowledgment toward originNode.
+      conn = ingressConnection;
+      Log(COMMUNICATION,
+          "Routing GATEWAY_ACK to node %u through request ingress while "
+          "topology converges\n",
+          request.originNode);
+    }
     if (conn) {
       protocol::Variant variant(&ack);
       router::send(std::move(variant), conn);
@@ -2478,7 +2560,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->callbackList.onPackage(
         protocol::GATEWAY_DATA, [this](protocol::Variant& variant,
-                                       std::shared_ptr<Connection>, uint32_t) {
+                                       std::shared_ptr<Connection> ingress,
+                                       uint32_t) {
           auto pkg = variant.to<gateway::GatewayDataPackage>();
 
           Log(COMMUNICATION,
@@ -2501,16 +2584,24 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           // before the stall rather than after it, which is the half that
           // cannot work: the deadline is wall-clock, so pushing it out ahead of
           // a stall longer than the window changes nothing.
-          auto finish = [this, &pkg](bool ok, uint16_t code,
-                                     const TSTRING& err) {
-            auto refreshed = gateway::refreshPeerWatchdogs(*this);
+          //
+          // Compensation is by the *measured* stall (issue #417): exit paths
+          // that never blocked measure ~0 ms and grant nothing, so a peer
+          // that genuinely stopped answering NODE_SYNC still gets reaped even
+          // under continuous gateway traffic from other peers.
+          const auto blockingStartedMs = millis();
+          auto finish = [this, &pkg, ingress, blockingStartedMs](
+                            bool ok, uint16_t code, const TSTRING& err) {
+            const auto stalledMs = millis() - blockingStartedMs;
+            auto refreshed = gateway::refreshPeerWatchdogs(*this, stalledMs);
             if (refreshed > 0) {
               Log(COMMUNICATION,
-                  "Gateway re-armed mesh watchdog on %u peer(s) after blocking "
-                  "Internet request\n",
-                  static_cast<unsigned>(refreshed));
+                  "Gateway postponed the mesh watchdog on %u peer(s) by %lu ms "
+                  "after a blocking Internet request\n",
+                  static_cast<unsigned>(refreshed),
+                  static_cast<unsigned long>(stalledMs));
             }
-            this->sendGatewayAck(pkg, ok, code, err);
+            this->sendGatewayAck(pkg, ok, code, err, ingress);
           };
 
           // Check Internet connectivity
@@ -2760,6 +2851,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   struct BridgeCandidate {
     uint32_t nodeId;
     int8_t routerRSSI;
+    uint8_t routerChannel;
     uint32_t uptime;
     uint32_t freeMemory;
   };

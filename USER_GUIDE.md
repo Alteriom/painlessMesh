@@ -35,7 +35,7 @@ This comprehensive guide covers everything you need to build production-ready me
 - **ESP32 & ESP8266 Support** - Full support for both platforms
 - **Memory Efficient** - Optimized for resource-constrained devices
 
-**Alteriom Extensions (v1.7.0+):**
+**Alteriom Extensions:**
 - **Broadcast OTA Distribution** - 98% network traffic reduction for large meshes
 - **MQTT Bridge** - Professional monitoring with Grafana/InfluxDB/Prometheus
 - **Structured Packages** - SensorPackage, CommandPackage, StatusPackage
@@ -360,6 +360,57 @@ bool sendSingle(uint32_t dest, String &msg);
 
 **Returns:** `true` if successful
 
+**Delivery confirmation (v2.0.0+)** - Both send functions accept an optional
+delivery callback for reliable communication:
+
+```cpp
+bool sendSingle(uint32_t dest, String &msg,
+                painlessmesh::ack::deliveryCallback_t ackCallback,
+                uint32_t ackTimeoutMs = 5000);
+bool sendBroadcast(String &msg, bool includeSelf,
+                   painlessmesh::ack::deliveryCallback_t ackCallback,
+                   uint32_t ackTimeoutMs = 5000);
+```
+
+When a callback is given, the receiving node automatically acknowledges the
+message and the callback fires with `delivered = true` and the round-trip
+latency, or `delivered = false` after the timeout. For broadcasts the
+callback fires once per node in the mesh. See the `reliableSensorLogging`
+and `commandControl` examples:
+
+```cpp
+mesh.sendSingle(gatewayId, msg,
+                [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  if (delivered)
+    Serial.printf("Node %u confirmed in %u ms\n", nodeId, latencyMs);
+  else
+    Serial.printf("Delivery to %u timed out\n", nodeId);
+});
+```
+
+Use `mesh.pendingAcks()` to see how many messages are still unconfirmed and
+`mesh.checkAcks()` to poll timeouts manually (they are also processed inside
+`mesh.update()`). At most `PAINLESSMESH_MAX_PENDING_ACKS` (default 32)
+messages can await confirmation at once — beyond that the send returns
+`false` and nothing is sent.
+
+To combine a priority level with a delivery callback in one call, pass a
+`painlessmesh::SendOptions` struct instead of using the separate overloads:
+
+```cpp
+painlessmesh::SendOptions options;
+options.priority = painlessmesh::protocol::PRIORITY_HIGH;
+options.ackCallback = [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  // ...
+};
+mesh.sendSingle(targetNode, msg, options);
+mesh.sendBroadcast(msg, options);  // includeSelf as optional third argument
+```
+
+Since v2.0.0 the priority level is carried on the wire, so intermediate
+nodes forward a prioritized message at the sender's priority instead of
+dropping it to normal after the first hop.
+
 #### Callbacks
 
 **`onReceive()`** - Message received callback
@@ -529,9 +580,8 @@ mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
 See `examples/tcpRetryConfig/` for real-time, high-reliability and
 battery-saver profiles, and the API docs for the full tuning guidance.
 
-> **Note:** these defaults were deliberately raised in 1.9.x to fix real-world
-> mesh instability. Tuning them down can reintroduce connection churn and rapid
-> reconnect loops.
+> **Note:** these production defaults prevent connection churn and rapid
+> reconnect loops. Tuning them down can reintroduce mesh instability.
 
 ---
 
@@ -673,7 +723,7 @@ status.deviceStatus = 1; // OPERATIONAL
 status.uptime = millis() / 1000;
 status.freeMemory = ESP.getFreeHeap();
 status.wifiStrength = WiFi.RSSI();
-status.firmwareVersion = "1.2.3";
+status.firmwareVersion = "2.0.0";
 
 String json = status.toJsonString();
 mesh.sendBroadcast(json);
@@ -686,7 +736,7 @@ mesh.sendBroadcast(json);
 - Performance tracking
 - Remote troubleshooting
 
-### Advanced Packages (v1.7.0+)
+### Advanced Packages
 
 **MetricsPackage (Type 204)** - Comprehensive performance metrics
 - CPU usage, memory health, network throughput
@@ -699,7 +749,7 @@ mesh.sendBroadcast(json);
 - Memory leak detection
 - Predictive maintenance
 
-**Bridge Packages (v1.8.0+):**
+**Bridge Packages:**
 - **BridgeStatusPackage (Type 610)** - Bridge health monitoring
 - **BridgeElectionPackage (Type 611)** - Automatic failover election
 - **BridgeTakeoverPackage (Type 612)** - Bridge role announcement
@@ -751,7 +801,7 @@ void receivedCallback(uint32_t from, String &msg) {
 }
 ```
 
-### Bridge Failover (v1.8.0+)
+### Bridge Failover
 
 Automatic high-availability for critical systems:
 
@@ -780,7 +830,7 @@ void bridgeRoleCallback(bool isBridge, const String& reason) {
 }
 ```
 
-### Shared Gateway Mode (v1.9.0+)
+### Shared Gateway Mode
 
 All nodes as Internet gateways with automatic failover:
 
@@ -816,7 +866,7 @@ For complete bridge documentation, see [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNE
 
 ## Advanced Features
 
-### Message Queue (v1.8.2+)
+### Message Queue
 
 Zero data loss during Internet outages:
 
@@ -840,13 +890,13 @@ mesh.onQueueFlushed(&queueFlushedCallback);
 - `NORMAL` - Normal priority
 - `LOW` - Dropped first when queue full
 
-### Broadcast OTA (v1.7.0+)
+### Broadcast OTA
 
 Efficient firmware distribution for large meshes:
 
 ```cpp
 // Enable broadcast OTA mode
-mesh.initOTA("MyFirmware", "1.2.3", [](size_t progress, size_t total) {
+mesh.initOTA("MyFirmware", "2.0.0", [](size_t progress, size_t total) {
   Serial.printf("OTA Progress: %d%%\n", (progress * 100) / total);
 });
 
@@ -877,7 +927,7 @@ mqttClient.onMessage([](String topic, String payload) {
 });
 ```
 
-### Multi-Bridge Coordination (v1.8.2+)
+### Multi-Bridge Coordination
 
 Enterprise load balancing:
 
@@ -1232,7 +1282,7 @@ Complete examples are available in the repository (16 examples total):
 
 ## Version Information
 
-This guide is for **AlteriomPainlessMesh v1.9.6** (December 2025)
+This guide covers **AlteriomPainlessMesh 2.0**.
 
 For the latest updates and releases, visit:
 - [GitHub Releases](https://github.com/Alteriom/painlessMesh/releases)

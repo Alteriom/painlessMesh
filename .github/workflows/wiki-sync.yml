@@ -7,8 +7,11 @@ on:
       - 'README.md'
       - 'RELEASE_GUIDE.md'
       - 'CHANGELOG.md'
-      - 'docs/**'
+      - 'USER_GUIDE.md'
+      - 'BRIDGE_TO_INTERNET.md'
+      - 'docsify-site/**'
       - 'examples/**'
+      - 'scripts/build-wiki.py'
   release:
     types: [published]
   workflow_dispatch: {}
@@ -35,13 +38,13 @@ jobs:
           cp RELEASE_GUIDE.md wiki_build/Release-Guide.md
           cp CHANGELOG.md wiki_build/Changelog.md
           
-          # Create wiki-friendly versions of docs
-          if [ -d "docs" ]; then
-            # Copy and adapt documentation
-            find docs -name "*.md" | while read file; do
-              wiki_name=$(basename "$file" .md | sed 's/-/_/g' | sed 's/\b\w/\U&/g')
-              cp "$file" "wiki_build/${wiki_name}.md"
-            done
+          # Create wiki-friendly versions of the docsify documentation.
+          # (An earlier version copied from a "docs/" directory that does
+          # not exist in this repo — the prose docs live in docsify-site/.)
+          # Pages are flattened as <Dir>-<File>.md; relative Markdown links
+          # are rewritten to the corresponding flattened page names.
+          if [ -d "docsify-site" ]; then
+            python3 scripts/build-wiki.py
           fi
           
           # Create API reference from examples
@@ -98,13 +101,39 @@ jobs:
             exit 1
           fi
           
-          # Copy generated wiki files
-          cp -v wiki_build/*.md wiki_repo/
-          
           cd wiki_repo
+
+          # Remove only pages recorded by the previous generated set. The
+          # manifest prevents stale renamed/deleted pages while preserving
+          # any hand-maintained wiki content.
+          manifest=.painlessmesh-generated-pages
+          if [ -f "$manifest" ]; then
+            while IFS= read -r page; do
+              case "$page" in
+                *.md)
+                  if [ "$(basename "$page")" != "$page" ]; then
+                    echo "Invalid generated-page manifest entry: $page" >&2
+                    exit 1
+                  fi
+                  git rm -f --ignore-unmatch -- "$page"
+                  ;;
+                '') ;;
+                *)
+                  echo "Invalid generated-page manifest entry: $page" >&2
+                  exit 1
+                  ;;
+              esac
+            done < "$manifest"
+          fi
+
+          cp -v ../wiki_build/*.md .
+          find ../wiki_build -maxdepth 1 -type f -name '*.md' \
+            -printf '%f\n' | sort > "$manifest"
           
-          # Check if there are any changes
-          if git diff --quiet; then
+          # Stage first so newly generated (previously untracked) pages are
+          # included in the change check as well as modified pages.
+          git add .
+          if git diff --cached --quiet; then
             echo "No wiki changes detected"
             exit 0
           fi
@@ -112,7 +141,6 @@ jobs:
           # Configure git and commit changes
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
           git commit -m "docs: automated wiki sync from main branch"
           git push
 

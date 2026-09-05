@@ -26,7 +26,7 @@ static const uint32_t TCP_CLIENT_CLEANUP_DELAY_MS = 1000; // 1000ms delay before
 // When multiple AsyncClients are deleted in rapid succession, the AsyncTCP library's
 // internal cleanup routines can interfere with each other, causing heap corruption
 // This spacing ensures each deletion completes before the next one begins
-// Increased from 250ms to 500ms (v1.9.14) then to 1000ms (v1.9.15) to support ESP32-C6
+// ESP32-C6 needs 1000ms spacing to avoid overlapping AsyncTCP cleanup.
 // ESP32-C6 uses RISC-V architecture with AsyncTCP v3.3.0+ which requires significantly
 // more time for internal cleanup operations compared to ESP32/ESP8266
 static const uint32_t TCP_CLIENT_DELETION_SPACING_MS = 1000; // 1000ms spacing between deletions
@@ -275,19 +275,21 @@ class BufferedConnection
   }
 
   bool write(const TSTRING &data, bool priority = false) {
-    sentBuffer.push(data, priority);
+    // false = outbound buffer at PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES and
+    // nothing lower-priority to evict (issue #388)
+    if (!sentBuffer.push(data, priority)) return false;
     sentBufferTask.forceNextIteration();
     return true;
   }
-  
+
   /**
    * Write data with explicit priority level (0-3)
-   * 
+   *
    * \param data The data to send
    * \param priorityLevel Priority level: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
    */
   bool writeWithPriority(const TSTRING &data, uint8_t priorityLevel) {
-    sentBuffer.pushWithPriority(data, priorityLevel);
+    if (!sentBuffer.pushWithPriority(data, priorityLevel)) return false;
     sentBufferTask.forceNextIteration();
     return true;
   }

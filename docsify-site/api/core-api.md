@@ -98,6 +98,116 @@ String msg = "Hello specific node!";
 bool sent = mesh.sendSingle(targetNode, msg);
 ```
 
+#### Delivery confirmation (v2.0.0+)
+
+Both send functions accept an optional delivery callback. When provided, the
+message is tagged with a unique id, the receiving node automatically replies
+with an acknowledgment (protocol type 630, routed across multiple hops), and
+the callback reports the result per destination node:
+
+```cpp
+// Callback type (painlessmesh::ack::deliveryCallback_t)
+void(uint32_t nodeId, bool delivered, uint32_t latencyMs);
+
+bool sendSingle(uint32_t destId, TSTRING msg,
+                painlessmesh::ack::deliveryCallback_t ackCallback,
+                uint32_t ackTimeoutMs = 5000);
+
+// includeSelf and ackCallback must be passed explicitly on this overload
+bool sendBroadcast(TSTRING msg, bool includeSelf,
+                   painlessmesh::ack::deliveryCallback_t ackCallback,
+                   uint32_t ackTimeoutMs = 5000);
+```
+
+**Behavior:**
+- The callback fires exactly once per expected node: `delivered = true` with
+  the measured round-trip latency, or `delivered = false` after
+  `ackTimeoutMs` elapsed.
+- For broadcasts, the set of expected nodes is snapshotted from the mesh
+  layout at send time; the local node never acknowledges itself. Receiving
+  nodes stagger their broadcast ACK replies by up to 50 ms so large meshes
+  do not converge simultaneous ACK bursts on the sender.
+- Timeouts are processed inside `mesh.update()` — no blocking waits.
+- Passing `nullptr` as the callback behaves exactly like the plain overloads
+  (zero wire and CPU overhead).
+- At most `PAINLESSMESH_MAX_PENDING_ACKS` (default 32, build-time
+  overridable) messages may await acknowledgment at once; beyond that the
+  send is rejected (`false` returned, nothing sent). Check `pendingAcks()`
+  before bursts.
+- Message ids are seeded randomly at `init()` so a delayed ACK from before
+  a reboot cannot be mistaken for a fresh message's acknowledgment.
+- To combine priority with a delivery callback, use the `SendOptions`
+  overloads (below) — the separate priority and ack overloads remain for
+  backwards compatibility but cannot express both in one call.
+- Power note: while any ack is outstanding, the scheduler polls timeouts
+  every `PAINLESSMESH_ACK_CHECK_INTERVAL_MS` (default 100 ms) for up to
+  `ackTimeoutMs`. Battery/light-sleep nodes can override the interval at
+  build time; when no ack is pending the poll task is fully disabled.
+
+**Example:**
+```cpp
+mesh.sendSingle(gatewayId, msg,
+                [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  if (delivered)
+    Serial.printf("Node %u confirmed in %u ms\n", nodeId, latencyMs);
+  else
+    Serial.printf("Delivery to %u timed out\n", nodeId);
+});
+```
+
+#### `SendOptions` — unified send path (v2.0.0+)
+
+`painlessmesh::SendOptions` bundles priority and delivery confirmation into
+one composable struct; every other `sendSingle()` / `sendBroadcast()`
+overload is a thin wrapper over these two:
+
+```cpp
+struct painlessmesh::SendOptions {
+  uint8_t priority = PRIORITY_NORMAL;  // PRIORITY_CRITICAL(0) … PRIORITY_LOW(3)
+  painlessmesh::ack::deliveryCallback_t ackCallback = nullptr;
+  uint32_t ackTimeoutMs = 5000;
+};
+
+bool sendSingle(uint32_t destId, TSTRING msg,
+                const painlessmesh::SendOptions& options);
+bool sendBroadcast(TSTRING msg, const painlessmesh::SendOptions& options,
+                   bool includeSelf = false);
+```
+
+```cpp
+painlessmesh::SendOptions options;
+options.priority = painlessmesh::protocol::PRIORITY_HIGH;
+options.ackCallback = [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  if (!delivered) Serial.printf("Node %u missed the alarm\n", nodeId);
+};
+mesh.sendBroadcast(alarmMsg, options);
+```
+
+**Priority is carried across hops in version 2.0.** The priority level is
+serialized on the wire (as `"prio"`, only when it deviates from
+`PRIORITY_NORMAL`, so default sends carry zero overhead) and every
+forwarding node re-enqueues the package at the sender's priority.
+
+#### `checkAcks()`
+
+Process pending acknowledgment timeouts (non-blocking poll).
+
+```cpp
+size_t checkAcks();
+```
+
+**Returns:** Number of messages still awaiting acknowledgment. Timeout
+processing also happens automatically inside `mesh.update()`, so calling
+this manually is only useful in tight loops.
+
+#### `pendingAcks()`
+
+```cpp
+size_t pendingAcks() const;
+```
+
+**Returns:** Number of messages still awaiting delivery acknowledgment.
+
 ### Plugin System
 
 #### `sendPackage()`
@@ -601,7 +711,7 @@ void monitorConnections() {
 
 ## Next Steps
 
-- Explore [Plugin API](plugin-api.md) for advanced package handling
+- Explore the [Plugin System](../architecture/plugin-system.md) for advanced package handling
 - Learn about [Configuration](configuration.md) options
 - See [Callbacks](callbacks.md) for detailed event handling
-- Check [Performance Optimization](../advanced/performance.md) guide
+- Check the [Mesh Architecture](../architecture/mesh-architecture.md) guide

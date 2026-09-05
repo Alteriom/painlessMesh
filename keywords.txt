@@ -5,6 +5,7 @@ painlessMesh	KEYWORD1
 Scheduler	KEYWORD1
 Task	KEYWORD1
 TcpRetryConfig	KEYWORD1
+SendOptions	KEYWORD1
 
 # Methods and Functions (KEYWORD2)
 init	KEYWORD2
@@ -19,6 +20,8 @@ getNodeList	KEYWORD2
 getNodeId	KEYWORD2
 getNodeTime	KEYWORD2
 setDebugMsgTypes	KEYWORD2
+checkAcks	KEYWORD2
+pendingAcks	KEYWORD2
 setTcpRetryConfig	KEYWORD2
 getTcpRetryConfig	KEYWORD2
 subConnectionJson	KEYWORD2
@@ -26,6 +29,8 @@ asNodeTree	KEYWORD2
 
 # Alteriom Extensions (KEYWORD1)
 SensorPackage	KEYWORD1
+MessageAckPackage	KEYWORD1
+deliveryCallback_t	KEYWORD1
 CommandPackage	KEYWORD1
 StatusPackage	KEYWORD1
 
@@ -50,3 +55,7 @@ GENERAL	LITERAL1
 MSG_TYPES	LITERAL1
 REMOTE	LITERAL1
 DEBUG	LITERAL1
+PRIORITY_CRITICAL	LITERAL1
+PRIORITY_HIGH	LITERAL1
+PRIORITY_NORMAL	LITERAL1
+PRIORITY_LOW	LITERAL1
