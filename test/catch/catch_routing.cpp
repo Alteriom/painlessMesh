@@ -232,8 +232,11 @@ SCENARIO("A route through a closed connection cannot refuse a live one") {
     tree.subs.push_back(dead);
     tree.subs.push_back(alive);
 
-    THEN("findRoute still answers with the dead one") {
-      REQUIRE(router::findRoute<ClosableConnection>(tree, 2098834584) == dead);
+    THEN("findRoute does not answer with the dead one either") {
+      // Routing a packet to a closed connection queues it where nothing
+      // will drain it and tells the sender it succeeded.
+      REQUIRE(router::findRoute<ClosableConnection>(tree, 2098834584) ==
+              nullptr);
     }
     THEN("findLiveRoute does not, so a direct connection is accepted") {
       REQUIRE(router::findLiveRoute<ClosableConnection>(tree, 2098834584) ==

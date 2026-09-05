@@ -29,24 +29,29 @@ std::shared_ptr<T> findRoute(const layout::Layout<T>& tree,
   return (*route);
 }
 
+/** The live connection through which nodeId is reachable, or NULL.
+ *
+ * A closed connection stays in subs until eraseClosedConnections() next
+ * runs. Routing a packet to it is a silent loss: the write is queued into
+ * a buffer nothing will ever drain, and the sender is told it succeeded.
+ * On the Alteriom HIL rig, correlating every unacknowledged delivery with
+ * the receiver's log showed the message had usually never arrived at all —
+ * 27 of 33 across three suites — which is this. A dead link is not a
+ * route, for any purpose; the liveness test is the one
+ * layout::syncLayout() already applies.
+ */
 template <class T>
 std::shared_ptr<T> findRoute(const layout::Layout<T>& tree, uint32_t nodeId) {
   return findRoute<T>(tree, [nodeId](std::shared_ptr<T> s) {
-    return layout::contains((*s), nodeId);
+    return s->connected() && layout::contains((*s), nodeId);
   });
 }
 
-/** A route to nodeId that can actually carry something.
- *
- * findRoute() searches every sub, and a closed connection stays in subs
- * until eraseClosedConnections() next runs, so it will happily answer with
- * a link that is already gone. Callers deciding whether a node is
- * *reachable* — rather than which sub to hand a packet to — need the
- * distinction: acting on a dead route to refuse a live connection leaves
- * the node with neither.
+/** findRoute() for the duplicate-connection check in handleNodeSync().
  *
  * `exclude` drops the connection being judged, which cannot duplicate
- * itself. Mirrors the liveness test layout::syncLayout already applies.
+ * itself. Refusing a live direct connection on the authority of a dead
+ * route left a node with neither once the dead one was erased.
  */
 template <class T>
 std::shared_ptr<T> findLiveRoute(const layout::Layout<T>& tree, uint32_t nodeId,
