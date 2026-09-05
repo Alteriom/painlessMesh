@@ -103,6 +103,7 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
     task.delay(0.5 * SCAN_INTERVAL);
     return;
   }
+  scanRequested = true;
 
   task.delay(10 * SCAN_INTERVAL);  // Scan should be completed by then and next
                                    // step called. If not then we restart here.
@@ -111,6 +112,16 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
 
 void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   using namespace painlessmesh::logger;
+  if (!scanRequested) {
+    // The scan-done event of a synchronous scan — channel re-detection or
+    // a bridge takeover — whose results are consumed and deleted by the
+    // code that ran it. Treating it as ours found nothing, logged a scan
+    // failure, and rescanned immediately: on a rootless mesh every node
+    // did that back to back, and an OTA transfer through them stalled.
+    Log(CONNECTION, "scanComplete(): not this task's scan, ignoring\n");
+    return;
+  }
+  scanRequested = false;
   Log(CONNECTION, "scanComplete(): Scan finished\n");
 
   aps.clear();
@@ -368,6 +379,19 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
           "connectToAP(): Already connected, and no unknown nodes found: "
           "scan rate set to slow\n");
       task.delay(4 * SCAN_INTERVAL);
+    } else if (orphaned && WiFi.status() == WL_CONNECTED) {
+      // Connected, told the mesh has a root, and not seeing one. The first
+      // re-detections come quickly — that is how a follower stranded by a
+      // bridge's channel move catches up — but a mesh that is simply
+      // rootless must not keep every node scanning all channels every
+      // half interval for as long as it stays so. Back off to two
+      // intervals; anything new on the air resets it.
+      uint32_t interval = (0.5 * SCAN_INTERVAL) * (1u << orphanScanBackoff);
+      Log(CONNECTION,
+          "connectToAP(): No root in sight, next scan in %u s\n",
+          (unsigned)(interval / TASK_SECOND));
+      task.delay(interval);
+      if (orphanScanBackoff < 2) orphanScanBackoff++;
     } else {
       // else scan fast (SCAN_INTERVAL)
       Log(CONNECTION,
@@ -379,6 +403,7 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   } else {
     // Reset counter when APs are found
     consecutiveEmptyScans = 0;
+    orphanScanBackoff = 0;
     if (WiFi.status() == WL_CONNECTED) {
       // TODO: Use %u instead of String() here and below
       // Also prob is always equal to stability, so we should use that directly
@@ -463,6 +488,7 @@ bool ICACHE_FLASH_ATTR StationScan::followBridgeChannel(
 
   // Resume discovery immediately. The old recovery path required repeated
   // empty scans and exceeded the gateway failover contract.
+  orphanScanBackoff = 0;
   task.enable();
   task.forceNextIteration();
   return true;

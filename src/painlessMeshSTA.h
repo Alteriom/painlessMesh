@@ -93,6 +93,16 @@ class StationScan {
   // millis() of the last requestIP(), to tell a station that is still
   // obtaining an address from one that associated and never got one.
   uint32_t connectAttemptStarted = 0;
+  // Set when this task starts an async scan, cleared when its result is
+  // consumed. The scan-done event also fires for the synchronous scans
+  // channel re-detection runs, and consuming those results here found them
+  // already deleted, reported "wifi scan failed", and rescanned at once.
+  bool scanRequested = false;
+  // Doubles the scan interval of a connected node that keeps finding the
+  // mesh only on its own channel while told the mesh has a root: a mesh
+  // that is simply rootless would otherwise cost every node a full
+  // all-channel scan every half interval, for as long as it stays so.
+  uint8_t orphanScanBackoff = 0;
   // Empty scans before re-detecting the mesh channel. A disconnected or
   // orphaned node scans every 0.5 * SCAN_INTERVAL = 15 s, so 2 is ~30 s —
   // what the old comment promised while the value of 6 delivered 90 s, long
