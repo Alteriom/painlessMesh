@@ -468,7 +468,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       reclaimRetiredSchedulers();
       // Check if something is executed (returns false)
       if (!mScheduler->execute())
-        Log(logger::GENERAL, "update(): Scheduler executed a task\n");
+        // DEBUG, not GENERAL: this fires every time any task runs, which on a
+        // busy node is thousands of lines a second. At GENERAL it drowned the
+        // level that carries the bridge and gateway diagnostics —
+        // sendBridgeStatus(), "Bridge status received from %u" — so nobody
+        // can turn those on to investigate a failover without being flooded.
+        Log(logger::DEBUG, "update(): Scheduler executed a task\n");
       semaphoreGive();
     }
     return;
