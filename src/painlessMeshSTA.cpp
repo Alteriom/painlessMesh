@@ -121,20 +121,26 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
     Log(CONNECTION, "scanComplete(): not this task's scan, ignoring\n");
     return;
   }
+
+  auto num = WiFi.scanComplete();
+  if (num == WIFI_SCAN_RUNNING) {
+    // A stale scan-done event — a synchronous scan's, delivered after this
+    // task started its own — while ours is still in flight. Ours is still
+    // owed a result, so the flag stays; clearing it here left the real
+    // completion ignored and the node never joined.
+    Log(CONNECTION,
+        "scanComplete(): a scan is still running, waiting for it\n");
+    return;
+  }
   scanRequested = false;
   Log(CONNECTION, "scanComplete(): Scan finished\n");
 
   aps.clear();
   Log(CONNECTION, "scanComplete():-- > Cleared old APs.\n");
 
-  auto num = WiFi.scanComplete();
   if (num == WIFI_SCAN_FAILED) {
     Log(ERROR, "wifi scan failed. Retrying....\n");
     task.forceNextIteration();
-    return;
-  } else if (num == WIFI_SCAN_RUNNING) {
-    Log(ERROR,
-        "scanComplete should never be called when scan is still running.\n");
     return;
   }
 
