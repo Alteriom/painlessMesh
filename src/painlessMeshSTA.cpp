@@ -516,6 +516,10 @@ uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool
   
   if (numNetworks == WIFI_SCAN_FAILED) {
     Log(ERROR, "scanForMeshChannel(): WiFi scan failed\n");
+    // The only exit that used to leave the results allocated, and the one
+    // taken when the radio is already busy — which is exactly when a node
+    // is retrying this every re-detection interval.
+    WiFi.scanDelete();
     return 0;
   }
   

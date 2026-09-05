@@ -6,6 +6,7 @@
 #include "catch_utils.hpp"
 #include "painlessmesh/layout.hpp"
 #include "painlessmesh/protocol.hpp"
+#include "painlessmesh/router.hpp"
 #include "painlessmesh/logger.hpp"
 
 using namespace painlessmesh;
@@ -203,6 +204,58 @@ SCENARIO("Multi-topology node counting") {
       THEN("Size should be 5") {
         REQUIRE(layout::size(tree) == 5);
       }
+    }
+  }
+}
+
+// A connection that has closed stays in Layout::subs until
+// eraseClosedConnections() next runs, so it still answers findRoute().
+class ClosableConnection : public protocol::NodeTree {
+ public:
+  bool up = true;
+  bool connected() const { return up; }
+};
+
+static std::shared_ptr<ClosableConnection> conn_holding(uint32_t nodeId,
+                                                        bool up = true) {
+  auto conn = std::make_shared<ClosableConnection>();
+  conn->nodeId = nodeId;
+  conn->up = up;
+  return conn;
+}
+
+SCENARIO("A route through a closed connection cannot refuse a live one") {
+  GIVEN("a node whose only route to 2098834584 is a connection that dropped") {
+    layout::Layout<ClosableConnection> tree;
+    auto dead = conn_holding(2098834584, /*up=*/false);
+    auto alive = conn_holding(3711130777);
+    tree.subs.push_back(dead);
+    tree.subs.push_back(alive);
+
+    THEN("findRoute still answers with the dead one") {
+      REQUIRE(router::findRoute<ClosableConnection>(tree, 2098834584) == dead);
+    }
+    THEN("findLiveRoute does not, so a direct connection is accepted") {
+      REQUIRE(router::findLiveRoute<ClosableConnection>(tree, 2098834584) ==
+              nullptr);
+    }
+    THEN("a route through a live connection is still found and still refuses") {
+      REQUIRE(router::findLiveRoute<ClosableConnection>(tree, 3711130777) ==
+              alive);
+    }
+  }
+
+  GIVEN("the connection being judged is itself in subs") {
+    layout::Layout<ClosableConnection> tree;
+    auto self = conn_holding(1297448309);
+    tree.subs.push_back(self);
+    THEN("it is not treated as a duplicate of itself") {
+      REQUIRE(router::findLiveRoute<ClosableConnection>(tree, 1297448309,
+                                                        self) == nullptr);
+    }
+    THEN("without excluding it, it would be") {
+      REQUIRE(router::findLiveRoute<ClosableConnection>(tree, 1297448309) ==
+              self);
     }
   }
 }

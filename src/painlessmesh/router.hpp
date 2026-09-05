@@ -36,6 +36,26 @@ std::shared_ptr<T> findRoute(const layout::Layout<T>& tree, uint32_t nodeId) {
   });
 }
 
+/** A route to nodeId that can actually carry something.
+ *
+ * findRoute() searches every sub, and a closed connection stays in subs
+ * until eraseClosedConnections() next runs, so it will happily answer with
+ * a link that is already gone. Callers deciding whether a node is
+ * *reachable* — rather than which sub to hand a packet to — need the
+ * distinction: acting on a dead route to refuse a live connection leaves
+ * the node with neither.
+ *
+ * `exclude` drops the connection being judged, which cannot duplicate
+ * itself. Mirrors the liveness test layout::syncLayout already applies.
+ */
+template <class T>
+std::shared_ptr<T> findLiveRoute(const layout::Layout<T>& tree, uint32_t nodeId,
+                                 std::shared_ptr<T> exclude = nullptr) {
+  return findRoute<T>(tree, [nodeId, exclude](std::shared_ptr<T> s) {
+    return s != exclude && s->connected() && layout::contains((*s), nodeId);
+  });
+}
+
 template <class T, class U>
 bool send(T& package, std::shared_ptr<U> conn, bool priority = false) {
   painlessmesh::protocol::Variant variant(package);
@@ -263,7 +283,14 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
   }
 
   if (conn->newConnection) {
-    auto oldConnection = router::findRoute<U>(mesh, newTree.nodeId);
+    // Only a *live* route may refuse this one. eraseClosedConnections()
+    // runs later, so a link that has already dropped is still in subs and
+    // still answers findRoute() — and refusing a working direct connection
+    // on its authority leaves the node with no route at all once the dead
+    // one is finally erased. Measured on hardware: a bridge turned away a
+    // node twice as "already connected", then finished the run with that
+    // node missing from its tree entirely.
+    auto oldConnection = router::findLiveRoute<U>(mesh, newTree.nodeId, conn);
     if (oldConnection) {
       Log(logger::SYNC,
           "handleNodeSync(): already connected to %u. Closing the new "
