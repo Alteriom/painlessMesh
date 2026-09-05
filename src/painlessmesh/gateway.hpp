@@ -621,8 +621,14 @@ class InternetHealthChecker {
 #ifdef ESP32
     bool connected = client.connect(checkHost_.c_str(), checkPort_, checkTimeout_);
 #else
-    // ESP8266's WiFiClient lacks ESP32's per-connect timeout overload.
-    client.setTimeout((checkTimeout_ + 999) / 1000);
+    // ESP8266's WiFiClient lacks ESP32's per-connect timeout overload, so the
+    // timeout is set on the client instead. It is milliseconds, not seconds:
+    // WiFiClient inherits Stream::setTimeout ("maximum milliseconds to wait")
+    // and connect() hands _timeout straight to WiFi.hostByName(), whose
+    // parameter is named timeout_ms. Dividing by 1000 here gave DNS five
+    // milliseconds to resolve, so the check failed every time and an ESP8266
+    // shared gateway never reported local Internet.
+    client.setTimeout(checkTimeout_);
     bool connected = client.connect(checkHost_.c_str(), checkPort_);
 #endif
     status_.lastLatencyMs = millis() - started;
