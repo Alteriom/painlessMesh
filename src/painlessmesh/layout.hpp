@@ -62,6 +62,27 @@ inline size_t forgetAll(protocol::NodeTree& tree,
   return removed;
 }
 
+/**
+ * A short identity for what a tree says: which nodes, in which order, which
+ * of them root. Never 0, so 0 can mean "nothing presented yet".
+ *
+ * A neighbour's sync is news only when this differs from its last one.
+ */
+inline uint32_t fingerprint(const protocol::NodeTree& tree,
+                            uint32_t hash = 2166136261u) {
+  auto mix = [&hash](uint32_t v) {
+    for (int i = 0; i < 4; ++i) {
+      hash ^= (v >> (8 * i)) & 0xff;
+      hash *= 16777619u;
+    }
+  };
+  mix(tree.nodeId);
+  mix(tree.root ? 1u : 0u);
+  for (auto&& s : tree.subs) hash = fingerprint(s, hash);
+  mix(0xffffffffu);  // end of this node's subs
+  return hash == 0 ? 1 : hash;
+}
+
 inline protocol::NodeTree excludeRoute(protocol::NodeTree&& tree,
                                        uint32_t exclude) {
   // Make sure to exclude any subs with nodeId == 0,
@@ -122,6 +143,13 @@ class Neighbour : public protocol::NodeTree {
  public:
   // Inherit constructors
   using protocol::NodeTree::NodeTree;
+
+  /**
+   * fingerprint() of the tree this neighbour presented last, 0 before its
+   * first sync. A sync that restates it carries nothing the cached tree
+   * does not already reflect, however the cache has since been pruned.
+   */
+  uint32_t presented = 0;
 
   /**
    * Is the passed nodesync valid

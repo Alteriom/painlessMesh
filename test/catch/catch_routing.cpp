@@ -336,3 +336,34 @@ SCENARIO("A node presented under one neighbour is forgotten under the others") {
     }
   }
 }
+
+SCENARIO("A tree's fingerprint tells a restated sync from a changed one") {
+  GIVEN("the tree a neighbour presents") {
+    auto tree = createBranchedTopology();
+    auto fp = layout::fingerprint(tree);
+    THEN("it is never 0, which means nothing presented yet") {
+      REQUIRE(fp != 0);
+      REQUIRE(layout::fingerprint(protocol::NodeTree(0, false)) != 0);
+    }
+    THEN("the same tree presented again has the same fingerprint") {
+      REQUIRE(layout::fingerprint(createBranchedTopology()) == fp);
+    }
+    THEN("a node gone from it changes the fingerprint") {
+      auto changed = createBranchedTopology();
+      REQUIRE(layout::forget(changed, 5000));
+      REQUIRE(layout::fingerprint(changed) != fp);
+    }
+    THEN("a node moved to another branch changes the fingerprint") {
+      auto moved = createBranchedTopology();
+      REQUIRE(layout::forget(moved, 3000));
+      moved.subs.back().subs.push_back(protocol::NodeTree(3000, false));
+      REQUIRE(layout::size(moved) == layout::size(tree));
+      REQUIRE(layout::fingerprint(moved) != fp);
+    }
+    THEN("a node becoming root changes the fingerprint") {
+      auto rooted = createBranchedTopology();
+      rooted.subs.front().root = true;
+      REQUIRE(layout::fingerprint(rooted) != fp);
+    }
+  }
+}

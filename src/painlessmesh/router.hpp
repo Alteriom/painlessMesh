@@ -373,13 +373,46 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
     conn->newConnection = false;
   }
 
-  // A node is in one place, and this sync is the freshest word on every
-  // node below conn. Any other neighbour whose cached tree still lists one
-  // of them lists it where it used to be: on the rig every board carried
-  // a node twice — under the neighbour it had moved to and under the one
-  // it had left — and a message routed by the older copy never arrived,
-  // nor did the Internet request that went the same way. The older copies
-  // go now; their owners' next syncs agree.
+  // What a neighbour presents is news only when it differs from what it
+  // presented last time. The cached tree can differ from a restated claim
+  // because a fresher neighbour has since taken a node out of it (below),
+  // and taking the restatement as news put the node back, marked the
+  // connection changed, forced the fresher neighbour's sync, which took it
+  // out again: a sync every 30 to 80 ms between the two for the 10 s it
+  // took the restating neighbour to time out the dead link behind its
+  // claim, on every board that heard both.
+  auto fingerprint = layout::fingerprint(newTree);
+  bool restated = conn->presented == fingerprint;
+  conn->presented = fingerprint;
+
+  // A station has one uplink, so a node on a live direct link of ours is
+  // not below any neighbour: a neighbour that lists it there holds the
+  // link it had before it came here, and the direct link wins for as long
+  // as it lives. (A new direct connection took the stale places out
+  // above; this keeps the claimant from putting them back.)
+  for (auto&& other : mesh.subs) {
+    if (other == conn || other->nodeId == 0 || !other->connected()) continue;
+    if (layout::forget(newTree, other->nodeId)) {
+      Log(logger::SYNC,
+          "handleNodeSync(): %u lists %u, which is directly connected; the "
+          "direct link wins\n",
+          conn->nodeId, other->nodeId);
+    }
+  }
+
+  if (restated) {
+    conn->nodeSyncTask.delay();
+    mesh.stability += (std::min)(1000 - mesh.stability, (size_t)25);
+    return;
+  }
+
+  // A node is in one place, and a changed sync is the freshest word on
+  // every node below conn. Any other neighbour whose cached tree still
+  // lists one of them lists it where it used to be: on the rig every board
+  // carried a node twice — under the neighbour it had moved to and under
+  // the one it had left — and a message routed by the older copy never
+  // arrived, nor did the Internet request that went the same way. The
+  // older copies go now; their owners' next changed syncs agree.
   for (auto&& other : mesh.subs) {
     if (other == conn || other->nodeId == 0) continue;
     size_t removed = layout::forgetAll(*other, newTree);
