@@ -62,13 +62,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Shut Wifi down and start with a blank slage
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
-    Log(STARTUP, "init(): %d\n",
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
-        // Disable autoconnect
-        WiFi.setAutoReconnect(false));
-#else
-        // Disable autoconnect
-        WiFi.setAutoConnect(false));
+    // The mesh reconnects on its own terms: it scans, chooses an AP, and
+    // connects. The core must not. On core 2.x this used to call
+    // setAutoConnect(false) — the "connect at boot from stored
+    // credentials" flag, a different thing — and left the core's
+    // auto-reconnect at its default of on. After a parent's AP vanished
+    // (BEACON_TIMEOUT) the core then tried the gone BSSID again every seven
+    // seconds (NO_AP_FOUND, a full-channel search each time) for as long as
+    // it stayed gone, and every attempt kept the radio busy so the mesh's
+    // own scan "could not start": the node sat outside the mesh for the
+    // rest of the test. Measured on the rig on every core-2.x board (ESP32,
+    // C3, S3); the core-3.x boards, which got the right call, did not do it.
+    Log(STARTUP, "init(): %d\n", WiFi.setAutoReconnect(false));
+#if ESP_ARDUINO_VERSION_MAJOR < 3
+    WiFi.setAutoConnect(false);
 #endif
     WiFi.persistent(false);
 
@@ -432,11 +439,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Shut Wifi down and start with a blank slate
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
-    Log(STARTUP, "initAsBridge(): %d\n",
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
-        WiFi.setAutoReconnect(false));
-#else
-        WiFi.setAutoConnect(false));
+    // See init(): the core's auto-reconnect is off on every core version.
+    Log(STARTUP, "initAsBridge(): %d\n", WiFi.setAutoReconnect(false));
+#if ESP_ARDUINO_VERSION_MAJOR < 3
+    WiFi.setAutoConnect(false);
 #endif
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
@@ -662,13 +668,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // We need to ensure mesh and router operate on the same channel
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
+    // See init(): the core's auto-reconnect is off on every core version.
     WiFi.setAutoReconnect(false);
-    Log(STARTUP, "initAsSharedGateway(): AutoReconnect disabled\n");
-#else
+#if ESP_ARDUINO_VERSION_MAJOR < 3
     WiFi.setAutoConnect(false);
-    Log(STARTUP, "initAsSharedGateway(): AutoConnect disabled\n");
 #endif
+    Log(STARTUP, "initAsSharedGateway(): AutoReconnect disabled\n");
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
 
