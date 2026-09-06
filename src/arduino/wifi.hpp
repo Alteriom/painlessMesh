@@ -1718,6 +1718,22 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         routerSSID.c_str());
 
     int n = WiFi.scanNetworks(false, false);
+    if (n == WIFI_SCAN_RUNNING) {
+      // The station task's asynchronous scan is in flight; a synchronous
+      // scan cannot start until it ends, and -2 is not "no networks". A
+      // failover backup read it as the router being out of sight — twice,
+      // thirty seconds apart — and never stood for election while the
+      // primary was gone. Wait the scan out, bounded, then look again.
+      Log(CONNECTION,
+          "scanRouterSignalStrength(): a scan is already running, waiting "
+          "for it\n");
+      uint32_t waitedUntil = millis() + 5000;
+      while (WiFi.scanComplete() == WIFI_SCAN_RUNNING &&
+             (int32_t)(waitedUntil - millis()) > 0) {
+        delay(50);
+      }
+      n = WiFi.scanNetworks(false, false);
+    }
     Log(CONNECTION, "scanRouterSignalStrength(): Found %d networks\n", n);
 
     for (int i = 0; i < n; i++) {
