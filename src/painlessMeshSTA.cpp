@@ -224,39 +224,42 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
     // A stranded partition still finds a bridge that has moved: its top
     // node lost its station link and follows unconditionally, and each
     // node it takes along drops its own children the same way.
+    // Size cannot tell where the root is: a bridge that has just moved to
+    // the router's channel is one AP against the rest of the mesh, and it
+    // is the one to follow. Time can: a node still in gateway mode during
+    // the sequential teardown — the straggler the rig saw a node follow and
+    // sit alone with for a minute — is gone by the next scan; a bridge, or
+    // the partition that has formed around it, is not. So a bigger
+    // partition elsewhere is followed at once, and a smaller one only when
+    // the same channel shows the mesh on two consecutive re-detections. A
+    // disconnected node makes no connection while it looks again: joined
+    // to this channel it would be "connected", and the rootless partition
+    // it joined would take a re-detection or two longer to leave.
     bool connected = WiFi.status() == WL_CONNECTED;
     bool bigger = elsewhereCount > aps.size();
     bool follow = false;
     if (elsewhere > 0) {
-      if (connected) {
-        follow = bigger;
-      } else if (bigger || aps.empty()) {
+      if (bigger || (!connected && aps.empty())) {
         follow = true;
       } else if (pendingElsewhere == elsewhere) {
-        // Still there a scan later: not a straggler.
-        follow = true;
+        follow = true;  // still there a scan later: not a straggler
       } else {
-        // A disconnected node seeing a *smaller* partition elsewhere cannot
-        // tell a bridge that has just moved (which stays, and must be
-        // followed) from a node still in gateway mode during the
-        // sequential teardown (which restarts onto this channel within
-        // seconds). The rig had a node follow such a straggler and sit
-        // alone on its channel for a minute. One more look settles it:
-        // the straggler is gone by the next scan, the bridge is not. No
-        // connection is made meanwhile — a node that joined this partition
-        // would then be "connected" and never follow a lone bridge.
         Log(CONNECTION,
             "scanComplete(): Mesh also on channel %d with %u nodes, %u "
             "here; looking again before following\n",
             elsewhere, (unsigned)elsewhereCount, (unsigned)aps.size());
         pendingElsewhere = elsewhere;
         redetectRequested = true;
-        aps.clear();
-        task.delay(0.5 * SCAN_INTERVAL);
-        return;
+        if (!connected) {
+          aps.clear();
+          task.delay(0.5 * SCAN_INTERVAL);
+          return;
+        }
       }
+    } else {
+      pendingElsewhere = 0;
     }
-    pendingElsewhere = 0;
+    if (follow) pendingElsewhere = 0;
     if (follow) {
       Log(CONNECTION,
           "scanComplete(): Mesh found on different channel %d (was %d): %u "
