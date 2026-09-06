@@ -235,12 +235,14 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
     // disconnected node makes no connection while it looks again: joined
     // to this channel it would be "connected", and the rootless partition
     // it joined would take a re-detection or two longer to leave.
+    // Not even a bigger one at once: during the teardown two nodes still
+    // in gateway mode outnumbered the one AP a connected node could see
+    // on its own channel, and it left the soak for them.
     bool connected = WiFi.status() == WL_CONNECTED;
-    bool bigger = elsewhereCount > aps.size();
     bool follow = false;
     if (elsewhere > 0) {
-      if (bigger || (!connected && aps.empty())) {
-        follow = true;
+      if (!connected && aps.empty()) {
+        follow = true;  // nothing here to lose, nothing to look again for
       } else if (pendingElsewhere == elsewhere) {
         follow = true;  // still there a scan later: not a straggler
       } else {
@@ -390,6 +392,7 @@ void ICACHE_FLASH_ATTR StationScan::requestIP(WiFi_AP_Record_t &ap) {
       ap.bssid[0], ap.bssid[1], ap.bssid[2], 
       ap.bssid[3], ap.bssid[4], ap.bssid[5]);
   connectAttemptStarted = millis();
+  halfOpenDropped = false;
   WiFi.begin(ap.ssid.c_str(), password.c_str(), mesh->_meshChannel, ap.bssid);
   return;
 }
@@ -427,7 +430,7 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   }
 
 #ifdef ESP32
-  if (WiFi.status() == WL_IDLE_STATUS &&
+  if (WiFi.status() == WL_IDLE_STATUS && !halfOpenDropped &&
       millis() - connectAttemptStarted > (uint32_t)(0.5 * SCAN_INTERVAL)) {
     // The Arduino core reports WL_IDLE_STATUS from association until an
     // address arrives. Half a scan interval after the attempt began, that
@@ -436,10 +439,20 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
     // rebooted under it. Nothing times that out: no disconnect event comes,
     // and the mesh never learns of the failure. Drop the half-open link;
     // the disconnect event schedules the rescan.
+    //
+    // Once per attempt. When the status is WL_IDLE_STATUS with nothing
+    // to disconnect — the core's own retry left it there — the disconnect
+    // changes nothing, and this guard, firing on every pass, returned
+    // before the scan results were ever looked at: the failover test's
+    // sender logged "dropping it" every thirty seconds with the count
+    // growing past three minutes and never connected to anything again.
+    // The second pass falls through to the scan, whose requestIP() starts
+    // a fresh attempt.
     Log(CONNECTION,
         "connectToAP(): Station associated without an address for %u ms, "
         "dropping it\n",
         millis() - connectAttemptStarted);
+    halfOpenDropped = true;
     WiFi.disconnect();
     task.delay(SCAN_INTERVAL);  // Only reached if the event never fires
     return;

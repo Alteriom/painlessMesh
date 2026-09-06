@@ -93,6 +93,11 @@ class StationScan {
   // millis() of the last requestIP(), to tell a station that is still
   // obtaining an address from one that associated and never got one.
   uint32_t connectAttemptStarted = 0;
+  // Whether the current attempt's half-open association has already been
+  // dropped. WiFi.disconnect() on a station that has nothing to disconnect
+  // leaves the status where it was, and a guard that fired on every pass
+  // held a node out of the mesh for the rest of a test.
+  bool halfOpenDropped = false;
   // Set when this task starts an async scan, cleared when its result is
   // consumed. The scan-done event also fires for the synchronous scans
   // channel re-detection runs, and consuming those results here found them
