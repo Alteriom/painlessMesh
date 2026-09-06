@@ -414,6 +414,33 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
           (unsigned)removed, conn->nodeId, other->nodeId);
     }
   }
+
+  // A node taken out of another neighbour's cache above can only come back
+  // through that neighbour's own sync, and a restatement is skipped. So
+  // when this neighbour stops presenting a node it used to — the node has
+  // moved on, or the claim was the stale one — the others' restatements
+  // are taken in full again: the change marks the connection changed,
+  // which forces their syncs, and whichever of them still lists the node
+  // has it back. Only a removal does this; an addition re-adopted this way
+  // would prune the presenter here, mark a change, force a sync there, and
+  // start the ping-pong over. Without the repair, the desktop time-sync
+  // scenario failed two runs in three: ntp::adopt() weighs the cached
+  // subtrees to choose which side keeps its clock, and a node missing from
+  // both sides' trees had the two ends disagree.
+  if (conn->nodeId != 0) {
+    bool dropped = false;
+    for (auto&& id : layout::asList(*conn, false)) {
+      if (!layout::contains(newTree, id)) {
+        dropped = true;
+        break;
+      }
+    }
+    if (dropped) {
+      for (auto&& other : mesh.subs) {
+        if (other != conn) other->presented = 0;
+      }
+    }
+  }
   if (conn->updateSubs(newTree)) {
     auto nodeId = newTree.nodeId;
     mesh.addTask(
