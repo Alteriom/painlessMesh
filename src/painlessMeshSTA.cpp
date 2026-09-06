@@ -159,13 +159,19 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   Log(CONNECTION, "scanComplete(): num = %d\n", num);
 
   // A re-detection scan covered every channel. The mesh seen on a channel
-  // other than this node's is the partition it is looking for — its own
-  // channel holds the partition it is stranded in — and the strongest
-  // such AP names the channel to follow.
+  // other than this node's may be the partition it is looking for — or a
+  // straggler: on the rig, a node still in gateway mode on the router's
+  // channel while the others are already back on the mesh channel, seen
+  // by a node that had three peers here and left them for it. What tells
+  // the two apart is size. The mesh APs on each other channel are
+  // counted; the channel with the most is the candidate, the strongest
+  // signal breaks a tie, and whether to go is decided below.
   bool redetecting = redetectRequested;
   redetectRequested = false;
   uint8_t elsewhere = 0;
   int8_t elsewhereRssi = -128;
+  size_t elsewhereCount = 0;
+  std::map<uint8_t, size_t> meshApsOnChannel;
 
   for (auto i = 0; i < num; ++i) {
     WiFi_AP_Record_t record;
@@ -174,10 +180,16 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
                   (record.ssid.equals("") && mesh->_meshHidden);
 
     if (WiFi.channel(i) != mesh->_meshChannel) {
-      if (redetecting && isMesh && WiFi.RSSI(i) > elsewhereRssi &&
+      if (redetecting && isMesh &&
           painlessmesh::gateway::isValidMeshChannel(WiFi.channel(i))) {
-        elsewhere = WiFi.channel(i);
-        elsewhereRssi = WiFi.RSSI(i);
+        uint8_t ch = WiFi.channel(i);
+        size_t count = ++meshApsOnChannel[ch];
+        if (count > elsewhereCount ||
+            (count == elsewhereCount && WiFi.RSSI(i) > elsewhereRssi)) {
+          elsewhere = ch;
+          elsewhereCount = count;
+          elsewhereRssi = WiFi.RSSI(i);
+        }
       }
       continue;
     }
@@ -203,11 +215,22 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   Log(CONNECTION, "\tFound %d nodes\n", aps.size());
 
   if (redetecting) {
-    if (elsewhere > 0) {
+    // A disconnected node follows the mesh wherever it is. A connected
+    // node is already in a partition, and leaves it only for a bigger
+    // one: the APs it can see on its own channel against those on the
+    // other. Strictly bigger — at the start of a test, with one AP up on
+    // each channel, a tie is exactly the straggler case, and following it
+    // took a node and its subtree out of the mesh for a minute at a time.
+    // A stranded partition still finds a bridge that has moved: its top
+    // node lost its station link and follows unconditionally, and each
+    // node it takes along drops its own children the same way.
+    bool connected = WiFi.status() == WL_CONNECTED;
+    if (elsewhere > 0 && (!connected || elsewhereCount > aps.size())) {
       Log(CONNECTION,
-          "scanComplete(): Mesh found on different channel %d (was %d), "
-          "following it\n",
-          elsewhere, mesh->_meshChannel);
+          "scanComplete(): Mesh found on different channel %d (was %d): %u "
+          "nodes there, %u here; following it\n",
+          elsewhere, mesh->_meshChannel, (unsigned)elsewhereCount,
+          (unsigned)aps.size());
       // followBridgeChannel() does the whole move: it closes the station
       // link, so an orphan actually leaves its old partition instead of
       // restarting its AP on the new channel while still attached to the
@@ -215,7 +238,13 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
       followBridgeChannel(elsewhere);
       return;
     }
-    if (aps.empty()) {
+    if (elsewhere > 0) {
+      Log(CONNECTION,
+          "scanComplete(): Mesh also on channel %d with %u nodes; this "
+          "channel has %u, staying\n",
+          elsewhere, (unsigned)elsewhereCount, (unsigned)aps.size());
+      consecutiveEmptyScans = 0;
+    } else if (aps.empty()) {
       // The mesh is on no channel at all. The empty-scan count stands: it
       // is what lets an isolated bridge retry once it passes
       // ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD.
