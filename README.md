@@ -331,6 +331,21 @@ The library handles routing and network management automatically, so you can foc
 
 painlessMesh is a true ad-hoc network, meaning that no-planning, central controller, or router is required. Any system of 1 or more nodes will self-organize into fully functional mesh. The maximum size of the mesh is limited (we think) by the amount of memory in the heap that can be allocated to the sub-connections buffer and so should be really quite high.
 
+### ESP8266 capacity
+
+The ESP8266 is specified for **small meshes**, or as a **leaf** in larger ones.
+Measured as an interior node of a seven-node mesh it runs at 10–13 KB free —
+a working set that tracks its live connections and the traffic through them,
+not a leak — and at that level a single 8 KB package or one OTA part can fail
+to allocate. That is the part's limit, not a library defect. Every ESP32
+family holds within a few percent of its starting heap in the same mesh.
+
+Configure an ESP8266 as a leaf with `init(..., maxconn = 0)` (or `1` to allow
+one child). The library checks every thirty seconds on ESP8266 and logs an
+`ERROR` when the node is below 12 KB free with more than one child attached;
+`mesh.overCapacity()` reports the same condition to the sketch, and
+`mesh.apChildren()` says how many are attached.
+
 ### JSON based
 
 painlessMesh uses JSON objects for all its messaging. There are a couple of reasons for this. First, it makes the code and the messages human readable and painless to understand and second, it makes it painless to integrate painlessMesh with javascript front-ends, web applications, and other apps. Some performance is lost, but I haven’t been running into performance issues yet. Converting to binary messaging would be fairly straight forward if someone wants to contribute.
