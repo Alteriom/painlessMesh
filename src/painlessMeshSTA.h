@@ -116,6 +116,12 @@ class StationScan {
   // mesh only on this channel and nothing new on it. Two, and a leaf
   // drops its station link to look for the root with an empty tree.
   uint8_t orphanRedetects = 0;
+  // Whether this node's tree has ever contained a root since the mesh
+  // started. A leaf leaves a rootless partition to look for the root only
+  // if there was one: a mesh that never had a bridge is rootless by
+  // design, and its leaves dropping their links every other minute to look
+  // for what does not exist cost the soak its deliveries.
+  bool everRooted = false;
   // The other channel a disconnected node saw a smaller partition on, at
   // its last re-detection: it follows only if the same channel shows the
   // mesh again a scan later — a straggler is gone by then, a bridge is

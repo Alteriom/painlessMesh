@@ -443,6 +443,7 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   }
 #endif
   bool isRooted = layout::isRooted(mesh->asNodeTree());
+  if (isRooted) everRooted = true;
   if (aps.empty()) {
     // No unknown nodes found
     consecutiveEmptyScans++;
@@ -504,11 +505,13 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
       // empties the tree, so the next scan sees every AP as new and the
       // bridge's among them. Only a leaf: an interior node would take its
       // subtree with it. The count resets when anything new is heard.
+      // And only if this mesh ever had a root: one that never did is
+      // rootless by design, and its leaves must not keep leaving.
       size_t apChildren = 0;
       for (auto&& sub : mesh->subs) {
         if (sub->connected() && !sub->station) ++apChildren;
       }
-      if (++orphanRedetects >= 2 && apChildren == 0) {
+      if (++orphanRedetects >= 2 && apChildren == 0 && everRooted) {
         Log(CONNECTION,
             "connectToAP(): Still no root after %u re-detections and nothing "
             "new in sight; leaving this partition to look for it\n",
