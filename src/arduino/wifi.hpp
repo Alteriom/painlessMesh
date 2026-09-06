@@ -2862,6 +2862,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
   void eventHandleInit() {
     using namespace logger;
+    // Where the station scan learns the channel the mesh is rooted on.
+    // It used to look at its own scan's end, which a node connected to a
+    // rooted mesh reaches once a minute: the node the failover test sends
+    // from joined the bridge, the bridge left 24 s later, and no scan had
+    // run in between — so it had no home to keep and followed a partition
+    // off the router's channel. Topology changes are the moment to look.
+    auto noteRoot = [this](uint32_t) {
+      if (layout::isRooted(this->asNodeTree())) {
+        this->stationScan.noteRooted(this->_meshChannel);
+      }
+    };
+    this->newConnectionCallbacks.push_back(noteRoot);
+    this->changedConnectionCallbacks.push_back(noteRoot);
 #ifdef ESP32
     eventScanDoneHandler = WiFi.onEvent(
         [this](WiFiEvent_t event, WiFiEventInfo_t info) {
