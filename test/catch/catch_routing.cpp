@@ -262,3 +262,47 @@ SCENARIO("A route through a closed connection cannot refuse a live one") {
     }
   }
 }
+
+SCENARIO("A node that comes back is not refused for where it used to be") {
+  // A station has one uplink. When a node arrives on a fresh direct
+  // connection, any other route to it is its old place: a neighbour's tree
+  // that still lists it, or the dead link it had before it rebooted. The
+  // loop check is the tree the node presents, not the routes we remember.
+  GIVEN("a neighbour whose tree still lists 2098834584 under 3711130777") {
+    auto neighbour = conn_holding(2101688781);
+    protocol::NodeTree via(3711130777, false);
+    via.subs.push_back(protocol::NodeTree(2098834584, false));
+    protocol::NodeTree leaf(381621429, false);
+    neighbour->subs.push_back(via);
+    neighbour->subs.push_back(leaf);
+
+    WHEN("the node is forgotten from that tree") {
+      REQUIRE(layout::forget(*neighbour, 2098834584));
+      THEN("only it is gone; the nodes on the way to it stay") {
+        REQUIRE(!layout::contains(*neighbour, 2098834584));
+        REQUIRE(layout::contains(*neighbour, 3711130777));
+        REQUIRE(layout::contains(*neighbour, 381621429));
+        REQUIRE(neighbour->subs.size() == 2);
+      }
+      THEN("forgetting it again finds nothing") {
+        REQUIRE(!layout::forget(*neighbour, 2098834584));
+      }
+    }
+    WHEN("a node that was never there is forgotten") {
+      REQUIRE(!layout::forget(*neighbour, 139984357));
+      THEN("the tree is untouched") {
+        REQUIRE(layout::contains(*neighbour, 2098834584));
+        REQUIRE(neighbour->subs.size() == 2);
+      }
+    }
+  }
+
+  GIVEN("the tree a returning node presents") {
+    protocol::NodeTree fresh(2098834584, false);
+    fresh.subs.push_back(protocol::NodeTree(381621429, false));
+    THEN("it is a loop only if this node is in it") {
+      REQUIRE(!layout::contains(fresh, 2101688781));
+      REQUIRE(layout::contains(fresh, 381621429));
+    }
+  }
+}
