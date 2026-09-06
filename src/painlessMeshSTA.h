@@ -103,6 +103,10 @@ class StationScan {
   // that is simply rootless would otherwise cost every node a full
   // all-channel scan every half interval, for as long as it stays so.
   uint8_t orphanScanBackoff = 0;
+  // Consecutive scans, while connected and unrooted in a mesh that should
+  // have a root, that found nodes this node has no route to: a partition,
+  // with the root on the other side. Two of them and the node joins it.
+  uint8_t partitionScans = 0;
   // Empty scans before re-detecting the mesh channel. A disconnected or
   // orphaned node scans every 0.5 * SCAN_INTERVAL = 15 s, so 2 is ~30 s —
   // what the old comment promised while the value of 6 delivered 90 s, long

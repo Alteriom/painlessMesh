@@ -329,6 +329,7 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   if (aps.empty()) {
     // No unknown nodes found
     consecutiveEmptyScans++;
+    partitionScans = 0;  // nothing unrouted in sight: not partitioned
     
     // Re-detect the mesh channel once the empty scans pile up. Two cases
     // need it, and the second used to be excluded:
@@ -417,8 +418,30 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
           "connectToAP(): Unknown nodes found. Current stability: %s\n",
           String(mesh->stability).c_str());
 
+      // A node that is connected, told the mesh has a root, cannot see one,
+      // and can see nodes it has no route to is in a partition — and the
+      // root is in the other one. The probabilistic reconfigure below is
+      // gated by `stability`, which only grows on scans that find nothing
+      // unknown, so a partitioned node's probability is near zero after
+      // its first attempt and the partition stands. On the rig one such
+      // partition held for the whole of a five-minute OTA transfer while
+      // the receiver's ten requests went to a sender it had no route to.
+      // Two consecutive scans showing the other partition is enough grace
+      // for a transient; then it reconnects, deterministically.
+      if (!isRooted && mesh->shouldContainRoot) {
+        ++partitionScans;
+      } else {
+        partitionScans = 0;
+      }
       int prob = mesh->stability;
-      if (!isRooted && random(0, 1000) < prob) {
+      if (!isRooted && (partitionScans >= 2 || random(0, 1000) < prob)) {
+        if (partitionScans >= 2) {
+          Log(CONNECTION,
+              "connectToAP(): Nodes without a route seen on %u scans while "
+              "unrooted; joining that partition\n",
+              partitionScans);
+          partitionScans = 0;
+        }
         Log(CONNECTION, "connectToAP(): Reconfigure network: %s\n",
             String(prob).c_str());
         // close STA connection, this will trigger station disconnect which
