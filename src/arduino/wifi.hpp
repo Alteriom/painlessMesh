@@ -799,6 +799,18 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                      static_cast<bool>(_meshHidden));
     stationScan.manual = true;
 
+    // A manual station is the router link of a bridge or shared gateway:
+    // one known AP, no mesh scan choosing among candidates. For that link
+    // the core's own auto-reconnect is the right mechanism, and it is what
+    // kept every bridge's upstream alive until now — by accident, on core
+    // 2.x, where init() had never really turned it off. With it off
+    // everywhere, a bridge whose second association with the router failed
+    // (init() drops the first to start the mesh) sat at WL_IDLE_STATUS for
+    // the whole run with no upstream, and no node ever learned of the
+    // Internet. On for the manual link; the mesh station in init() keeps
+    // it off.
+    WiFi.setAutoReconnect(true);
+
     // Directly initiate connection - ESP will auto-detect router's channel
     WiFi.begin(ssid.c_str(), password.c_str());
 
