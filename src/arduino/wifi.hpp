@@ -76,6 +76,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     if (!WiFi.mode(connectMode)) {
       Log(GENERAL, "WiFi.mode() false");
     }
+#ifdef ESP32
+#if SOC_WIFI_SUPPORT_5G && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
+    // The mesh lives on 2.4 GHz. A dual-band part left in its default band
+    // mode scans the 5 GHz channels as well every time it looks for the
+    // mesh: measured on an ESP32-C5, the all-channel scan took 13–14 s
+    // against 4 s on a single-band part — at boot, where it is the whole
+    // of the C5's 15 s to its first reply, and on every channel
+    // re-detection, where it swallowed the console commands sent
+    // meanwhile. Nothing the mesh does needs the other band.
+    if (!WiFi.setBandMode(WIFI_BAND_MODE_2G_ONLY)) {
+      Log(ERROR, "init(): could not restrict the radio to 2.4 GHz\n");
+    }
+#endif
+#endif
 
     _meshSSID = ssid;
     _meshPassword = password;

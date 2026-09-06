@@ -275,6 +275,10 @@ class BufferedConnection
   }
 
   bool write(const TSTRING &data, bool priority = false) {
+    // A closed connection has no one to drain its buffer: queueing here and
+    // reporting success is a silent loss, and the sender then waits out an
+    // acknowledgement that can never come. Say no, so the caller can.
+    if (!mConnected) return false;
     // false = outbound buffer at PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES and
     // nothing lower-priority to evict (issue #388)
     if (!sentBuffer.push(data, priority)) return false;
@@ -289,6 +293,7 @@ class BufferedConnection
    * \param priorityLevel Priority level: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
    */
   bool writeWithPriority(const TSTRING &data, uint8_t priorityLevel) {
+    if (!mConnected) return false;
     if (!sentBuffer.pushWithPriority(data, priorityLevel)) return false;
     sentBufferTask.forceNextIteration();
     return true;
