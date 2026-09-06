@@ -428,7 +428,16 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
       // the receiver's ten requests went to a sender it had no route to.
       // Two consecutive scans showing the other partition is enough grace
       // for a transient; then it reconnects, deterministically.
-      if (!isRooted && mesh->shouldContainRoot) {
+      // Only a leaf may jump. An interior node that drops its station link
+      // takes its whole subtree with it and creates the fragmentation it
+      // was meant to heal — measured: fourteen such jumps in one suite and
+      // every delivery test failed. Leaves jumping one at a time still
+      // converge: each leaf that leaves makes its parent a leaf.
+      size_t apChildren = 0;
+      for (auto&& sub : mesh->subs) {
+        if (sub->connected() && !sub->station) ++apChildren;
+      }
+      if (!isRooted && mesh->shouldContainRoot && apChildren == 0) {
         ++partitionScans;
       } else {
         partitionScans = 0;
