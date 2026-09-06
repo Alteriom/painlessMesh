@@ -373,6 +373,23 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
     conn->newConnection = false;
   }
 
+  // A node is in one place, and this sync is the freshest word on every
+  // node below conn. Any other neighbour whose cached tree still lists one
+  // of them lists it where it used to be: on the rig every board carried
+  // a node twice — under the neighbour it had moved to and under the one
+  // it had left — and a message routed by the older copy never arrived,
+  // nor did the Internet request that went the same way. The older copies
+  // go now; their owners' next syncs agree.
+  for (auto&& other : mesh.subs) {
+    if (other == conn || other->nodeId == 0) continue;
+    size_t removed = layout::forgetAll(*other, newTree);
+    if (removed) {
+      Log(logger::SYNC,
+          "handleNodeSync(): %u nodes now under %u were still listed under "
+          "%u; forgotten there\n",
+          (unsigned)removed, conn->nodeId, other->nodeId);
+    }
+  }
   if (conn->updateSubs(newTree)) {
     auto nodeId = newTree.nodeId;
     mesh.addTask(

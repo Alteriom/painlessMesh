@@ -306,3 +306,33 @@ SCENARIO("A node that comes back is not refused for where it used to be") {
     }
   }
 }
+
+SCENARIO("A node presented under one neighbour is forgotten under the others") {
+  // A node is in one place. On the rig every board carried a node twice —
+  // under the neighbour it had moved to and under the one it had left —
+  // and a message routed by the older copy never arrived.
+  GIVEN("two neighbours whose cached trees both list 3711130777") {
+    auto stale = conn_holding(3198819345);
+    protocol::NodeTree via(1297448309, false);
+    via.subs.push_back(protocol::NodeTree(3711130777, false));
+    stale->subs.push_back(via);
+    stale->subs.push_back(protocol::NodeTree(139984357, false));
+
+    protocol::NodeTree presented(2098834584, false);
+    presented.subs.push_back(protocol::NodeTree(3711130777, false));
+    presented.subs.push_back(protocol::NodeTree(381621429, false));
+
+    WHEN("the fresher neighbour's tree is applied against the other") {
+      size_t removed = layout::forgetAll(*stale, presented);
+      THEN("only the nodes the fresh tree carries are gone from the stale one") {
+        REQUIRE(removed == 1);
+        REQUIRE(!layout::contains(*stale, 3711130777));
+        REQUIRE(layout::contains(*stale, 1297448309));
+        REQUIRE(layout::contains(*stale, 139984357));
+      }
+      THEN("a second application finds nothing") {
+        REQUIRE(layout::forgetAll(*stale, presented) == 0);
+      }
+    }
+  }
+}
