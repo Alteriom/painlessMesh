@@ -112,6 +112,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->init(nodeId);
 
+#ifdef ESP8266
+    // The ESP8266 is specified for small meshes, or as a leaf in larger
+    // ones. Say so at runtime when a deployment has put it in the middle of
+    // one: see Mesh::capacityCheck(). Thirty seconds is often enough to
+    // catch it and rare enough to cost nothing.
+    this->addTask(30 * TASK_SECOND, TASK_FOREVER, [this]() {
+      this->capacityCheck(ESP.getFreeHeap(),
+                          painlessmesh::Mesh<Connection>::ESP8266_CAPACITY_FLOOR);
+    });
+#endif
+
     // Add bridge election package handler (Type BRIDGE_ELECTION)
     this->callbackList.onPackage(
         protocol::BRIDGE_ELECTION,

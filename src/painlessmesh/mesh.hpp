@@ -1087,6 +1087,61 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return this->root;
   }
 
+  // ==================== Capacity (ESP8266) ====================
+
+  /** Live connections for which this node is the access point.
+   *
+   * Every one of them holds send and receive buffers on this node's heap.
+   * A leaf has none; a node the mesh routes through has as many as attach.
+   */
+  size_t apChildren() {
+    size_t n = 0;
+    for (auto&& sub : this->subs) {
+      if (sub && sub->connected() && !sub->station) ++n;
+    }
+    return n;
+  }
+
+  /** Whether this node is being asked to do more than its part can carry.
+   *
+   * The ESP8266 is specified for small meshes, or as a **leaf** in larger
+   * ones: measured as an interior node of a seven-node mesh it runs at
+   * 10–13 KB free — a working set that tracks its live connections and the
+   * traffic through them, not a leak — and a single 8 KB package or one
+   * OTA part can then fail to allocate. This is the part's limit, not a
+   * defect. It is set by capacityCheck(), which the Arduino layer runs
+   * periodically on ESP8266 and which logs an ERROR when the condition is
+   * first met and again every five minutes it persists. Configure the node
+   * as a leaf with init(..., maxconn = 0) — or 1 to allow a single child.
+   */
+  bool overCapacity() { return _overCapacity; }
+
+  /** Evaluate the capacity rule now. Returns the new state.
+   *
+   * \param freeHeap  the part's current free heap in bytes
+   * \param floor     below this, with more than one child, is over capacity
+   */
+  bool capacityCheck(uint32_t freeHeap, uint32_t floor) {
+    using namespace logger;
+    size_t children = apChildren();
+    bool over = freeHeap < floor && children > 1;
+    uint32_t now = millis();
+    if (over && (!_overCapacity ||
+                 now - _capacityWarnedAt > CAPACITY_WARN_INTERVAL_MS)) {
+      Log(ERROR,
+          "capacity: %u B free with %u AP children on ESP8266. This part is "
+          "specified as a leaf in meshes of this size; init(..., maxconn=0) "
+          "or reduce the mesh.\n",
+          freeHeap, children);
+      _capacityWarnedAt = now;
+    }
+    _overCapacity = over;
+    return over;
+  }
+
+  static constexpr uint32_t ESP8266_CAPACITY_FLOOR = 12 * 1024;
+  static constexpr uint32_t CAPACITY_WARN_INTERVAL_MS = 5 * 60 * 1000;
+
   // ==================== Gateway Status API ====================
 
   /**
@@ -3697,6 +3752,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   uint32_t bridgeStatusIntervalMs = 30000;  // Default 30 seconds
   uint32_t bridgeTimeoutMs = 60000;         // Default 60 seconds
   bool bridgeStatusBroadcastEnabled = true;
+  // See capacityCheck(). Only ever set on ESP8266.
+  bool _overCapacity = false;
+  uint32_t _capacityWarnedAt = 0;
   
   // Bridge cleanup configuration
   static const size_t MAX_KNOWN_BRIDGES = 20;  // Memory efficient limit for ESP8266
