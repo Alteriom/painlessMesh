@@ -98,6 +98,15 @@ class StationScan {
   // channel re-detection runs, and consuming those results here found them
   // already deleted, reported "wifi scan failed", and rescanned at once.
   bool scanRequested = false;
+  // Set when the next station scan must cover every channel: the empty
+  // scans have piled up and the node is looking for the channel the mesh
+  // moved to. The re-detection is this task's ordinary asynchronous scan
+  // with the channel left open, not a synchronous all-channel scan run
+  // inline. The synchronous one held the main loop and the radio for four
+  // to seven seconds; measured on the rig, an ACK owed through the node
+  // during that window came back after the sender's eight-second budget
+  // and counted as a loss — one in every two or three soak runs.
+  bool redetectRequested = false;
   // Doubles the scan interval of a connected node that keeps finding the
   // mesh only on its own channel while told the mesh has a root: a mesh
   // that is simply rootless would otherwise cost every node a full

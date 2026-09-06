@@ -73,8 +73,20 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
     }
   }
 
+  // Channel 0 scans them all. A re-detection dwells a shorter time per
+  // channel than the single-channel scan: thirteen channels at 300 ms is
+  // four seconds off the mesh channel, and the point of doing it
+  // asynchronously is lost if the radio is away that long.
+  uint8_t scanChannel = channel;
+  if (redetectRequested) {
+    Log(CONNECTION,
+        "stationScan(): re-detecting the mesh channel, scanning all channels\n");
+    scanChannel = 0;
+  }
 #ifdef ESP32
-  int16_t started = WiFi.scanNetworks(true, hidden, false, 300U, channel);
+  int16_t started = WiFi.scanNetworks(true, hidden, false,
+                                      redetectRequested ? 120U : 300U,
+                                      scanChannel);
 #elif defined(ESP8266)
   // WiFi.scanNetworksAsync([&](int networks) { this->scanComplete(); }, true);
   // Try 600 times (60 seconds). If not completed after that, give up
@@ -87,7 +99,7 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
   });
   mesh->mScheduler->addTask(asyncTask);
   asyncTask.enableDelayed();
-  int16_t started = WiFi.scanNetworks(true, hidden, channel);
+  int16_t started = WiFi.scanNetworks(true, hidden, scanChannel);
 #endif
 
   if (started == WIFI_SCAN_FAILED) {
@@ -146,11 +158,27 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
 
   Log(CONNECTION, "scanComplete(): num = %d\n", num);
 
+  // A re-detection scan covered every channel. The mesh seen on a channel
+  // other than this node's is the partition it is looking for — its own
+  // channel holds the partition it is stranded in — and the strongest
+  // such AP names the channel to follow.
+  bool redetecting = redetectRequested;
+  redetectRequested = false;
+  uint8_t elsewhere = 0;
+  int8_t elsewhereRssi = -128;
+
   for (auto i = 0; i < num; ++i) {
     WiFi_AP_Record_t record;
     record.ssid = WiFi.SSID(i);
+    bool isMesh = record.ssid == ssid ||
+                  (record.ssid.equals("") && mesh->_meshHidden);
 
     if (WiFi.channel(i) != mesh->_meshChannel) {
+      if (redetecting && isMesh && WiFi.RSSI(i) > elsewhereRssi &&
+          painlessmesh::gateway::isValidMeshChannel(WiFi.channel(i))) {
+        elsewhere = WiFi.channel(i);
+        elsewhereRssi = WiFi.RSSI(i);
+      }
       continue;
     }
 
@@ -173,6 +201,34 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   }
 
   Log(CONNECTION, "\tFound %d nodes\n", aps.size());
+
+  if (redetecting) {
+    if (elsewhere > 0) {
+      Log(CONNECTION,
+          "scanComplete(): Mesh found on different channel %d (was %d), "
+          "following it\n",
+          elsewhere, mesh->_meshChannel);
+      // followBridgeChannel() does the whole move: it closes the station
+      // link, so an orphan actually leaves its old partition instead of
+      // restarting its AP on the new channel while still attached to the
+      // old one.
+      followBridgeChannel(elsewhere);
+      return;
+    }
+    if (aps.empty()) {
+      // The mesh is on no channel at all. The empty-scan count stands: it
+      // is what lets an isolated bridge retry once it passes
+      // ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD.
+      Log(CONNECTION,
+          "scanComplete(): Mesh not found on any channel during re-scan\n");
+    } else {
+      Log(CONNECTION,
+          "scanComplete(): Mesh found on current channel %d, no channel "
+          "change needed\n",
+          mesh->_meshChannel);
+      consecutiveEmptyScans = 0;
+    }
+  }
 
   task.yield([this]() {
     // Task filter all unknown
@@ -346,37 +402,21 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
         (WiFi.status() != WL_CONNECTED || orphaned) &&
         channel > 0) {
       Log(CONNECTION,
-          "connectToAP(): No mesh nodes found for %d scans%s, triggering channel re-detection\n",
+          "connectToAP(): No mesh nodes found for %d scans%s, re-detecting "
+          "the mesh channel on the next scan\n",
           consecutiveEmptyScans, orphaned ? " (connected but unrooted)" : "");
-
-      // Prefer a partition on another channel: the mesh visible on this one
-      // is the partition we are stranded in.
-      uint8_t detectedChannel = scanForMeshChannel(ssid, hidden, mesh->_meshChannel);
-      if (detectedChannel > 0 && detectedChannel != mesh->_meshChannel) {
-        Log(CONNECTION,
-            "connectToAP(): Mesh found on different channel %d (was %d), following it\n",
-            detectedChannel, mesh->_meshChannel);
-        // followBridgeChannel() does the whole move: it closes the station
-        // link, so an orphan actually leaves its old partition instead of
-        // restarting its AP on the new channel while still attached to the
-        // old one — which is what the inline copy this replaces did.
-        followBridgeChannel(detectedChannel);
-        return;
-      } else if (detectedChannel == 0) {
-        Log(CONNECTION,
-            "connectToAP(): Mesh not found on any channel during re-scan\n");
-        // Do NOT reset consecutiveEmptyScans here - mesh is still absent
-        // This allows isolated bridge retry mechanism to trigger when
-        // the counter exceeds ISOLATED_BRIDGE_RETRY_SCAN_THRESHOLD
-      } else {
-        // detectedChannel == mesh->_meshChannel
-        // Mesh found on same channel we're already on - no channel change needed
-        // Reset counter since mesh exists, nodes may appear in subsequent scans
-        Log(CONNECTION,
-            "connectToAP(): Mesh found on current channel %d, no channel change needed\n",
-            detectedChannel);
-        consecutiveEmptyScans = 0;
-      }
+      // The next scan of this task covers every channel and scanComplete()
+      // follows the mesh if it is elsewhere. It used to run a synchronous
+      // all-channel scan right here: four to seven seconds with the main
+      // loop held and the radio off the mesh channel, on every node of a
+      // rootless mesh in turn, and an ACK owed through the scanning node
+      // arrived after the sender's budget — the soak's recurring loss.
+      // The re-detection is one scan interval later than it was; the
+      // interval below is the disconnected node's fast one or the orphan's
+      // backed-off one, so a stranded follower still catches up within
+      // the gateway contract, and a mesh that is simply rootless is not
+      // deaf for seconds at a time.
+      redetectRequested = true;
     }
     
     if (WiFi.status() == WL_CONNECTED &&
