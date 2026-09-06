@@ -23,6 +23,28 @@ inline bool contains(protocol::NodeTree nodeTree, uint32_t nodeId) {
   return false;
 }
 
+/**
+ * Remove the subtree rooted at nodeId from wherever it sits below tree.
+ *
+ * Only that node and what hangs under it go; the nodes on the way to it
+ * stay. Used when a node turns up on a fresh direct connection while a
+ * neighbour's tree still remembers its old place: a station has one
+ * uplink, so the old place is stale, and routing to it would send packets
+ * down a path that ends at a link that no longer exists.
+ *
+ * \return true if the node was found and removed.
+ */
+inline bool forget(protocol::NodeTree& tree, uint32_t nodeId) {
+  for (auto it = tree.subs.begin(); it != tree.subs.end(); ++it) {
+    if (it->nodeId == nodeId) {
+      tree.subs.erase(it);
+      return true;
+    }
+    if (forget(*it, nodeId)) return true;
+  }
+  return false;
+}
+
 inline protocol::NodeTree excludeRoute(protocol::NodeTree&& tree,
                                        uint32_t exclude) {
   // Make sure to exclude any subs with nodeId == 0,

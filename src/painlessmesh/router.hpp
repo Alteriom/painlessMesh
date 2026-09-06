@@ -288,22 +288,47 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
   }
 
   if (conn->newConnection) {
-    // Only a *live* route may refuse this one. eraseClosedConnections()
-    // runs later, so a link that has already dropped is still in subs and
-    // still answers findRoute() — and refusing a working direct connection
-    // on its authority leaves the node with no route at all once the dead
-    // one is finally erased. Measured on hardware: a bridge turned away a
-    // node twice as "already connected", then finished the run with that
-    // node missing from its tree entirely.
-    auto oldConnection = router::findLiveRoute<U>(mesh, newTree.nodeId, conn);
-    if (oldConnection) {
+    // The loop check is the tree the new node presents: if this node is
+    // anywhere in it, the new connection would close a cycle. That is the
+    // only thing a second route to the same node can legitimately mean —
+    // a station has exactly one uplink, so a node that arrives on a fresh
+    // direct connection with a tree that does not contain us has left
+    // wherever else we remember it. Refusing it as "already connected" on
+    // the authority of that memory used to hold a rebooted node out of
+    // the mesh until the neighbour whose tree still carried it timed the
+    // old link out: every AP in turn dropped it a second after the
+    // association, for 30 to 100 s per reboot, measured on the Alteriom
+    // HIL rig on every restart a suite performs.
+    if (layout::contains(newTree, mesh.getNodeId())) {
       Log(logger::SYNC,
-          "handleNodeSync(): already connected to %u. Closing the new "
-          "connection \n",
+          "handleNodeSync(): %u's tree contains this node: a loop. Closing "
+          "the new connection\n",
           newTree.nodeId);
-      Log.remote("Already connected to %u\n", newTree.nodeId);
+      Log.remote("Loop through %u\n", newTree.nodeId);
       conn->close();
       return;
+    }
+    // Whatever else still routes to this node is stale. A direct link to
+    // it is the one it had before it went away — TCP has not noticed yet —
+    // and closes now instead of at its timeout. A route through a
+    // neighbour is that neighbour's memory of the node's old place; the
+    // node is taken out of it here so packets go down the live link, and
+    // the neighbour's next sync brings its own tree up to date.
+    auto oldConnection = router::findLiveRoute<U>(mesh, newTree.nodeId, conn);
+    if (oldConnection) {
+      if (oldConnection->nodeId == newTree.nodeId) {
+        Log(logger::SYNC,
+            "handleNodeSync(): %u connected again while its old link is "
+            "still open; closing the old one\n",
+            newTree.nodeId);
+        oldConnection->close();
+      } else {
+        Log(logger::SYNC,
+            "handleNodeSync(): %u was reachable through %u; that place is "
+            "stale, the direct connection wins\n",
+            newTree.nodeId, oldConnection->nodeId);
+        layout::forget(*oldConnection, newTree.nodeId);
+      }
     }
     auto remoteNodeId = newTree.nodeId;
     mesh.addTask([&mesh, remoteNodeId]() {
