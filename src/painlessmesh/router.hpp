@@ -300,13 +300,29 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
     // association, for 30 to 100 s per reboot, measured on the Alteriom
     // HIL rig on every restart a suite performs.
     if (layout::contains(newTree, mesh.getNodeId())) {
+      // This node in the presented tree is a cycle only if the presenter is
+      // also reachable from here through some other live connection — the
+      // two ends of the loop. Without that route it is the presenter's
+      // memory of where this node used to be, held in a branch its owner
+      // has not timed out yet: a newly promoted bridge listed the node that
+      // came to join it at the place it held before the promotion, and was
+      // refused as a loop on every attempt for the whole promotion window.
+      // Stale, the mention is dropped before the tree is taken.
+      auto otherRoute = router::findLiveRoute<U>(mesh, newTree.nodeId, conn);
+      if (otherRoute) {
+        Log(logger::SYNC,
+            "handleNodeSync(): %u's tree contains this node and %u is already "
+            "reachable through %u: a loop. Closing the new connection\n",
+            newTree.nodeId, newTree.nodeId, otherRoute->nodeId);
+        Log.remote("Loop through %u\n", newTree.nodeId);
+        conn->close();
+        return;
+      }
       Log(logger::SYNC,
-          "handleNodeSync(): %u's tree contains this node: a loop. Closing "
-          "the new connection\n",
+          "handleNodeSync(): %u's tree lists this node where it used to be; "
+          "stale, not a loop\n",
           newTree.nodeId);
-      Log.remote("Loop through %u\n", newTree.nodeId);
-      conn->close();
-      return;
+      layout::forget(newTree, mesh.getNodeId());
     }
     // Whatever else still routes to this node is stale. A direct link to
     // it is the one it had before it went away — TCP has not noticed yet —
