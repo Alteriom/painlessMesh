@@ -870,6 +870,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     painlessmesh::tcp::initServer<Connection, painlessmesh::Mesh<Connection>>(
         (*_tcpListener), (*this));
     Log(STARTUP, "AP tcp server established on port %d\n", _meshPort);
+    // The listener's state, at the level the rig keeps: a node promoted to
+    // bridge re-creates its listener, and one such node reset every
+    // connection to its AP for its whole time as bridge while its log said
+    // nothing. LISTEN is 1 on both cores; anything else is the finding.
+    Log(CONNECTION, "tcpServerInit(): listener on port %d, state %u\n",
+        _meshPort, (unsigned)_tcpListener->status());
     return;
   }
 
