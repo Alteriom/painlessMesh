@@ -340,8 +340,11 @@ not a leak — and at that level a single 8 KB package or one OTA part can fail
 to allocate. That is the part's limit, not a library defect. Every ESP32
 family holds within a few percent of its starting heap in the same mesh.
 
-Configure an ESP8266 as a leaf with `init(..., maxconn = 0)` (or `1` to allow
-one child). The library checks every thirty seconds on ESP8266 and logs an
+Configure an ESP8266 as a leaf with `init(..., WIFI_STA)`: station only, no
+AP, so it has no children, peers never spend an association attempt on an AP
+that would refuse them, and the AP and its DHCP server are not on its heap.
+(`init(..., WIFI_AP_STA, ..., maxconn = 1)` allows one child instead.) The
+library checks every thirty seconds on ESP8266 and logs an
 `ERROR` when the node is below 12 KB free with more than one child attached;
 `mesh.overCapacity()` reports the same condition to the sketch, and
 `mesh.apChildren()` says how many are attached.
