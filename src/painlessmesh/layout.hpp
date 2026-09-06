@@ -64,7 +64,8 @@ inline size_t forgetAll(protocol::NodeTree& tree,
 
 /**
  * A short identity for what a tree says: which nodes, in which order, which
- * of them root. Never 0, so 0 can mean "nothing presented yet".
+ * of them root or time authority. Never 0, so 0 can mean "nothing presented
+ * yet".
  *
  * A neighbour's sync is news only when this differs from its last one.
  */
@@ -77,7 +78,7 @@ inline uint32_t fingerprint(const protocol::NodeTree& tree,
     }
   };
   mix(tree.nodeId);
-  mix(tree.root ? 1u : 0u);
+  mix((tree.root ? 1u : 0u) | (tree.hasTimeAuthority ? 2u : 0u));
   for (auto&& s : tree.subs) hash = fingerprint(s, hash);
   mix(0xffffffffu);  // end of this node's subs
   return hash == 0 ? 1 : hash;

@@ -381,24 +381,15 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
   // out again: a sync every 30 to 80 ms between the two for the 10 s it
   // took the restating neighbour to time out the dead link behind its
   // claim, on every board that heard both.
+  //
+  // (A neighbour listing a node that is on a direct link of ours is not
+  // pruned here, tempting as that is: it is also the shape a loop takes
+  // while the trees grow round it, and the loop checks above need to see
+  // it. The ring of five in the desktop integration suite never broke up
+  // with that pruning in place.)
   auto fingerprint = layout::fingerprint(newTree);
   bool restated = conn->presented == fingerprint;
   conn->presented = fingerprint;
-
-  // A station has one uplink, so a node on a live direct link of ours is
-  // not below any neighbour: a neighbour that lists it there holds the
-  // link it had before it came here, and the direct link wins for as long
-  // as it lives. (A new direct connection took the stale places out
-  // above; this keeps the claimant from putting them back.)
-  for (auto&& other : mesh.subs) {
-    if (other == conn || other->nodeId == 0 || !other->connected()) continue;
-    if (layout::forget(newTree, other->nodeId)) {
-      Log(logger::SYNC,
-          "handleNodeSync(): %u lists %u, which is directly connected; the "
-          "direct link wins\n",
-          conn->nodeId, other->nodeId);
-    }
-  }
 
   if (restated) {
     conn->nodeSyncTask.delay();

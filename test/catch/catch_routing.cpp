@@ -367,3 +367,15 @@ SCENARIO("A tree's fingerprint tells a restated sync from a changed one") {
     }
   }
 }
+
+SCENARIO("A tree's fingerprint follows the time authority flag") {
+  GIVEN("a presented tree") {
+    auto tree = createStarTopology();
+    auto fp = layout::fingerprint(tree);
+    THEN("a node gaining time authority changes it") {
+      auto authority = createStarTopology();
+      authority.subs.front().hasTimeAuthority = true;
+      REQUIRE(layout::fingerprint(authority) != fp);
+    }
+  }
+}
