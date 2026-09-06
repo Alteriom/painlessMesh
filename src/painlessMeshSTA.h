@@ -130,6 +130,22 @@ class StationScan {
   // design, and its leaves dropping their links every other minute to look
   // for what does not exist cost the soak its deliveries.
   bool everRooted = false;
+  // The channel the mesh was on the last time this node's tree had a root:
+  // the bridge's channel, which is its router's. A rootless node that has
+  // one treats it as home. It does not leave home for a partition on
+  // another channel, and away from home it goes back as soon as it sees
+  // the mesh there, whatever the sizes: a bridge that has just been
+  // promoted is one AP on the router's channel, and it is the one to join.
+  // On the rig, the node the failover test sends from followed a two-node
+  // partition off the router's channel while the backup was being elected
+  // beside it, then stayed away because its new partition was bigger than
+  // the lone bridge, and never heard the bridge's status.
+  uint8_t rootedChannel = 0;
+  // Re-detections in a row, at home, that declined to follow a partition
+  // seen elsewhere. A bridge that moves for good (its router changed
+  // channel) would otherwise keep the old channel rootless forever, so
+  // after enough of them home is forgotten and the ordinary rules apply.
+  uint8_t homeStays = 0;
   // The other channel a disconnected node saw a smaller partition on, at
   // its last re-detection: it follows only if the same channel shows the
   // mesh again a scan later — a straggler is gone by then, a bridge is

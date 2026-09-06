@@ -48,6 +48,8 @@ void ICACHE_FLASH_ATTR StationScan::init(painlessmesh::wifi::Mesh *pMesh,
   orphanScanBackoff = 0;
   orphanRedetects = 0;
   everRooted = false;
+  rootedChannel = 0;
+  homeStays = 0;
   pendingElsewhere = 0;
   partitionScans = 0;
   halfOpenDropped = false;
@@ -263,6 +265,41 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
     // on its own channel, and it left the soak for them.
     bool connected = WiFi.status() == WL_CONNECTED;
     bool follow = false;
+    // Home first. A node that was rooted knows the bridge's channel, and a
+    // bridge — the old one back, or the backup promoted in its place — is
+    // pinned to it by its router. Away from home with the mesh visible
+    // there, home is the channel to follow whatever the sizes; at home
+    // with a partition here, nothing elsewhere is worth leaving for. A
+    // node alone at home with nothing here follows the mesh as before,
+    // and comes back with it when a bridge appears.
+    bool atHome = rootedChannel != 0 && mesh->_meshChannel == rootedChannel;
+    if (rootedChannel != 0 && !atHome && meshApsOnChannel[rootedChannel] > 0 &&
+        elsewhere != rootedChannel) {
+      Log(CONNECTION,
+          "scanComplete(): Mesh on channel %d, where it was rooted; going "
+          "there rather than channel %d\n",
+          rootedChannel, elsewhere);
+      elsewhere = rootedChannel;
+      elsewhereCount = meshApsOnChannel[rootedChannel];
+    }
+    if (atHome && elsewhere > 0 && (connected || !aps.empty())) {
+      if (++homeStays >= 4) {
+        Log(CONNECTION,
+            "scanComplete(): The mesh has been elsewhere for %u re-detections "
+            "with no root here; forgetting this as home\n",
+            (unsigned)homeStays);
+        rootedChannel = 0;
+        homeStays = 0;
+      } else {
+        Log(CONNECTION,
+            "scanComplete(): Mesh also on channel %d with %u nodes; this is "
+            "the channel the mesh was rooted on, staying (%u of 4)\n",
+            elsewhere, (unsigned)elsewhereCount, (unsigned)homeStays);
+        elsewhere = 0;
+      }
+    } else if (atHome) {
+      homeStays = 0;
+    }
     if (elsewhere > 0) {
       if (!connected && aps.empty()) {
         follow = true;  // nothing here to lose, nothing to look again for
@@ -482,7 +519,11 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   }
 #endif
   bool isRooted = layout::isRooted(mesh->asNodeTree());
-  if (isRooted) everRooted = true;
+  if (isRooted) {
+    everRooted = true;
+    rootedChannel = mesh->_meshChannel;
+    homeStays = 0;
+  }
   if (aps.empty()) {
     // No unknown nodes found
     consecutiveEmptyScans++;
