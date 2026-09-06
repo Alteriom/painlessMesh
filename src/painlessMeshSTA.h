@@ -47,8 +47,11 @@ class StationScan {
   // channel other than it: re-detection runs when the node's own partition
   // has gone quiet, so the mesh on its current channel is the partition it
   // is stranded in, not the one it is looking for.
+  // With routerSSID set, the mesh on the router's channel is preferred over
+  // every other: that is where a bridge, and so the mesh, lives.
   static uint8_t scanForMeshChannel(TSTRING meshSSID, bool meshHidden,
-                                    uint8_t avoidChannel = 0);
+                                    uint8_t avoidChannel = 0,
+                                    TSTRING routerSSID = "");
   
   // Check if channel re-synchronization is needed or in progress
   bool isChannelResyncNeeded() const {

@@ -83,17 +83,27 @@ struct MeshChannelCandidate {
  * scan order: a stranded node that happened to see its own partition first
  * concluded nothing had changed and stayed stranded.
  *
+ * A node that knows the router has a better signal than strength: a bridge's
+ * AP is on its router's channel, so a mesh with a bridge lives there. A
+ * failover backup that booted while the mesh was split across two channels
+ * saw one AP on each, two dB apart, and joined the one without the bridge;
+ * it had a partition of two to itself for the hundred seconds it took the
+ * re-detection rules to move it, and the election ran out of time.
+ *
  * @param candidates  Every channel the mesh SSID was seen on, with RSSI.
  * @param avoidChannel The node's current mesh channel; 0 = no preference.
- * @return The strongest candidate on a channel other than avoidChannel;
- *         failing that the strongest on avoidChannel; 0 if there are none.
+ * @param routerChannel The channel the router was seen on; 0 = unknown.
+ * @return The candidate on routerChannel if there is one; else the strongest
+ *         on a channel other than avoidChannel; failing that the strongest
+ *         on avoidChannel; 0 if there are none.
  */
 inline uint8_t pickMeshChannel(const std::vector<MeshChannelCandidate>& candidates,
-                               uint8_t avoidChannel) {
+                               uint8_t avoidChannel, uint8_t routerChannel = 0) {
   const MeshChannelCandidate* elsewhere = nullptr;
   const MeshChannelCandidate* here = nullptr;
   for (const auto& c : candidates) {
     if (!isValidMeshChannel(c.channel)) continue;
+    if (c.channel == routerChannel) return c.channel;
     const MeshChannelCandidate*& slot = (c.channel == avoidChannel) ? here : elsewhere;
     if (slot == nullptr || c.rssi > slot->rssi) slot = &c;
   }

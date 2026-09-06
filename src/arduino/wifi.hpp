@@ -1774,11 +1774,31 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       Log(CONNECTION,
           "scanRouterSignalStrength(): a scan is already running, waiting "
           "for it\n");
-      uint32_t waitedUntil = millis() + 5000;
+      uint32_t waitedUntil = millis() + 8000;
+#ifdef ESP32
+      // Not WiFi.scanComplete(): on this core it gives a scan twenty
+      // dwell times to finish and then declares it failed — 2.4 s for the
+      // 120 ms all-channel re-detection, which takes six in AP+STA mode
+      // as the radio keeps returning to serve the AP. Asked here at three
+      // seconds, it dropped the scanning flag, the scan below started on
+      // top of the one in flight, and both came back with nothing: the
+      // backup read "router not found" and the station "mesh not found on
+      // any channel", and lost the sighting it needed to follow the mesh.
+      // The scanning bit is the flag the driver clears when the scan
+      // really ends.
+      while ((WiFiGenericClass::getStatusBits() & WIFI_SCANNING_BIT) &&
+             (int32_t)(waitedUntil - millis()) > 0) {
+        delay(50);
+      }
+      // The scan-done event hands the station its results next; let it
+      // read them before this scan deletes them.
+      delay(300);
+#else
       while (WiFi.scanComplete() == WIFI_SCAN_RUNNING &&
              (int32_t)(waitedUntil - millis()) > 0) {
         delay(50);
       }
+#endif
       n = WiFi.scanNetworks(false, false);
     }
     Log(CONNECTION, "scanRouterSignalStrength(): Found %d networks\n", n);

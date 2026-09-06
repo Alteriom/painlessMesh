@@ -65,7 +65,9 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
   // If channel is 0, auto-detect the mesh channel first
   if (channel == 0) {
     Log(STARTUP, "stationScan(): Auto-detecting mesh channel...\n");
-    uint8_t detectedChannel = scanForMeshChannel(ssid, hidden);
+    uint8_t detectedChannel = scanForMeshChannel(
+        ssid, hidden, 0,
+        mesh->routerCredentialsConfigured ? mesh->routerSSID : TSTRING(""));
     if (detectedChannel > 0) {
       uint8_t oldChannel = mesh->_meshChannel;
       mesh->_meshChannel = detectedChannel;
@@ -702,7 +704,8 @@ bool ICACHE_FLASH_ATTR StationScan::followBridgeChannel(
 // Helper function to scan all channels for a specific mesh SSID
 // Returns the channel number if found, or 0 if not found
 uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool meshHidden,
-                                                          uint8_t avoidChannel) {
+                                                          uint8_t avoidChannel,
+                                                          TSTRING routerSSID) {
   using namespace painlessmesh::logger;
   Log(CONNECTION, "scanForMeshChannel(): Scanning all channels for mesh '%s'...\n", meshSSID.c_str());
   
@@ -728,11 +731,19 @@ uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool
   // match made a stranded node's fate depend on scan order: seeing its own
   // partition first, it concluded nothing had changed and stayed put.
   std::vector<painlessmesh::gateway::MeshChannelCandidate> candidates;
+  uint8_t routerChannel = 0;
   for (int16_t i = 0; i < numNetworks; ++i) {
     TSTRING foundSSID = WiFi.SSID(i);
     uint8_t foundChannel = WiFi.channel(i);
     int32_t rssi = WiFi.RSSI(i);
 
+    if (routerSSID.length() > 0 && foundSSID == routerSSID &&
+        foundChannel >= 1 && foundChannel <= 13) {
+      Log(CONNECTION,
+          "scanForMeshChannel(): Router %s on channel %d (RSSI: %d)\n",
+          routerSSID.c_str(), foundChannel, rssi);
+      routerChannel = foundChannel;
+    }
     if (foundSSID == meshSSID || (foundSSID == "" && meshHidden)) {
       if (foundChannel >= 1 && foundChannel <= 13) {
         Log(CONNECTION, "scanForMeshChannel(): Found mesh on channel %d (RSSI: %d)\n",
@@ -745,8 +756,15 @@ uint8_t ICACHE_FLASH_ATTR StationScan::scanForMeshChannel(TSTRING meshSSID, bool
     }
   }
 
-  uint8_t chosen = painlessmesh::gateway::pickMeshChannel(candidates, avoidChannel);
+  uint8_t chosen = painlessmesh::gateway::pickMeshChannel(candidates, avoidChannel,
+                                                          routerChannel);
   if (chosen != 0) {
+    if (routerChannel != 0 && chosen == routerChannel && candidates.size() > 1) {
+      Log(CONNECTION,
+          "scanForMeshChannel(): Mesh on %u channels; taking the router's, "
+          "channel %d, where a bridge would be\n",
+          (unsigned)candidates.size(), chosen);
+    }
     if (avoidChannel != 0 && chosen != avoidChannel) {
       Log(CONNECTION,
           "scanForMeshChannel(): Mesh also on channel %d; preferring it over "
