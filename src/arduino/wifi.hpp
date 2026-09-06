@@ -2300,6 +2300,22 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       return;
     }
 
+    // A bridge that nobody can reach is no bridge. On the rig a node
+    // promoted in place reset every TCP connection to its AP for its whole
+    // time as bridge — its listener, re-created by the promotion's
+    // stop/re-init, was not listening, and nothing looked. This task runs
+    // every thirty seconds on a bridge: if the listener is not in LISTEN
+    // (1 on both cores) it is re-created, and the log says so.
+    if (_tcpListener != nullptr && _tcpListener->status() != 1) {
+      Log(ERROR,
+          "sendBridgeStatus(): TCP listener on port %d is in state %u, not "
+          "LISTEN; re-creating it\n",
+          _meshPort, (unsigned)_tcpListener->status());
+      delete _tcpListener;
+      _tcpListener = nullptr;
+      tcpServerInit();
+    }
+
     // Create bridge status package
     // We need to include the package header here since we're in wifi namespace
     // The package will be sent as a JSON string
