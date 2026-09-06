@@ -225,7 +225,39 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
     // node lost its station link and follows unconditionally, and each
     // node it takes along drops its own children the same way.
     bool connected = WiFi.status() == WL_CONNECTED;
-    if (elsewhere > 0 && (!connected || elsewhereCount > aps.size())) {
+    bool bigger = elsewhereCount > aps.size();
+    bool follow = false;
+    if (elsewhere > 0) {
+      if (connected) {
+        follow = bigger;
+      } else if (bigger || aps.empty()) {
+        follow = true;
+      } else if (pendingElsewhere == elsewhere) {
+        // Still there a scan later: not a straggler.
+        follow = true;
+      } else {
+        // A disconnected node seeing a *smaller* partition elsewhere cannot
+        // tell a bridge that has just moved (which stays, and must be
+        // followed) from a node still in gateway mode during the
+        // sequential teardown (which restarts onto this channel within
+        // seconds). The rig had a node follow such a straggler and sit
+        // alone on its channel for a minute. One more look settles it:
+        // the straggler is gone by the next scan, the bridge is not. No
+        // connection is made meanwhile — a node that joined this partition
+        // would then be "connected" and never follow a lone bridge.
+        Log(CONNECTION,
+            "scanComplete(): Mesh also on channel %d with %u nodes, %u "
+            "here; looking again before following\n",
+            elsewhere, (unsigned)elsewhereCount, (unsigned)aps.size());
+        pendingElsewhere = elsewhere;
+        redetectRequested = true;
+        aps.clear();
+        task.delay(0.5 * SCAN_INTERVAL);
+        return;
+      }
+    }
+    pendingElsewhere = 0;
+    if (follow) {
       Log(CONNECTION,
           "scanComplete(): Mesh found on different channel %d (was %d): %u "
           "nodes there, %u here; following it\n",
@@ -462,6 +494,32 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
       // rootless must not keep every node scanning all channels every
       // half interval for as long as it stays so. Back off to two
       // intervals; anything new on the air resets it.
+      // A leaf that has re-detected twice while connected and rootless,
+      // and found the mesh only on its own channel, is in a rootless
+      // partition that its scans cannot get it out of: every AP it can
+      // see is "known" — in its tree — including a bridge that was
+      // promoted a minute ago and is listed where it used to be, before
+      // its restart. On the rig the failover test's sender sat like that
+      // through the whole promotion window. Dropping the station link
+      // empties the tree, so the next scan sees every AP as new and the
+      // bridge's among them. Only a leaf: an interior node would take its
+      // subtree with it. The count resets when anything new is heard.
+      size_t apChildren = 0;
+      for (auto&& sub : mesh->subs) {
+        if (sub->connected() && !sub->station) ++apChildren;
+      }
+      if (++orphanRedetects >= 2 && apChildren == 0) {
+        Log(CONNECTION,
+            "connectToAP(): Still no root after %u re-detections and nothing "
+            "new in sight; leaving this partition to look for it\n",
+            (unsigned)orphanRedetects);
+        orphanRedetects = 0;
+        orphanScanBackoff = 0;
+        mesh->closeConnectionSTA();
+        mesh->stability = 0;
+        task.delay(0.5 * SCAN_INTERVAL);
+        return;
+      }
       uint32_t interval = (0.5 * SCAN_INTERVAL) * (1u << orphanScanBackoff);
       Log(CONNECTION,
           "connectToAP(): No root in sight, next scan in %u s\n",

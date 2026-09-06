@@ -112,6 +112,15 @@ class StationScan {
   // that is simply rootless would otherwise cost every node a full
   // all-channel scan every half interval, for as long as it stays so.
   uint8_t orphanScanBackoff = 0;
+  // Re-detections in a row, while connected and rootless, that found the
+  // mesh only on this channel and nothing new on it. Two, and a leaf
+  // drops its station link to look for the root with an empty tree.
+  uint8_t orphanRedetects = 0;
+  // The other channel a disconnected node saw a smaller partition on, at
+  // its last re-detection: it follows only if the same channel shows the
+  // mesh again a scan later — a straggler is gone by then, a bridge is
+  // not.
+  uint8_t pendingElsewhere = 0;
   // Consecutive scans, while connected and unrooted in a mesh that should
   // have a root, that found nodes this node has no route to: a partition,
   // with the root on the other side. Two of them and the node joins it.
