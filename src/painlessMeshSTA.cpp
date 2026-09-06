@@ -33,6 +33,27 @@ void ICACHE_FLASH_ATTR StationScan::init(painlessmesh::wifi::Mesh *pMesh,
   channel = pchannel;
   hidden = phidden;
 
+  // A node re-initialised in place — promoted to bridge, or back to a
+  // regular node — keeps this object, and everything it had learned in
+  // its previous life came with it: a newly promoted bridge ran an
+  // all-channel re-detection because the request was still set from
+  // when it was a rootless regular node, and its empty-scan count,
+  // back-offs and "has ever seen a root" carried over the same way. A
+  // new life starts with none of that. The manual flag is set by
+  // stationManual() after this call, for the link that needs it.
+  manual = false;
+  consecutiveEmptyScans = 0;
+  scanRequested = false;
+  redetectRequested = false;
+  orphanScanBackoff = 0;
+  orphanRedetects = 0;
+  everRooted = false;
+  pendingElsewhere = 0;
+  partitionScans = 0;
+  halfOpenDropped = false;
+  connectAttemptStarted = 0;
+  aps.clear();
+
   task.set(SCAN_INTERVAL, TASK_FOREVER, [this]() { stationScan(); });
 }
 
