@@ -866,6 +866,26 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   void tcpServerInit() {
     using namespace logger;
     Log(GENERAL, "tcpServerInit():\n");
+    // A listener that exists and listens is kept. It is bound to every
+    // address, so the AP a re-initialised node brings up is served by it,
+    // and re-creating it is not merely needless: the connections the old
+    // one accepted share its local port, and lwIP refuses to bind a new
+    // listener to a port any of them still holds — for the two minutes
+    // they sit in TIME_WAIT after stop() closes them. A node promoted to
+    // bridge on the rig logged "bind error: -8" on every attempt for
+    // exactly that long, reset every peer that came to join it, and only
+    // then had a bridge's listener. AsyncTCP keeps its pcb private, so
+    // SO_REUSEADDR cannot be set from here; not re-binding is the fix.
+    if (_tcpListener != nullptr) {
+      if (_tcpListener->status() == 1) {
+        Log(CONNECTION,
+            "tcpServerInit(): listener on port %d already listening, kept\n",
+            _meshPort);
+        return;
+      }
+      delete _tcpListener;
+      _tcpListener = nullptr;
+    }
     _tcpListener = new AsyncServer(_meshPort);
     painlessmesh::tcp::initServer<Connection, painlessmesh::Mesh<Connection>>(
         (*_tcpListener), (*this));
@@ -1405,8 +1425,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Shutdown wifi hardware
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
-    // Delete the tcp server
-    delete _tcpListener;
+    // The TCP listener stays. A node that stops to re-initialise in place
+    // — a promotion to bridge, a return to a regular node — needs a
+    // listener again at once, and a new one cannot bind while the
+    // connections this one accepted are still in TIME_WAIT on the same
+    // port (see tcpServerInit()). The connections themselves are closed
+    // above; a client accepted in the gap before init() is closed by it.
   }
 
  protected:
