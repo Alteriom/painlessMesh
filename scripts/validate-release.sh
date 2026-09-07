@@ -41,7 +41,9 @@ check_version_consistency() {
     fi
     
     echo -e "${GREEN}✓ Version consistency: $prop_version${NC}"
-    echo "current_version=$prop_version" >> "$GITHUB_OUTPUT" 2>/dev/null || true
+    if [ -n "${GITHUB_OUTPUT:-}" ]; then
+        echo "current_version=$prop_version" >> "$GITHUB_OUTPUT"
+    fi
     return 0
 }
 

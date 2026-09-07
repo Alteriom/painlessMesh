@@ -269,6 +269,6 @@ This is by design - it ensures critical messages get through when you need them 
 
 ## See Also
 
-- [Message Queue](../queued_alarms/README.md) - For offline message queueing
+- [Message Queue](../../BRIDGE_TO_INTERNET.md) - For offline message queueing, see the bridge guide and `mesh.enableMessageQueue()`
 - [Basic Example](../basic/basic.ino) - Getting started with painlessMesh
 - [Bridge Examples](../bridge/) - Internet connectivity patterns

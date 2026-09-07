@@ -26,17 +26,17 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 # Add executable
 add_executable(pc_mesh_node 
     pc_mesh_node.cpp 
-    ../../test/catch/fake_serial.cpp 
-    ../../src/scheduler.cpp
+    ../../../test/catch/fake_serial.cpp 
+    ../../../src/scheduler.cpp
 )
 
 # Include directories
 target_include_directories(pc_mesh_node PUBLIC 
-    ../../test/include/
-    ../../test/boost/
-    ../../test/ArduinoJson/src/
-    ../../test/TaskScheduler/src/
-    ../../src/
+    ../../../test/include/
+    ../../../test/boost/
+    ../../../test/ArduinoJson/src/
+    ../../../test/TaskScheduler/src/
+    ../../../src/
 )
 
 # Link libraries

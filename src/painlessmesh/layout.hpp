@@ -23,6 +23,67 @@ inline bool contains(protocol::NodeTree nodeTree, uint32_t nodeId) {
   return false;
 }
 
+/**
+ * Remove the subtree rooted at nodeId from wherever it sits below tree.
+ *
+ * Only that node and what hangs under it go; the nodes on the way to it
+ * stay. Used when a node turns up on a fresh direct connection while a
+ * neighbour's tree still remembers its old place: a station has one
+ * uplink, so the old place is stale, and routing to it would send packets
+ * down a path that ends at a link that no longer exists.
+ *
+ * \return true if the node was found and removed.
+ */
+inline bool forget(protocol::NodeTree& tree, uint32_t nodeId) {
+  for (auto it = tree.subs.begin(); it != tree.subs.end(); ++it) {
+    if (it->nodeId == nodeId) {
+      tree.subs.erase(it);
+      return true;
+    }
+    if (forget(*it, nodeId)) return true;
+  }
+  return false;
+}
+
+/**
+ * Remove from tree every node that appears anywhere in `elsewhere`.
+ *
+ * A node is in one place. When a neighbour's sync presents the nodes
+ * below it, whatever another neighbour's cached tree still says about
+ * those nodes is older, and a packet routed by the older copy goes down a
+ * branch that ends at a link that no longer exists.
+ *
+ * \return how many nodes were removed.
+ */
+inline size_t forgetAll(protocol::NodeTree& tree,
+                        const protocol::NodeTree& elsewhere) {
+  size_t removed = forget(tree, elsewhere.nodeId) ? 1 : 0;
+  for (auto&& s : elsewhere.subs) removed += forgetAll(tree, s);
+  return removed;
+}
+
+/**
+ * A short identity for what a tree says: which nodes, in which order, which
+ * of them root or time authority. Never 0, so 0 can mean "nothing presented
+ * yet".
+ *
+ * A neighbour's sync is news only when this differs from its last one.
+ */
+inline uint32_t fingerprint(const protocol::NodeTree& tree,
+                            uint32_t hash = 2166136261u) {
+  auto mix = [&hash](uint32_t v) {
+    for (int i = 0; i < 4; ++i) {
+      hash ^= (v >> (8 * i)) & 0xff;
+      hash *= 16777619u;
+    }
+  };
+  mix(tree.nodeId);
+  mix((tree.root ? 1u : 0u) | (tree.hasTimeAuthority ? 2u : 0u));
+  for (auto&& s : tree.subs) hash = fingerprint(s, hash);
+  mix(0xffffffffu);  // end of this node's subs
+  return hash == 0 ? 1 : hash;
+}
+
 inline protocol::NodeTree excludeRoute(protocol::NodeTree&& tree,
                                        uint32_t exclude) {
   // Make sure to exclude any subs with nodeId == 0,
@@ -44,12 +105,12 @@ class Layout {
    * On the ESP hardware nodeId is uniquely calculated from the MAC address of
    * the node.
    */
-  uint32_t getNodeId() { return nodeId; }
+  uint32_t getNodeId() const { return nodeId; }
 
   /**
    * Check whether this node is a root node.
    */
-  bool isRoot() { return root; }
+  bool isRoot() const { return root; }
 
   protocol::NodeTree asNodeTree() {
     auto nt = protocol::NodeTree(nodeId, root, hasTimeAuthority);
@@ -83,6 +144,13 @@ class Neighbour : public protocol::NodeTree {
  public:
   // Inherit constructors
   using protocol::NodeTree::NodeTree;
+
+  /**
+   * fingerprint() of the tree this neighbour presented last, 0 before its
+   * first sync. A sync that restates it carries nothing the cached tree
+   * does not already reflect, however the cache has since been pruned.
+   */
+  uint32_t presented = 0;
 
   /**
    * Is the passed nodesync valid

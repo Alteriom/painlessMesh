@@ -5,6 +5,7 @@ painlessMesh	KEYWORD1
 Scheduler	KEYWORD1
 Task	KEYWORD1
 TcpRetryConfig	KEYWORD1
+SendOptions	KEYWORD1
 
 # Methods and Functions (KEYWORD2)
 init	KEYWORD2
@@ -19,13 +20,57 @@ getNodeList	KEYWORD2
 getNodeId	KEYWORD2
 getNodeTime	KEYWORD2
 setDebugMsgTypes	KEYWORD2
+checkAcks	KEYWORD2
+pendingAcks	KEYWORD2
 setTcpRetryConfig	KEYWORD2
+getTcpRetryConfig	KEYWORD2
+stop	KEYWORD2
+isConnected	KEYWORD2
+subConnectionJson	KEYWORD2
+startDelayMeas	KEYWORD2
+onNodeDelayReceived	KEYWORD2
+setRoot	KEYWORD2
+setContainsRoot	KEYWORD2
+isRoot	KEYWORD2
+stationManual	KEYWORD2
+setHostname	KEYWORD2
+initAsBridge	KEYWORD2
+initAsSharedGateway	KEYWORD2
+isBridge	KEYWORD2
+setRouterCredentials	KEYWORD2
+enableBridgeFailover	KEYWORD2
+onBridgeRoleChanged	KEYWORD2
+onBridgeStatusChanged	KEYWORD2
+onGatewayChanged	KEYWORD2
+setElectionStartupDelay	KEYWORD2
+setElectionRandomDelay	KEYWORD2
+setElectionTimeout	KEYWORD2
+setMinimumBridgeRSSI	KEYWORD2
+setBridgeStatusInterval	KEYWORD2
+setBridgeTimeout	KEYWORD2
+hasInternetConnection	KEYWORD2
+hasLocalInternet	KEYWORD2
+getBridges	KEYWORD2
+getPrimaryBridge	KEYWORD2
+getPrimaryGateway	KEYWORD2
+enableSendToInternet	KEYWORD2
+sendToInternet	KEYWORD2
+enableMessageQueue	KEYWORD2
+queueMessage	KEYWORD2
+flushMessageQueue	KEYWORD2
+getQueueStats	KEYWORD2
+initOTASend	KEYWORD2
+initOTAReceive	KEYWORD2
+overCapacity	KEYWORD2
+apChildren	KEYWORD2
 getTcpRetryConfig	KEYWORD2
 subConnectionJson	KEYWORD2
 asNodeTree	KEYWORD2
 
 # Alteriom Extensions (KEYWORD1)
 SensorPackage	KEYWORD1
+MessageAckPackage	KEYWORD1
+deliveryCallback_t	KEYWORD1
 CommandPackage	KEYWORD1
 StatusPackage	KEYWORD1
 
@@ -50,3 +95,7 @@ GENERAL	LITERAL1
 MSG_TYPES	LITERAL1
 REMOTE	LITERAL1
 DEBUG	LITERAL1
+PRIORITY_CRITICAL	LITERAL1
+PRIORITY_HIGH	LITERAL1
+PRIORITY_NORMAL	LITERAL1
+PRIORITY_LOW	LITERAL1

@@ -4,7 +4,7 @@
 
 <div align="center">
 
-**Version 1.10.0** - Tunable TCP connect-retry behaviour via `setTcpRetryConfig()` (#378)
+**Version 2.0.0** — delivery confirmation, a unified send path, and gateway failover, routing and channel following validated on a six-family hardware rig
 
 [![CI/CD Pipeline](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/ci.yml)
 [![Documentation](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/docs.yml)
@@ -12,7 +12,6 @@
 [![GitHub release](https://img.shields.io/github/v/release/Alteriom/painlessMesh?label=version)](https://github.com/Alteriom/painlessMesh/releases)
 [![NPM Version](https://img.shields.io/npm/v/@alteriom/painlessmesh?label=npm)](https://www.npmjs.com/package/@alteriom/painlessmesh)
 [![PlatformIO Registry](https://badges.registry.platformio.org/packages/alteriom/library/AlteriomPainlessMesh.svg)](https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh)
-[![Arduino Library Manager](https://img.shields.io/badge/Arduino-Library%20Manager-blue.svg)](https://www.arduino.cc/reference/en/libraries/alteriompainlessmesh/)
 
 </div>
 
@@ -156,12 +155,13 @@ See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for complete documentation.
 
 **High Availability for Critical Systems**
 
-- 🎯 **RSSI-Based Election** - Best signal strength wins bridge role
-- 🔍 **Automatic Detection** - 60-second failure detection via heartbeats
-- ⚡ **Fast Failover** - 60-70 second typical recovery time
-- 🌐 **Distributed Consensus** - No single coordinator, deterministic winner selection
-- 🛡️ **Split-Brain Prevention** - State machine prevents concurrent elections
-- 📊 **Tiebreaker Rules** - RSSI → Uptime → Memory → Node ID
+- 🎯 **RSSI-Based Election** - Best router signal wins the bridge role; ties go to uptime, then free memory, then node ID
+- 📣 **A bridge that stops cleanly says so** - `mesh.stop()` on a bridge announces it is leaving, and the candidates hold their election within seconds
+- 🔍 **Heartbeat Detection** - A bridge that loses power is noticed when its last status ages out: the bridge timeout (60 s) plus up to one 30 s monitor tick
+- 🏠 **The mesh follows the bridge** - Peers learn the elected bridge's channel from the takeover message and treat it as home; a node that loses its uplink there rescans that channel first
+- 🌐 **Distributed Consensus** - No single coordinator; every node evaluates the same candidates by the same rules
+- 🛡️ **Split-Brain Prevention** - One election at a time, a 60 s hold between role changes, and a minimum router RSSI for a lone candidate
+- 🔬 **Validated on hardware** - The failover scenario runs on the Alteriom rig with a real router; see [CHANGELOG.md](CHANGELOG.md)
 
 **Use Cases:**
 - Fish farm alarm systems requiring 24/7 Internet connectivity
@@ -184,7 +184,7 @@ void bridgeRoleCallback(bool isBridge, const String& reason) {
 
 See [bridge_failover example](examples/bridge_failover/) for complete documentation.
 
-#### 🌉 Multi-Bridge Coordination (v1.8.2)
+#### 🌉 Multi-Bridge Coordination
 
 **Enterprise Load Balancing and Geographic Redundancy**
 
@@ -232,7 +232,7 @@ mesh.onBridgeCoordinationChanged(
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for multi-bridge documentation.
 
-#### 📬 Message Queue for Offline Mode (v1.8.2)
+#### 📬 Message Queue for Offline Mode
 
 **Zero Data Loss During Internet Outages**
 
@@ -255,14 +255,15 @@ See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for multi-bridge documentatio
 // Enable message queue with max 100 messages
 mesh.enableMessageQueue(true, 100);
 
-// Queue critical alarm message
+// Queue a critical alarm for the Internet endpoint; it is sent when a
+// gateway with Internet is available and never evicted by lower priorities
 String criticalAlarm = "{\"sensor\":\"O2\",\"value\":2.5,\"alarm\":true}";
-mesh.queueMessage(bridgeNodeId, criticalAlarm);
+mesh.queueMessage(criticalAlarm, "https://api.example.com/alarm", PRIORITY_CRITICAL);
 ```
 
 See [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNET.md) for message queue documentation.
 
-#### 🌐 Shared Gateway Mode (v1.9.0+)
+#### 🌐 Shared Gateway Mode
 
 **All Nodes as Internet Gateways with Automatic Failover**
 
@@ -298,8 +299,8 @@ mesh.sendToInternet(
 );
 
 // Monitor gateway changes
-mesh.onGatewayChanged([](uint32_t newGateway) {
-    Serial.printf("Primary gateway: %u\n", newGateway);
+mesh.onGatewayChanged([](uint32_t oldGateway, uint32_t newGateway) {
+    Serial.printf("Primary gateway: %u -> %u\n", oldGateway, newGateway);
 });
 ```
 
@@ -331,6 +332,32 @@ The library handles routing and network management automatically, so you can foc
 
 painlessMesh is a true ad-hoc network, meaning that no-planning, central controller, or router is required. Any system of 1 or more nodes will self-organize into fully functional mesh. The maximum size of the mesh is limited (we think) by the amount of memory in the heap that can be allocated to the sub-connections buffer and so should be really quite high.
 
+### ESP8266 capacity
+
+The ESP8266 is specified for **small meshes**, or as a **leaf** in larger ones.
+Measured as an interior node of a seven-node mesh it runs at 10–13 KB free —
+a working set that tracks its live connections and the traffic through them,
+not a leak — and at that level a single 8 KB package or one OTA part can fail
+to allocate. That is the part's limit, not a library defect. Every ESP32
+family holds within a few percent of its starting heap in the same mesh.
+
+Configure an ESP8266 as a leaf with `init(..., maxconn = 0)` (or `1` to allow
+one child). The library checks every thirty seconds on ESP8266 and logs an
+`ERROR` when the node is below 12 KB free with more than one child attached;
+`mesh.overCapacity()` reports the same condition to the sketch, and
+`mesh.apChildren()` says how many are attached.
+
+### Validated on hardware
+
+Every 2.0 change to failover, routing, channel following and the station
+scan was found in the serial logs of the Alteriom hardware-in-the-loop rig —
+an ESP32, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-S3 and ESP8266 in one mesh with
+a real router — and confirmed there. The release gate is three consecutive
+clean runs of the rig's whole suite (mesh formation, delivery and
+acknowledgement, priorities, dedicated and shared gateways, Internet relay,
+gateway failover, mesh OTA, sustained soak). Each fix in the changelog names
+the run that found it.
+
 ### JSON based
 
 painlessMesh uses JSON objects for all its messaging. There are a couple of reasons for this. First, it makes the code and the messages human readable and painless to understand and second, it makes it painless to integrate painlessMesh with javascript front-ends, web applications, and other apps. Some performance is lost, but I haven’t been running into performance issues yet. Converting to binary messaging would be fairly straight forward if someone wants to contribute.
@@ -341,29 +368,29 @@ painlessMesh is designed to be used with Arduino, but it does not use the Arduin
 
 ### painlessMesh is not IP networking
 
-painlessMesh does not create a TCP/IP network of nodes. Rather each of the nodes is uniquely identified by its 32bit chipId which is retrieved from the esp8266/esp32 using the `system_get_chip_id()` call in the SDK. Every node will have a unique number. Messages can either be broadcast to all the nodes on the mesh, or sent specifically to an individual node which is identified by its `nodeId.
+painlessMesh does not create a TCP/IP network of nodes. Rather each of the nodes is uniquely identified by its 32bit chipId which is retrieved from the esp8266/esp32 using the `system_get_chip_id()` call in the SDK. Every node will have a unique number. Messages can either be broadcast to all the nodes on the mesh, or sent specifically to an individual node which is identified by its `nodeId`.
 
 ### Limitations and caveats
 
 - Try to avoid using `delay()` in your code. To maintain the mesh we need to perform some tasks in the background. Using `delay()` will stop these tasks from happening and can cause the mesh to lose stability/fall apart. Instead, we recommend using [TaskScheduler](http://playground.arduino.cc/Code/TaskScheduler) which is used in `painlessMesh` itself. Documentation can be found [here](https://github.com/arkhipenko/TaskScheduler/wiki/Full-Document). For other examples on how to use the scheduler see the example folder.
 - `painlessMesh` subscribes to WiFi events. Please be aware that as a result `painlessMesh` can be incompatible with user programs/other libraries that try to bind to the same events.
 - Try to be conservative in the number of messages (and especially broadcast messages) you sent per minute. This is to prevent the hardware from overloading. Both esp8266 and esp32 are limited in processing power/memory, making it easy to overload the mesh and destabilize it. And while `painlessMesh` tries to prevent this from happening, it is not always possible to do so.
-- Messages can go missing or be dropped due to high traffic and you can not rely on all messages to be delivered. One suggestion to work around is to resend messages every so often. Even if some go missing, most should go through. Another option is to have your nodes send replies when they receive a message. The sending nodes can the resend the message if they haven’t gotten a reply in a certain amount of time.
+- Messages can go missing or be dropped due to high traffic and you can not rely on all messages to be delivered. One suggestion to work around is to resend messages every so often. Even if some go missing, most should go through. Another option is to have your nodes send replies when they receive a message. The sending nodes can then resend the message if they haven’t gotten a reply in a certain amount of time.
 
 ## Installation
 
 ### Arduino Library Manager
 
-**Once registered**, installation will be available via Arduino IDE:
+The library is in the Arduino Library Manager as **Alteriom PainlessMesh**:
 
 1. Open Arduino IDE
 2. Go to **Tools** → **Manage Libraries...**
-3. Search for **"AlteriomPainlessMesh"**
-4. Click **Install**
+3. Search for **"Alteriom PainlessMesh"** and click **Install**; accept the dependencies it offers (ArduinoJson, TaskScheduler, PubSubClient)
+4. Also install **AsyncTCP** (ESP32) or **ESPAsyncTCP** (ESP8266) from the same dialog; the Library Manager cannot pick one per platform, so they are not listed as dependencies
 
-The library includes the header file `AlteriomPainlessMesh.h` which provides access to both the core painlessMesh functionality and Alteriom-specific extensions.
+The index follows a GitHub release within a day. The header `AlteriomPainlessMesh.h` gives access to the core painlessMesh functionality and the Alteriom extensions; `painlessMesh.h` alone gives the core.
 
-#### Manual Installation (Current Method)
+#### Manual Installation
 
 **Option 1: Download ZIP from GitHub Release**
 
@@ -383,7 +410,12 @@ git clone https://github.com/Alteriom/painlessMesh.git AlteriomPainlessMesh
 
 ### PlatformIO
 
-`painlessMesh` is included in both the Arduino Library Manager and the platformio library registry and can easily be installed via either of those methods.
+The library is published on the [PlatformIO registry](https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh) as `alteriom/AlteriomPainlessMesh`:
+
+```ini
+lib_deps =
+    alteriom/AlteriomPainlessMesh@^2.0.0
+```
 
 ### Dependencies
 
@@ -392,7 +424,7 @@ painlessMesh makes use of the following libraries, which can be installed throug
 - [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
 - [TaskScheduler](https://github.com/arkhipenko/TaskScheduler)
 - [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP) (ESP8266)
-- [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) (ESP32) - v3.3.0+ required for ESP32-C6
+- [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) (ESP32) - v3.4.7 or later (v3.3.0 was the first to work on the ESP32-C6)
 
 If platformio is used to install the library, then the dependencies will be installed automatically.
 
@@ -502,9 +534,13 @@ These types are used internally by painlessMesh for mesh management and are hand
 | 4 | `TIME_SYNC` | Time synchronization protocol messages |
 | 5 | `NODE_SYNC_REQUEST` | Node discovery and topology requests |
 | 6 | `NODE_SYNC_REPLY` | Node discovery and topology responses |
-| 7 | `CONTROL` | Deprecated control messages |
-| 8 | `BROADCAST` | Internal broadcast routing indicator |
-| 9 | `SINGLE` | Internal single-node routing indicator |
+| 7 | `CONTROL` | Deprecated, unused |
+| 8 | `BROADCAST` | Application data for every node |
+| 9 | `SINGLE` | Application data for one node |
+| 620 | `GATEWAY_DATA` | An Internet request routed to a gateway (`sendToInternet()`) |
+| 621 | `GATEWAY_ACK` | The gateway's answer to it |
+| 622 | `GATEWAY_HEARTBEAT` | Gateway health monitoring |
+| 630 | `MESSAGE_ACK` | Delivery confirmation for a message sent with a callback (2.0) |
 
 **Note**: These protocol types are managed automatically by painlessMesh and are not typically used in application code.
 
@@ -516,19 +552,19 @@ These are the message types used by applications built on painlessMesh:
 |------|-------|---------|--------|
 | 200 | `SensorPackage` | Environmental data | `temperature`, `humidity`, `pressure`, `sensorId`, `timestamp`, `batteryLevel` |
 | 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
-| 204 | `MetricsPackage` | Sensor metrics (v1.7.7+, aligns with schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
-| 400 | `CommandPackage` | Device control (v1.7.7+, moved from 201) | `command`, `targetDevice`, `parameters`, `commandId` |
-| 600 | `MeshNodeListPackage` | Mesh node list (v1.7.7+, MESH_NODE_LIST) | `nodes[]` (nodeId, status, lastSeen, signalStrength), `nodeCount`, `meshId` |
-| 601 | `MeshTopologyPackage` | Mesh topology (v1.7.7+, MESH_TOPOLOGY) | `connections[]` (fromNode, toNode, linkQuality, latencyMs), `rootNode` |
-| 602 | `MeshAlertPackage` | Mesh alerts (v1.7.7+, MESH_ALERT) | `alerts[]` (alertType, severity, message, nodeId), `alertCount` |
-| 603 | `MeshBridgePackage` | Mesh bridge (v1.7.7+, MESH_BRIDGE) | `meshProtocol`, `fromNodeId`, `toNodeId`, `meshType`, `rawPayload`, `rssi`, `hopCount` |
+| 204 | `MetricsPackage` | Sensor metrics (schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
+| 400 | `CommandPackage` | Device control | `command`, `targetDevice`, `parameters`, `commandId` |
+| 600 | `MeshNodeListPackage` | Mesh node list (`MESH_NODE_LIST`) | `nodes[]` (nodeId, status, lastSeen, signalStrength), `nodeCount`, `meshId` |
+| 601 | `MeshTopologyPackage` | Mesh topology (`MESH_TOPOLOGY`) | `connections[]` (fromNode, toNode, linkQuality, latencyMs), `rootNode` |
+| 602 | `MeshAlertPackage` | Mesh alerts (`MESH_ALERT`) | `alerts[]` (alertType, severity, message, nodeId), `alertCount` |
+| 603 | `MeshBridgePackage` | Mesh bridge (`MESH_BRIDGE`) | `meshProtocol`, `fromNodeId`, `toNodeId`, `meshType`, `rawPayload`, `rssi`, `hopCount` |
 | 604 | `EnhancedStatusPackage` | Mesh status (MESH_STATUS per schema v0.7.2+) | `nodeCount`, `connectionCount`, `messagesReceived`, `messagesSent`, `avgLatency`, `packetLossRate` |
-| 605 | `HealthCheckPackage` | Mesh metrics (v1.7.7+, MESH_METRICS per schema v0.7.2+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
-| 610 | `BridgeStatusPackage` | Bridge health monitoring (v1.8.0+, BRIDGE_STATUS per schema v0.7.3+) | `internetConnected`, `routerRSSI`, `routerChannel`, `uptime`, `gatewayIP`, `timestamp` |
-| 611 | `BridgeElectionPackage` | Bridge failover election (v1.8.0+, BRIDGE_ELECTION per schema v0.7.3+) | `routerRSSI`, `uptime`, `freeMemory`, `timestamp`, `routerSSID` |
-| 612 | `BridgeTakeoverPackage` | Bridge role announcement (v1.8.0+, BRIDGE_TAKEOVER per schema v0.7.3+) | `previousBridge`, `reason`, `timestamp` |
-| 613 | `BridgeCoordinationPackage` | Multi-bridge coordination (v1.8.2+, BRIDGE_COORDINATION) | `priority`, `role`, `peerBridges[]`, `load`, `timestamp` |
-| 614 | `NTPTimeSyncPackage` | NTP time synchronization (v1.8.0+, TIME_SYNC_NTP per schema v0.7.3+) | `ntpTime`, `accuracy`, `source`, `timestamp` |
+| 605 | `HealthCheckPackage` | Mesh metrics (`MESH_METRICS`, schema v0.7.2+) | `healthStatus`, `problemFlags`, `memoryHealth`, `networkHealth`, `performanceHealth`, `recommendations` |
+| 610 | `BridgeStatusPackage` | Bridge health monitoring (`BRIDGE_STATUS`) | `internetConnected`, `routerRSSI`, `routerChannel`, `uptime`, `gatewayIP`, `timestamp` |
+| 611 | `BridgeElectionPackage` | Bridge failover election (`BRIDGE_ELECTION`) | `routerRSSI`, `routerChannel`, `uptime`, `freeMemory`, `timestamp`, `routerSSID` |
+| 612 | `BridgeTakeoverPackage` | Bridge role announcement (`BRIDGE_TAKEOVER`) | `previousBridge`, `reason`, `routerChannel`, `timestamp` |
+| 613 | `BridgeCoordinationPackage` | Multi-bridge coordination (`BRIDGE_COORDINATION`) | `priority`, `role`, `peerBridges[]`, `load`, `timestamp` |
+| 614 | `NTPTimeSyncPackage` | NTP time synchronization (`TIME_SYNC_NTP`) | `ntpTime`, `accuracy`, `source`, `timestamp` |
 
 ## Key Features
 
@@ -560,54 +596,23 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v1.10.0 (August 12, 2026)
+## Latest Release: v2.0.0 (September 7, 2026)
 
-**Tunable TCP Connect-Retry Behaviour (issue #378)**
+**Delivery confirmation, a unified send path, and a mesh that holds together on real hardware**
 
-- The five TCP connect-retry values that were hardcoded in `tcp.hpp` are now tunable per mesh instance via `mesh.setTcpRetryConfig()` / `mesh.getTcpRetryConfig()` (#378, PR #395)
-- Defaults match the previous constants exactly — **no behaviour change unless you call the setter**
-- New `examples/tcpRetryConfig/` with real-time, high-reliability and battery-saver profiles
-- `MessageQueue` documentation corrected: it is a manual buffer, never an auto-flush queue (#385)
-- `MIN_FREE_MEMORY` / `MAX_MESSAGE_QUEUE` deprecated as ignored no-ops, values preserved for source compatibility (#385)
-- Fixed `bridge_failover` example failing to compile on an unqualified `plugin::` type (#360)
-
-> **npm users:** v1.9.21 was never published to npm ([#381](https://github.com/Alteriom/painlessMesh/issues/381) — expired token). npm's previous version is 1.9.20, so upgrading from npm picks up both releases. GitHub, PlatformIO and Arduino were unaffected.
-
-**Previous Release: v1.9.21 (August 4, 2026)**
-
-**Crash Fixes: Task & TCP Connection Lifecycle (issue #373)**
-
-- Fixed use-after-free in `Task::disable()` that crashed nodes on every peer disconnect (#373, PR #376 by @vaz82)
-- Fixed `PackageHandler::stop()` destroying the currently-executing task during bridge promotion
-- Fixed stale-pcb heap corruption window in `~BufferedConnection()` and an `onError`/`onConnect` double-handling race
-- New AddressSanitizer CI job and regression test for the task/connection cleanup lifecycle
-
-**Previous Release: v1.9.20 (March 27, 2026)** — Full repo cleanup, bug fixes & bridge coordination callbacks:
-
-- New `onBridgeCoordination()` and `onBridgeCoordinationChanged()` monitoring callbacks
-- Fixed 13 critical/high/medium bugs (double-free, RSSI overflow, memory leaks, blocking delays)
-- Removed ~3,600 lines of dead code and 40 AI-generated docs
-- Fixed all CI/CD workflows (corrected action versions)
-- Removed 15 fake test files, fixed test infrastructure
-- Documentation consistency audit — fixed broken links, API examples, version references
-
-**Recent Key Features (v1.9.0 - v1.9.16):**
-
-- 🔍 **Mesh Connectivity Detection** - New `hasActiveMeshConnections()` and `getLastKnownBridge()` APIs
-- 🌉 **Improved Bridge Detection** - `getPrimaryBridge()` returns last known bridge when disconnected
-- ⚡ **Enhanced TCP Reliability** - Exponential backoff and increased retries for mesh connections
-- 🛡️ **Race Condition Fixes** - Improved bridge status and connection validation
-- 📦 **Consolidated Examples** - Streamlined to 15 essential examples
-- ⚙️ **Configurable Election Timing** - Prevent split-brain with `setElectionStartupDelay()` and `setElectionRandomDelay()`
+- `sendSingle()` and `sendBroadcast()` accept a delivery callback — it fires with `delivered=true` and the round-trip latency on acknowledgment, or `delivered=false` on timeout — and a `SendOptions` struct that carries a priority and a callback in one call. Priority is kept across hops.
+- Thirty-odd defects in gateway failover, channel following, routing and the station scan, every one found in the serial logs of a six-family hardware rig and fixed there: a bridge that stops says so, the mesh follows an elected bridge to its channel and treats it as home, a node is in one place in every neighbour's tree, a dead connection is not a route, a stale scan does not consume a live one.
+- The ESP32-C5 and ESP32-C6 (Arduino core 3.x) no longer hang after a channel follow; the ESP8266 is specified for small meshes or as a leaf, and says so at runtime.
+- Gateway HTTP work is bounded by `NODE_TIMEOUT`, so an Internet request can no longer partition the mesh around its own gateway.
+- The release candidate passed the rig's whole suite three times in a row. Delivery confirmation and cross-hop priority need 2.0 on every node of the path.
 
 **[📋 Full CHANGELOG](CHANGELOG.md)**
 
 ## Getting Help
 
-- **[FAQ](USER_GUIDE.md)** - Common questions and solutions
-- **[Common Issues](USER_GUIDE.md)** - Troubleshooting guide
+- **[Troubleshooting](USER_GUIDE.md#troubleshooting)** - Common issues, debug configuration, best practices
+- **[FAQ](docsify-site/troubleshooting/faq.md)** - Frequently asked questions
 - **[GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)** - Bug reports and feature requests
-- **[Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)** - Community support
 - **[API Documentation](https://alteriom.github.io/painlessMesh/#/api/doxygen)** - Generated API docs
 
 ## Development
@@ -625,7 +630,8 @@ run-parts --regex catch_ bin/  # Run tests
 
 ### Requirements
 
-- **ESP32/ESP8266**: Arduino Core 2.0.0+
+- **ESP32**: Arduino core 2.0.x or 3.x; the ESP32-C5 and ESP32-C6 need 3.x
+- **ESP8266**: Arduino core 3.x
 - **Dependencies**: ArduinoJson 7.x, TaskScheduler 4.x  
 - **Development**: CMake, Ninja, Boost (for desktop testing)
 
@@ -678,7 +684,7 @@ painlessMesh features a state-of-the-art automated CI/CD pipeline:
 ./scripts/validate-release.sh    # Validate release readiness
 
 # Edit CHANGELOG.md, then commit with release prefix
-git commit -am "release: v1.5.7"
+git commit -am "release: vX.Y.Z"
 git push origin main  # Triggers automated release
 ```
 
@@ -686,13 +692,8 @@ See [RELEASE_GUIDE.md](RELEASE_GUIDE.md) for complete release documentation.
 
 ## Contributing
 
-We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `main` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `main` branch. For more details see the [CONTRIBUTING.md](CONTRIBUTING.md) file.
+Pull requests go to `Feat/next-release`, the integration branch for the next version; `main` holds released code and a push to it publishes a release. For branches, tests and what a pull request needs to show, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Funding
-
-If you like the library please consider supporting its development. Your contributions help me spend more time improving painlessMesh.
-
-**[Donate via PayPal](https://www.paypal.com/paypalme/domlavoie)** • [dominic.lavoie@gmail.com](mailto:dominic.lavoie@gmail.com)
 
 ## 📚 Documentation
 
@@ -708,18 +709,18 @@ If you like the library please consider supporting its development. Your contrib
 ### 🚀 Quick Links
 
 **New to AlteriomPainlessMesh?**
-- [Quick Start](USER_GUIDE.md) - Get your first mesh running in 5 minutes
-- [Installation](USER_GUIDE.md) - Arduino IDE and PlatformIO setup
-- [First Mesh](USER_GUIDE.md) - Build a multi-node network
+- [Quick Start](USER_GUIDE.md#getting-started) - Get your first mesh running in 5 minutes
+- [Installation](USER_GUIDE.md#installation) - Arduino IDE and PlatformIO setup
+- [First Mesh](USER_GUIDE.md#your-first-mesh-network) - Build a multi-node network
 
 **Reference Documentation:**
-- [Core API](USER_GUIDE.md) - painlessMesh class methods
+- [Core API](USER_GUIDE.md#api-reference) - painlessMesh class methods
 - [Alteriom Extensions](examples/alteriom/README.md) - SensorPackage, CommandPackage, StatusPackage
-- [Examples](examples/) - 15 working examples for common scenarios
+- [Examples](examples/) - 18 example directories, 21 sketches, every one compiled for esp32 and esp8266 on each pull request; [.github/DOCUMENTATION.md](.github/DOCUMENTATION.md) lists what each shows
 
 **Need Help?**
-- [FAQ](USER_GUIDE.md) - Frequently asked questions
-- [Common Issues](USER_GUIDE.md) - Troubleshooting guide
+- [Troubleshooting](USER_GUIDE.md#troubleshooting) - Common issues and how to read the logs
+- [FAQ](docsify-site/troubleshooting/faq.md) - Frequently asked questions
 - [GitHub Issues](https://github.com/Alteriom/painlessMesh/issues) - Bug reports and support
 
 ## 🔧 Quick API Reference
@@ -755,7 +756,11 @@ mesh.setDebugMsgTypes(ERROR | STARTUP | CONNECTION);
 
 **For complete API documentation, see [USER_GUIDE.md](USER_GUIDE.md#api-reference) or [online docs](https://alteriom.github.io/painlessMesh/#/api/core-api).**
 
-# Funding
+## Funding
+
+If you like the library please consider supporting its development. Your contributions help me spend more time improving painlessMesh.
+
+**[Donate via PayPal](https://www.paypal.com/paypalme/domlavoie)** • [dominic.lavoie@gmail.com](mailto:dominic.lavoie@gmail.com)
 
 Most development of painlessMesh has been done as a hobby, but some specific features have been funded by the companies listed below:
 

@@ -35,7 +35,7 @@ This comprehensive guide covers everything you need to build production-ready me
 - **ESP32 & ESP8266 Support** - Full support for both platforms
 - **Memory Efficient** - Optimized for resource-constrained devices
 
-**Alteriom Extensions (v1.7.0+):**
+**Alteriom Extensions:**
 - **Broadcast OTA Distribution** - 98% network traffic reduction for large meshes
 - **MQTT Bridge** - Professional monitoring with Grafana/InfluxDB/Prometheus
 - **Structured Packages** - SensorPackage, CommandPackage, StatusPackage
@@ -73,7 +73,9 @@ This comprehensive guide covers everything you need to build production-ready me
 
 #### Arduino Library Manager
 
-**Manual Installation (Current Method):**
+Search for **"Alteriom PainlessMesh"** in **Tools → Manage Libraries...** and install it with the dependencies it offers; also install AsyncTCP (ESP32) or ESPAsyncTCP (ESP8266). The index follows a GitHub release within a day.
+
+**Manual installation** (a release ZIP, or a clone to follow a branch):
 
 1. Go to [Releases](https://github.com/Alteriom/painlessMesh/releases/latest)
 2. Download the latest release ZIP file
@@ -90,19 +92,24 @@ git clone https://github.com/Alteriom/painlessMesh.git AlteriomPainlessMesh
 
 #### PlatformIO
 
-Add to your `platformio.ini`:
+Add to your `platformio.ini` (the library is `alteriom/AlteriomPainlessMesh` on the PlatformIO registry):
 ```ini
-lib_deps = 
-    https://github.com/Alteriom/painlessMesh.git
+lib_deps =
+    alteriom/AlteriomPainlessMesh@^2.0.0
 ```
+
+To follow the integration branch instead of a release, use the repository URL: `https://github.com/Alteriom/painlessMesh.git#Feat/next-release`.
 
 #### Dependencies
 
 painlessMesh requires these libraries (auto-installed with PlatformIO):
 - [ArduinoJson](https://github.com/bblanchon/ArduinoJson) v7.x
-- [TaskScheduler](https://github.com/arkhipenko/TaskScheduler)
-- [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP) (ESP8266)
-- [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) (ESP32) - v3.3.0+ for ESP32-C6
+- [TaskScheduler](https://github.com/arkhipenko/TaskScheduler) v4.x
+- [ESPAsyncTCP](https://github.com/ESP32Async/ESPAsyncTCP) (ESP8266) v2.x
+- [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) (ESP32) v3.4.7 or later
+- [PubSubClient](https://github.com/knolleary/pubsubclient) is only needed by the `mqttBridge` example
+
+Arduino cores: ESP32 core 2.0.x or 3.x (the ESP32-C5 and ESP32-C6 need 3.x); ESP8266 core 3.x.
 
 ### Your First Mesh Network
 
@@ -291,20 +298,26 @@ if (mesh.isConnected(nodeId)) {
 **`init()`** - Initialize the mesh network
 
 ```cpp
-void init(String ssid, String password, uint16_t port = 5555);
-void init(String ssid, String password, Scheduler* scheduler, uint16_t port = 5555);
-void init(String ssid, String password, Scheduler* scheduler, uint16_t port, 
-          WiFiMode_t mode, uint8_t channel, phy_mode_t phymode, 
-          uint8_t maxtpw, uint8_t hidden, uint8_t maxconn);
+void init(String ssid, String password, uint16_t port = 5555,
+          WiFiMode_t connectMode = WIFI_AP_STA, uint8_t channel = 1,
+          uint8_t hidden = 0, uint8_t maxconn = MAX_CONN,
+          String stationSSID = "", String stationPassword = "");
+void init(String ssid, String password, Scheduler* scheduler, uint16_t port = 5555,
+          WiFiMode_t connectMode = WIFI_AP_STA, uint8_t channel = 1,
+          uint8_t hidden = 0, uint8_t maxconn = MAX_CONN,
+          String stationSSID = "", String stationPassword = "");
 ```
 
 **Parameters:**
 - `ssid` - Network name (same for all nodes)
 - `password` - Network password
-- `scheduler` - Optional TaskScheduler instance
+- `scheduler` - Your TaskScheduler instance; without one the library creates its own
 - `port` - TCP port for mesh communication (default: 5555)
-- `mode` - WiFi mode: WIFI_AP, WIFI_STA, or WIFI_AP_STA (default)
-- `channel` - WiFi channel (1-13, or 0 for auto-detect)
+- `connectMode` - `WIFI_AP_STA` (default), `WIFI_STA` for a leaf that accepts no children, or `WIFI_AP`
+- `channel` - WiFi channel (1-13), or 0 to scan for the mesh and join it on whatever channel it is on
+- `hidden` - Hide the mesh SSID
+- `maxconn` - Children this node's AP accepts (0 makes it a leaf; see the ESP8266 note in the README)
+- `stationSSID`, `stationPassword` - Also connect the station to a router (a bridge); `initAsBridge()` is the usual way
 
 **Example:**
 ```cpp
@@ -359,6 +372,57 @@ bool sendSingle(uint32_t dest, String &msg);
 - `msg` - Message to send
 
 **Returns:** `true` if successful
+
+**Delivery confirmation (v2.0.0+)** - Both send functions accept an optional
+delivery callback for reliable communication:
+
+```cpp
+bool sendSingle(uint32_t dest, String &msg,
+                painlessmesh::ack::deliveryCallback_t ackCallback,
+                uint32_t ackTimeoutMs = 5000);
+bool sendBroadcast(String &msg, bool includeSelf,
+                   painlessmesh::ack::deliveryCallback_t ackCallback,
+                   uint32_t ackTimeoutMs = 5000);
+```
+
+When a callback is given, the receiving node automatically acknowledges the
+message and the callback fires with `delivered = true` and the round-trip
+latency, or `delivered = false` after the timeout. For broadcasts the
+callback fires once per node in the mesh. See the `reliableSensorLogging`
+and `commandControl` examples:
+
+```cpp
+mesh.sendSingle(gatewayId, msg,
+                [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  if (delivered)
+    Serial.printf("Node %u confirmed in %u ms\n", nodeId, latencyMs);
+  else
+    Serial.printf("Delivery to %u timed out\n", nodeId);
+});
+```
+
+Use `mesh.pendingAcks()` to see how many messages are still unconfirmed and
+`mesh.checkAcks()` to poll timeouts manually (they are also processed inside
+`mesh.update()`). At most `PAINLESSMESH_MAX_PENDING_ACKS` (default 32)
+messages can await confirmation at once — beyond that the send returns
+`false` and nothing is sent.
+
+To combine a priority level with a delivery callback in one call, pass a
+`painlessmesh::SendOptions` struct instead of using the separate overloads:
+
+```cpp
+painlessmesh::SendOptions options;
+options.priority = painlessmesh::protocol::PRIORITY_HIGH;
+options.ackCallback = [](uint32_t nodeId, bool delivered, uint32_t latencyMs) {
+  // ...
+};
+mesh.sendSingle(targetNode, msg, options);
+mesh.sendBroadcast(msg, options);  // includeSelf as optional third argument
+```
+
+Since v2.0.0 the priority level is carried on the wire, so intermediate
+nodes forward a prioritized message at the sender's priority instead of
+dropping it to normal after the first hop.
 
 #### Callbacks
 
@@ -529,9 +593,8 @@ mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT);
 See `examples/tcpRetryConfig/` for real-time, high-reliability and
 battery-saver profiles, and the API docs for the full tuning guidance.
 
-> **Note:** these defaults were deliberately raised in 1.9.x to fix real-world
-> mesh instability. Tuning them down can reintroduce connection churn and rapid
-> reconnect loops.
+> **Note:** these production defaults prevent connection churn and rapid
+> reconnect loops. Tuning them down can reintroduce mesh instability.
 
 ---
 
@@ -673,7 +736,7 @@ status.deviceStatus = 1; // OPERATIONAL
 status.uptime = millis() / 1000;
 status.freeMemory = ESP.getFreeHeap();
 status.wifiStrength = WiFi.RSSI();
-status.firmwareVersion = "1.2.3";
+status.firmwareVersion = "2.0.0";
 
 String json = status.toJsonString();
 mesh.sendBroadcast(json);
@@ -686,7 +749,7 @@ mesh.sendBroadcast(json);
 - Performance tracking
 - Remote troubleshooting
 
-### Advanced Packages (v1.7.0+)
+### Advanced Packages
 
 **MetricsPackage (Type 204)** - Comprehensive performance metrics
 - CPU usage, memory health, network throughput
@@ -699,7 +762,7 @@ mesh.sendBroadcast(json);
 - Memory leak detection
 - Predictive maintenance
 
-**Bridge Packages (v1.8.0+):**
+**Bridge Packages:**
 - **BridgeStatusPackage (Type 610)** - Bridge health monitoring
 - **BridgeElectionPackage (Type 611)** - Automatic failover election
 - **BridgeTakeoverPackage (Type 612)** - Bridge role announcement
@@ -751,16 +814,18 @@ void receivedCallback(uint32_t from, String &msg) {
 }
 ```
 
-### Bridge Failover (v1.8.0+)
+### Bridge Failover
 
 Automatic high-availability for critical systems:
 
 **Features:**
-- RSSI-based election (best signal wins)
-- 60-second failure detection via heartbeats
-- Fast failover (60-70 seconds typical)
-- Distributed consensus algorithm
-- Split-brain prevention
+- RSSI-based election (best router signal wins; ties go to uptime, free memory, node ID)
+- A bridge that stops cleanly (`mesh.stop()`, or a sketch that stops the mesh before rebooting) announces it is leaving, and the candidates elect within seconds
+- A bridge that loses power is noticed when its last status ages out: the bridge timeout (60 s) plus up to one 30 s monitor tick
+- The elected bridge announces its router channel; peers move to it and treat it as home
+- One election at a time, a 60 s hold between role changes, and a minimum router RSSI for a lone candidate
+
+The first election check comes after a startup period (`setElectionStartupDelay()`, 60 s by default). See [examples/bridge_failover](examples/bridge_failover/README.md) for the whole protocol.
 
 **Example:**
 ```cpp
@@ -780,7 +845,7 @@ void bridgeRoleCallback(bool isBridge, const String& reason) {
 }
 ```
 
-### Shared Gateway Mode (v1.9.0+)
+### Shared Gateway Mode
 
 All nodes as Internet gateways with automatic failover:
 
@@ -816,52 +881,68 @@ For complete bridge documentation, see [BRIDGE_TO_INTERNET.md](BRIDGE_TO_INTERNE
 
 ## Advanced Features
 
-### Message Queue (v1.8.2+)
+### Message Queue
 
 Zero data loss during Internet outages:
 
 ```cpp
-// Enable message queue
-mesh.enableMessageQueue(true);
-mesh.setMaxQueueSize(100);
+// Enable the queue with room for 100 messages (call after mesh.init())
+mesh.enableMessageQueue(true, 100);
 
-// Queue critical message
+// Queue a message for an Internet endpoint. Returns the queued message's
+// id, 0 on failure. The queue holds it until you drain it.
 String criticalAlarm = "{\"sensor\":\"O2\",\"value\":2.5,\"alarm\":true}";
-mesh.queueMessage(criticalAlarm, CRITICAL);
+uint32_t id = mesh.queueMessage(criticalAlarm, "https://api.example.com/alarm", PRIORITY_CRITICAL);
 
-// Set callbacks
-mesh.onQueueFull(&queueFullCallback);
-mesh.onQueueFlushed(&queueFlushedCallback);
+// Drain it when a gateway with Internet is available: flushMessageQueue()
+// returns the queued messages, your sketch sends each one and removes it
+if (mesh.hasInternetConnection()) {
+  for (auto& queued : mesh.flushMessageQueue()) {
+    mesh.sendToInternet(queued.destination, queued.payload, onResult);
+    mesh.removeQueuedMessage(queued.id);
+  }
+}
+auto stats = mesh.getQueueStats();   // queued, dropped and flushed counts
 ```
 
-**Priority Levels:**
-- `CRITICAL` - Never dropped
-- `HIGH` - High priority
-- `NORMAL` - Normal priority
-- `LOW` - Dropped first when queue full
+**Priority Levels** (`PRIORITY_CRITICAL`, `PRIORITY_HIGH`, `PRIORITY_NORMAL`, `PRIORITY_LOW`):
+- `PRIORITY_CRITICAL` - Never evicted
+- `PRIORITY_LOW` - Evicted first when the queue is full, then `NORMAL`, then `HIGH`
 
-### Broadcast OTA (v1.7.0+)
+See [examples/priority/priority_with_queue](examples/priority/priority_with_queue/).
+
+### Broadcast OTA
 
 Efficient firmware distribution for large meshes:
 
 ```cpp
-// Enable broadcast OTA mode
-mesh.initOTA("MyFirmware", "1.2.3", [](size_t progress, size_t total) {
-  Serial.printf("OTA Progress: %d%%\n", (progress * 100) / total);
+// Receiver: accept firmware offered for this role, report progress
+mesh.initOTAReceive("sensor", [](int part, int total) {
+  Serial.printf("OTA %d/%d\n", part, total);
 });
 
-// 98% network traffic reduction for 50+ node meshes
-// All nodes receive firmware simultaneously
-// Scales to 100+ nodes efficiently
+// Sender: serve the image in parts on request, then offer it to the role
+mesh.initOTASend(
+    [](painlessmesh::plugin::ota::DataRequest pkg, char* buffer) {
+      // copy part pkg.partNo of the image into buffer, return its length
+      return (size_t)readPart(pkg.partNo, buffer);
+    },
+    OTA_PART_SIZE);
+mesh.offerOTA("sensor", "esp32", md5, partCount, false, true /* broadcast */);
 ```
+
+With the last argument true the image is broadcast once instead of unicast to each node, which is what makes a large mesh affordable. See [examples/otaSender](examples/otaSender/) and [examples/otaReceiver](examples/otaReceiver/) for a complete pair.
 
 ### MQTT Bridge
 
 Professional monitoring integration:
 
+The library has no MQTT client of its own; the bridge sketch uses
+[PubSubClient](https://github.com/knolleary/pubsubclient) beside the mesh:
+
 ```cpp
-// Connect to MQTT broker
-mesh.connectMQTT("mqtt://broker.example.com", 1883);
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
 
 // Publish mesh data
 mesh.onReceive([](uint32_t from, String &msg) {
@@ -869,15 +950,20 @@ mesh.onReceive([](uint32_t from, String &msg) {
   mqttClient.publish(topic.c_str(), msg.c_str());
 });
 
-// Subscribe to commands
-mqttClient.subscribe("mesh/+/command");
-mqttClient.onMessage([](String topic, String payload) {
-  // Extract node ID from topic and forward command
-  mesh.sendSingle(nodeId, payload);
+// Forward commands from mesh/<nodeId>/command into the mesh
+mqttClient.setCallback([](char* topic, byte* payload, unsigned int length) {
+  String t(topic);
+  uint32_t nodeId = t.substring(t.indexOf('/') + 1, t.lastIndexOf('/')).toInt();
+  String msg;
+  for (unsigned int i = 0; i < length; i++) msg += (char)payload[i];
+  mesh.sendSingle(nodeId, msg);
 });
+mqttClient.subscribe("mesh/+/command");
 ```
 
-### Multi-Bridge Coordination (v1.8.2+)
+See the complete sketch in the [Bridge with MQTT](#bridge-with-mqtt) example below and in [examples/mqttBridge](examples/mqttBridge/).
+
+### Multi-Bridge Coordination
 
 Enterprise load balancing:
 
@@ -888,7 +974,7 @@ mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD,
                   &userScheduler, MESH_PORT, 10);
 
 // Configure load balancing
-mesh.setBridgeSelectionStrategy(ROUND_ROBIN);
+mesh.setBridgeSelectionStrategy(painlessMesh::ROUND_ROBIN);
 
 // Monitor bridge coordination (fires every ~30s per bridge)
 mesh.onBridgeCoordination(
@@ -1013,9 +1099,9 @@ String msg = "{\"t\":23.5,\"h\":65}";
 6. **Test at scale** - Test with expected number of nodes
 
 For more troubleshooting help, see:
-- [Common Issues](docs/troubleshooting/common-issues.md)
-- [FAQ](docs/troubleshooting/faq.md)
-- [Debugging Guide](docs/troubleshooting/debugging.md)
+- [Common Issues](docsify-site/troubleshooting/common-issues.md)
+- [FAQ](docsify-site/troubleshooting/faq.md)
+- [Bridge Failover troubleshooting](examples/bridge_failover/README.md#troubleshooting)
 
 ---
 
@@ -1179,7 +1265,7 @@ void loop() {
 
 ### More Examples
 
-Complete examples are available in the repository (16 examples total):
+Complete examples are available in the repository (18 example directories, 21 sketches, every one compiled for esp32 and esp8266 on each pull request):
 
 **Getting Started:**
 - [Start Here](examples/startHere/startHere.ino) - Best starting point for beginners
@@ -1196,8 +1282,13 @@ Complete examples are available in the repository (16 examples total):
 - [Send to Internet](examples/sendToInternet/) - Direct Internet communication
 - [MQTT Bridge](examples/mqttBridge/) - MQTT integration
 
+**Reliable Delivery (2.0):**
+- [Reliable Sensor Logging](examples/reliableSensorLogging/) - Buffered retries until the gateway confirms
+- [Command Control](examples/commandControl/) - Per-node broadcast confirmation
+
 **Advanced Features:**
 - [Priority Queue](examples/priority/) - Message priority handling
+- [TCP Retry Config](examples/tcpRetryConfig/) - Tuning connection retries
 - [OTA Sender](examples/otaSender/) - Firmware update distribution
 - [OTA Receiver](examples/otaReceiver/) - Firmware update reception
 - [Log Server](examples/logServer/) - Centralized logging
@@ -1219,7 +1310,6 @@ Complete examples are available in the repository (16 examples total):
 ### Community &amp; Support
 
 - **[GitHub Issues](https://github.com/Alteriom/painlessMesh/issues)** - Bug reports and features
-- **[Community Forum](https://groups.google.com/forum/#!forum/painlessmesh-user)** - Community support
 - **[GitHub Discussions](https://github.com/Alteriom/painlessMesh/discussions)** - General discussion
 
 ### Development
@@ -1232,7 +1322,7 @@ Complete examples are available in the repository (16 examples total):
 
 ## Version Information
 
-This guide is for **AlteriomPainlessMesh v1.9.6** (December 2025)
+This guide covers **AlteriomPainlessMesh 2.0.0**. Every snippet in it is written against the 2.0.0 headers; when the API changes, the guide changes in the same pull request.
 
 For the latest updates and releases, visit:
 - [GitHub Releases](https://github.com/Alteriom/painlessMesh/releases)

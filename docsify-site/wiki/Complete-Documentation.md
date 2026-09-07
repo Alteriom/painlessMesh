@@ -5,7 +5,7 @@ Welcome to the complete documentation for Alteriom painlessMesh Library!
 ## 📖 Documentation Sections
 
 ### Getting Started
-- [Installation Guide](Installation) - Set up the library in your development environment
+- [Installation Guide](../getting-started/installation.md) - Set up the library in your development environment
 - [Quick Start](https://github.com/Alteriom/painlessMesh/blob/main/docs/getting-started/quickstart.md) - Your first mesh network
 - [First Mesh Tutorial](https://github.com/Alteriom/painlessMesh/blob/main/docs/getting-started/first-mesh.md) - Step-by-step guide
 
@@ -15,7 +15,7 @@ Welcome to the complete documentation for Alteriom painlessMesh Library!
 - [Plugin System](https://github.com/Alteriom/painlessMesh/blob/main/docs/architecture/plugin-system.md) - Extensible architecture
 
 ### Examples and Tutorials
-- [Examples](Examples) - Working code examples
+- [Examples](../tutorials/basic-examples.md) - Working code examples
 - [Basic Examples](https://github.com/Alteriom/painlessMesh/blob/main/docs/tutorials/basic-examples.md) - Fundamental usage patterns
 - [Alteriom Extensions](https://github.com/Alteriom/painlessMesh/blob/main/docs/alteriom/overview.md) - SensorPackage, CommandPackage, StatusPackage
 
@@ -28,7 +28,7 @@ Welcome to the complete documentation for Alteriom painlessMesh Library!
 - [Common Issues](https://github.com/Alteriom/painlessMesh/blob/main/docs/troubleshooting/common-issues.md) - Solutions to common problems
 
 ### Development
-- [Contributing Guidelines](Contributing) - How to contribute to the project
+- [Contributing Guidelines](https://github.com/Alteriom/painlessMesh/blob/main/CONTRIBUTING.md) - How to contribute to the project
 - [Release Guide](https://github.com/Alteriom/painlessMesh/blob/main/RELEASE_GUIDE.md) - Release process documentation
 
 ## 🚀 Quick Links
@@ -39,7 +39,7 @@ Welcome to the complete documentation for Alteriom painlessMesh Library!
 Tools → Manage Libraries → Search "Alteriom PainlessMesh"
 
 # PlatformIO
-lib_deps = alteriom/painlessMesh@^1.6.1
+lib_deps = alteriom/painlessMesh@^2.0.0
 
 # NPM
 npm install @alteriom/painlessmesh
@@ -112,7 +112,7 @@ This project is licensed under LGPL-3.0 - see the [LICENSE](https://github.com/A
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](Contributing) for details on:
+We welcome contributions! Please see our [Contributing Guidelines](https://github.com/Alteriom/painlessMesh/blob/main/CONTRIBUTING.md) for details on:
 - Code style and standards
 - Pull request process
 - Issue reporting

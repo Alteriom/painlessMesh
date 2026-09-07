@@ -62,6 +62,17 @@ constexpr int GATEWAY_DATA = 620;       // Gateway data package for Internet rou
 constexpr int GATEWAY_ACK = 621;        // Gateway acknowledgment package
 constexpr int GATEWAY_HEARTBEAT = 622;  // Gateway heartbeat for health monitoring
 
+// Message delivery confirmation types
+constexpr int MESSAGE_ACK = 630;        // Per-message delivery acknowledgment (issue #379)
+
+// Outbound queue priority levels, in SentBuffer scheduling order (lower value
+// drains first). PRIORITY_NORMAL is the wire default: a package whose priority
+// equals it omits the "prio" key entirely.
+constexpr uint8_t PRIORITY_CRITICAL = 0;
+constexpr uint8_t PRIORITY_HIGH = 1;
+constexpr uint8_t PRIORITY_NORMAL = 2;
+constexpr uint8_t PRIORITY_LOW = 3;
+
 class PackageInterface {
  public:
   virtual JsonObject addTo(JsonObject&& jsonObj) const = 0;
@@ -81,6 +92,15 @@ class Single : public PackageInterface {
   uint32_t from;
   uint32_t dest;
   TSTRING msg = "";
+  // Non-zero when the sender requested a delivery acknowledgment. Only
+  // serialized when set, so plain sends carry zero overhead.
+  uint32_t msgId = 0;
+  // Outbound queue priority: 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW. Carried on
+  // the wire (as "prio") so intermediate hops re-enqueue a forwarded package
+  // at the sender's priority instead of silently dropping it to NORMAL after
+  // the first hop (issue #384). Only serialized when it deviates from NORMAL,
+  // so default sends carry zero overhead. Pre-2.0 receivers ignore the key.
+  uint8_t priority = PRIORITY_NORMAL;
 
   Single() {}
   Single(uint32_t fromID, uint32_t destID, TSTRING& message) {
@@ -93,6 +113,8 @@ class Single : public PackageInterface {
     dest = jsonObj["dest"].as<uint32_t>();
     from = jsonObj["from"].as<uint32_t>();
     msg = jsonObj["msg"].as<TSTRING>();
+    msgId = jsonObj["msgId"] | (uint32_t)0;
+    priority = jsonObj["prio"] | PRIORITY_NORMAL;
   }
 
   JsonObject addTo(JsonObject&& jsonObj) const {
@@ -100,12 +122,16 @@ class Single : public PackageInterface {
     jsonObj["dest"] = dest;
     jsonObj["from"] = from;
     jsonObj["msg"] = msg;
+    if (msgId != 0) jsonObj["msgId"] = msgId;
+    if (priority != PRIORITY_NORMAL) jsonObj["prio"] = priority;
     return jsonObj;
   }
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4) + ceil(1.1 * msg.length());
+    return JSON_OBJECT_SIZE((msgId != 0 ? 5 : 4) +
+                            (priority != PRIORITY_NORMAL ? 1 : 0)) +
+           ceil(1.1 * msg.length());
   }
 #endif
 };
@@ -127,7 +153,9 @@ class Broadcast : public Single {
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4) + ceil(1.1 * msg.length());
+    return JSON_OBJECT_SIZE((msgId != 0 ? 5 : 4) +
+                            (priority != PRIORITY_NORMAL ? 1 : 0)) +
+           ceil(1.1 * msg.length());
   }
 #endif
 };
@@ -716,6 +744,31 @@ class Variant {
    * Return package type
    */
   int type() { return jsonObj["type"].as<int>(); }
+
+  /**
+   * Origin node of the package (0 if not present)
+   *
+   * Lightweight field peek — unlike to<T>() this does not materialize a
+   * package object or copy the message payload.
+   */
+  uint32_t from() { return jsonObj["from"] | (uint32_t)0; }
+
+  /**
+   * Delivery-confirmation id of the package (0 = no ack requested)
+   *
+   * Lightweight field peek — unlike to<T>() this does not materialize a
+   * package object or copy the message payload.
+   */
+  uint32_t msgId() { return jsonObj["msgId"] | (uint32_t)0; }
+
+  /**
+   * Outbound queue priority of the package (PRIORITY_NORMAL if not present)
+   *
+   * Lightweight field peek — unlike to<T>() this does not materialize a
+   * package object or copy the message payload. Used by forwarding hops to
+   * re-enqueue a routed package at the sender's priority (issue #384).
+   */
+  uint8_t priority() { return jsonObj["prio"] | PRIORITY_NORMAL; }
 
   /**
    * Package routing method

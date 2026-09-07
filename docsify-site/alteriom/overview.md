@@ -37,7 +37,7 @@ mesh.sendPackage(&sensor);
 - Industrial sensor networks
 
 ### CommandPackage (Type 400)
-For sending control commands to specific devices. (Type moved from 201 to 400 in v1.7.7+)
+For sending control commands to specific devices.
 
 ```cpp
 alteriom::CommandPackage cmd;
@@ -66,7 +66,7 @@ status.deviceStatus = 1; // OPERATIONAL
 status.uptime = millis() / 1000;
 status.freeMemory = ESP.getFreeHeap();
 status.wifiStrength = WiFi.RSSI();
-status.firmwareVersion = "1.2.3";
+status.firmwareVersion = "2.0.0";
 
 mesh.sendPackage(&status);
 ```
@@ -498,9 +498,9 @@ public:
 3. **Validate under memory pressure**
 4. **Test with maximum expected node count**
 
-## Bridge Failover Packages (v1.8.0+)
+## Bridge Failover Packages
 
-The v1.8.0 release introduced specialized packages for automatic bridge failover and high availability:
+Version 2.0 includes specialized packages for automatic bridge failover and high availability:
 
 ### BridgeStatusPackage (Type 610)
 Monitors bridge health and Internet connectivity status. Bridges periodically broadcast their status to enable failover detection.
@@ -516,6 +516,7 @@ Coordinates automatic bridge failover elections. Nodes broadcast their candidacy
 
 **Key Fields:**
 - `routerRSSI` - Signal strength for election tiebreaker
+- `routerChannel` - Router channel used if this candidate wins
 - `uptime` - Node stability indicator
 - `freeMemory` - Resource availability
 - `routerSSID` - Router verification
@@ -526,6 +527,7 @@ Announces bridge role transitions. New bridge broadcasts this package to inform 
 **Key Fields:**
 - `previousBridge` - Previous bridge node ID
 - `reason` - Human-readable takeover reason
+- `routerChannel` - Channel peers follow during takeover
 - `timestamp` - Transition timestamp
 
 ### BridgeCoordinationPackage (Type 613)
@@ -557,30 +559,30 @@ See [Bridge Failover Guide](../../BRIDGE_TO_INTERNET.md) for implementation deta
 
 ## Complete Package Type Reference
 
-| Type | Package | Version | Purpose |
-|------|---------|---------|---------|
-| 200 | SensorPackage | v1.0.0+ | Environmental data |
-| 202 | StatusPackage | v1.0.0+ | Health monitoring |
-| 204 | MetricsPackage | v1.7.7+ | Performance metrics |
-| 400 | CommandPackage | v1.7.7+ | Device control |
-| 600 | MeshNodeListPackage | v1.7.7+ | Node inventory |
-| 601 | MeshTopologyPackage | v1.7.7+ | Network topology |
-| 602 | MeshAlertPackage | v1.7.7+ | Network alerts |
-| 603 | MeshBridgePackage | v1.7.7+ | Protocol bridging |
-| 604 | EnhancedStatusPackage | v1.7.7+ | Mesh status |
-| 605 | HealthCheckPackage | v1.7.7+ | Health monitoring |
-| 610 | BridgeStatusPackage | v1.8.0+ | Bridge health |
-| 611 | BridgeElectionPackage | v1.8.0+ | Failover election |
-| 612 | BridgeTakeoverPackage | v1.8.0+ | Bridge transition |
-| 613 | BridgeCoordinationPackage | v1.8.0+ | Multi-bridge coordination |
-| 614 | NTPTimeSyncPackage | v1.8.0+ | Time sync |
+| Type | Package | Purpose |
+|------|---------|---------|
+| 200 | SensorPackage | Environmental data |
+| 202 | StatusPackage | Health monitoring |
+| 204 | MetricsPackage | Performance metrics |
+| 400 | CommandPackage | Device control |
+| 600 | MeshNodeListPackage | Node inventory |
+| 601 | MeshTopologyPackage | Network topology |
+| 602 | MeshAlertPackage | Network alerts |
+| 603 | MeshBridgePackage | Protocol bridging |
+| 604 | EnhancedStatusPackage | Mesh status |
+| 605 | HealthCheckPackage | Health monitoring |
+| 610 | BridgeStatusPackage | Bridge health |
+| 611 | BridgeElectionPackage | Failover election |
+| 612 | BridgeTakeoverPackage | Bridge transition and channel handoff |
+| 613 | BridgeCoordinationPackage | Multi-bridge coordination |
+| 614 | NTPTimeSyncPackage | Time sync |
 
 ## Next Steps
 
-- Learn about [Sensor Packages](sensor-packages.md) in detail
-- Explore [Command System](command-system.md) implementation
-- Study [Status Monitoring](status-monitoring.md) patterns
-- See [Tutorial Examples](../tutorials/sensor-networks.md) for hands-on practice
+- Learn about [Sensor Packages](packages.md#sensorpackage-type-200) in detail
+- Explore [Command System](overview.md#custom-command-types) implementation
+- Study [Status Monitoring](overview.md#status-monitoring) patterns
+- See the [Sensor Network Pattern](overview.md#sensor-network-pattern) for a hands-on example
 - Review [Complete Package Reference](packages.md) for all package types
 
 The Alteriom extensions provide a solid foundation for building robust IoT applications with painlessMesh. They demonstrate production-ready patterns while remaining flexible enough to adapt to your specific needs.

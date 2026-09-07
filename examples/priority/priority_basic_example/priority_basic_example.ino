@@ -26,7 +26,7 @@ Task taskSensorData(5000, TASK_FOREVER, []() {
     String sensorData = "{\"type\":\"sensor\",\"temp\":23.5,\"humidity\":45}";
     
     // Send with NORMAL priority (default)
-    mesh.sendBroadcast(sensorData, 2);  // Priority level 2 = NORMAL
+    mesh.sendBroadcast(sensorData, (uint8_t)2, false);  // Priority 2 = NORMAL
     
     Serial.println("Sent sensor data (NORMAL priority)");
 });
@@ -36,7 +36,7 @@ Task taskStatusUpdate(10000, TASK_FOREVER, []() {
     String status = "{\"type\":\"status\",\"online\":true,\"uptime\":" + String(millis()) + "}";
     
     // Send with HIGH priority
-    mesh.sendBroadcast(status, 1);  // Priority level 1 = HIGH
+    mesh.sendBroadcast(status, (uint8_t)1, false);  // Priority 1 = HIGH
     
     Serial.println("Sent status update (HIGH priority)");
 });
@@ -46,7 +46,7 @@ Task taskDebugLog(15000, TASK_FOREVER, []() {
     String debug = "{\"type\":\"debug\",\"freeHeap\":" + String(ESP.getFreeHeap()) + "}";
     
     // Send with LOW priority
-    mesh.sendBroadcast(debug, 3);  // Priority level 3 = LOW
+    mesh.sendBroadcast(debug, (uint8_t)3, false);  // Priority 3 = LOW
     
     Serial.println("Sent debug log (LOW priority)");
 });
@@ -99,7 +99,7 @@ void sendCriticalAlarm(String alarmType, String message) {
     String criticalMsg = "{\"type\":\"alarm\",\"alarm\":\"" + alarmType + "\",\"msg\":\"" + message + "\"}";
     
     // Send with CRITICAL priority - will be sent immediately, bypassing queue
-    mesh.sendBroadcast(criticalMsg, 0);  // Priority level 0 = CRITICAL
+    mesh.sendBroadcast(criticalMsg, (uint8_t)0, false);  // Priority 0 = CRITICAL
     
     Serial.printf("CRITICAL ALARM SENT: %s - %s\n", alarmType.c_str(), message.c_str());
 }

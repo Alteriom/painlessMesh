@@ -249,8 +249,8 @@ void handleTimeDelay(T& mesh, painlessmesh::protocol::TimeDelay timeDelay,
 }
 
 template <class T, typename U>
-callback::MeshPackageCallbackList<U> addPackageCallback(
-    callback::MeshPackageCallbackList<U>&& callbackList, T& mesh) {
+void addPackageCallback(callback::MeshPackageCallbackList<U>& callbackList,
+                        T& mesh) {
   // TimeSync
   callbackList.onPackage(
       protocol::TIME_SYNC,
@@ -270,8 +270,6 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
         handleTimeDelay<T, U>(mesh, timeDelay, connection, receivedAt);
         return false;
       });
-
-  return callbackList;
 }
 
 }  // namespace ntp

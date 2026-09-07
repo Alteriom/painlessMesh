@@ -8,11 +8,11 @@ This guide covers all the different ways to install and set up painlessMesh for 
 
 1. Open Arduino IDE
 2. Go to **Sketch → Include Library → Manage Libraries**
-3. Search for "painlessMesh"
-4. Install the latest version by "Coopdis"
-5. Install dependencies when prompted:
-   - ArduinoJson
-   - TaskScheduler
+3. Search for "Alteriom PainlessMesh"
+4. Install the latest release and accept the dependencies it offers (ArduinoJson, TaskScheduler, PubSubClient)
+5. Also install [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) 3.4.7 or later for ESP32, or [ESPAsyncTCP](https://github.com/ESP32Async/ESPAsyncTCP) for ESP8266
+
+The index follows a GitHub release within a day; until then the release ZIP below has the newest version.
 
 ### Method 2: Manual Installation
 
@@ -36,9 +36,9 @@ platform = espressif32
 board = esp32dev
 framework = arduino
 lib_deps = 
-    painlessMesh
-    bblanchon/ArduinoJson@^6.21.3
-    arkhipenko/TaskScheduler@^3.7.0
+    alteriom/AlteriomPainlessMesh@^2.0.0
+    bblanchon/ArduinoJson@^7.4.2
+    arkhipenko/TaskScheduler@^4.0.0
 
 # For ESP8266
 [env:esp8266]
@@ -46,19 +46,16 @@ platform = espressif8266
 board = nodemcuv2
 framework = arduino
 lib_deps = 
-    painlessMesh
-    bblanchon/ArduinoJson@^6.21.3
-    arkhipenko/TaskScheduler@^3.7.0
+    alteriom/AlteriomPainlessMesh@^2.0.0
+    bblanchon/ArduinoJson@^7.4.2
+    arkhipenko/TaskScheduler@^4.0.0
 ```
 
 ### Method 2: PlatformIO Library Manager
 
 ```bash
 # Install via PlatformIO CLI
-pio lib install "painlessMesh"
-
-# Or install specific version
-pio lib install "painlessMesh@1.5.0"
+pio pkg install --library "alteriom/AlteriomPainlessMesh@^2.0.0"
 ```
 
 ## Board Support
@@ -84,8 +81,8 @@ All ESP8266 boards are supported:
 painlessMesh requires these libraries:
 
 ### Core Dependencies
-- **ArduinoJson** (v6.x) - JSON parsing and generation
-- **TaskScheduler** (v3.x) - Task scheduling system
+- **ArduinoJson** (v7.4+) - JSON parsing and generation
+- **TaskScheduler** (v4.0+) - Task scheduling system
 
 ### Platform Dependencies
 - **ESP32 Arduino Core** (v2.0.0+) for ESP32 boards
@@ -171,14 +168,11 @@ ninja
 
 ## Version Compatibility
 
-### Current Stable Version
-- **painlessMesh**: 1.5.x
-- **ArduinoJson**: 6.21.x
-- **TaskScheduler**: 3.7.x
-
-### Legacy Support
-- painlessMesh 1.4.x - Compatible with older ESP cores
-- ArduinoJson 5.x - No longer supported
+- **AlteriomPainlessMesh**: 2.0.x
+- **ArduinoJson**: 7.4+
+- **TaskScheduler**: 4.0+
+- **ESP32 Arduino Core**: 2.0+
+- **ESP8266 Arduino Core**: 3.0+
 
 ## Memory Requirements
 

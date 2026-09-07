@@ -78,7 +78,7 @@ cmake -G Ninja .. && ninja
 bin/painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
-See [SIMULATOR_TESTING.md](../docs/SIMULATOR_TESTING.md) for complete documentation.
+See the [painlessMesh-simulator](https://github.com/Alteriom/painlessMesh-simulator) repository for complete documentation.
 
 ## Quick Start
 
@@ -232,7 +232,7 @@ SCENARIO("Example validates correctly") {
 }
 ```
 
-See [SIMULATOR_TESTING.md](../docs/development/SIMULATOR_TESTING.md) for complete guide.
+See the [painlessMesh-simulator](https://github.com/Alteriom/painlessMesh-simulator) repository for complete guide.
 
 ## Test Coverage Goals
 
@@ -384,8 +384,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for more details.
 
 - **Catch2 Documentation**: https://github.com/catchorg/Catch2/tree/v2.x
 - **Boost.Asio**: https://www.boost.org/doc/libs/release/doc/html/boost_asio.html
-- **Simulator Testing Guide**: [SIMULATOR_TESTING.md](../docs/development/SIMULATOR_TESTING.md)
-- **Testing Summary**: [TESTING_SUMMARY.md](../docs/development/TESTING_SUMMARY.md)
+- **Simulator Testing Guide**: the [painlessMesh-simulator](https://github.com/Alteriom/painlessMesh-simulator) repository
 
 ## Questions?
 

@@ -17,18 +17,47 @@ namespace painlessmesh {
  * Helper functions to route messages
  */
 namespace router {
+// Layouts are taken by const reference throughout this header: Layout<T>::subs
+// is a std::list of shared_ptrs, so passing by value used to copy the whole
+// connection list (one heap allocation per connection) on every packet sent,
+// broadcast or forwarded (issue #387).
 template <class T>
-std::shared_ptr<T> findRoute(layout::Layout<T> tree,
+std::shared_ptr<T> findRoute(const layout::Layout<T>& tree,
                              std::function<bool(std::shared_ptr<T>)> func) {
   auto route = std::find_if(tree.subs.begin(), tree.subs.end(), func);
   if (route == tree.subs.end()) return NULL;
   return (*route);
 }
 
+/** The live connection through which nodeId is reachable, or NULL.
+ *
+ * A closed connection stays in subs until eraseClosedConnections() next
+ * runs. Routing a packet to it is a silent loss: the write is queued into
+ * a buffer nothing will ever drain, and the sender is told it succeeded.
+ * On the Alteriom HIL rig, correlating every unacknowledged delivery with
+ * the receiver's log showed the message had usually never arrived at all —
+ * 27 of 33 across three suites — which is this. A dead link is not a
+ * route, for any purpose; the liveness test is the one
+ * layout::syncLayout() already applies.
+ */
 template <class T>
-std::shared_ptr<T> findRoute(layout::Layout<T> tree, uint32_t nodeId) {
+std::shared_ptr<T> findRoute(const layout::Layout<T>& tree, uint32_t nodeId) {
   return findRoute<T>(tree, [nodeId](std::shared_ptr<T> s) {
-    return layout::contains((*s), nodeId);
+    return s->connected() && layout::contains((*s), nodeId);
+  });
+}
+
+/** findRoute() for the duplicate-connection check in handleNodeSync().
+ *
+ * `exclude` drops the connection being judged, which cannot duplicate
+ * itself. Refusing a live direct connection on the authority of a dead
+ * route left a node with neither once the dead one was erased.
+ */
+template <class T>
+std::shared_ptr<T> findLiveRoute(const layout::Layout<T>& tree, uint32_t nodeId,
+                                 std::shared_ptr<T> exclude = nullptr) {
+  return findRoute<T>(tree, [nodeId, exclude](std::shared_ptr<T> s) {
+    return s != exclude && s->connected() && layout::contains((*s), nodeId);
   });
 }
 
@@ -95,107 +124,79 @@ bool sendWithPriority(protocol::Variant&& variant, std::shared_ptr<U> conn, uint
   return conn->addMessageWithPriority(msg, priorityLevel);
 }
 
-template <class T, class U>
-bool send(T& package, layout::Layout<U> layout) {
-  painlessmesh::protocol::Variant variant(package);
+// The layout-level send and broadcast functions below all funnel into the
+// protocol::Variant& core overloads, which enqueue at the priority carried in
+// the package's "prio" field (PRIORITY_NORMAL when absent). This is what keeps
+// a sender's priority attached to a package across intermediate hops instead
+// of silently dropping it to NORMAL after the first hop (issue #384): the
+// forwarding path in routePackage() re-reads the field from the wire.
+
+template <class U>
+bool send(protocol::Variant& variant, const layout::Layout<U>& layout) {
   TSTRING msg;
   variant.printTo(msg);
   auto conn = findRoute<U>(layout, variant.dest());
-  if (conn) return conn->addMessage(msg);
+  if (conn) return conn->addMessageWithPriority(msg, variant.priority());
   return false;
+}
+
+template <class T, class U>
+bool send(T& package, const layout::Layout<U>& layout) {
+  painlessmesh::protocol::Variant variant(package);
+  return send<U>(variant, layout);
+}
+
+template <class T, class U>
+bool send(T&& package, const layout::Layout<U>& layout) {
+  painlessmesh::protocol::Variant variant(package);
+  return send<U>(variant, layout);
 }
 
 template <class U>
-bool send(protocol::Variant& variant, layout::Layout<U> layout) {
-  TSTRING msg;
-  variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest());
-  if (conn) return conn->addMessage(msg);
-  return false;
-}
-
-template <class T, class U>
-bool send(T&& package, layout::Layout<U> layout) {
-  painlessmesh::protocol::Variant variant(package);
-  TSTRING msg;
-  variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest());
-  if (conn) return conn->addMessage(msg);
-  return false;
-}
-
-template <class U>
-bool send(protocol::Variant&& variant, layout::Layout<U> layout) {
-  TSTRING msg;
-  variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest());
-  if (conn) return conn->addMessage(msg);
-  return false;
-}
-
-template <class T, class U>
-size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
-  painlessmesh::protocol::Variant variant(package);
-  TSTRING msg;
-  variant.printTo(msg);
-  size_t i = 0;
-  for (auto&& conn : layout.subs) {
-    if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
-      if (sent) ++i;
-    }
-  }
-  return i;
-}
-
-template <class T, class U>
-size_t broadcast(T&& package, layout::Layout<U> layout, uint32_t exclude) {
-  painlessmesh::protocol::Variant variant(package);
-  TSTRING msg;
-  variant.printTo(msg);
-  size_t i = 0;
-  for (auto&& conn : layout.subs) {
-    if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
-      if (sent) ++i;
-    }
-  }
-  return i;
+bool send(protocol::Variant&& variant, const layout::Layout<U>& layout) {
+  return send<U>(variant, layout);
 }
 
 template <class T>
-size_t broadcast(protocol::Variant& variant, layout::Layout<T> layout,
+size_t broadcast(protocol::Variant& variant, const layout::Layout<T>& layout,
                  uint32_t exclude) {
   TSTRING msg;
   variant.printTo(msg);
+  const auto priority = variant.priority();
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
+      auto sent = conn->addMessageWithPriority(msg, priority);
       if (sent) ++i;
     }
   }
   return i;
 }
 
-template <class T>
-size_t broadcast(protocol::Variant&& variant, layout::Layout<T> layout,
+template <class T, class U>
+size_t broadcast(T& package, const layout::Layout<U>& layout,
                  uint32_t exclude) {
-  TSTRING msg;
-  variant.printTo(msg);
-  size_t i = 0;
-  for (auto&& conn : layout.subs) {
-    if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
-      if (sent) ++i;
-    }
-  }
-  return i;
+  painlessmesh::protocol::Variant variant(package);
+  return broadcast<U>(variant, layout, exclude);
+}
+
+template <class T, class U>
+size_t broadcast(T&& package, const layout::Layout<U>& layout,
+                 uint32_t exclude) {
+  painlessmesh::protocol::Variant variant(package);
+  return broadcast<U>(variant, layout, exclude);
 }
 
 template <class T>
-void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
-                  const TSTRING& pkg, callback::MeshPackageCallbackList<T> cbl,
+size_t broadcast(protocol::Variant&& variant, const layout::Layout<T>& layout,
+                 uint32_t exclude) {
+  return broadcast<T>(variant, layout, exclude);
+}
+
+template <class T>
+void routePackage(const layout::Layout<T>& layout,
+                  std::shared_ptr<T> connection, const TSTRING& pkg,
+                  callback::MeshPackageCallbackList<T>& cbl,
                   uint32_t receivedAt) {
   using namespace logger;
   Log(COMMUNICATION, "routePackage(): Recvd from %u: %s\n", connection->nodeId,
@@ -287,15 +288,63 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
   }
 
   if (conn->newConnection) {
-    auto oldConnection = router::findRoute<U>(mesh, newTree.nodeId);
-    if (oldConnection) {
+    // The loop check is the tree the new node presents: if this node is
+    // anywhere in it, the new connection would close a cycle. That is the
+    // only thing a second route to the same node can legitimately mean —
+    // a station has exactly one uplink, so a node that arrives on a fresh
+    // direct connection with a tree that does not contain us has left
+    // wherever else we remember it. Refusing it as "already connected" on
+    // the authority of that memory used to hold a rebooted node out of
+    // the mesh until the neighbour whose tree still carried it timed the
+    // old link out: every AP in turn dropped it a second after the
+    // association, for 30 to 100 s per reboot, measured on the Alteriom
+    // HIL rig on every restart a suite performs.
+    if (layout::contains(newTree, mesh.getNodeId())) {
+      // This node in the presented tree is a cycle only if the presenter is
+      // also reachable from here through some other live connection — the
+      // two ends of the loop. Without that route it is the presenter's
+      // memory of where this node used to be, held in a branch its owner
+      // has not timed out yet: a newly promoted bridge listed the node that
+      // came to join it at the place it held before the promotion, and was
+      // refused as a loop on every attempt for the whole promotion window.
+      // Stale, the mention is dropped before the tree is taken.
+      auto otherRoute = router::findLiveRoute<U>(mesh, newTree.nodeId, conn);
+      if (otherRoute) {
+        Log(logger::SYNC,
+            "handleNodeSync(): %u's tree contains this node and %u is already "
+            "reachable through %u: a loop. Closing the new connection\n",
+            newTree.nodeId, newTree.nodeId, otherRoute->nodeId);
+        Log.remote("Loop through %u\n", newTree.nodeId);
+        conn->close();
+        return;
+      }
       Log(logger::SYNC,
-          "handleNodeSync(): already connected to %u. Closing the new "
-          "connection \n",
+          "handleNodeSync(): %u's tree lists this node where it used to be; "
+          "stale, not a loop\n",
           newTree.nodeId);
-      Log.remote("Already connected to %u\n", newTree.nodeId);
-      conn->close();
-      return;
+      layout::forget(newTree, mesh.getNodeId());
+    }
+    // Whatever else still routes to this node is stale. A direct link to
+    // it is the one it had before it went away — TCP has not noticed yet —
+    // and closes now instead of at its timeout. A route through a
+    // neighbour is that neighbour's memory of the node's old place; the
+    // node is taken out of it here so packets go down the live link, and
+    // the neighbour's next sync brings its own tree up to date.
+    auto oldConnection = router::findLiveRoute<U>(mesh, newTree.nodeId, conn);
+    if (oldConnection) {
+      if (oldConnection->nodeId == newTree.nodeId) {
+        Log(logger::SYNC,
+            "handleNodeSync(): %u connected again while its old link is "
+            "still open; closing the old one\n",
+            newTree.nodeId);
+        oldConnection->close();
+      } else {
+        Log(logger::SYNC,
+            "handleNodeSync(): %u was reachable through %u; that place is "
+            "stale, the direct connection wins\n",
+            newTree.nodeId, oldConnection->nodeId);
+        layout::forget(*oldConnection, newTree.nodeId);
+      }
     }
     auto remoteNodeId = newTree.nodeId;
     mesh.addTask([&mesh, remoteNodeId]() {
@@ -324,6 +373,74 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
     conn->newConnection = false;
   }
 
+  // What a neighbour presents is news only when it differs from what it
+  // presented last time. The cached tree can differ from a restated claim
+  // because a fresher neighbour has since taken a node out of it (below),
+  // and taking the restatement as news put the node back, marked the
+  // connection changed, forced the fresher neighbour's sync, which took it
+  // out again: a sync every 30 to 80 ms between the two for the 10 s it
+  // took the restating neighbour to time out the dead link behind its
+  // claim, on every board that heard both.
+  //
+  // (A neighbour listing a node that is on a direct link of ours is not
+  // pruned here, tempting as that is: it is also the shape a loop takes
+  // while the trees grow round it, and the loop checks above need to see
+  // it. The ring of five in the desktop integration suite never broke up
+  // with that pruning in place.)
+  auto fingerprint = layout::fingerprint(newTree);
+  bool restated = conn->presented == fingerprint;
+  conn->presented = fingerprint;
+
+  if (restated) {
+    conn->nodeSyncTask.delay();
+    mesh.stability += (std::min)(1000 - mesh.stability, (size_t)25);
+    return;
+  }
+
+  // A node is in one place, and a changed sync is the freshest word on
+  // every node below conn. Any other neighbour whose cached tree still
+  // lists one of them lists it where it used to be: on the rig every board
+  // carried a node twice — under the neighbour it had moved to and under
+  // the one it had left — and a message routed by the older copy never
+  // arrived, nor did the Internet request that went the same way. The
+  // older copies go now; their owners' next changed syncs agree.
+  for (auto&& other : mesh.subs) {
+    if (other == conn || other->nodeId == 0) continue;
+    size_t removed = layout::forgetAll(*other, newTree);
+    if (removed) {
+      Log(logger::SYNC,
+          "handleNodeSync(): %u nodes now under %u were still listed under "
+          "%u; forgotten there\n",
+          (unsigned)removed, conn->nodeId, other->nodeId);
+    }
+  }
+
+  // A node taken out of another neighbour's cache above can only come back
+  // through that neighbour's own sync, and a restatement is skipped. So
+  // when this neighbour stops presenting a node it used to — the node has
+  // moved on, or the claim was the stale one — the others' restatements
+  // are taken in full again: the change marks the connection changed,
+  // which forces their syncs, and whichever of them still lists the node
+  // has it back. Only a removal does this; an addition re-adopted this way
+  // would prune the presenter here, mark a change, force a sync there, and
+  // start the ping-pong over. Without the repair, the desktop time-sync
+  // scenario failed two runs in three: ntp::adopt() weighs the cached
+  // subtrees to choose which side keeps its clock, and a node missing from
+  // both sides' trees had the two ends disagree.
+  if (conn->nodeId != 0) {
+    bool dropped = false;
+    for (auto&& id : layout::asList(*conn, false)) {
+      if (!layout::contains(newTree, id)) {
+        dropped = true;
+        break;
+      }
+    }
+    if (dropped) {
+      for (auto&& other : mesh.subs) {
+        if (other != conn) other->presented = 0;
+      }
+    }
+  }
   if (conn->updateSubs(newTree)) {
     auto nodeId = newTree.nodeId;
     mesh.addTask(
@@ -335,8 +452,8 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
 }
 
 template <class T, typename U>
-callback::MeshPackageCallbackList<U> addPackageCallback(
-    callback::MeshPackageCallbackList<U>&& callbackList, T& mesh) {
+void addPackageCallback(callback::MeshPackageCallbackList<U>& callbackList,
+                        T& mesh) {
   // REQUEST type,
   callbackList.onPackage(
       protocol::NODE_SYNC_REQUEST,
@@ -359,8 +476,6 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
         connection->timeOutTask.disable();
         return false;
       });
-
-  return callbackList;
 }
 
 }  // namespace router

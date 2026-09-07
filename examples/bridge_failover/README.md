@@ -77,7 +77,11 @@ Broadcasts occur:
 - Periodically (default: every 30 seconds)
 
 Regular nodes track these broadcasts and detect failures when:
-- No status received within 60 seconds (configurable timeout)
+- The bridge says it is leaving: `mesh.stop()` on a bridge (and a sketch that
+  stops the mesh before rebooting) broadcasts a last status with
+  `leaving: true`, and every node forgets that bridge at once
+- No status received within 60 seconds (configurable timeout) — the case of a
+  bridge that lost power or its radio
 - Bridge reports `internetConnected: false`
 
 ### 2. Election Trigger
@@ -91,10 +95,12 @@ An election is triggered when:
 - Nodes without credentials remain passive
 
 **Scenario 2: Bridge Failure**
-- Primary bridge fails or loses Internet connectivity
-- No status received within 60 seconds (configurable timeout)
-- Bridge reports `internetConnected: false`
-- Nodes detect failure and start election
+- The bridge announces it is leaving: candidates check for another bridge
+  about a second later (or as soon as the startup period allows) and start
+  an election
+- The bridge disappears without a word: no status received within 60 seconds
+  (configurable timeout), noticed at the next 30-second monitor tick
+- The bridge reports `internetConnected: false`
 
 ### 3. Election Protocol
 
@@ -123,7 +129,8 @@ All nodes independently evaluate candidates using identical rules:
 ### 4. Failover Prevention
 
 To prevent oscillation:
-- Minimum 60 seconds between role changes
+- Minimum 60 seconds between role changes; a check that arrives during the
+  hold is retried when the hold ends rather than dropped
 - Split-brain prevention via state machine
 - Deterministic winner selection ensures consensus
 
@@ -242,10 +249,19 @@ You can choose between two deployment modes:
 
 **Scenario 2: Bridge Goes Offline**
 1. Power off the current bridge node (initial or elected)
-2. After 60 seconds, regular nodes detect failure
+2. Its last status ages out after 60 seconds, and the next 30-second
+   monitor tick notices: up to 90 seconds after the bridge went
 3. Election starts automatically
 4. Node with best router signal becomes new bridge
 5. Monitor serial output to see election process
+
+**Scenario 2b: Bridge Stops Cleanly**
+1. Reboot the bridge through a sketch that calls `mesh.stop()` first (the
+   `bridge` example's regular-mode restart does), or call `mesh.stop()`
+2. The bridge broadcasts `leaving: true`; every node forgets it at once
+3. Candidates that are past their startup period hold the election
+   within seconds; the rig's failover test sees the backup promoted well
+   inside a 120-second window
 
 **Scenario 3: Bridge Loses Internet**
 1. Disconnect router from Internet (or block bridge node's Internet)
@@ -370,6 +386,11 @@ bool amBridge = mesh.isBridge();
 }
 ```
 
+A bridge that stops cleanly sends one last status with `"leaving": true`
+and `"internetConnected": false` (2.0). Peers also read `routerChannel` from
+every status as the channel the mesh is rooted on — their *home* — and go
+back to it whenever they find themselves elsewhere.
+
 ### Type 611: BRIDGE_ELECTION
 ```json
 {
@@ -393,9 +414,15 @@ bool amBridge = mesh.isBridge();
   "previousBridge": 1234567890,
   "reason": "Election winner - best router signal",
   "routerRSSI": -35,
+  "routerChannel": 6,
   "timestamp": 1609459400
 }
 ```
+
+`routerChannel` (2.0) is the channel the new bridge serves the mesh on;
+peers move their AP and station to it a second after the takeover
+propagates. A node that misses the message still finds the mesh by
+scanning: after two empty scans (about 30 s) it looks at every channel.
 
 ## Use Cases
 
@@ -630,13 +657,23 @@ mesh.setBridgeTimeout(30000);  // 30 seconds
 mesh.setBridgeStatusInterval(60000);  // 60 seconds
 ```
 
-## Performance Considerations
+## What to expect
 
-- **Memory**: Each candidate adds ~12 bytes during election
-- **Network**: Election broadcast ~256 bytes per node
-- **Latency**: Typical failover time 60-70 seconds
-- **Scalability**: Tested with up to 10 nodes
-- **Reliability**: 99.9% success rate in simulations
+- **A bridge that stops cleanly**: candidates elect within seconds of the
+  `leaving` status (after their startup period).
+- **A bridge that loses power**: noticed after the bridge timeout (60 s)
+  plus up to one monitor tick (30 s), then a 1–3 s random delay and a 5 s
+  collection window before the winner promotes itself.
+- **The mesh follows**: the takeover carries the new bridge's channel;
+  peers that hear it move at once, peers that miss it re-detect the channel
+  after about 30 s.
+- **Validated on hardware**: the failover scenario (backup started beside a
+  live primary, primary rebooted into a regular node, backup promoted and
+  carrying a real HTTP request within 120 s) runs on the Alteriom rig with
+  an ESP32, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-S3 and ESP8266 and a real
+  router, and is part of the release gate.
+- **Memory**: each candidate adds about 12 bytes during an election; an
+  election broadcast is about 256 bytes per node.
 
 ## Dependencies
 

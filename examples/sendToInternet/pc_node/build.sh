@@ -73,10 +73,10 @@ echo "   - Windows: See https://www.boost.org/"
 echo ""
 echo "Checking test dependencies..."
 
-if [ ! -d "../../test/ArduinoJson/src" ]; then
+if [ ! -d "../../../test/ArduinoJson/src" ]; then
     echo "⚠️  ArduinoJson not found"
     echo "   Cloning ArduinoJson..."
-    cd ../../test
+    cd ../../../test
     if [ -d "ArduinoJson" ]; then
         rm -rf ArduinoJson
     fi
@@ -86,10 +86,10 @@ else
     echo "✓ ArduinoJson found"
 fi
 
-if [ ! -d "../../test/TaskScheduler/src" ]; then
+if [ ! -d "../../../test/TaskScheduler/src" ]; then
     echo "⚠️  TaskScheduler not found"
     echo "   Cloning TaskScheduler..."
-    cd ../../test
+    cd ../../../test
     if [ -d "TaskScheduler" ]; then
         rm -rf TaskScheduler
     fi
@@ -135,7 +135,7 @@ if make 2>&1; then
     echo ""
     echo "Next steps:"
     echo "  1. Start mock HTTP server:"
-    echo "     cd ../../test/mock-http-server && python3 server.py"
+    echo "     cd ../../../test/mock-http-server && python3 server.py"
     echo ""
     echo "  2. Configure and upload bridge to ESP32/ESP8266"
     echo "     (see sendToInternet.ino with IS_BRIDGE_NODE=true)"

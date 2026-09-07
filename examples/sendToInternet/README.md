@@ -195,18 +195,17 @@ The callback provides `httpStatus` to indicate the result:
 ## Files
 
 - `sendToInternet.ino` - Main example sketch for ESP32/ESP8266
-- `pc_mesh_node.cpp` - **NEW:** PC-based mesh node for testing regular node → bridge flow
-  (desktop-only; guarded by `#ifndef ARDUINO` so Arduino builds skip it)
+- `mock_server_test/mock_server_test.ino` - Bridge testing with mock HTTP server
+- `pc_node/pc_mesh_node.cpp` - **NEW:** PC-based mesh node for testing regular node → bridge flow
 - `README.md` - This documentation
-- `PC_NODE_README.md` - **NEW:** Documentation for PC mesh node testing
+- `pc_node/PC_NODE_README.md` - **NEW:** Documentation for PC mesh node testing
 
 ### Related examples
 
-- [`../mockServerTest/`](../mockServerTest/) - Bridge testing against the mock
-  HTTP server. This used to live here as `mock_server_test.ino`, but a sketch
-  folder may contain only one sketch: the Arduino toolchain merges every `.ino`
-  in a folder into a single translation unit, so two sketches side by side
-  collide on `setup()`/`loop()`.
+- [`mock_server_test/`](mock_server_test/) - Bridge testing against the mock
+  HTTP server. It lives in its own sketch folder because the Arduino toolchain
+  merges every `.ino` in a folder into one translation unit, so two sketches
+  side by side collide on `setup()`/`loop()`.
 
 ## Testing from Regular Nodes
 
@@ -222,7 +221,7 @@ The **PC Mesh Node** allows you to:
 
 **Quick Start:**
 ```bash
-cd examples/sendToInternet
+cd examples/sendToInternet/pc_node
 
 # Build
 cmake . && make
@@ -231,7 +230,7 @@ cmake . && make
 ./pc_mesh_node 192.168.1.100 5555
 ```
 
-**Full Documentation:** [PC_NODE_README.md](PC_NODE_README.md)
+**Full Documentation:** [pc_node/PC_NODE_README.md](pc_node/PC_NODE_README.md)
 
 **What It Tests:**
 - Regular mesh node sending HTTP requests through bridge

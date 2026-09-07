@@ -1,0 +1,86 @@
+name: HIL (ESP32 farm)
+
+# Real-hardware test run on the Alteriom ESP32 farm
+# (https://github.com/Alteriom/alteriom-esp32-farm). The farm's HAL and
+# suite live pre-cloned on the runner host (the farm repo is private and
+# this repo is public — no cross-repo credentials belong in a public
+# workflow; see the farm's docs/bringup-checklist.md).
+#
+# SECURITY: this runs on a self-hosted runner in a PUBLIC repo. It only
+# triggers when a MAINTAINER applies the `run-hil` label (or dispatches
+# manually), and never for PRs from forks. Keep it that way.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  authorize:
+    name: Verify HIL approval
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'run-hil'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      approved: ${{ steps.approval.outputs.approved }}
+    steps:
+      - name: Verify trusted trigger actor
+        id: approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRIGGER_ACTOR: ${{ github.actor }}
+        run: |
+          permission=$(gh api \
+            "repos/${{ github.repository }}/collaborators/$TRIGGER_ACTOR/permission" \
+            --jq 'if .user.permissions.admin then "admin" elif .user.permissions.maintain then "maintain" else "untrusted" end')
+          if [ "$permission" != "admin" ] && [ "$permission" != "maintain" ]; then
+            echo "::error::$TRIGGER_ACTOR is not trusted to approve HIL runs"
+            exit 1
+          fi
+          echo "approved=true" >> "$GITHUB_OUTPUT"
+
+  hil:
+    name: Flash + on-hardware suite
+    needs: authorize
+    if: >
+      needs.authorize.outputs.approved == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.label.name == 'run-hil' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: [self-hosted, esp32-farm]
+    timeout-minutes: 45
+    env:
+      # Path of the farm repo clone on the runner host; override with an
+      # org/repo Actions variable if the host uses a different layout.
+      FARM_SRC: ${{ vars.ESP32_FARM_SRC || '/home/pi/esp32-farm-src' }}
+    steps:
+      - name: Update farm tooling
+        run: |
+          if [ ! -d "$FARM_SRC" ]; then
+            echo "::error::Farm tooling not found at $FARM_SRC — run the bring-up checklist (alteriom-esp32-farm/docs/bringup-checklist.md)"
+            exit 1
+          fi
+          git -C "$FARM_SRC" pull --ff-only
+
+      - name: Flash agent firmware at this ref
+        env:
+          PAINLESSMESH_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 "$FARM_SRC/suites/painlessmesh/flash_all.py"
+
+      - name: Run on-hardware suite
+        env:
+          ALTERIOM_HIL_LOG_DIR: ${{ github.workspace }}/hil-logs
+        run: python3 -m pytest "$FARM_SRC/suites/painlessmesh/tests" -v --junitxml=hil-results.xml
+
+      - name: Upload serial logs + results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hil-logs-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            hil-logs/
+            hil-results.xml
+          if-no-files-found: ignore

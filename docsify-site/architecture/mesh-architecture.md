@@ -62,7 +62,7 @@ The protocol layer uses several internal message types for mesh management:
 | 4 | TIME_SYNC | Synchronizes clocks across all mesh nodes |
 | 5 | NODE_SYNC_REQUEST | Requests node list and topology information |
 | 6 | NODE_SYNC_REPLY | Responds with node list and topology data |
-| 7 | CONTROL | Deprecated control messages (no longer used) |
+| 7 | CONTROL | Reserved control messages |
 | 8 | BROADCAST | Routes application messages to all mesh nodes |
 | 9 | SINGLE | Routes application messages to a specific node |
 
@@ -394,6 +394,6 @@ When the mesh splits into separate networks:
 ## Next Steps
 
 - Learn about the [Plugin System](plugin-system.md)
-- Understand [Message Routing](routing.md) in detail
-- Explore [Time Synchronization](time-sync.md) mechanisms
-- See [Performance Optimization](../advanced/performance.md) techniques
+- Understand [Message Routing](mesh-architecture.md#message-routing) in detail
+- Explore [Time Synchronization](mesh-architecture.md#time-synchronization) mechanisms
+- See [Performance Optimization](../api/configuration.md#performance-configuration) techniques

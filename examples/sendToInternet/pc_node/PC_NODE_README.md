@@ -6,7 +6,7 @@ This example provides a **PC-based mesh node** that can join a painlessMesh netw
 
 ### The Problem This Solves
 
-Previous examples (`../mockServerTest/mockServerTest.ino`) tested the bridge making HTTP requests directly, but did **NOT** test the complete flow:
+Previous examples (`../mock_server_test/mock_server_test.ino`) tested the bridge making HTTP requests directly, but did **NOT** test the complete flow:
 
 ```
 Regular Node → Mesh Network → Bridge → Internet → Bridge → Mesh Network → Regular Node
@@ -90,7 +90,7 @@ brew install cmake boost
 For testing, start the mock HTTP server:
 
 ```bash
-cd ../../test/mock-http-server
+cd ../../../test/mock-http-server
 python3 server.py
 ```
 
@@ -101,13 +101,13 @@ The server will run on `http://localhost:8080` by default.
 ### Quick Build (Using make)
 
 ```bash
-cd examples/sendToInternet
+cd examples/sendToInternet/pc_node
 
 # Initialize dependencies (if not already done)
-cd ../../test
+cd ../../../test
 git clone https://github.com/bblanchon/ArduinoJson.git
 git clone https://github.com/arkhipenko/TaskScheduler
-cd ../examples/sendToInternet
+cd ../examples/sendToInternet/pc_node
 
 # Build
 cmake .
@@ -131,9 +131,9 @@ make
 
 ```bash
 g++ -std=c++14 -o pc_mesh_node pc_mesh_node.cpp \
-    -I../../src -I../../test/include -I../../test/ArduinoJson/src \
-    -I../../test/TaskScheduler/src -I../../test/boost \
-    ../../test/catch/fake_serial.cpp ../../src/scheduler.cpp \
+    -I../../../src -I../../../test/include -I../../../test/ArduinoJson/src \
+    -I../../../test/TaskScheduler/src -I../../../test/boost \
+    ../../../test/catch/fake_serial.cpp ../../../src/scheduler.cpp \
     -lboost_system -pthread
 ```
 
@@ -371,14 +371,14 @@ brew install boost
 #### "ArduinoJson not found"
 
 ```bash
-cd ../../test
+cd ../../../test
 git clone https://github.com/bblanchon/ArduinoJson.git
 ```
 
 #### "TaskScheduler not found"
 
 ```bash
-cd ../../test
+cd ../../../test
 git clone https://github.com/arkhipenko/TaskScheduler
 ```
 
@@ -476,7 +476,7 @@ python3 test/mock-http-server/server.py &
 SERVER_PID=$!
 
 # Build PC node
-cd examples/sendToInternet
+cd examples/sendToInternet/pc_node
 cmake . && make
 
 # Run test (assuming bridge is running at known IP)
@@ -501,10 +501,10 @@ kill $SERVER_PID
 
 ## Related Documentation
 
-- [sendToInternet Example](sendToInternet.ino) - ESP32/ESP8266 example
-- [Mock HTTP Server](../../test/mock-http-server/README.md) - Testing endpoint
-- [Bridge Documentation](../../BRIDGE_TO_INTERNET.md) - Bridge setup guide
-- [Testing Guide](../../test/mock-http-server/TESTING_GUIDE.md) - Complete testing workflow
+- [sendToInternet Example](../sendToInternet.ino) - ESP32/ESP8266 example
+- [Mock HTTP Server](../../../test/mock-http-server/README.md) - Testing endpoint
+- [Bridge Documentation](../../../BRIDGE_TO_INTERNET.md) - Bridge setup guide
+- [Testing Guide](../../../test/mock-http-server/TESTING_GUIDE.md) - Complete testing workflow
 
 ## Credits
 

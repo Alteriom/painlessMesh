@@ -77,7 +77,7 @@ curl http://localhost:8080/delay/2
 
 - 📖 [Complete Server Guide](README.md) - All endpoints and configuration
 - 🔧 [Integration Guide](TESTING_GUIDE.md) - ESP32/ESP8266 examples
-- 💡 [Example Sketch](../../examples/mockServerTest/mockServerTest.ino) - Working test code
+- 💡 [Example Sketch](../../examples/sendToInternet/mock_server_test/mock_server_test.ino) - Working test code
 
 ## Docker Version
 
@@ -102,7 +102,7 @@ Access at `http://localhost:8080`
 ## What's Next?
 
 1. ✅ Read the [Complete Guide](README.md) for all features
-2. ✅ Try the [Example Sketch](../../examples/mockServerTest/mockServerTest.ino)
+2. ✅ Try the [Example Sketch](../../examples/sendToInternet/mock_server_test/mock_server_test.ino)
 3. ✅ Set up [Docker Integration](README.md#docker-setup) for CI/CD
 
 ---
