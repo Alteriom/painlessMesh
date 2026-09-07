@@ -4,15 +4,14 @@ This guide covers all the different ways to install and set up painlessMesh for 
 
 ## Arduino IDE Installation
 
-### Method 1: Library Manager (Recommended)
+### Method 1: Release ZIP (Recommended)
 
-1. Open Arduino IDE
-2. Go to **Sketch → Include Library → Manage Libraries**
-3. Search for "Alteriom PainlessMesh"
-4. Install the latest 2.0 release maintained by Alteriom
-5. Install dependencies when prompted:
-   - ArduinoJson
-   - TaskScheduler
+The library is not yet in the Arduino Library Manager index, so install it from the release archive:
+
+1. Download the `AlteriomPainlessMesh-<version>.zip` from the [latest release](https://github.com/Alteriom/painlessMesh/releases/latest)
+2. In Arduino IDE: **Sketch → Include Library → Add .ZIP Library...** and pick it
+3. Install the dependencies through **Manage Libraries**: ArduinoJson (7.x), TaskScheduler (4.x), and for ESP32 [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) 3.4.7 or later, for ESP8266 [ESPAsyncTCP](https://github.com/ESP32Async/ESPAsyncTCP)
+4. Restart Arduino IDE
 
 ### Method 2: Manual Installation
 

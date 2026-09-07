@@ -127,16 +127,29 @@ STARTUP: Mesh channel auto-detected: 6
 
 ### Automatic Channel Re-synchronization
 
-Nodes automatically follow the mesh if the bridge changes channels:
+A bridge lives on its router's channel, so the mesh has to be there too. The
+library keeps it there without any configuration on the regular nodes:
 
-- During failover, the takeover message announces the new router channel and
-  peers switch immediately
-- If a takeover message is missed, nodes trigger a full-channel recovery scan
-  after repeated empty scans
-- If the mesh is found on a different channel, nodes automatically switch to that channel
-- This ensures the mesh stays connected even if the bridge switches channels (e.g., during bridge election)
+- **A bridge announces its channel.** Every bridge status carries
+  `routerChannel`, and an elected bridge's takeover message does too; peers
+  that hear a takeover move their AP and station to that channel a second
+  later. The channel a node last heard a bridge from is its *home*.
+- **A node that finds nothing looks everywhere.** After two empty scans
+  (about 30 s) a node re-detects the mesh channel. A node with nothing under
+  its AP scans all channels at once; a node with stations attached scans one
+  channel per pass so its children are not dropped.
+- **A node follows the mesh, not a straggler.** A disconnected node joins
+  the mesh wherever it is. A connected node leaves its partition only for a
+  strictly bigger one, and only after seeing it on two consecutive scans;
+  a node at home does not leave for a partition elsewhere, and away from
+  home it returns as soon as it sees the mesh there.
+- **An uplink lost at home is rescanned there.** The bridge's AP is on this
+  channel; the node scans it again before looking anywhere else.
 
-For detailed information, see [Automatic Channel Re-synchronization](#automatic-channel-re-synchronization).
+Set `mesh.setContainsRoot(true)` on every regular node of a mesh that has a
+bridge (`initAsBridge()` sets it on the bridge): it is what lets a node that
+is still connected to a partition the bridge has left notice that it has no
+root and go looking for the bridge's channel.
 
 ## Manual Channel Configuration
 
@@ -202,16 +215,18 @@ When using `stationManual()`, the library automatically handles channel switchin
    - Call `mesh.setRoot(true)` on the bridge node
    - Call `mesh.setContainsRoot(true)` on all mesh nodes for optimal routing
 
-3. **ESP32-C6 Compatibility**: If using ESP32-C6 or experiencing crashes with `tcp_alloc` errors, ensure you have AsyncTCP v3.3.0+ installed. See the [dependency requirements](Home#dependencies) for details.
+3. **ESP32-C5 / ESP32-C6**: these need the ESP32 Arduino core 3.x and AsyncTCP v3.4.7 or later; `tcp_alloc` crashes on the C6 are the sign of an older AsyncTCP. See the [dependencies](README.md#dependencies) in the README.
 
 ## Complete Examples
 
 We provide several working bridge examples in the repository:
 
-- **Basic Bridge**: `examples/bridge/bridge.ino`
-- **MQTT Bridge**: `examples/mqttBridge/mqttBridge.ino` - Bridges mesh to MQTT broker
-- **Web Server Bridge**: `examples/webServer/webServer.ino` - Provides web interface
-- **Enhanced MQTT Bridge**: `examples/bridge/enhanced_mqtt_bridge_example.ino` - Advanced MQTT integration with metrics and health monitoring
+- **Basic Bridge**: [`examples/bridge/bridge.ino`](examples/bridge/bridge.ino)
+- **Bridge Failover**: [`examples/bridge_failover/`](examples/bridge_failover/) - Automatic election when the bridge goes
+- **Shared Gateway**: [`examples/sharedGateway/`](examples/sharedGateway/) - Every node on the router
+- **Send to Internet**: [`examples/sendToInternet/`](examples/sendToInternet/) - HTTP requests through the gateway, with a mock server for offline testing
+- **MQTT Bridge**: [`examples/mqttBridge/mqttBridge.ino`](examples/mqttBridge/mqttBridge.ino) - Bridges mesh to MQTT broker
+- **Web Server Bridge**: [`examples/webServer/webServer.ino`](examples/webServer/webServer.ino) - Provides web interface
 
 ## Forwarding Data to Internet
 
@@ -247,24 +262,144 @@ Mesh Network
 Node1 Node2 Node3...
 ```
 
+## Sending Data Through the Gateway
+
+Regular nodes have no IP route to the Internet; `HTTPClient` on a regular
+node fails with *connection refused*. They send through the gateway instead:
+
+```cpp
+// On every node, after mesh.init(): enables sending on regular nodes and
+// relaying on the bridge
+mesh.enableSendToInternet();
+
+// Later, on a regular node
+if (mesh.hasInternetConnection()) {          // a gateway with Internet is known
+  mesh.sendToInternet(
+      "https://api.example.com/data", jsonPayload,
+      [](bool success, uint16_t httpStatus, String error) {
+        Serial.printf("Delivery: %s (%u)\n", success ? "OK" : error.c_str(), httpStatus);
+      });
+}
+```
+
+The request travels to the gateway as a `GATEWAY_DATA` package, the gateway
+makes the HTTP call and answers with `GATEWAY_ACK`. The gateway's HTTP work
+is bounded by `NODE_TIMEOUT` (2 s per socket wait at the stock 10 s
+watchdog), and its peers' watchdogs are postponed by exactly the time the
+call took, so a slow endpoint cannot partition the mesh around the gateway.
+An endpoint that needs longer needs a larger `NODE_TIMEOUT`; the
+`static_assert` in `painlessmesh/gateway.hpp` says so at compile time.
+
+## Bridge Failover
+
+Any node given the router's credentials can take over when the bridge goes:
+
+```cpp
+mesh.init(MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT, WIFI_AP_STA, 0);
+mesh.setContainsRoot(true);
+mesh.setRouterCredentials(ROUTER_SSID, ROUTER_PASSWORD);
+mesh.enableBridgeFailover(true);
+mesh.onBridgeRoleChanged([](bool isBridge, const String& reason) {
+  Serial.printf("%s: %s\n", isBridge ? "Promoted to bridge" : "Regular node", reason.c_str());
+});
+```
+
+A bridge that stops cleanly (`mesh.stop()`) broadcasts that it is leaving
+and the candidates elect within seconds; a bridge that loses power is
+noticed when its last status ages out (60 s, plus up to one 30 s monitor
+tick). The winner is the candidate with the best router RSSI, then the
+longest uptime, then the most free memory, then the lowest node ID; it
+promotes itself with `initAsBridge()` and announces its channel. The
+protocol, its tuning (`setElectionStartupDelay()`,
+`setElectionRandomDelay()`, `setBridgeTimeout()`, `setMinimumBridgeRSSI()`)
+and its troubleshooting are in
+[examples/bridge_failover/README.md](examples/bridge_failover/README.md).
+
+## Multi-Bridge Coordination
+
+Several bridges can serve one mesh. Each is started with a priority (10 is
+primary, 1 is standby), and the bridges announce themselves to each other
+every 30 s:
+
+```cpp
+mesh.initAsBridge(MESH_PREFIX, MESH_PASSWORD, ROUTER_SSID, ROUTER_PASSWORD,
+                  &userScheduler, MESH_PORT, 10);       // priority 10
+mesh.setBridgeSelectionStrategy(painlessMesh::PRIORITY_BASED);  // or ROUND_ROBIN, BEST_SIGNAL
+mesh.onBridgeCoordination(
+    [](const painlessmesh::plugin::BridgeCoordinationPackage& pkg, uint32_t from) {
+      Serial.printf("Bridge %u: priority %d, load %d%%\n", from, pkg.priority, pkg.load);
+    });
+mesh.onBridgeCoordinationChanged(
+    [](const painlessmesh::plugin::BridgeCoordinationPackage& pkg, uint32_t from, String change) {
+      Serial.printf("Bridge %s: %u (%s)\n", change.c_str(), from, pkg.role.c_str());
+    });
+```
+
+`getPrimaryBridge()` returns the bridge the strategy currently selects;
+`getBridges()` lists every known bridge with its Internet state, RSSI and
+last-seen time.
+
+## Message Queue for Offline Periods
+
+When no gateway has Internet, a node can hold messages and send them later:
+
+```cpp
+mesh.enableMessageQueue(true, 100);                     // after mesh.init()
+uint32_t id = mesh.queueMessage(alarmJson, "https://api.example.com/alarm", PRIORITY_CRITICAL);
+
+// Drain when connectivity returns: the queue never sends on its own
+if (mesh.hasInternetConnection()) {
+  for (auto& queued : mesh.flushMessageQueue()) {
+    mesh.sendToInternet(queued.destination, queued.payload, onResult);
+    mesh.removeQueuedMessage(queued.id);
+  }
+}
+```
+
+Priorities are `PRIORITY_CRITICAL`, `PRIORITY_HIGH`, `PRIORITY_NORMAL` and
+`PRIORITY_LOW`; when the queue is full the lowest priority is evicted first
+and a critical message is never evicted. `getQueueStats()` reports queued,
+dropped and flushed counts.
+
+## Shared Gateway Mode
+
+When every node is within reach of the router, every node can be its own
+gateway and the mesh is the fallback:
+
+```cpp
+mesh.initAsSharedGateway(MESH_PREFIX, MESH_PASSWORD, ROUTER_SSID, ROUTER_PASSWORD,
+                         &userScheduler, MESH_PORT);
+mesh.sendToInternet(url, payload, onResult);     // local uplink if healthy, else via the mesh
+mesh.onGatewayChanged([](uint32_t oldGateway, uint32_t newGateway) {
+  Serial.printf("Primary gateway %u -> %u\n", oldGateway, newGateway);
+});
+```
+
+A node's own uplink is health-checked periodically (`hasLocalInternet()`),
+and a request is served locally when it is healthy. See
+[examples/sharedGateway](examples/sharedGateway/).
+
 ## Frequently Asked Questions
 
-### Why does `mesh.init()` require a separate `mesh.stationManual()` call?
+### Why are there three ways to connect a bridge?
 
-Great question! The library now offers **three ways** to connect a bridge:
+1. `init()` followed by `stationManual()` — the original API, still the most
+   flexible: you choose the channel and the mode.
+2. `init()` with `stationSSID` and `stationPassword` — the same, in one call.
+3. `initAsBridge()` — detects the router's channel, sets the root flags,
+   retries the router in the background, and starts the bridge status
+   broadcasts. Use this unless you have a reason not to.
 
-1. **Original**: `init()` + `stationManual()` (most flexible)
-2. **Convenience**: Pass credentials directly to `init()` (new feature)
-3. **Modern**: Use `initAsBridge()` with auto-detection (recommended)
+### Does the bridge need to be up first?
 
-The [three bridge initialization approaches](#why-does-meshinit-require-a-separate-meshstationmanual-call) above explain the available tradeoffs.
+No. Regular nodes started with `channel = 0` scan for the mesh, and a mesh
+that forms before the bridge follows the bridge to its channel when it
+appears. The ESP8266 should be a leaf in a mesh of more than a few nodes
+(`init(..., maxconn = 0)`); see the README.
 
 ## Additional Resources
 
-- [painlessMesh Wiki](https://github.com/Alteriom/painlessMesh/wiki)
-- [Bridge Examples](https://github.com/Alteriom/painlessMesh/tree/main/examples/bridge)
-- [MQTT Bridge Example](https://github.com/Alteriom/painlessMesh/tree/main/examples/mqttBridge)
-- [Configuration API Reference](https://github.com/Alteriom/painlessMesh/wiki)
-- [Bridge Initialization Approaches](#why-does-meshinit-require-a-separate-meshstationmanual-call) - Why three approaches exist
-
-Feel free to ask if you need help with specific use cases like MQTT integration, web servers, or custom data forwarding!
+- [USER_GUIDE.md](USER_GUIDE.md) — the complete guide, including the API reference
+- [examples/bridge_failover/README.md](examples/bridge_failover/README.md) — the election protocol in detail
+- [SECURITY.md](SECURITY.md) — what gateway HTTPS does and does not protect
+- [CHANGELOG.md](CHANGELOG.md) — what changed in 2.0, and what to know before upgrading

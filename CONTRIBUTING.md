@@ -1,79 +1,83 @@
 # Contributing
 
-We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `main` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `main` branch.
+## Branches
 
-## Git flow
+- `main` holds released code. A push to `main` that carries a version bump,
+  or whose head commit message starts with `release:`, is what tags and
+  publishes a release (see [RELEASE_GUIDE.md](RELEASE_GUIDE.md)).
+- `Feat/next-release` is the integration branch for the next version. Open
+  pull requests against it.
+- Work happens on short-lived feature branches (`fix/…`, `feat/…`, `docs/…`)
+  cut from `Feat/next-release`.
 
-If you would like to use [git flow tools](http://danielkummer.github.io/git-flow-cheatsheet/) you are more than welcome to. We use it and it's pretty nifty. If you see a `feature\` prefix on a comment then that is git flow automating branch creation. It does need more typing than just plain git so I suggest creating shell aliases for the commands.
+Maintainers merge quickly, often as a squash. Push every commit you describe
+before you describe it, and cut follow-up work from the merged base rather
+than from a stale branch.
 
-## Submit a pull request:
+## Submit a pull request
 
-* If your push triggered a 'you just pushed...' message from GitHub then click on the button provided by that pop up to create a pull request.
-* If not, then create a pull request and point it to your branch.
-* Make sure that you're attempting to merge into `develop` and not `main`.
-* Get your code reviewed by another contributor. If there are no contributors who possess the same set of skills then get them to review it anyway but explain what the code does beforehand and why. Use it as an opportunity for discussion around the feature set, to transfer knowledge, and to possibly [rubber duck](https://en.wikipedia.org/wiki/Rubber_duck_debugging) your code.
-* Once the code is reviewed then have your reviewer merge your code.
+- Point the pull request at `Feat/next-release`, not `main`.
+- Say what was wrong, how you know (a log, a test, a measurement), and what
+  the change does about it. For anything that touches the radio, routing,
+  the gateway or OTA, the evidence is a serial log or a run on the
+  hardware-in-the-loop rig; a unit test alone is not enough there, because
+  the unit tests mock the radio.
+- Get your code reviewed by another contributor, and let the reviewer merge.
 
-NOTE: Tests *must* pass in order for the code to be merged.
+Tests must pass for the code to be merged. Add a changelog entry under
+`## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for any user-visible change.
 
-NOTE: Always do a `git pull` on `develop` before you start working to capture the latest changes.
+## Testing requirements
 
-## Testing Requirements
+### Running the desktop tests
 
-### Running Tests
-
-Before submitting a pull request, ensure all tests pass:
+Before submitting a pull request, build and run the Catch2 and Boost suites:
 
 ```bash
-# Build and run unit/integration tests
+git submodule update --init
 cmake -G Ninja .
 ninja
 run-parts --regex catch_ bin/
-
-# Run simulator tests (for examples)
-cd test/simulator
-mkdir build && cd build
-cmake -G Ninja .. && ninja
-bin/painlessmesh-simulator --config ../../../examples/basic/test/simulator/scenarios/basic_mesh_test.yaml
 ```
 
-### Adding Tests for New Features
+The same suites run in CI under gcc, clang and AddressSanitizer, and CI also
+compiles every example for esp32 and esp8266 with `arduino-cli`, builds the
+PlatformIO projects under `test/ci/`, and checks formatting and library
+metadata.
 
-When adding new features or examples:
+### Simulator and hardware tests
 
-1. **Unit Tests**: Add tests in `test/catch/` for new components
-2. **Integration Tests**: Add to `test/boost/tcp_integration.cpp` for core functionality
-3. **Simulator Tests**: Create test scenarios in `examples/your_example/test/simulator/` for new examples
-4. **Documentation**: Update relevant test documentation
+Multi-node behaviour is tested with the external
+[painlessMesh-simulator](https://github.com/Alteriom/painlessMesh-simulator);
+scenarios for an example live under `examples/<example>/test/simulator/`
+(see `examples/basic/test/simulator/`). Radio, routing, gateway, failover
+and OTA behaviour is validated on the Alteriom hardware-in-the-loop farm
+([alteriom-esp32-farm](https://github.com/Alteriom/alteriom-esp32-farm)); a
+maintainer runs it on a pull request by adding the `run-hil` label, and the
+release gate is three consecutive clean runs of the whole suite.
 
-### Example Validation with Simulator
+### Adding tests for new features
 
-All example sketches should have simulator tests that validate behavior with multiple virtual nodes:
-
-1. Create firmware adapter in `examples/your_example/test/simulator/firmware/`
-2. Create YAML test scenarios in `examples/your_example/test/simulator/scenarios/`
-3. Document test setup in `examples/your_example/test/simulator/README.md`
-
-See [Simulator Testing Guide](docs/SIMULATOR_TESTING.md) for complete instructions.
-
-This ensures examples:
-- Work as documented with multiple nodes
-- Handle edge cases properly
-- Don't regress with library changes
-- Serve as validated references for users
+1. **Unit tests**: add to `test/catch/` for new components.
+2. **Integration tests**: add to `test/boost/tcp_integration.cpp` for core
+   behaviour that spans connections.
+3. **Simulator scenarios**: add YAML scenarios under
+   `examples/<example>/test/simulator/` for new examples.
+4. **Documentation**: keep `USER_GUIDE.md`, `README.md` and the example's
+   own README in step with the change.
 
 ## Versioning
 
-This project will try its best to adhere to [semver](http://semver.org/) i.e, a codified guide to versioning software. When a new feature is developed or a bug is fixed the version will need to be bumped to signify the change. 
+This project follows [semver](https://semver.org/). Version 2.0 patch
+releases must remain wire-compatible with the 2.0 protocol; anything that
+changes what a node puts on the wire, or what an existing sketch has to do to
+keep working, is a major version.
 
-The semver string is built like this:
+- **Major**: a backwards-incompatible change (a new or changed protocol
+  message, a removed API).
+- **Minor**: a backwards-compatible addition.
+- **Patch**: a backwards-compatible fix.
 
-Major.Minor.Patch
-
-A major version bump means that a massive change took place and that application will probably have to be redeployed because a *backwards incompatible* version was released. Example: A library => model relationship change which requires previous configuration options to become invalid.
-
-A minor version is a *backwards compatible* addition or change to the core software. Most development activity will be this type of version bump. Example: A new feature or model.
-
-A patch version is a *backwards compatible* bug fix or application configuration change.
-
-Documentation doesn't require a version bump.
+Documentation does not require a version bump. The three version files
+(`library.properties`, `library.json`, `package.json`) are changed together
+with `./scripts/bump-version.sh`.

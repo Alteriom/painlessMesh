@@ -20,6 +20,12 @@ the version commit reaches `main`.
 8. Merge the release pull request. Do not create a tag by hand; the release
    workflow owns tags and publication.
 
+   The workflow tags only when the push to `main` carries a version-file
+   change or a head commit whose message starts with `release:`. When the
+   version metadata was bumped earlier in the cycle (as for 2.0.0), merge the
+   release pull request with a commit titled `release: vX.Y.Z` — a squash or
+   merge commit with that title — or the push is ignored.
+
 ## Version metadata
 
 These files must always contain the same semantic version:
