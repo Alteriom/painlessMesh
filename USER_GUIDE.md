@@ -71,9 +71,11 @@ This comprehensive guide covers everything you need to build production-ready me
 
 ### Installation
 
-#### Arduino IDE
+#### Arduino Library Manager
 
-The library is not yet in the Arduino Library Manager index. Install it from the release ZIP or a clone:
+Search for **"Alteriom PainlessMesh"** in **Tools → Manage Libraries...** and install it with the dependencies it offers; also install AsyncTCP (ESP32) or ESPAsyncTCP (ESP8266). The index follows a GitHub release within a day.
+
+**Manual installation** (a release ZIP, or a clone to follow a branch):
 
 1. Go to [Releases](https://github.com/Alteriom/painlessMesh/releases/latest)
 2. Download the latest release ZIP file

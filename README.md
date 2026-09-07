@@ -379,9 +379,16 @@ painlessMesh does not create a TCP/IP network of nodes. Rather each of the nodes
 
 ## Installation
 
-### Arduino IDE
+### Arduino Library Manager
 
-The library is not yet in the Arduino Library Manager index; install it from the release ZIP or a clone. The header `AlteriomPainlessMesh.h` gives access to the core painlessMesh functionality and the Alteriom extensions; `painlessMesh.h` alone gives the core.
+The library is in the Arduino Library Manager as **Alteriom PainlessMesh**:
+
+1. Open Arduino IDE
+2. Go to **Tools** → **Manage Libraries...**
+3. Search for **"Alteriom PainlessMesh"** and click **Install**; accept the dependencies it offers (ArduinoJson, TaskScheduler, PubSubClient)
+4. Also install **AsyncTCP** (ESP32) or **ESPAsyncTCP** (ESP8266) from the same dialog; the Library Manager cannot pick one per platform, so they are not listed as dependencies
+
+The index follows a GitHub release within a day. The header `AlteriomPainlessMesh.h` gives access to the core painlessMesh functionality and the Alteriom extensions; `painlessMesh.h` alone gives the core.
 
 #### Manual Installation
 

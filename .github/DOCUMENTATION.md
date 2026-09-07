@@ -72,13 +72,12 @@ PlatformIO registry shows it.
 | [GitHub Releases](https://github.com/Alteriom/painlessMesh/releases) | Every version, with the Arduino ZIP |
 | [PlatformIO Registry](https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh) | `alteriom/AlteriomPainlessMesh` |
 | [npm](https://www.npmjs.com/package/@alteriom/painlessmesh) | `@alteriom/painlessmesh` |
-| Arduino Library Manager | Not yet indexed; install from the release ZIP (see the README) |
+| Arduino Library Manager | `Alteriom PainlessMesh`; the index follows a GitHub release within a day |
 
 ## Related repositories
 
 - [alteriom-esp32-farm](https://github.com/Alteriom/alteriom-esp32-farm) — the hardware-in-the-loop rig that validates releases
 - [painlessMesh-simulator](https://github.com/Alteriom/painlessMesh-simulator) — multi-node simulation of the examples
-- [alteriom-documentation](https://github.com/Alteriom/alteriom-documentation) — organisation-wide standards and the MQTT schema
 
 ## Contributing to the documentation
 
