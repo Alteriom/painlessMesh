@@ -2964,6 +2964,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             Log(CONNECTION,
                 "eventSTADisconnectedHandler: "
                 "ARDUINO_EVENT_WIFI_STA_DISCONNECTED\n");
+            this->stationScan.stationAttemptOver();
             this->droppedConnectionCallbacks.execute(0, true);
             // Handle station disconnect completion after callbacks
             this->handleStationDisconnectComplete();
@@ -2981,6 +2982,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           if (this->semaphoreTake()) {
             Log(CONNECTION,
                 "eventSTAGotIPHandler: ARDUINO_EVENT_WIFI_STA_GOT_IP\n");
+            this->stationScan.stationAttemptOver();
             this->tcpConnect();  // Connect to TCP port
             this->semaphoreGive();
           }
@@ -3013,6 +3015,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               "Event: Station Mode Got IP (IP: %s  Mask: %s  Gateway: %s)\n",
               event.ip.toString().c_str(), event.mask.toString().c_str(),
               event.gw.toString().c_str());
+          this->stationScan.stationAttemptOver();
           this->tcpConnect();  // Connect to TCP port
         });
 #endif  // ESP32

@@ -145,8 +145,12 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
   }
   if (allChannels) scanChannel = 0;
 #ifdef ESP32
+  // A slice dwells as long as a regular scan: 120 ms on one channel missed
+  // the bridge's AP on the rig, and the hunt concluded the mesh was on no
+  // other channel. The all-channel scan keeps the short dwell, since it
+  // runs only on a node with nothing under its AP.
   int16_t started = WiFi.scanNetworks(true, hidden, false,
-                                      (allChannels || slice) ? 120U : 300U,
+                                      allChannels ? 120U : 300U,
                                       scanChannel);
 #elif defined(ESP8266)
   // WiFi.scanNetworksAsync([&](int networks) { this->scanComplete(); }, true);
@@ -579,6 +583,7 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
 
 #ifdef ESP32
   if (WiFi.status() == WL_IDLE_STATUS && !halfOpenDropped &&
+      connectAttemptStarted != 0 &&
       millis() - connectAttemptStarted > (uint32_t)(0.5 * SCAN_INTERVAL)) {
     // The Arduino core reports WL_IDLE_STATUS from association until an
     // address arrives. Half a scan interval after the attempt began, that

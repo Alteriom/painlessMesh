@@ -49,6 +49,12 @@ class StationScan {
   // The tree contains a root. Enough for the rules that ask whether this
   // mesh ever had one; not enough to say which channel is home.
   void noteEverRooted() { everRooted = true; }
+  // The station attempt requestIP() started is over: it got an address, or
+  // it was disconnected. The half-open guard judges only an attempt still
+  // in progress. Without this it judged a fresh association by the clock of
+  // an attempt made 109 s earlier — the node had followed the bridge to its
+  // channel in between — and dropped it, costing a scan interval.
+  void stationAttemptOver() { connectAttemptStarted = 0; }
   // The next scan covers every channel. For a node whose uplink just went
   // away in a mesh that should have a root: the AP it was on left for the
   // bridge's channel, and so will whatever is still here.
