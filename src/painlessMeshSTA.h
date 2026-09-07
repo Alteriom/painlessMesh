@@ -37,15 +37,18 @@ class StationScan {
   void connectToAP();
   // Move both Wi-Fi interfaces to a bridge-announced channel immediately.
   bool followBridgeChannel(uint8_t targetChannel);
-  // The tree has a root, on this channel. Called from the connection
-  // callbacks, because a scan is the wrong place to notice: a node that has
-  // just joined the bridge's partition scans next a minute later, and the
-  // bridge that leaves in between was never seen from here.
+  // A bridge has spoken, from this channel: its status message carries the
+  // channel it is on, which is its router's, and a message just received
+  // is live — unlike a cached tree, which can carry a root that has gone.
+  // That channel is home.
   void noteRooted(uint8_t channel) {
     everRooted = true;
     rootedChannel = channel;
     homeStays = 0;
   }
+  // The tree contains a root. Enough for the rules that ask whether this
+  // mesh ever had one; not enough to say which channel is home.
+  void noteEverRooted() { everRooted = true; }
   // The next scan covers every channel. For a node whose uplink just went
   // away in a mesh that should have a root: the AP it was on left for the
   // bridge's channel, and so will whatever is still here.

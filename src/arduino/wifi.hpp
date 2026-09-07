@@ -2901,13 +2901,33 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // from joined the bridge, the bridge left 24 s later, and no scan had
     // run in between — so it had no home to keep and followed a partition
     // off the router's channel. Topology changes are the moment to look.
+    // Only "ever rooted" comes from the tree: the tree can carry a root that
+    // is gone. On the rig a node's cached tree still showed the bridge as
+    // its root for the seconds after the bridge had moved to its router's
+    // channel, a topology change fired in that window, and the node
+    // recorded the channel it was left on as home — then sat there alone,
+    // seeing the mesh's four nodes on the router's channel and "staying".
+    // Home is learnt from the bridge itself, below: its status message
+    // carries the channel it is on, and a message just received is live.
     auto noteRoot = [this](uint32_t) {
-      if (layout::isRooted(this->asNodeTree())) {
-        this->stationScan.noteRooted(this->_meshChannel);
-      }
+      if (layout::isRooted(this->asNodeTree())) this->stationScan.noteEverRooted();
     };
     this->newConnectionCallbacks.push_back(noteRoot);
     this->changedConnectionCallbacks.push_back(noteRoot);
+    this->callbackList.onPackage(
+        protocol::BRIDGE_STATUS,
+        [this](protocol::Variant& variant, std::shared_ptr<Connection>, uint32_t) {
+          JsonDocument doc;
+          TSTRING str;
+          variant.printTo(str);
+          if (deserializeJson(doc, str)) return false;
+          JsonObject obj = doc.as<JsonObject>();
+          uint8_t routerChannel = obj["routerChannel"] | 0;
+          if (gateway::isValidMeshChannel(routerChannel)) {
+            this->stationScan.noteRooted(routerChannel);
+          }
+          return false;  // the generic handler records the bridge
+        });
 #ifdef ESP32
     eventScanDoneHandler = WiFi.onEvent(
         [this](WiFiEvent_t event, WiFiEventInfo_t info) {

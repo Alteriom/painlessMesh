@@ -607,11 +607,7 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
   }
 #endif
   bool isRooted = layout::isRooted(mesh->asNodeTree());
-  if (isRooted) {
-    everRooted = true;
-    rootedChannel = mesh->_meshChannel;
-    homeStays = 0;
-  }
+  if (isRooted) everRooted = true;
   if (aps.empty()) {
     // No unknown nodes found
     consecutiveEmptyScans++;
