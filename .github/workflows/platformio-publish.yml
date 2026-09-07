@@ -18,10 +18,15 @@ on:
         type: boolean
         default: false
       owner:
-        description: 'Registry owner to publish under (the organisation, not the token''s user)'
+        # 'alteriom' exists in the registry but stops at 1.10.0 and belongs to an
+        # account this project cannot publish from: it answered v2.0.0's publish
+        # with "You do not have permission to publish a package using the
+        # alteriom account". Every automated release since 1.7.6 landed under
+        # 'sparck75', which is the owner the documentation names.
+        description: 'Registry owner to publish under'
         required: false
         type: string
-        default: 'alteriom'
+        default: 'sparck75'
       unpublish:
         description: 'A package spec to unpublish first (e.g. sparck75/AlteriomPainlessMesh@2.0.0), or "undo <spec>" to restore a removed version'
         required: false
@@ -166,7 +171,7 @@ jobs:
           LIBRARY_NAME=$(jq -r '.name' library.json)
           VERSION="${{ steps.version.outputs.version }}"
           
-          OWNER="${{ github.event.inputs.owner || 'alteriom' }}"
+          OWNER="${{ github.event.inputs.owner || 'sparck75' }}"
           # The registry holds this name under more than one owner (every
           # automated publish before 2.0.0 went under the token's user, not
           # the organisation), so look at the owner we publish under, and read
@@ -332,7 +337,7 @@ jobs:
           echo "Tag: ${{ github.event.release.tag_name || github.ref }}"
           echo ""
           
-          OWNER="${{ github.event.inputs.owner || 'alteriom' }}"
+          OWNER="${{ github.event.inputs.owner || 'sparck75' }}"
           STRAY="${{ github.event.inputs.unpublish }}"
           if [ -n "$STRAY" ]; then
             case "$STRAY" in
