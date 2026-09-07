@@ -545,9 +545,31 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
     //     channel, filter their peers as known, count empty scans, and were
     //     gated out of re-detection by the WL_CONNECTED check for good.
     bool orphaned = mesh->shouldContainRoot && !isRooted;
+    // An all-channel scan takes this node's AP off its channel for two to
+    // three seconds, and an ESP8266 station under it does not survive that:
+    // on the rig the soak's sender ran its "no root in sight" hunt with the
+    // ESP8266 as its child, the child dropped, and two sends in a row got
+    // no acknowledgement. An orphan with stations under its AP hunts only
+    // when it has somewhere to go — it was rooted once, and is away from
+    // that channel. At home the root comes back here; in a mesh that never
+    // had one there is nothing to find, and its leaves, which have nobody
+    // to drop, still look and still leave for a bridge that appears.
+    size_t stationsUnderAp = 0;
+    for (auto&& sub : mesh->subs) {
+      if (sub->connected() && !sub->station) ++stationsUnderAp;
+    }
+    bool awayFromHome = rootedChannel != 0 && mesh->_meshChannel != rootedChannel;
+    bool mayHunt = WiFi.status() != WL_CONNECTED || stationsUnderAp == 0 ||
+                   (everRooted && awayFromHome);
     if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD &&
-        (WiFi.status() != WL_CONNECTED || orphaned) &&
-        channel > 0) {
+        (WiFi.status() != WL_CONNECTED || orphaned) && channel > 0 && !mayHunt) {
+      Log(CONNECTION,
+          "connectToAP(): No root in sight for %d scans, but %u station(s) "
+          "under this AP would drop during an all-channel scan; leaving the "
+          "hunt to them\n",
+          consecutiveEmptyScans, (unsigned)stationsUnderAp);
+    } else if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD &&
+               (WiFi.status() != WL_CONNECTED || orphaned) && channel > 0) {
       Log(CONNECTION,
           "connectToAP(): No mesh nodes found for %d scans%s, re-detecting "
           "the mesh channel on the next scan\n",
