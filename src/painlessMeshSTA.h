@@ -74,6 +74,8 @@ class StationScan {
   // away in a mesh that should have a root: the AP it was on left for the
   // bridge's channel, and so will whatever is still here.
   void redetectOnNextScan() { redetectRequested = true; }
+  // On the channel the bridge's status named: the bridge's AP is here.
+  bool atHome() const { return rootedChannel != 0 && channel == rootedChannel; }
   // This one will call the connectToAP next in the task and should be used
   // instead of connectToAP
   void yieldConnectToAP() {

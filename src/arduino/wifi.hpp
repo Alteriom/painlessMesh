@@ -812,7 +812,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               using namespace logger;
               Log(CONNECTION,
                   "Station link lost unexpectedly, scanning now\n");
-              if (this->shouldContainRoot) {
+              if (this->shouldContainRoot && this->stationScan.atHome()) {
+                // At home the bridge's AP is on this channel; the uplink
+                // that went was a relay (in sweep 46 run 2, the backup
+                // rebooting into its failover role). Scan this channel
+                // now: the all-channel hunt below took the sender twenty
+                // seconds, and its request through the bridge ran out of
+                // retries in the gap.
+                Log(CONNECTION,
+                    "Station link lost at home: scanning this channel\n");
+              } else if (this->shouldContainRoot) {
                 // In a mesh that should have a root, the AP that went away
                 // most likely left for the bridge's channel, and the nodes
                 // still on this one are about to. Re-attaching here first
