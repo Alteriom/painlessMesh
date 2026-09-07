@@ -596,7 +596,26 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
       for (auto&& sub : mesh->subs) {
         if (sub->connected() && !sub->station) ++apChildren;
       }
-      if (++orphanRedetects >= 2 && apChildren == 0 && everRooted) {
+      // Not from home, and not a failover candidate. At home the root will
+      // reappear here — the old bridge back, or a backup promoted in this
+      // partition — and a candidate must stay connected to hold the
+      // election at all: the bridge monitor skips a node with no mesh
+      // connections. On the rig the backup left its partition at 90 s,
+      // which skipped the election, rejoined, sent its candidacy at 129 s
+      // and left again at 133 s, before the votes were counted.
+      bool atHome = rootedChannel != 0 && mesh->_meshChannel == rootedChannel;
+      bool candidate =
+          mesh->bridgeFailoverEnabled && mesh->routerCredentialsConfigured;
+      bool stranded = ++orphanRedetects >= 2 && apChildren == 0 && everRooted;
+      if (stranded && (atHome || candidate)) {
+        Log(CONNECTION,
+            "connectToAP(): Still no root after %u re-detections; staying: "
+            "%s\n",
+            (unsigned)orphanRedetects,
+            candidate ? "this node is a failover candidate"
+                      : "this is the channel the mesh was rooted on");
+      }
+      if (stranded && !atHome && !candidate) {
         Log(CONNECTION,
             "connectToAP(): Still no root after %u re-detections and nothing "
             "new in sight; leaving this partition to look for it\n",
