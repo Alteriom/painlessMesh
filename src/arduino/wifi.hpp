@@ -1553,6 +1553,24 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           "Node %u connection changed, sending bridge status directly\n",
           nodeId);
 
+      // The direct send below reaches the neighbour whose connection
+      // changed. A node that joined behind that neighbour is why it changed,
+      // and it learns of this bridge only from the next periodic broadcast,
+      // up to thirty seconds on: on the rig the node the discovery fixture
+      // sends from joined a child of the bridge at 185 s and heard the
+      // bridge at 214 s, after the fixture's window. So a change also
+      // brings the broadcast forward, at most once every five seconds.
+      if (millis() - _lastBridgeStatusBroadcast >= 5000) {
+        this->addTask(1000, TASK_ONCE, [this]() {
+          if (millis() - _lastBridgeStatusBroadcast >= 5000) {
+            Log(CONNECTION,
+                "Topology changed; broadcasting bridge status now rather "
+                "than at the next interval\n");
+            this->sendBridgeStatus();
+          }
+        });
+      }
+
       // Small delay to ensure connection is fully stable, then send directly to
       // the new node This avoids issues with time sync blocking broadcast
       // messages
@@ -2426,6 +2444,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // type BRIDGE_STATUS
     protocol::Variant variant(msg);
     router::broadcast<Connection>(variant, (*this), 0);
+    _lastBridgeStatusBroadcast = millis();
   }
 
   /**
@@ -2992,6 +3011,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 #endif  // ESP8266
   AsyncServer* _tcpListener;
   std::shared_ptr<Task> bridgeStatusTask;
+  // millis() of the last status broadcast, periodic or brought forward by a
+  // topology change; the latter is held to one every five seconds.
+  uint32_t _lastBridgeStatusBroadcast = 0;
 
   // Station disconnect handling state
   bool _pendingStationReconnect = false;

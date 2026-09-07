@@ -312,11 +312,16 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
             elsewhere, (unsigned)elsewhereCount, (unsigned)aps.size());
         pendingElsewhere = elsewhere;
         redetectRequested = true;
-        if (!connected) {
-          aps.clear();
-          task.delay(0.5 * SCAN_INTERVAL);
-          return;
-        }
+        // Look again soon, connected or not. A connected node used to fall
+        // through to connectToAP(), whose "no root in sight" back-off put
+        // the second look up to a minute away: on the rig the node the
+        // bridge-discovery fixture sends from saw the new bridge's channel
+        // at 103 s and looked again at 172 s, and the fixture's window had
+        // closed. Skipping one round of connectToAP() costs nothing the
+        // second look does not give back.
+        aps.clear();
+        task.delay(0.5 * SCAN_INTERVAL);
+        return;
       }
     } else {
       pendingElsewhere = 0;
