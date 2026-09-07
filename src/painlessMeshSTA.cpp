@@ -841,6 +841,12 @@ bool ICACHE_FLASH_ATTR StationScan::followBridgeChannel(
   // radio, otherwise its callback can move the node back after the takeover.
   WiFi.scanDelete();
   task.disable();
+  // The drops this causes are this node's doing, not a loss: judged as one
+  // they re-detected the channel just left, found the remnant there bigger,
+  // and moved back — on the rig two nodes followed the bridge to its
+  // channel and were back on the old one 28 s later, as the sender
+  // arrived.
+  channelMovedAt = millis();
   mesh->closeConnectionSTA();
   WiFi.disconnect();
   delay(100);

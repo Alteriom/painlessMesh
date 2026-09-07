@@ -59,6 +59,17 @@ class StationScan {
   // an attempt made 109 s earlier — the node had followed the bridge to its
   // channel in between — and dropped it, costing a scan interval.
   void stationAttemptOver() { connectAttemptStarted = 0; }
+  // The station got an address: its link is up. Cleared once the drop
+  // callbacks have judged a disconnect, so they can tell a link that was
+  // up and went away from an attempt that never got that far.
+  void stationUp() { stationLinkUp = true; }
+  void stationDown() { stationLinkUp = false; }
+  bool stationLinkUp = false;
+  // The station link was closed by this node's own channel move a moment
+  // ago (followBridgeChannel() closes it and scans next). Not a loss.
+  bool droppedByMove() const {
+    return channelMovedAt != 0 && millis() - channelMovedAt < 5000;
+  }
   // The next scan covers every channel. For a node whose uplink just went
   // away in a mesh that should have a root: the AP it was on left for the
   // bridge's channel, and so will whatever is still here.
@@ -122,6 +133,8 @@ class StationScan {
   // millis() of the last requestIP(), to tell a station that is still
   // obtaining an address from one that associated and never got one.
   uint32_t connectAttemptStarted = 0;
+  // millis() of the last followBridgeChannel(), for droppedByMove().
+  uint32_t channelMovedAt = 0;
   // Whether the current attempt's half-open association has already been
   // dropped. WiFi.disconnect() on a station that has nothing to disconnect
   // leaves the status where it was, and a guard that fired on every pass

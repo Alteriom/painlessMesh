@@ -784,6 +784,25 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             } else if (_pendingStationReconnect) {
               // A drop this node asked for: reconnect from the last scan
               handleStationDisconnectComplete();
+            } else if (this->stationScan.droppedByMove()) {
+              // The drop this node's own channel follow caused.
+              // followBridgeChannel() closed the link and scans next;
+              // nothing to do here, and above all no re-detection.
+              using namespace logger;
+              Log(CONNECTION,
+                  "Station link closed by this node's channel move\n");
+            } else if (!this->stationScan.stationLinkUp) {
+              // An attempt that never got an address — the association
+              // timed out, or the AP was gone by the time it was tried.
+              // Not a loss: scan this channel again, where the next AP is.
+              // Re-detecting here sent the sender in sweep 45 run 2, just
+              // arrived on the bridge's channel after a peer there had
+              // left, to look at the old channel and consider going back,
+              // with the bridge's AP at -55 dBm beside it.
+              using namespace logger;
+              Log(CONNECTION,
+                  "Station attempt failed, scanning this channel again\n");
+              this->stationScan.task.forceNextIteration();
             } else {
               // A drop nobody asked for — the AP this station was on went
               // away (its node rebooted, or a bridge moved the mesh). Scan
@@ -3022,6 +3041,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                 "ARDUINO_EVENT_WIFI_STA_DISCONNECTED\n");
             this->stationScan.stationAttemptOver();
             this->droppedConnectionCallbacks.execute(0, true);
+            this->stationScan.stationDown();
             // Handle station disconnect completion after callbacks
             this->handleStationDisconnectComplete();
             this->semaphoreGive();
@@ -3039,6 +3059,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             Log(CONNECTION,
                 "eventSTAGotIPHandler: ARDUINO_EVENT_WIFI_STA_GOT_IP\n");
             this->stationScan.stationAttemptOver();
+            this->stationScan.stationUp();
             this->tcpConnect();  // Connect to TCP port
             this->semaphoreGive();
           }
@@ -3060,7 +3081,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     eventSTADisconnectedHandler = WiFi.onStationModeDisconnected(
         [&](const WiFiEventStationModeDisconnected& event) {
           Log(CONNECTION, "Event: Station Mode Disconnected\n");
+          this->stationScan.stationAttemptOver();
           this->droppedConnectionCallbacks.execute(0, true);
+          this->stationScan.stationDown();
           // Handle station disconnect completion after callbacks
           this->handleStationDisconnectComplete();
         });
@@ -3072,6 +3095,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               event.ip.toString().c_str(), event.mask.toString().c_str(),
               event.gw.toString().c_str());
           this->stationScan.stationAttemptOver();
+          this->stationScan.stationUp();
           this->tcpConnect();  // Connect to TCP port
         });
 #endif  // ESP32
