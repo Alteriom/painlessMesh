@@ -479,3 +479,35 @@ SCENARIO("Channel re-detection prefers the partition the node is not already in"
     REQUIRE(pickMeshChannel({{0, -20}}, 1) == 0);
   }
 }
+
+SCENARIO("A node that knows the router joins the mesh on the router's channel") {
+  using painlessmesh::gateway::pickMeshChannel;
+
+  GIVEN("the mesh split across two channels, one of them the router's") {
+    // A failover backup booted into exactly this: one AP on each channel,
+    // two dB apart, the bridge's partition the weaker. Strength chose the
+    // wrong one.
+    REQUIRE(pickMeshChannel({{1, -45}, {6, -47}}, 0, 6) == 6);
+    REQUIRE(pickMeshChannel({{6, -47}, {1, -45}}, 0, 6) == 6);
+  }
+
+  GIVEN("the router's channel has no mesh on it") {
+    THEN("the usual rules apply") {
+      REQUIRE(pickMeshChannel({{1, -45}, {11, -47}}, 0, 6) == 1);
+      REQUIRE(pickMeshChannel({{1, -45}, {11, -47}}, 1, 6) == 11);
+    }
+  }
+
+  GIVEN("no router is known") {
+    THEN("nothing changes") {
+      REQUIRE(pickMeshChannel({{1, -45}, {6, -47}}, 0) == 1);
+      REQUIRE(pickMeshChannel({{1, -45}, {6, -47}}, 0, 0) == 1);
+    }
+  }
+
+  GIVEN("the router's channel is also the one to avoid") {
+    THEN("the router still wins: the node is where the bridge is") {
+      REQUIRE(pickMeshChannel({{6, -70}, {1, -30}}, 6, 6) == 6);
+    }
+  }
+}

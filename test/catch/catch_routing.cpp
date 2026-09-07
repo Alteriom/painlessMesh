@@ -306,3 +306,76 @@ SCENARIO("A node that comes back is not refused for where it used to be") {
     }
   }
 }
+
+SCENARIO("A node presented under one neighbour is forgotten under the others") {
+  // A node is in one place. On the rig every board carried a node twice —
+  // under the neighbour it had moved to and under the one it had left —
+  // and a message routed by the older copy never arrived.
+  GIVEN("two neighbours whose cached trees both list 3711130777") {
+    auto stale = conn_holding(3198819345);
+    protocol::NodeTree via(1297448309, false);
+    via.subs.push_back(protocol::NodeTree(3711130777, false));
+    stale->subs.push_back(via);
+    stale->subs.push_back(protocol::NodeTree(139984357, false));
+
+    protocol::NodeTree presented(2098834584, false);
+    presented.subs.push_back(protocol::NodeTree(3711130777, false));
+    presented.subs.push_back(protocol::NodeTree(381621429, false));
+
+    WHEN("the fresher neighbour's tree is applied against the other") {
+      size_t removed = layout::forgetAll(*stale, presented);
+      THEN("only the nodes the fresh tree carries are gone from the stale one") {
+        REQUIRE(removed == 1);
+        REQUIRE(!layout::contains(*stale, 3711130777));
+        REQUIRE(layout::contains(*stale, 1297448309));
+        REQUIRE(layout::contains(*stale, 139984357));
+      }
+      THEN("a second application finds nothing") {
+        REQUIRE(layout::forgetAll(*stale, presented) == 0);
+      }
+    }
+  }
+}
+
+SCENARIO("A tree's fingerprint tells a restated sync from a changed one") {
+  GIVEN("the tree a neighbour presents") {
+    auto tree = createBranchedTopology();
+    auto fp = layout::fingerprint(tree);
+    THEN("it is never 0, which means nothing presented yet") {
+      REQUIRE(fp != 0);
+      REQUIRE(layout::fingerprint(protocol::NodeTree(0, false)) != 0);
+    }
+    THEN("the same tree presented again has the same fingerprint") {
+      REQUIRE(layout::fingerprint(createBranchedTopology()) == fp);
+    }
+    THEN("a node gone from it changes the fingerprint") {
+      auto changed = createBranchedTopology();
+      REQUIRE(layout::forget(changed, 5000));
+      REQUIRE(layout::fingerprint(changed) != fp);
+    }
+    THEN("a node moved to another branch changes the fingerprint") {
+      auto moved = createBranchedTopology();
+      REQUIRE(layout::forget(moved, 3000));
+      moved.subs.back().subs.push_back(protocol::NodeTree(3000, false));
+      REQUIRE(layout::size(moved) == layout::size(tree));
+      REQUIRE(layout::fingerprint(moved) != fp);
+    }
+    THEN("a node becoming root changes the fingerprint") {
+      auto rooted = createBranchedTopology();
+      rooted.subs.front().root = true;
+      REQUIRE(layout::fingerprint(rooted) != fp);
+    }
+  }
+}
+
+SCENARIO("A tree's fingerprint follows the time authority flag") {
+  GIVEN("a presented tree") {
+    auto tree = createStarTopology();
+    auto fp = layout::fingerprint(tree);
+    THEN("a node gaining time authority changes it") {
+      auto authority = createStarTopology();
+      authority.subs.front().hasTimeAuthority = true;
+      REQUIRE(layout::fingerprint(authority) != fp);
+    }
+  }
+}

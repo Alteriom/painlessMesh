@@ -300,13 +300,29 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
     // association, for 30 to 100 s per reboot, measured on the Alteriom
     // HIL rig on every restart a suite performs.
     if (layout::contains(newTree, mesh.getNodeId())) {
+      // This node in the presented tree is a cycle only if the presenter is
+      // also reachable from here through some other live connection — the
+      // two ends of the loop. Without that route it is the presenter's
+      // memory of where this node used to be, held in a branch its owner
+      // has not timed out yet: a newly promoted bridge listed the node that
+      // came to join it at the place it held before the promotion, and was
+      // refused as a loop on every attempt for the whole promotion window.
+      // Stale, the mention is dropped before the tree is taken.
+      auto otherRoute = router::findLiveRoute<U>(mesh, newTree.nodeId, conn);
+      if (otherRoute) {
+        Log(logger::SYNC,
+            "handleNodeSync(): %u's tree contains this node and %u is already "
+            "reachable through %u: a loop. Closing the new connection\n",
+            newTree.nodeId, newTree.nodeId, otherRoute->nodeId);
+        Log.remote("Loop through %u\n", newTree.nodeId);
+        conn->close();
+        return;
+      }
       Log(logger::SYNC,
-          "handleNodeSync(): %u's tree contains this node: a loop. Closing "
-          "the new connection\n",
+          "handleNodeSync(): %u's tree lists this node where it used to be; "
+          "stale, not a loop\n",
           newTree.nodeId);
-      Log.remote("Loop through %u\n", newTree.nodeId);
-      conn->close();
-      return;
+      layout::forget(newTree, mesh.getNodeId());
     }
     // Whatever else still routes to this node is stale. A direct link to
     // it is the one it had before it went away — TCP has not noticed yet —
@@ -357,6 +373,74 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
     conn->newConnection = false;
   }
 
+  // What a neighbour presents is news only when it differs from what it
+  // presented last time. The cached tree can differ from a restated claim
+  // because a fresher neighbour has since taken a node out of it (below),
+  // and taking the restatement as news put the node back, marked the
+  // connection changed, forced the fresher neighbour's sync, which took it
+  // out again: a sync every 30 to 80 ms between the two for the 10 s it
+  // took the restating neighbour to time out the dead link behind its
+  // claim, on every board that heard both.
+  //
+  // (A neighbour listing a node that is on a direct link of ours is not
+  // pruned here, tempting as that is: it is also the shape a loop takes
+  // while the trees grow round it, and the loop checks above need to see
+  // it. The ring of five in the desktop integration suite never broke up
+  // with that pruning in place.)
+  auto fingerprint = layout::fingerprint(newTree);
+  bool restated = conn->presented == fingerprint;
+  conn->presented = fingerprint;
+
+  if (restated) {
+    conn->nodeSyncTask.delay();
+    mesh.stability += (std::min)(1000 - mesh.stability, (size_t)25);
+    return;
+  }
+
+  // A node is in one place, and a changed sync is the freshest word on
+  // every node below conn. Any other neighbour whose cached tree still
+  // lists one of them lists it where it used to be: on the rig every board
+  // carried a node twice — under the neighbour it had moved to and under
+  // the one it had left — and a message routed by the older copy never
+  // arrived, nor did the Internet request that went the same way. The
+  // older copies go now; their owners' next changed syncs agree.
+  for (auto&& other : mesh.subs) {
+    if (other == conn || other->nodeId == 0) continue;
+    size_t removed = layout::forgetAll(*other, newTree);
+    if (removed) {
+      Log(logger::SYNC,
+          "handleNodeSync(): %u nodes now under %u were still listed under "
+          "%u; forgotten there\n",
+          (unsigned)removed, conn->nodeId, other->nodeId);
+    }
+  }
+
+  // A node taken out of another neighbour's cache above can only come back
+  // through that neighbour's own sync, and a restatement is skipped. So
+  // when this neighbour stops presenting a node it used to — the node has
+  // moved on, or the claim was the stale one — the others' restatements
+  // are taken in full again: the change marks the connection changed,
+  // which forces their syncs, and whichever of them still lists the node
+  // has it back. Only a removal does this; an addition re-adopted this way
+  // would prune the presenter here, mark a change, force a sync there, and
+  // start the ping-pong over. Without the repair, the desktop time-sync
+  // scenario failed two runs in three: ntp::adopt() weighs the cached
+  // subtrees to choose which side keeps its clock, and a node missing from
+  // both sides' trees had the two ends disagree.
+  if (conn->nodeId != 0) {
+    bool dropped = false;
+    for (auto&& id : layout::asList(*conn, false)) {
+      if (!layout::contains(newTree, id)) {
+        dropped = true;
+        break;
+      }
+    }
+    if (dropped) {
+      for (auto&& other : mesh.subs) {
+        if (other != conn) other->presented = 0;
+      }
+    }
+  }
   if (conn->updateSubs(newTree)) {
     auto nodeId = newTree.nodeId;
     mesh.addTask(
