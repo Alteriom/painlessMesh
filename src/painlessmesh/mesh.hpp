@@ -306,6 +306,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
           
           if (obj["internetConnected"].is<bool>()) {
             uint32_t bridgeNodeId = obj["from"];
+            if (obj["leaving"] | false) {
+              // A bridge stepping down says so, and is forgotten at once
+              // rather than when its last status ages out — a minute and
+              // more during which every candidate held it healthy.
+              Log(GENERAL, "Bridge %u is stepping down\n", bridgeNodeId);
+              this->forgetBridge(bridgeNodeId);
+              return false;
+            }
             bool internetConnected = obj["internetConnected"];
             int8_t routerRSSI = obj["routerRSSI"] | 0;
             uint8_t routerChannel = obj["routerChannel"] | 0;
@@ -1311,6 +1319,22 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * mesh.enableBridgeCleanup();
    * \endcode
    */
+  /**
+   * Forget one bridge now: it announced that it is stepping down.
+   *
+   * Returns whether it was known.
+   */
+  bool forgetBridge(uint32_t bridgeNodeId) {
+    size_t sizeBefore = knownBridges.size();
+    knownBridges.erase(
+        std::remove_if(knownBridges.begin(), knownBridges.end(),
+                       [bridgeNodeId](const BridgeInfo& bridge) {
+                         return bridge.nodeId == bridgeNodeId;
+                       }),
+        knownBridges.end());
+    return knownBridges.size() != sizeBefore;
+  }
+
   void cleanupExpiredBridges() {
     using namespace logger;
     size_t sizeBefore = knownBridges.size();

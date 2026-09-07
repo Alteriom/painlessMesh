@@ -215,57 +215,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Add periodic monitoring task to detect when no bridge exists
     // This handles the case where no node was initially configured as a bridge
-    this->addTask(30000, TASK_FOREVER, [this]() {
-      // Only check if failover is enabled and we have credentials
-      if (!bridgeFailoverEnabled || !routerCredentialsConfigured) {
-        return;
-      }
-
-      // Don't check if we're already a bridge
-      if (this->isBridge()) {
-        return;
-      }
-
-      // Skip check during startup period to allow initial bridge discovery
-      if (millis() < electionStartupDelayMs) {
-        return;
-      }
-
-      // IMPORTANT: Don't trigger election if we're disconnected from the mesh
-      // When isolated, we can't receive bridge status broadcasts, so lack of
-      // healthy bridge could simply mean WE are disconnected, not that the
-      // bridge is unavailable. Wait until mesh connectivity is restored before
-      // considering an election.
-      if (!this->hasActiveMeshConnections()) {
-        Log(CONNECTION,
-            "Bridge monitor: Skipping - no active mesh connections\n");
-        return;
-      }
-
-      // Check if there are any healthy bridges
-      bool hasHealthyBridge = false;
-      for (const auto& bridge : this->getBridges()) {
-        if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
-          hasHealthyBridge = true;
-          break;
-        }
-      }
-
-      // If no healthy bridge exists, trigger an election
-      if (!hasHealthyBridge) {
-        Log(CONNECTION,
-            "Bridge monitor: No healthy bridge detected, triggering "
-            "election\n");
-        // Random delay to prevent simultaneous elections when multiple nodes
-        // start together
-        uint32_t randomDelay =
-            random(electionRandomDelayMinMs, electionRandomDelayMaxMs);
-        Log(CONNECTION, "Bridge monitor: Scheduling election in %u ms\n",
-            randomDelay);
-        this->addTask(randomDelay, TASK_ONCE,
-                      [this]() { this->startBridgeElection(); });
-      }
-    });
+    this->addTask(30000, TASK_FOREVER, [this]() { this->checkForBridge(); });
 
     // Add separate periodic task for isolated bridge retry
     // This handles the case where a node:
@@ -1416,7 +1366,80 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    */
   bool isMultiBridgeEnabled() const { return multiBridgeEnabled; }
 
+  // The bridge monitor's check, one tick of the 30 s task: with no
+  // healthy bridge known, an election is scheduled. Also run when a
+  // bridge announces that it is stepping down, as soon as the startup
+  // period allows.
+  void checkForBridge() {
+    using namespace logger;
+    // Don't check if we're already a bridge
+    if (this->isBridge()) {
+      return;
+    }
+
+    // Skip check during startup period to allow initial bridge discovery
+    if (millis() < electionStartupDelayMs) {
+      return;
+    }
+
+    // IMPORTANT: Don't trigger election if we're disconnected from the mesh
+    // When isolated, we can't receive bridge status broadcasts, so lack of
+    // healthy bridge could simply mean WE are disconnected, not that the
+    // bridge is unavailable. Wait until mesh connectivity is restored before
+    // considering an election.
+    if (!this->hasActiveMeshConnections()) {
+      Log(CONNECTION,
+          "Bridge monitor: Skipping - no active mesh connections\n");
+      return;
+    }
+
+    // Check if there are any healthy bridges
+    bool hasHealthyBridge = false;
+    for (const auto& bridge : this->getBridges()) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
+        hasHealthyBridge = true;
+        break;
+      }
+    }
+
+    // If no healthy bridge exists, trigger an election
+    if (!hasHealthyBridge) {
+      Log(CONNECTION,
+          "Bridge monitor: No healthy bridge detected, triggering "
+          "election\n");
+      // Random delay to prevent simultaneous elections when multiple nodes
+      // start together
+      uint32_t randomDelay =
+          random(electionRandomDelayMinMs, electionRandomDelayMaxMs);
+      Log(CONNECTION, "Bridge monitor: Scheduling election in %u ms\n",
+          randomDelay);
+      this->addTask(randomDelay, TASK_ONCE,
+                    [this]() { this->startBridgeElection(); });
+    }
+  }
+
+  // Schedule checkForBridge() once, after the startup period if it is
+  // still running, plus a second for the news to settle.
+  void checkForBridgeSoon() {
+    if (bridgeCheckPending) return;
+    uint32_t wait = millis() < electionStartupDelayMs
+                        ? electionStartupDelayMs - millis()
+                        : 0;
+    bridgeCheckPending = true;
+    this->addTask(wait + 1000, TASK_ONCE, [this]() {
+      bridgeCheckPending = false;
+      this->checkForBridge();
+    });
+  }
+
   void stop() {
+    // A bridge stepping down says so before its connections close, so the
+    // candidates hold an election now rather than when its last status
+    // ages out. The short wait lets the broadcast leave the buffers.
+    if (this->isBridge() && bridgeStatusBroadcastEnabled) {
+      sendBridgeStatus(true);
+      delay(200);
+    }
     // remove all WiFi events
 #ifdef ESP32
     WiFi.removeEvent(eventScanDoneHandler);
@@ -1876,10 +1899,23 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       return;
     }
 
-    // Prevent rapid role changes
+    // Prevent rapid role changes — but look again when the hold is over.
+    // A candidate that stood down a moment ago, or that only just booted,
+    // returned here silently and waited for the next 30 s tick to find
+    // out that there was still no bridge.
     if (millis() - lastRoleChangeTime < 60000) {
+      uint32_t wait = 60000 - (millis() - lastRoleChangeTime);
       Log(CONNECTION,
-          "startBridgeElection(): Too soon after last role change\n");
+          "startBridgeElection(): Too soon after last role change, "
+          "checking again in %u ms\n",
+          wait);
+      if (!bridgeCheckPending) {
+        bridgeCheckPending = true;
+        this->addTask(wait, TASK_ONCE, [this]() {
+          bridgeCheckPending = false;
+          this->checkForBridge();
+        });
+      }
       return;
     }
 
@@ -2369,7 +2405,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Send bridge status broadcast
    * Called periodically by bridge nodes to report connectivity status
    */
-  void sendBridgeStatus() {
+  void sendBridgeStatus(bool leaving = false) {
     using namespace logger;
 
     if (!this->bridgeStatusBroadcastEnabled) {
@@ -2409,9 +2445,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // 2. Some networks (mobile hotspots) may not provide gateway IP via DHCP
     // 3. Having a valid local IP + being connected is sufficient for internet
     // access
-    bool hasInternet = (WiFi.status() == WL_CONNECTED) &&
+    bool hasInternet = !leaving && (WiFi.status() == WL_CONNECTED) &&
                        (WiFi.localIP() != IPAddress(0, 0, 0, 0));
     obj["internetConnected"] = hasInternet;
+    // A bridge stepping down says so. Every candidate would otherwise hold
+    // it healthy until its last status aged out, a minute and more, before
+    // holding an election — on the rig, past the failover contract.
+    if (leaving) obj["leaving"] = true;
 
     int8_t rssi = WiFi.RSSI();
     uint8_t channel = WiFi.channel();
@@ -2427,8 +2467,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     String msg;
     serializeJson(doc, msg);
 
-    Log(GENERAL, "sendBridgeStatus(): Broadcasting status (Internet: %s)\n",
-        hasInternet ? "Connected" : "Disconnected");
+    Log(GENERAL, "sendBridgeStatus(): Broadcasting status (Internet: %s)%s\n",
+        hasInternet ? "Connected" : "Disconnected",
+        leaving ? " — stepping down" : "");
     Log(GENERAL,
         "sendBridgeStatus(): WiFi status=%d, localIP=%s, gatewayIP=%s\n",
         WiFi.status(), WiFi.localIP().toString().c_str(),
@@ -2922,6 +2963,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           variant.printTo(str);
           if (deserializeJson(doc, str)) return false;
           JsonObject obj = doc.as<JsonObject>();
+          if (obj["leaving"] | false) {
+            // The bridge is stepping down; the generic handler forgets it.
+            // Look for another now, not at the monitor's next tick.
+            this->checkForBridgeSoon();
+            return false;
+          }
           uint8_t routerChannel = obj["routerChannel"] | 0;
           if (gateway::isValidMeshChannel(routerChannel)) {
             this->stationScan.noteRooted(routerChannel);
@@ -3066,6 +3113,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   uint32_t electionRandomDelayMaxMs =
       3000;  // Default max 3 seconds random delay
   uint32_t lastRoleChangeTime = 0;
+  // A checkForBridge() is already scheduled (a bridge stepping down, or
+  // the role-change hold); one at a time is enough.
+  bool bridgeCheckPending = false;
   ElectionState electionState = ELECTION_IDLE;
   uint32_t electionDeadline = 0;
   std::vector<BridgeCandidate> electionCandidates;
