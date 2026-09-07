@@ -76,7 +76,6 @@ PlatformIO registry shows it.
 
 ## Related repositories
 
-- [alteriom-esp32-farm](https://github.com/Alteriom/alteriom-esp32-farm) — the hardware-in-the-loop rig that validates releases
 - [painlessMesh-simulator](https://github.com/Alteriom/painlessMesh-simulator) — multi-node simulation of the examples
 
 ## Contributing to the documentation

@@ -51,8 +51,7 @@ Multi-node behaviour is tested with the external
 [painlessMesh-simulator](https://github.com/Alteriom/painlessMesh-simulator);
 scenarios for an example live under `examples/<example>/test/simulator/`
 (see `examples/basic/test/simulator/`). Radio, routing, gateway, failover
-and OTA behaviour is validated on the Alteriom hardware-in-the-loop farm
-([alteriom-esp32-farm](https://github.com/Alteriom/alteriom-esp32-farm)); a
+and OTA behaviour is validated on the Alteriom hardware-in-the-loop farm; a
 maintainer runs it on a pull request by adding the `run-hil` label, and the
 release gate is three consecutive clean runs of the whole suite.
 

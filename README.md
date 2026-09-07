@@ -355,8 +355,8 @@ an ESP32, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-S3 and ESP8266 in one mesh with
 a real router — and confirmed there. The release gate is three consecutive
 clean runs of the rig's whole suite (mesh formation, delivery and
 acknowledgement, priorities, dedicated and shared gateways, Internet relay,
-gateway failover, mesh OTA, sustained soak). The rig and its results live in
-[alteriom-esp32-farm](https://github.com/Alteriom/alteriom-esp32-farm).
+gateway failover, mesh OTA, sustained soak). Each fix in the changelog names
+the run that found it.
 
 ### JSON based
 
