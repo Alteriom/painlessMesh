@@ -73,6 +73,15 @@ jobs:
             echo "Tag v${{ steps.version.outputs.version }} does not exist"
           fi
 
+      - name: Set release decision
+        id: release_decision
+        run: |
+          if [ "${{ steps.tagcheck.outputs.exists }}" == "false" ] && ([ "${{ startsWith(steps.commit.outputs.message, 'release:') }}" == "true" ] || [ "${{ steps.commit.outputs.is_version_bump }}" == "true" ]); then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Validate version consistency
         if: steps.tagcheck.outputs.exists == 'false'
         run: |
@@ -138,16 +147,6 @@ jobs:
           git tag -a "v${{ steps.version.outputs.version }}" -m "painlessMesh v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
 
-      - name: Create GitHub Release
-        if: steps.tagcheck.outputs.exists == 'false' && (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true')
-        run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "painlessMesh v${{ steps.version.outputs.version }}" \
-            --notes-file release_notes.txt \
-            --repo ${{ github.repository }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Prepare library package
         if: steps.tagcheck.outputs.exists == 'false' && (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true')
         run: |
@@ -162,23 +161,20 @@ jobs:
           zip -r ../painlessMesh-v${{ steps.version.outputs.version }}.zip painlessMesh/
           cd ..
 
-      - name: Upload library package
+      # The repository publishes immutable releases: a release cannot take an
+      # asset, a new note or an edit once it exists (v2.0.0's upload step got
+      # HTTP 422 for exactly that). The archive is therefore attached in the
+      # same call that creates the release.
+      - name: Create GitHub Release with the library package
         if: steps.tagcheck.outputs.exists == 'false' && (startsWith(steps.commit.outputs.message, 'release:') || steps.commit.outputs.is_version_bump == 'true')
         run: |
-          gh release upload "v${{ steps.version.outputs.version }}" \
+          gh release create "v${{ steps.version.outputs.version }}" \
             "./painlessMesh-v${{ steps.version.outputs.version }}.zip" \
+            --title "painlessMesh v${{ steps.version.outputs.version }}" \
+            --notes-file release_notes.txt \
             --repo ${{ github.repository }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set release decision
-        id: release_decision
-        run: |
-          if [ "${{ steps.tagcheck.outputs.exists }}" == "false" ] && ([ "${{ startsWith(steps.commit.outputs.message, 'release:') }}" == "true" ] || [ "${{ steps.commit.outputs.is_version_bump }}" == "true" ]); then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_release=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Skip notice (no release conditions)
         if: steps.tagcheck.outputs.exists == 'false' && !startsWith(steps.commit.outputs.message, 'release:') && steps.commit.outputs.is_version_bump != 'true'

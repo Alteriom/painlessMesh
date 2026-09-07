@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-09-07
+
+A packaging and documentation release. **No library behaviour changed**: the
+mesh, routing, gateway, failover and OTA code of 2.0.1 is 2.0.0's, and the only
+edit under `src/` is the version macro. It exists to repair two defects in what
+2.0.0 *shipped*, both of which cost a user time before they ever compile
+anything.
+
+### Fixed
+
+- **The installation instructions shipped in 2.0.0 name a PlatformIO package
+  that has no 2.0.0.** The README, user guide and documentation site gave
+  `alteriom/AlteriomPainlessMesh`, and that registry owner stops at 1.10.0 — its
+  account is not one this project can publish from. Every automated release
+  since 1.7.6 went out under `sparck75`, which is now what the documentation
+  names. **Name the owner in `lib_deps`**: the bare name `AlteriomPainlessMesh`
+  matches both owners and PlatformIO warns rather than choosing.
+
+  ```ini
+  lib_deps =
+      sparck75/AlteriomPainlessMesh@^2.0.0
+  ```
+
+- **The v2.0.0 GitHub release carries no library archive.** This repository
+  publishes immutable releases, so the workflow's upload step — which ran after
+  the release was created — was refused with HTTP 422. The job failed before its
+  release decision, which also skipped the npm, GitHub Packages and PlatformIO
+  jobs; those three were published by hand. The archive is now attached in the
+  same call that creates the release, and the decision to publish is taken
+  before any step that can fail, so a failed upload can no longer suppress the
+  publications.
+
+- **PlatformIO publication went under the token's account rather than the
+  organisation.** `pio pkg publish` files a package under the account unless
+  `--owner` names the owner, and the workflow never passed it — which is how the
+  duplicate ownership above arose in the first place. It now passes `--owner`,
+  checks the version against that owner's own version table (the previous check
+  read a `Version:` line `pio pkg show` never prints), publishes the release
+  tag's sources rather than whichever branch was dispatched, and treats an
+  already-listed version as success instead of a failure.
+
+- **`scripts/validate-release.sh` reported a version mismatch that was not
+  there.** Without `jq` it fell back to a grep that matches every `"version"`
+  line in `library.json`, dependencies included, so the value it compared was
+  multi-line. It takes the first match now — the top-level one. CI was never
+  affected; it has `jq`.
+
+### Upgrading
+
+Nothing in the library behaves differently, so upgrading from 2.0.0 is optional.
+Take it if you install through PlatformIO, or if you want the release archive
+attached to the GitHub release. Everything in the 2.0.0 entry below still
+applies, including its *Before you upgrade* section.
+
 ## [2.0.0] - 2026-09-07
 
 painlessMesh 2.0 is a major release. It adds per-message delivery
@@ -317,6 +371,11 @@ processes scan results from the loop for that reason (see the ESP32 entry).
   every PR like the other twenty.
 - `keywords.txt` now lists the bridge, gateway, failover, queue and capacity
   API so the Arduino IDE highlights it.
+- **PlatformIO package owner.** 2.0.0 is published as `sparck75/AlteriomPainlessMesh`,
+  the owner every automated release since 1.7.6 went under. The registry also
+  holds `alteriom/AlteriomPainlessMesh`, which stops at 1.10.0: its account is
+  not one the project can publish from. Name the owner in `lib_deps`; the bare
+  name matches both.
 
 ### Added (post-review series)
 

@@ -92,10 +92,10 @@ git clone https://github.com/Alteriom/painlessMesh.git AlteriomPainlessMesh
 
 #### PlatformIO
 
-Add to your `platformio.ini` (the library is `alteriom/AlteriomPainlessMesh` on the PlatformIO registry):
+Add to your `platformio.ini` (the library is `sparck75/AlteriomPainlessMesh` on the PlatformIO registry):
 ```ini
 lib_deps =
-    alteriom/AlteriomPainlessMesh@^2.0.0
+    sparck75/AlteriomPainlessMesh@^2.0.0
 ```
 
 To follow the integration branch instead of a release, use the repository URL: `https://github.com/Alteriom/painlessMesh.git#Feat/next-release`.
@@ -1327,7 +1327,7 @@ This guide covers **AlteriomPainlessMesh 2.0.0**. Every snippet in it is written
 For the latest updates and releases, visit:
 - [GitHub Releases](https://github.com/Alteriom/painlessMesh/releases)
 - [NPM Package](https://www.npmjs.com/package/@alteriom/painlessmesh)
-- [PlatformIO Registry](https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh)
+- [PlatformIO Registry](https://registry.platformio.org/libraries/sparck75/AlteriomPainlessMesh)
 
 ---
 

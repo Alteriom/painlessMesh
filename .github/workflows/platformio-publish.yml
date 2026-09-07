@@ -17,6 +17,21 @@ on:
         required: false
         type: boolean
         default: false
+      owner:
+        # 'alteriom' exists in the registry but stops at 1.10.0 and belongs to an
+        # account this project cannot publish from: it answered v2.0.0's publish
+        # with "You do not have permission to publish a package using the
+        # alteriom account". Every automated release since 1.7.6 landed under
+        # 'sparck75', which is the owner the documentation names.
+        description: 'Registry owner to publish under'
+        required: false
+        type: string
+        default: 'sparck75'
+      unpublish:
+        description: 'A package spec to unpublish first (e.g. sparck75/AlteriomPainlessMesh@2.0.0), or "undo <spec>" to restore a removed version'
+        required: false
+        type: string
+        default: ''
 
 # Prevent concurrent publications
 concurrency:
@@ -40,6 +55,17 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Check out the release tag for the requested version
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG="v${{ github.event.inputs.version }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git -c advice.detachedHead=false checkout "$TAG"
+            echo "Publishing the sources of $TAG ($(git rev-parse --short HEAD))"
+          else
+            echo "No tag $TAG; publishing the dispatched ref $(git rev-parse --short HEAD)"
+          fi
 
       - name: Setup Python and PlatformIO
         uses: actions/setup-python@v7
@@ -145,12 +171,16 @@ jobs:
           LIBRARY_NAME=$(jq -r '.name' library.json)
           VERSION="${{ steps.version.outputs.version }}"
           
-          # Search for the library
-          if pio pkg search "$LIBRARY_NAME" | grep -q "$LIBRARY_NAME"; then
-            echo "📦 Library '$LIBRARY_NAME' found in PlatformIO Registry"
-            
-            # Try to get version info (this might fail for new libraries)
-            if pio pkg show "$LIBRARY_NAME" 2>/dev/null | grep -q "Version: $VERSION"; then
+          OWNER="${{ github.event.inputs.owner || 'sparck75' }}"
+          # The registry holds this name under more than one owner (every
+          # automated publish before 2.0.0 went under the token's user, not
+          # the organisation), so look at the owner we publish under, and read
+          # `pio pkg show`'s version table rather than a "Version:" line it
+          # never prints.
+          if pio pkg show "$OWNER/$LIBRARY_NAME" >/dev/null 2>&1; then
+            echo "📦 Library '$OWNER/$LIBRARY_NAME' found in PlatformIO Registry"
+
+            if pio pkg show "$OWNER/$LIBRARY_NAME" 2>/dev/null | grep -qE "^$VERSION[[:space:]]"; then
               echo "⚠️  Version $VERSION already exists in registry"
               if [ "${{ github.event.inputs.force_publish }}" != "true" ]; then
                 echo "❌ Version $VERSION already published. Use force_publish to override."
@@ -206,6 +236,17 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Check out the release tag for the requested version
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG="v${{ github.event.inputs.version }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git -c advice.detachedHead=false checkout "$TAG"
+            echo "Publishing the sources of $TAG ($(git rev-parse --short HEAD))"
+          else
+            echo "No tag $TAG; publishing the dispatched ref $(git rev-parse --short HEAD)"
+          fi
 
       - name: Setup Python and PlatformIO
         uses: actions/setup-python@v7
@@ -296,8 +337,31 @@ jobs:
           echo "Tag: ${{ github.event.release.tag_name || github.ref }}"
           echo ""
           
-          # Attempt to publish the library with non-interactive mode
-          if pio pkg publish . --no-interactive; then
+          OWNER="${{ github.event.inputs.owner || 'sparck75' }}"
+          STRAY="${{ github.event.inputs.unpublish }}"
+          if [ -n "$STRAY" ]; then
+            case "$STRAY" in
+              undo\ *)
+                # A removed version is not gone: the registry keeps it and
+                # refuses the same number again. --undo puts it back.
+                echo "↩️  Restoring ${STRAY#undo }..."
+                pio pkg unpublish --undo "${STRAY#undo }" --type library || echo "⚠️  Could not restore ${STRAY#undo }; continuing"
+                ;;
+              *)
+                echo "🧹 Unpublishing $STRAY first..."
+                pio pkg unpublish "$STRAY" --type library || echo "⚠️  Could not unpublish $STRAY; continuing"
+                ;;
+            esac
+          fi
+          echo "Owner: $OWNER"
+          if pio pkg show "$OWNER/$LIBRARY_NAME" 2>/dev/null | grep -qE "^$VERSION[[:space:]]"; then
+            echo "✅ $OWNER/$LIBRARY_NAME@$VERSION is already listed in the registry; nothing to publish"
+            exit 0
+          fi
+
+          # Publish under the organisation. Without --owner the registry files
+          # the package under the token's user, beside the organisation's copy.
+          if pio pkg publish . --owner "$OWNER" --no-interactive; then
             echo "✅ Successfully published to PlatformIO Library Registry!"
             
             # Wait a moment for registry to update
@@ -305,8 +369,10 @@ jobs:
             
             # Verify publication
             echo "🔍 Verifying publication..."
-            if pio pkg search "$LIBRARY_NAME" | grep -q "$LIBRARY_NAME"; then
-              echo "✅ Library verified in registry"
+            if pio pkg show "$OWNER/$LIBRARY_NAME" 2>/dev/null | grep -qE "^$VERSION[[:space:]]"; then
+              echo "✅ $OWNER/$LIBRARY_NAME@$VERSION is listed in the registry"
+            elif pio pkg show "$OWNER/$LIBRARY_NAME" >/dev/null 2>&1; then
+              echo "ℹ️  $OWNER/$LIBRARY_NAME is listed; $VERSION is not visible yet — the registry processes a submission asynchronously and mails the account when done"
               
               # Try to get detailed info
               if pio pkg show "$LIBRARY_NAME" 2>/dev/null; then

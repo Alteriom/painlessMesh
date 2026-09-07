@@ -30,7 +30,10 @@ check_version_consistency() {
     if command -v jq >/dev/null 2>&1; then
         json_version=$(jq -r '.version' "$ROOT_DIR/library.json")
     else
-        json_version=$(grep '"version"' "$ROOT_DIR/library.json" | sed 's/.*"version": "\([^"]*\)".*/\1/')
+        # -m1: the top-level "version" is the first in the file. Without it the
+        # dependency versions match too, the value becomes multi-line, and the
+        # check reports a mismatch that is not there.
+        json_version=$(grep -m1 '"version"' "$ROOT_DIR/library.json" | sed 's/.*"version": "\([^"]*\)".*/\1/')
     fi
     
     if [[ "$prop_version" != "$json_version" ]]; then
