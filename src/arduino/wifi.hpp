@@ -2981,7 +2981,16 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           if (this->semaphoreTake()) {
             Log(CONNECTION,
                 "eventScanDoneHandler: ARDUINO_EVENT_WIFI_SCAN_DONE\n");
-            this->stationScan.scanComplete();
+            // Not scanComplete() here. This callback runs on the core's
+            // network-event task, under the lock that task dispatches
+            // with, and scanComplete() can end in followBridgeChannel(),
+            // which restarts the AP. On core 3.x that waits for events
+            // only this task can deliver: on the rig every esp32-c5 and
+            // esp32-c6 that followed the bridge's channel went silent for
+            // the rest of the run, and stop() then blocked in
+            // removeEvent() on the same lock. The result is consumed by
+            // the station task instead, from update().
+            this->stationScan.scanDone();
             this->semaphoreGive();
           }
         },

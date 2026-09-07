@@ -189,8 +189,22 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
   return;
 }
 
+void ICACHE_FLASH_ATTR StationScan::scanDone() {
+  using namespace painlessmesh::logger;
+  if (!scanRequested) {
+    // A synchronous scan's event (see scanComplete()). Not ours, and the
+    // task may be holding a yielded connectToAP() that must not be lost.
+    Log(CONNECTION, "scanDone(): not this task's scan, ignoring\n");
+    return;
+  }
+  task.yield([this]() { scanComplete(); });
+}
+
 void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   using namespace painlessmesh::logger;
+  // Reached by yield from scanDone(): the task's callback is the scan
+  // again from here, whatever this decides.
+  task.setCallback([this]() { stationScan(); });
   if (!scanRequested) {
     // The scan-done event of a synchronous scan — channel re-detection or
     // a bridge takeover — whose results are consumed and deleted by the
@@ -209,6 +223,7 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
     // completion ignored and the node never joined.
     Log(CONNECTION,
         "scanComplete(): a scan is still running, waiting for it\n");
+    task.delay(10 * SCAN_INTERVAL);  // as stationScan() left it
     return;
   }
   scanRequested = false;

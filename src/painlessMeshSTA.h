@@ -33,6 +33,10 @@ class StationScan {
             uint16_t port, uint8_t channel, bool hidden);
   void stationScan();
   void scanComplete();
+  // The scan-done event has arrived (ESP32: on the core's network-event
+  // task). The result is read by scanComplete() from the station task,
+  // in the loop, where the radio may be reconfigured.
+  void scanDone();
   void filterAPs();
   void connectToAP();
   // Move both Wi-Fi interfaces to a bridge-announced channel immediately.
