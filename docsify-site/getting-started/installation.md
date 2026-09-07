@@ -36,7 +36,7 @@ platform = espressif32
 board = esp32dev
 framework = arduino
 lib_deps = 
-    alteriom/AlteriomPainlessMesh@^2.0.0
+    sparck75/AlteriomPainlessMesh@^2.0.0
     bblanchon/ArduinoJson@^7.4.2
     arkhipenko/TaskScheduler@^4.0.0
 
@@ -46,7 +46,7 @@ platform = espressif8266
 board = nodemcuv2
 framework = arduino
 lib_deps = 
-    alteriom/AlteriomPainlessMesh@^2.0.0
+    sparck75/AlteriomPainlessMesh@^2.0.0
     bblanchon/ArduinoJson@^7.4.2
     arkhipenko/TaskScheduler@^4.0.0
 ```
@@ -55,7 +55,7 @@ lib_deps =
 
 ```bash
 # Install via PlatformIO CLI
-pio pkg install --library "alteriom/AlteriomPainlessMesh@^2.0.0"
+pio pkg install --library "sparck75/AlteriomPainlessMesh@^2.0.0"
 ```
 
 ## Board Support

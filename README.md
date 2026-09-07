@@ -11,7 +11,7 @@
 [![Release](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml/badge.svg)](https://github.com/Alteriom/painlessMesh/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/Alteriom/painlessMesh?label=version)](https://github.com/Alteriom/painlessMesh/releases)
 [![NPM Version](https://img.shields.io/npm/v/@alteriom/painlessmesh?label=npm)](https://www.npmjs.com/package/@alteriom/painlessmesh)
-[![PlatformIO Registry](https://badges.registry.platformio.org/packages/alteriom/library/AlteriomPainlessMesh.svg)](https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh)
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/sparck75/library/AlteriomPainlessMesh.svg)](https://registry.platformio.org/libraries/sparck75/AlteriomPainlessMesh)
 
 </div>
 
@@ -410,11 +410,11 @@ git clone https://github.com/Alteriom/painlessMesh.git AlteriomPainlessMesh
 
 ### PlatformIO
 
-The library is published on the [PlatformIO registry](https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh) as `alteriom/AlteriomPainlessMesh`:
+The library is published on the [PlatformIO registry](https://registry.platformio.org/libraries/sparck75/AlteriomPainlessMesh) as `sparck75/AlteriomPainlessMesh`. The registry also lists an `alteriom/AlteriomPainlessMesh` that stops at 1.10.0; its owner account is not one the project can publish from, so 2.0.0 and later live under `sparck75`, which has carried every automated release since 1.7.6. Name the owner in `lib_deps`, since the bare name matches both:
 
 ```ini
 lib_deps =
-    alteriom/AlteriomPainlessMesh@^2.0.0
+    sparck75/AlteriomPainlessMesh@^2.0.0
 ```
 
 ### Dependencies

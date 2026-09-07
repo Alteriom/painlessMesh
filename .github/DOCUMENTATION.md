@@ -70,7 +70,7 @@ PlatformIO registry shows it.
 | Channel | State |
 |---------|-------|
 | [GitHub Releases](https://github.com/Alteriom/painlessMesh/releases) | Every version, with the Arduino ZIP |
-| [PlatformIO Registry](https://registry.platformio.org/libraries/alteriom/AlteriomPainlessMesh) | `alteriom/AlteriomPainlessMesh` |
+| [PlatformIO Registry](https://registry.platformio.org/libraries/sparck75/AlteriomPainlessMesh) | `sparck75/AlteriomPainlessMesh` |
 | [npm](https://www.npmjs.com/package/@alteriom/painlessmesh) | `@alteriom/painlessmesh` |
 | Arduino Library Manager | `Alteriom PainlessMesh`; the index follows a GitHub release within a day |
 
