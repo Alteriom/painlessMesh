@@ -1391,6 +1391,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   // period allows.
   void checkForBridge() {
     using namespace logger;
+    // Only a failover candidate checks: one with failover enabled and the
+    // router's credentials. Every other node scheduled an election it
+    // could not join, every 30 s, when this guard went missing.
+    if (!bridgeFailoverEnabled || !routerCredentialsConfigured) {
+      return;
+    }
+
     // Don't check if we're already a bridge
     if (this->isBridge()) {
       return;
