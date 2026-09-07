@@ -396,12 +396,10 @@ AlteriomPainlessMesh uses an automated Release Agent for quality assurance:
    - Version tag doesn't exist yet
 
 6. **Follow Release Checklist**
-   - Complete checklist in `.github/agents/release-agent.md`
-   - All 21+ validation checks must pass
+   - Complete checklist in `RELEASE_GUIDE.md`
+   - All validation checks must pass
 
 **Release Agent Documentation:**
-- Complete spec: `.github/agents/release-agent.md`
-- Agent index: `.github/AGENTS_INDEX.md`
 - Release guide: `RELEASE_GUIDE.md`
 
 **Common Release Commands:**
@@ -444,19 +442,11 @@ When helping with releases:
 ## Additional Resources
 
 ### Automation & Agents
-- Agent index: `.github/AGENTS_INDEX.md`
-- Release agent: `.github/agents/release-agent.md`
+- Release validation: `./scripts/release-agent.sh`
 - Release guide: `RELEASE_GUIDE.md`
 
-### File-Specific Instructions
-Check `.github/instructions/` for detailed guidance on:
-- Testing (`testing.instructions.md`)
-- Alteriom packages (`alteriom-packages.instructions.md`)
-- Workflows (`workflows.instructions.md`)
-
 ### Documentation
-- Repository root: `.instructions.md` - Quick start guide
-- Quick reference: `.github/copilot-quick-reference.md`
-- Troubleshooting: `.github/copilot-troubleshooting.md`
-- Development guide: `.github/README-DEVELOPMENT.md`
+- User guide: `USER_GUIDE.md`
+- Contributing guide: `CONTRIBUTING.md`
+- Agent instructions: `CLAUDE.md`
 - Online docs: https://alteriom.github.io/painlessMesh/
