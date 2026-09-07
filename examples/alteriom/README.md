@@ -278,9 +278,7 @@ This validates:
 
 For developers adding new configuration fields to Alteriom packages:
 
-- **[API Design Guidelines](../../docs/API_DESIGN_GUIDELINES.md)** - Comprehensive guide on when to use nested vs flat JSON structures
 - **[Time Field Naming Convention](alteriom_sensor_package.hpp#L10-L55)** - How to handle time-based fields (ms/s variants)
-- **[Boolean Naming Convention](../../docs/BOOLEAN_NAMING_CONVENTION.md)** - Consistent patterns for boolean fields (*Set, *Enabled, is*)
 - **[JSON Structure Guidelines](alteriom_sensor_package.hpp#L57-L121)** - Quick reference for nesting patterns
 
 These guidelines ensure consistency and maintainability across all Alteriom packages.

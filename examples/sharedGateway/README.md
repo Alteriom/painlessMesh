@@ -225,8 +225,7 @@ WiFi.channel()
 
 ## Related Documentation
 
-- [Shared Gateway Design Document](../../docs/design/SHARED_GATEWAY_DESIGN.md)
-- [Bridge Mode Example](../bridge/README.md)
+- [Bridge Mode Example](../bridge/bridge.ino)
 - [Bridge Failover Example](../bridge_failover/README.md)
 - [painlessMesh Documentation](https://gitlab.com/painlessMesh/painlessMesh/-/wikis/home)
 
