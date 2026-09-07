@@ -843,6 +843,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               using namespace logger;
               Log(CONNECTION,
                   "Station link lost unexpectedly, scanning now\n");
+              if (this->shouldContainRoot) {
+                // In a mesh that should have a root, the AP that went away
+                // most likely left for the bridge's channel, and the nodes
+                // still on this one are about to. Re-attaching here first
+                // cost the node the failover test sends from a hundred
+                // seconds at the bridge's start: it joined one remnant,
+                // lost it, joined the next, lost that, and only then looked
+                // at every channel. Look at every channel now; the rules in
+                // scanComplete() decide whether to go.
+                Log(CONNECTION,
+                    "Station link lost in a rooted mesh: re-detecting the "
+                    "mesh channel on this scan\n");
+                this->stationScan.redetectOnNextScan();
+              }
               this->stationScan.task.forceNextIteration();
             }
           }

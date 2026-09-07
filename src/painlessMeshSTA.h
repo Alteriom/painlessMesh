@@ -46,6 +46,10 @@ class StationScan {
     rootedChannel = channel;
     homeStays = 0;
   }
+  // The next scan covers every channel. For a node whose uplink just went
+  // away in a mesh that should have a root: the AP it was on left for the
+  // bridge's channel, and so will whatever is still here.
+  void redetectOnNextScan() { redetectRequested = true; }
   // This one will call the connectToAP next in the task and should be used
   // instead of connectToAP
   void yieldConnectToAP() {
