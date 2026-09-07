@@ -21,7 +21,12 @@ the version commit reaches `main`.
    workflow owns tags and publication.
 
    The workflow tags only when the push to `main` carries a version-file
-   change or a head commit whose message starts with `release:`. When the
+   change or a head commit whose message starts with `release:`. The
+   repository publishes immutable releases: a release takes its assets and
+   notes when it is created and cannot be edited afterwards, so a failed
+   publication is repaired by `manual-publish.yml` (npm, GitHub Packages) and
+   `platformio-publish.yml`, both dispatched with the tag, not by re-running
+   the release workflow. When the
    version metadata was bumped earlier in the cycle (as for 2.0.0), merge the
    release pull request with a commit titled `release: vX.Y.Z` — a squash or
    merge commit with that title — or the push is ignored.
