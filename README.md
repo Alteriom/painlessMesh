@@ -596,9 +596,11 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v2.0.0 (September 7, 2026)
+## Latest Release: v2.0.1 (September 7, 2026)
 
-**Delivery confirmation, a unified send path, and a mesh that holds together on real hardware**
+**A packaging fix over 2.0.0 — no library behaviour changed.** 2.0.0's installation instructions named a PlatformIO package that has no 2.0.0 (`alteriom/…` stops at 1.10.0; releases go out under `sparck75`), and its GitHub release carries no library archive because the upload was refused by an immutable release. Both are fixed; upgrading from 2.0.0 is optional.
+
+**2.0.0 — delivery confirmation, a unified send path, and a mesh that holds together on real hardware**
 
 - `sendSingle()` and `sendBroadcast()` accept a delivery callback — it fires with `delivered=true` and the round-trip latency on acknowledgment, or `delivered=false` on timeout — and a `SendOptions` struct that carries a priority and a callback in one call. Priority is kept across hops.
 - Thirty-odd defects in gateway failover, channel following, routing and the station scan, every one found in the serial logs of a six-family hardware rig and fixed there: a bridge that stops says so, the mesh follows an elected bridge to its channel and treats it as home, a node is in one place in every neighbour's tree, a dead connection is not a route, a stale scan does not consume a live one.
