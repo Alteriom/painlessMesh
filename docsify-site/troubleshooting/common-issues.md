@@ -293,7 +293,7 @@ snprintf(buffer, sizeof(buffer), "{\"value\":%d}", value);
 Add to `platformio.ini`:
 ```ini
 lib_deps = 
-    alteriom/AlteriomPainlessMesh@^2.0.0
+    sparck75/AlteriomPainlessMesh@^2.0.0
     bblanchon/ArduinoJson@^7.4.2
     arkhipenko/TaskScheduler@^4.0.0
 ```
@@ -318,7 +318,7 @@ Serial.printf("painlessMesh version: %s\n", PAINLESSMESH_VERSION);
 In `platformio.ini`:
 ```ini
 lib_deps = 
-    alteriom/AlteriomPainlessMesh@2.0.0
+    sparck75/AlteriomPainlessMesh@2.0.0
     bblanchon/ArduinoJson@7.4.2
     arkhipenko/TaskScheduler@4.0.0
 ```

@@ -317,6 +317,11 @@ processes scan results from the loop for that reason (see the ESP32 entry).
   every PR like the other twenty.
 - `keywords.txt` now lists the bridge, gateway, failover, queue and capacity
   API so the Arduino IDE highlights it.
+- **PlatformIO package owner.** 2.0.0 is published as `sparck75/AlteriomPainlessMesh`,
+  the owner every automated release since 1.7.6 went under. The registry also
+  holds `alteriom/AlteriomPainlessMesh`, which stops at 1.10.0: its account is
+  not one the project can publish from. Name the owner in `lib_deps`; the bare
+  name matches both.
 
 ### Added (post-review series)
 
