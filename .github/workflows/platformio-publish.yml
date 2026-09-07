@@ -1,22 +1,3 @@
-          if [ -n "$STRAY" ]; then
-            case "$STRAY" in
-              undo *)
-                # A removed version is not gone: the registry keeps it and
-                # refuses the same number again. --undo puts it back.
-                echo "↩️  Restoring ${STRAY#undo }..."
-                pio pkg unpublish --undo "${STRAY#undo }" --type library || echo "⚠️  Could not restore ${STRAY#undo }; continuing"
-                ;;
-              *)
-                echo "🧹 Unpublishing $STRAY first..."
-                pio pkg unpublish "$STRAY" --type library || echo "⚠️  Could not unpublish $STRAY; continuing"
-                ;;
-            esac
-          fi
-          echo "Owner: $OWNER"
-          if pio pkg show "$OWNER/$LIBRARY_NAME" 2>/dev/null | grep -qE "^$VERSION[[:space:]]"; then
-            echo "✅ $OWNER/$LIBRARY_NAME@$VERSION is already listed in the registry; nothing to publish"
-            exit 0
-          fi
 name: PlatformIO Library Publishing
 
 on:
@@ -354,10 +335,24 @@ jobs:
           OWNER="${{ github.event.inputs.owner || 'alteriom' }}"
           STRAY="${{ github.event.inputs.unpublish }}"
           if [ -n "$STRAY" ]; then
-            echo "🧹 Unpublishing $STRAY first..."
-            pio pkg unpublish "$STRAY" --type library || echo "⚠️  Could not unpublish $STRAY; continuing"
+            case "$STRAY" in
+              undo\ *)
+                # A removed version is not gone: the registry keeps it and
+                # refuses the same number again. --undo puts it back.
+                echo "↩️  Restoring ${STRAY#undo }..."
+                pio pkg unpublish --undo "${STRAY#undo }" --type library || echo "⚠️  Could not restore ${STRAY#undo }; continuing"
+                ;;
+              *)
+                echo "🧹 Unpublishing $STRAY first..."
+                pio pkg unpublish "$STRAY" --type library || echo "⚠️  Could not unpublish $STRAY; continuing"
+                ;;
+            esac
           fi
           echo "Owner: $OWNER"
+          if pio pkg show "$OWNER/$LIBRARY_NAME" 2>/dev/null | grep -qE "^$VERSION[[:space:]]"; then
+            echo "✅ $OWNER/$LIBRARY_NAME@$VERSION is already listed in the registry; nothing to publish"
+            exit 0
+          fi
 
           # Publish under the organisation. Without --owner the registry files
           # the package under the token's user, beside the organisation's copy.
