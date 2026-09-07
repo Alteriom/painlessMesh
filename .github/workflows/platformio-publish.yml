@@ -1,3 +1,22 @@
+          if [ -n "$STRAY" ]; then
+            case "$STRAY" in
+              undo *)
+                # A removed version is not gone: the registry keeps it and
+                # refuses the same number again. --undo puts it back.
+                echo "↩️  Restoring ${STRAY#undo }..."
+                pio pkg unpublish --undo "${STRAY#undo }" --type library || echo "⚠️  Could not restore ${STRAY#undo }; continuing"
+                ;;
+              *)
+                echo "🧹 Unpublishing $STRAY first..."
+                pio pkg unpublish "$STRAY" --type library || echo "⚠️  Could not unpublish $STRAY; continuing"
+                ;;
+            esac
+          fi
+          echo "Owner: $OWNER"
+          if pio pkg show "$OWNER/$LIBRARY_NAME" 2>/dev/null | grep -qE "^$VERSION[[:space:]]"; then
+            echo "✅ $OWNER/$LIBRARY_NAME@$VERSION is already listed in the registry; nothing to publish"
+            exit 0
+          fi
 name: PlatformIO Library Publishing
 
 on:
@@ -23,7 +42,7 @@ on:
         type: string
         default: 'alteriom'
       unpublish:
-        description: 'A package spec to unpublish first, e.g. sparck75/AlteriomPainlessMesh.0.0 (a stray publish under the wrong owner)'
+        description: 'A package spec to unpublish first (e.g. sparck75/AlteriomPainlessMesh@2.0.0), or "undo <spec>" to restore a removed version'
         required: false
         type: string
         default: ''
