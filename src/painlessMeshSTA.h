@@ -128,6 +128,22 @@ class StationScan {
   // during that window came back after the sender's eight-second budget
   // and counted as a loss — one in every two or three soak runs.
   bool redetectRequested = false;
+  // The scan in flight covers every channel (the fast re-detection of a
+  // node with nothing under its AP), or is one slice of a sliced hunt.
+  bool scanAllChannels = false;
+  uint8_t scanSlice = 0;
+  // A re-detection with stations under this node's AP is done a channel at
+  // a time: an all-channel scan takes the AP off its channel for two to
+  // three seconds, and an ESP8266 station does not survive that — on the
+  // rig the soak's sender ran one with the ESP8266 as its child and lost
+  // it for the rest of the test. A slice is one channel for 120 ms, then
+  // 1.5 s at home; the mesh APs seen on each channel are tallied, and the
+  // decision is taken on the own-channel scan that follows the last slice,
+  // by the same rules as the all-channel scan.
+  uint8_t huntChannel = 0;
+  bool huntPending = false;
+  std::map<uint8_t, size_t> huntCounts;
+  std::map<uint8_t, int8_t> huntRssi;
   // Doubles the scan interval of a connected node that keeps finding the
   // mesh only on its own channel while told the mesh has a root: a mesh
   // that is simply rootless would otherwise cost every node a full

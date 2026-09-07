@@ -45,6 +45,12 @@ void ICACHE_FLASH_ATTR StationScan::init(painlessmesh::wifi::Mesh *pMesh,
   consecutiveEmptyScans = 0;
   scanRequested = false;
   redetectRequested = false;
+  scanAllChannels = false;
+  scanSlice = 0;
+  huntChannel = 0;
+  huntPending = false;
+  huntCounts.clear();
+  huntRssi.clear();
   orphanScanBackoff = 0;
   orphanRedetects = 0;
   everRooted = false;
@@ -103,14 +109,44 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
   // four seconds off the mesh channel, and the point of doing it
   // asynchronously is lost if the radio is away that long.
   uint8_t scanChannel = channel;
+  bool allChannels = false;
+  uint8_t slice = 0;
   if (redetectRequested) {
-    Log(CONNECTION,
-        "stationScan(): re-detecting the mesh channel, scanning all channels\n");
-    scanChannel = 0;
+    redetectRequested = false;
+    size_t stationsUnderAp = 0;
+    for (auto&& sub : mesh->subs) {
+      if (sub->connected() && !sub->station) ++stationsUnderAp;
+    }
+    if (stationsUnderAp == 0) {
+      Log(CONNECTION,
+          "stationScan(): re-detecting the mesh channel, scanning all channels\n");
+      allChannels = true;
+    } else {
+      Log(CONNECTION,
+          "stationScan(): re-detecting the mesh channel a channel at a time: "
+          "%u station(s) under this AP would drop during an all-channel scan\n",
+          (unsigned)stationsUnderAp);
+      huntChannel = 1;
+      huntCounts.clear();
+      huntRssi.clear();
+    }
   }
+  if (huntChannel != 0) {
+    if (huntChannel == mesh->_meshChannel) ++huntChannel;
+    if (huntChannel > 13) {
+      // Every other channel has been looked at; this scan is the node's own
+      // channel, and scanComplete() decides with the tally.
+      huntChannel = 0;
+      huntPending = true;
+    } else {
+      slice = huntChannel;
+      scanChannel = slice;
+    }
+  }
+  if (allChannels) scanChannel = 0;
 #ifdef ESP32
   int16_t started = WiFi.scanNetworks(true, hidden, false,
-                                      redetectRequested ? 120U : 300U,
+                                      (allChannels || slice) ? 120U : 300U,
                                       scanChannel);
 #elif defined(ESP8266)
   // WiFi.scanNetworksAsync([&](int networks) { this->scanComplete(); }, true);
@@ -141,6 +177,8 @@ void ICACHE_FLASH_ATTR StationScan::stationScan() {
     return;
   }
   scanRequested = true;
+  scanAllChannels = allChannels;
+  scanSlice = slice;
 
   task.delay(10 * SCAN_INTERVAL);  // Scan should be completed by then and next
                                    // step called. If not then we restart here.
@@ -183,6 +221,32 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
 
   Log(CONNECTION, "scanComplete(): num = %d\n", num);
 
+  // One slice of a sliced hunt: tally the mesh APs it saw on channels other
+  // than this node's, then rest at home before the next slice. Nothing
+  // else is decided until the hunt has covered every channel.
+  uint8_t slice = scanSlice;
+  scanSlice = 0;
+  if (slice != 0) {
+    size_t seen = 0;
+    for (auto i = 0; i < num; ++i) {
+      TSTRING found = WiFi.SSID(i);
+      bool isMesh = found == ssid || (found.equals("") && mesh->_meshHidden);
+      uint8_t ch = WiFi.channel(i);
+      if (!isMesh || ch == mesh->_meshChannel ||
+          !painlessmesh::gateway::isValidMeshChannel(ch))
+        continue;
+      ++huntCounts[ch];
+      ++seen;
+      int8_t rssi = WiFi.RSSI(i);
+      if (!huntRssi.count(ch) || rssi > huntRssi[ch]) huntRssi[ch] = rssi;
+    }
+    Log(CONNECTION, "scanComplete(): hunt slice channel %u: %u mesh AP(s)\n",
+        slice, (unsigned)seen);
+    ++huntChannel;
+    task.delay(1500 * TASK_MILLISECOND);
+    return;
+  }
+
   // A re-detection scan covered every channel. The mesh seen on a channel
   // other than this node's may be the partition it is looking for — or a
   // straggler: on the rig, a node still in gateway mode on the router's
@@ -190,13 +254,32 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   // by a node that had three peers here and left them for it. What tells
   // the two apart is size. The mesh APs on each other channel are
   // counted; the channel with the most is the candidate, the strongest
-  // signal breaks a tie, and whether to go is decided below.
-  bool redetecting = redetectRequested;
-  redetectRequested = false;
+  // signal breaks a tie, and whether to go is decided below. A sliced hunt
+  // arrives here with its tally already made.
+  bool redetecting = scanAllChannels || huntPending;
+  scanAllChannels = false;
   uint8_t elsewhere = 0;
   int8_t elsewhereRssi = -128;
   size_t elsewhereCount = 0;
   std::map<uint8_t, size_t> meshApsOnChannel;
+  if (huntPending) {
+    huntPending = false;
+    for (auto&& entry : huntCounts) {
+      meshApsOnChannel[entry.first] = entry.second;
+      int8_t rssi = huntRssi.count(entry.first) ? huntRssi[entry.first] : -128;
+      if (entry.second > elsewhereCount ||
+          (entry.second == elsewhereCount && rssi > elsewhereRssi)) {
+        elsewhere = entry.first;
+        elsewhereCount = entry.second;
+        elsewhereRssi = rssi;
+      }
+    }
+    Log(CONNECTION,
+        "scanComplete(): sliced hunt done: mesh on %u other channel(s)%s\n",
+        (unsigned)huntCounts.size(), elsewhere ? "" : ", none elsewhere");
+    huntCounts.clear();
+    huntRssi.clear();
+  }
 
   for (auto i = 0; i < num; ++i) {
     WiFi_AP_Record_t record;
@@ -545,31 +628,8 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
     //     channel, filter their peers as known, count empty scans, and were
     //     gated out of re-detection by the WL_CONNECTED check for good.
     bool orphaned = mesh->shouldContainRoot && !isRooted;
-    // An all-channel scan takes this node's AP off its channel for two to
-    // three seconds, and an ESP8266 station under it does not survive that:
-    // on the rig the soak's sender ran its "no root in sight" hunt with the
-    // ESP8266 as its child, the child dropped, and two sends in a row got
-    // no acknowledgement. An orphan with stations under its AP hunts only
-    // when it has somewhere to go — it was rooted once, and is away from
-    // that channel. At home the root comes back here; in a mesh that never
-    // had one there is nothing to find, and its leaves, which have nobody
-    // to drop, still look and still leave for a bridge that appears.
-    size_t stationsUnderAp = 0;
-    for (auto&& sub : mesh->subs) {
-      if (sub->connected() && !sub->station) ++stationsUnderAp;
-    }
-    bool awayFromHome = rootedChannel != 0 && mesh->_meshChannel != rootedChannel;
-    bool mayHunt = WiFi.status() != WL_CONNECTED || stationsUnderAp == 0 ||
-                   (everRooted && awayFromHome);
     if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD &&
-        (WiFi.status() != WL_CONNECTED || orphaned) && channel > 0 && !mayHunt) {
-      Log(CONNECTION,
-          "connectToAP(): No root in sight for %d scans, but %u station(s) "
-          "under this AP would drop during an all-channel scan; leaving the "
-          "hunt to them\n",
-          consecutiveEmptyScans, (unsigned)stationsUnderAp);
-    } else if (consecutiveEmptyScans >= EMPTY_SCAN_THRESHOLD &&
-               (WiFi.status() != WL_CONNECTED || orphaned) && channel > 0) {
+        (WiFi.status() != WL_CONNECTED || orphaned) && channel > 0) {
       Log(CONNECTION,
           "connectToAP(): No mesh nodes found for %d scans%s, re-detecting "
           "the mesh channel on the next scan\n",
