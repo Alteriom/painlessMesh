@@ -77,7 +77,7 @@ jobs:
 
       - name: Upload serial logs + results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hil-logs-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
