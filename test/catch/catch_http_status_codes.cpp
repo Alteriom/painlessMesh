@@ -2,6 +2,7 @@
 #include "catch2/catch.hpp"
 #include "Arduino.h"
 #include "catch_utils.hpp"
+#include "painlessmesh/gateway.hpp"
 #include "painlessmesh/logger.hpp"
 
 using namespace painlessmesh;
@@ -20,24 +21,17 @@ painlessmesh::logger::LogClass Log;
  */
 
 /**
- * Helper function to determine if an HTTP status code should be treated as success
- * 
- * NOTE: This intentionally duplicates the logic in wifi.hpp initGatewayInternetHandler()
- * to serve as:
- * 1. A specification/documentation of the expected behavior
- * 2. A regression test that will fail if the production code changes unexpectedly
- * 
- * If you change this logic, you MUST also update the production code in wifi.hpp
- * and vice versa.
+ * Helper calling the production classifier used by the gateway handler.
+ *
+ * This used to be a local re-implementation taking a uint16_t. That mirrored
+ * the production bug rather than catching it: wifi.hpp also stored the
+ * HTTPClient result in a uint16_t, so its negative transport errors wrapped
+ * (-1 became 65535) and were reported as HTTP status codes. Both sides now go
+ * through painlessmesh::gateway::classifyHttpResult(int), so these tests
+ * exercise the real code path.
  */
-bool isHttpStatusSuccess(uint16_t httpCode) {
-    // Only specific 2xx status codes indicate genuine success
-    // 200 OK: Standard successful response
-    // 201 Created: Resource successfully created
-    // 202 Accepted: Request accepted for processing
-    // 204 No Content: Successful with no response body
-    return (httpCode == 200 || httpCode == 201 || 
-            httpCode == 202 || httpCode == 204);
+bool isHttpStatusSuccess(int httpCode) {
+    return gateway::classifyHttpResult(httpCode).success;
 }
 
 SCENARIO("HTTP status codes are correctly classified as success or failure", "[http][status][issue]") {
@@ -408,6 +402,105 @@ SCENARIO("HTTP 203 retry behavior resolves the permanent response issue", "[http
                 INFO("- Attempt 3: Wait 4s -> HTTP 203");  
                 INFO("- Attempt 4: Wait 8s -> HTTP 200 SUCCESS");
                 INFO("  (or max retries reached with clear failure)");
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Issue #446: HTTPClient transport errors are negative, not HTTP statuses
+// ============================================================================
+
+SCENARIO("HTTPClient transport errors are not mistaken for HTTP statuses",
+         "[http][transport][issue446]") {
+    GIVEN("The negative codes HTTPClient returns when no response arrives") {
+        INFO("ORIGINAL PROBLEM:");
+        INFO("- Node reported: 'Cloud send failed: HTTP 65535'");
+        INFO("- 65535 is not an HTTP status; it is (uint16_t)-1");
+        INFO("");
+        INFO("ROOT CAUSE:");
+        INFO("- wifi.hpp stored HTTPClient::POST()/GET() in a uint16_t");
+        INFO("- HTTPC_ERROR_CONNECTION_REFUSED (-1) wrapped to 65535");
+        INFO("- 65535 passes `httpCode > 0`, so the errorToString() branch");
+        INFO("  was unreachable and the real cause never reached the node");
+
+        WHEN("A connection is refused (HTTPC_ERROR_CONNECTION_REFUSED, -1)") {
+            auto outcome = gateway::classifyHttpResult(-1);
+
+            THEN("It is a transport error, not a status code") {
+                REQUIRE(outcome.transportError == true);
+                REQUIRE(outcome.success == false);
+            }
+
+            THEN("The acknowledgment carries status 0, never 65535") {
+                REQUIRE(outcome.ackStatus == 0);
+                REQUIRE(outcome.ackStatus != 65535);
+            }
+
+            THEN("handleGatewayAck() treats that status as retryable") {
+                REQUIRE(isHttpStatusRetryable(outcome.ackStatus) == true);
+
+                INFO("Before the fix the ack carried 65535, which falls into");
+                INFO("the non-retryable bucket, so a transient network failure");
+                INFO("was reported to the sketch as permanent.");
+            }
+        }
+
+        WHEN("Any other HTTPC_ERROR_* code is returned") {
+            THEN("Every negative code classifies as a transport error") {
+                // -1 .. -11 are the HTTPC_ERROR_* range in the Arduino cores
+                for (int code = -1; code >= -11; --code) {
+                    auto outcome = gateway::classifyHttpResult(code);
+                    INFO("HTTPClient error code: " << code);
+                    REQUIRE(outcome.transportError == true);
+                    REQUIRE(outcome.success == false);
+                    REQUIRE(outcome.ackStatus == 0);
+                }
+            }
+        }
+
+        WHEN("Zero is returned") {
+            auto outcome = gateway::classifyHttpResult(0);
+
+            THEN("It is treated as a transport error, not a status") {
+                REQUIRE(outcome.transportError == true);
+                REQUIRE(outcome.success == false);
+                REQUIRE(outcome.ackStatus == 0);
+            }
+        }
+    }
+}
+
+SCENARIO("Real HTTP statuses survive classification unchanged",
+         "[http][transport][issue446]") {
+    GIVEN("Positive codes returned by HTTPClient") {
+        WHEN("A success code is returned") {
+            auto outcome = gateway::classifyHttpResult(200);
+
+            THEN("It is forwarded as-is and is not a transport error") {
+                REQUIRE(outcome.transportError == false);
+                REQUIRE(outcome.success == true);
+                REQUIRE(outcome.ackStatus == 200);
+            }
+        }
+
+        WHEN("A failure code is returned") {
+            auto outcome = gateway::classifyHttpResult(503);
+
+            THEN("The status reaches the origin node so it can be retried") {
+                REQUIRE(outcome.transportError == false);
+                REQUIRE(outcome.success == false);
+                REQUIRE(outcome.ackStatus == 503);
+                REQUIRE(isHttpStatusRetryable(outcome.ackStatus) == true);
+            }
+        }
+
+        WHEN("A code larger than uint16_t is somehow returned") {
+            auto outcome = gateway::classifyHttpResult(70000);
+
+            THEN("It saturates rather than wrapping to a plausible status") {
+                REQUIRE(outcome.ackStatus == 65535);
+                REQUIRE(outcome.success == false);
             }
         }
     }

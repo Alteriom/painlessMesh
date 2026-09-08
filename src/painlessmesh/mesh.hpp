@@ -1546,8 +1546,17 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   void enableInternetHealthCheck() {
     using namespace logger;
     if (internetHealthCheckTask != nullptr) {
-      Log(GENERAL, "enableInternetHealthCheck(): Already enabled\n");
-      return;
+      if (internetHealthCheckTask->isEnabled()) {
+        Log(GENERAL, "enableInternetHealthCheck(): Already enabled\n");
+        return;
+      }
+      // A stop()/re-init cycle -- what bridge promotion does before calling
+      // initAsBridge() again -- disables every task and drops it from the
+      // reusable pool, but this member still points at it. Refusing here
+      // would leave a re-initialised node with no health check at all, and
+      // so with hasLocalInternet() stuck false (issue #445). Re-arm instead,
+      // releasing the spent task so the pool can reclaim it.
+      internetHealthCheckTask = nullptr;
     }
     
     Log(GENERAL, "enableInternetHealthCheck(): Starting health check task (interval: %u ms)\n",
@@ -1678,20 +1687,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       request.callback = callback;
       pendingInternetRequests[messageId] = request;
 
-      gateway::GatewayDataPackage pkg;
-      pkg.from = this->nodeId;
-      pkg.dest = this->nodeId;
-      pkg.messageId = messageId;
-      pkg.originNode = this->nodeId;
-      pkg.timestamp = this->getNodeTime();
-      pkg.priority = priority;
-      pkg.destination = destination;
-      pkg.payload = payload;
-      pkg.contentType = "application/json";
-      pkg.retryCount = 0;
-      pkg.requiresAck = true;
-      protocol::Variant variant(&pkg);
-      this->callbackList.execute(protocol::GATEWAY_DATA, variant, nullptr, 0);
+      dispatchInternetRequestLocally(messageId, priority, 0, destination,
+                                     payload);
       return messageId;
     }
 
@@ -2042,6 +2039,37 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
   /**
+   * Run a gateway request against this node's own uplink
+   *
+   * The package goes to this node's own GATEWAY_DATA handler, so the
+   * acknowledgment, pending-request tracking and callback semantics stay
+   * identical to a request served by a peer gateway.
+   *
+   * The handler runs synchronously and its acknowledgment can erase the
+   * pending entry, so callers must not hold a reference into
+   * pendingInternetRequests across this call -- pass copies.
+   */
+  void dispatchInternetRequestLocally(uint32_t messageId, uint8_t priority,
+                                      uint8_t retryCount,
+                                      const TSTRING& destination,
+                                      const TSTRING& payload) {
+    gateway::GatewayDataPackage pkg;
+    pkg.from = this->nodeId;
+    pkg.dest = this->nodeId;
+    pkg.messageId = messageId;
+    pkg.originNode = this->nodeId;
+    pkg.timestamp = this->getNodeTime();
+    pkg.priority = priority;
+    pkg.destination = destination;
+    pkg.payload = payload;
+    pkg.contentType = "application/json";
+    pkg.retryCount = retryCount;
+    pkg.requiresAck = true;
+    protocol::Variant variant(&pkg);
+    this->callbackList.execute(protocol::GATEWAY_DATA, variant, nullptr, 0);
+  }
+
+  /**
    * Schedule retry for a failed Internet request
    */
   void scheduleInternetRetry(uint32_t messageId) {
@@ -2086,6 +2114,28 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     }
 
     PendingInternetRequest& request = it->second;
+
+    // A request this node is serving from its own uplink never had a mesh
+    // hop to repeat. The routing path below needs an active peer and a
+    // discovered bridge, so a lone gateway would burn every retry without
+    // issuing a single HTTP request and then report "Max retries exceeded"
+    // in place of the transport error that actually occurred -- the same
+    // dishonest failure issue #446 was about.
+    //
+    // Copy what the redispatch needs first: the local handler runs
+    // synchronously and can erase this entry, leaving `request` dangling.
+    if (request.gatewayNodeId == this->nodeId && hasLocalInternet()) {
+      const uint8_t priority = request.priority;
+      const uint8_t retryCount = request.retryCount;
+      const TSTRING destination = request.destination;
+      const TSTRING payload = request.payload;
+      Log(logger::COMMUNICATION,
+          "retryInternetRequest(): Retrying msgId=%u on the local uplink\n",
+          messageId);
+      dispatchInternetRequestLocally(messageId, priority, retryCount,
+                                     destination, payload);
+      return;
+    }
 
     // Check mesh connectivity before attempting retry
     // During bridge failover, connection may be temporarily lost

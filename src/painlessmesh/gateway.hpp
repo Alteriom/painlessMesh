@@ -966,6 +966,54 @@ class GatewayDataPackage : public plugin::SinglePackage {
 };
 
 /**
+ * @brief The outcome of a gateway HTTP request, classified for the ack
+ *
+ * HTTPClient::GET()/POST() return an int with two distinct meanings: a
+ * positive value is an HTTP status code from the destination, while a
+ * negative value is one of the client's own transport errors (HTTPC_ERROR_*,
+ * e.g. -1 for a refused connection or -11 for a read timeout). Zero is not
+ * produced by either.
+ *
+ * GatewayAckPackage::httpStatus is a uint16_t, so a negative code cannot be
+ * forwarded as-is. Transport errors are reported as httpStatus 0, which is
+ * what Mesh::handleGatewayAck() already treats as a retryable network error;
+ * the human-readable cause travels in GatewayAckPackage::error instead.
+ */
+struct HttpRequestOutcome {
+  /** True only for status codes that indicate genuine delivery. */
+  bool success = false;
+
+  /** Value to place in GatewayAckPackage::httpStatus (0 for transport errors). */
+  uint16_t ackStatus = 0;
+
+  /** True when the client failed before any HTTP status was received. */
+  bool transportError = false;
+};
+
+/**
+ * @brief Classify an HTTPClient return value for the gateway acknowledgment
+ *
+ * Only 200, 201, 202 and 204 count as success. Other 2xx codes (notably 203,
+ * Non-Authoritative Information) indicate a cached or proxied response rather
+ * than delivery to the destination service, so they are failures.
+ *
+ * @param rawCode The int returned by HTTPClient::GET() or ::POST()
+ * @return Classified outcome, safe to place in a GatewayAckPackage
+ */
+inline HttpRequestOutcome classifyHttpResult(int rawCode) {
+  HttpRequestOutcome outcome;
+  if (rawCode <= 0) {
+    outcome.transportError = true;
+    return outcome;
+  }
+  outcome.ackStatus =
+      static_cast<uint16_t>(rawCode > 0xFFFF ? 0xFFFF : rawCode);
+  outcome.success = (rawCode == 200 || rawCode == 201 || rawCode == 202 ||
+                     rawCode == 204);
+  return outcome;
+}
+
+/**
  * @brief Gateway Acknowledgment Package for delivery confirmations
  *
  * This package is sent from the gateway back to the origin node to confirm
