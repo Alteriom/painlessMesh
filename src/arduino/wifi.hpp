@@ -492,6 +492,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Step 6: Setup gateway Internet handler
     initGatewayInternetHandler();
 
+    // Step 7: Start the health checker that drives hasLocalInternet().
+    // Without it that flag stays false for the life of the node, so the
+    // local short-circuit in sendToInternet() never fires and a bridge
+    // asking its own uplink fell through to the mesh-routing path -- which
+    // fails with "No active mesh connections" whenever the bridge has no
+    // peer yet, even though the router link is up (issue #445).
+    // initAsSharedGateway() has always done this; initAsBridge() did not.
+    //
+    // No configureInternetHealthCheck() call here: a bridge has no
+    // SharedGatewayConfig, the checker's own defaults (8.8.8.8:53, 30 s,
+    // 5 s) already match that struct's, and configuring would clobber any
+    // setInternetCheckTarget() the sketch made before init.
+    enableInternetHealthCheck();
+
     Log(STARTUP, "=== Bridge Mode Active ===\n");
     Log(STARTUP, "  Mesh SSID: %s\n", meshSSID.c_str());
     Log(STARTUP, "  Mesh Channel: %d%s\n", detectedChannel, 
@@ -2864,7 +2878,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           http.setTimeout(GATEWAY_HTTP_TIMEOUT_MS);
 
           bool success = false;
-          uint16_t httpCode = 0;
+          // HTTPClient returns an int: a positive value is an HTTP status
+          // code, a negative one is its own transport error (HTTPC_ERROR_*,
+          // -1 for a refused connection, -11 for a read timeout, ...). This
+          // was a uint16_t, which wrapped -1 to 65535 -- a value that passes
+          // `httpCode > 0`, so every transport failure was reported to the
+          // origin node as "HTTP 65535" (issue #446), the errorToString()
+          // branch below was unreachable, and handleGatewayAck() classified a
+          // transient network failure as a non-retryable HTTP status.
+          int httpCode = 0;
           TSTRING error = "";
 
 #ifdef ESP8266
@@ -2903,21 +2925,22 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             httpCode = http.GET();
           }
 
-          if (httpCode > 0) {
-            // Only specific 2xx status codes indicate genuine success
-            // 200 OK: Standard successful response
-            // 201 Created: Resource successfully created
-            // 202 Accepted: Request accepted for processing
-            // 204 No Content: Successful with no response body
-            //
-            // Other 2xx codes like 203 (Non-Authoritative Information) often
-            // indicate cached/proxied responses that may not represent actual
-            // delivery to the destination service (e.g., WhatsApp API).
-            //
-            // 3xx redirects are not automatically followed
-            success = (httpCode == 200 || httpCode == 201 || 
-                      httpCode == 202 || httpCode == 204);
-            
+          // Only specific 2xx status codes indicate genuine success:
+          // 200 OK, 201 Created, 202 Accepted, 204 No Content.
+          //
+          // Other 2xx codes like 203 (Non-Authoritative Information) often
+          // indicate cached/proxied responses that may not represent actual
+          // delivery to the destination service (e.g., WhatsApp API).
+          //
+          // 3xx redirects are not automatically followed.
+          //
+          // The classification lives in painlessmesh::gateway so the desktop
+          // test suite can exercise it; this file is ESP-only and never
+          // compiled by the Catch2 build.
+          const auto outcome = gateway::classifyHttpResult(httpCode);
+          success = outcome.success;
+
+          if (!outcome.transportError) {
             if (success) {
               Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
             } else if (httpCode >= 200 && httpCode < 300) {
@@ -2957,8 +2980,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
           http.end();
 
-          // Send acknowledgment back
-          finish(success, httpCode, error);
+          // Send acknowledgment back. Transport errors carry status 0, the
+          // value handleGatewayAck() treats as a retryable network error.
+          finish(success, outcome.ackStatus, error);
 #else
         // Non-ESP platform - send error
         finish(false, 0, "HTTP client not available on this platform");

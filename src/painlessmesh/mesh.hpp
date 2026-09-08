@@ -1546,8 +1546,17 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   void enableInternetHealthCheck() {
     using namespace logger;
     if (internetHealthCheckTask != nullptr) {
-      Log(GENERAL, "enableInternetHealthCheck(): Already enabled\n");
-      return;
+      if (internetHealthCheckTask->isEnabled()) {
+        Log(GENERAL, "enableInternetHealthCheck(): Already enabled\n");
+        return;
+      }
+      // A stop()/re-init cycle -- what bridge promotion does before calling
+      // initAsBridge() again -- disables every task and drops it from the
+      // reusable pool, but this member still points at it. Refusing here
+      // would leave a re-initialised node with no health check at all, and
+      // so with hasLocalInternet() stuck false (issue #445). Re-arm instead,
+      // releasing the spent task so the pool can reclaim it.
+      internetHealthCheckTask = nullptr;
     }
     
     Log(GENERAL, "enableInternetHealthCheck(): Starting health check task (interval: %u ms)\n",
