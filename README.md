@@ -596,9 +596,11 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v2.0.1 (September 7, 2026)
+## Latest Release: v2.0.2 (September 8, 2026)
 
-**A packaging fix over 2.0.0 — no library behaviour changed.** 2.0.0's installation instructions named a PlatformIO package that has no 2.0.0 (`alteriom/…` stops at 1.10.0; releases go out under `sparck75`), and its GitHub release carries no library archive because the upload was refused by an immutable release. Both are fixed; upgrading from 2.0.0 is optional.
+**Two gateway fixes — upgrade if any node of yours is a bridge.** On 2.0.1 a bridge could not reach the Internet through its own uplink at all (`initAsBridge()` never started the health checker that `sendToInternet()`'s local path depends on, so a bridge with no peer yet failed with "No active mesh connections"), and any request that failed *below* HTTP — refused, unresolvable, timed out — was reported to the origin node as `HTTP 65535`, a truncated `-1`, which also stopped it from being retried. Both are now asserted on the hardware rig, including a bridge with no mesh peer at all.
+
+**2.0.1 — a packaging fix over 2.0.0, no library behaviour changed.** 2.0.0's installation instructions named a PlatformIO package that has no 2.0.0 (`alteriom/…` stops at 1.10.0; releases go out under `sparck75`), and its GitHub release carried no library archive because the upload was refused by an immutable release.
 
 **2.0.0 — delivery confirmation, a unified send path, and a mesh that holds together on real hardware**
 

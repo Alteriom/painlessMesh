@@ -82,12 +82,24 @@ The pull request must also pass all required GitHub checks, including:
 - formatting and documentation checks
 - CodeQL
 - simulator scenarios
-- ESP32, ESP32-C3, and ESP32-S3 hardware-in-the-loop coverage when the change
+- hardware-in-the-loop coverage on the six-family board bank when the change
   touches radio, routing, gateway, OTA, or platform-specific behavior
 
-For a hardware defect, attach the HIL run identifier and report link to the
-pull request. A unit test alone is not sufficient evidence for a radio or
-multi-device timing fix.
+### How the hardware result arrives
+
+The Alteriom ESP32 farm is a separate, private repository, so nothing in this
+one triggers it — a public workflow can hold no credential for it. The farm
+watches instead: it picks up `main` and open non-fork pull requests that touch
+`src/`, `examples/`, `test/` or the library metadata, runs the simulator gate
+and then the physical suite, and posts the verdict back as a **`farm/hil`
+commit status** with a link to the run. Expect it within roughly half an hour
+of a push; nothing is required of the author.
+
+For a hardware defect, link that run in the pull request. A unit test alone is
+not sufficient evidence for a radio or multi-device timing fix — and a desktop
+test that re-implements the logic it is checking is not evidence at all
+(`catch_http_status_codes.cpp` copied the `uint16_t` that caused #446 and so
+mirrored the bug instead of catching it).
 
 ## Review gate
 

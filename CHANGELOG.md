@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-09-08
+
+Two gateway defects that reached users on 2.0.1, both in code the desktop test
+suite cannot compile, and both now asserted on real hardware. **Upgrade if a
+node of yours is a bridge**: on 2.0.1 a bridge could not use its own uplink at
+all, and any request that failed below HTTP was reported to the origin node as
+`HTTP 65535`.
+
+### Fixed
+
+- **A bridge could not reach the Internet through its own uplink** (#445).
+  `sendToInternet()` serves a request locally only when `hasLocalInternet()` is
+  true. That flag is set by the Internet health checker, and `initAsBridge()`
+  never started it — only `initAsSharedGateway()` did — so on a bridge it was
+  false for the life of the node. Every request the bridge itself made fell
+  through to the mesh-routing path and failed with *"No active mesh
+  connections"* whenever no peer had joined yet, which is exactly what a
+  single-node sketch does at start-up. `initAsBridge()` now starts the checker,
+  without touching a `setInternetCheckTarget()` the sketch made before `init()`.
+
+- **A request that never reached a server was reported as `HTTP 65535`** (#446).
+  `HTTPClient` returns an `int`: positive is an HTTP status, negative is one of
+  its own transport errors (`-1` refused, `-11` read timeout). The gateway
+  stored that in a `uint16_t`, so `-1` wrapped to 65535 — a value that passes
+  `httpCode > 0`. Three things followed: the origin node was told "HTTP 65535",
+  the `errorToString()` branch was unreachable, and `handleGatewayAck()` filed a
+  retryable network failure as a permanent HTTP status. A transport failure now
+  arrives as `httpStatus 0` with the real reason in the error string, which is
+  what the origin node already treats as retryable.
+
+- **A lone gateway consumed its retries without issuing a single request.**
+  `retryInternetRequest()` knew only the remote path: it required an active mesh
+  connection and then routed to a discovered bridge, so a gateway serving its
+  own request satisfied neither check and reported *"Max retries exceeded"* in
+  place of the transport error that actually happened — the same dishonest
+  failure as #446, one layer up. A retry whose gateway is this node now goes
+  back to the local handler.
+
+### Changed
+
+- The HTTP result classification moved into `gateway::classifyHttpResult()`, so
+  the desktop test suite exercises the same function `wifi.hpp` calls. The
+  previous test duplicated the classification — and duplicated the `uint16_t`
+  with it, which is why it mirrored #446 instead of catching it.
+
+### Validated
+
+Both fixes are asserted on the ESP32 farm, not only in desktop tests: a bridge
+must report Internet on its own uplink, must relay its own request through it,
+must do so with **no mesh peer at all**, and must return `httpStatus 0` with a
+real reason for a refused port, an unresolvable host and a destination that
+answers past the timeout. Those rows did not exist when 2.0.1 shipped — the
+gateway suite passed on the run that carried both bugs.
+
+
 ## [2.0.1] - 2026-09-07
 
 A packaging and documentation release. **No library behaviour changed**: the
