@@ -64,12 +64,13 @@ SCENARIO("HTTP status codes are correctly classified as success or failure", "[h
                 INFO("The message may not have reached the actual destination service");
             }
             
-            THEN("205 Reset Content should NOT be success") {
-                REQUIRE(isHttpStatusSuccess(205) == false);
-            }
-            
-            THEN("206 Partial Content should NOT be success") {
-                REQUIRE(isHttpStatusSuccess(206) == false);
+            THEN("205 and 206 are the origin's own acceptance, not a proxy's") {
+                // Only 203 is defined as "someone in the middle changed this".
+                // 205 Reset Content and 206 Partial Content come from the
+                // origin, so on status alone they are accepted; what can
+                // still overturn them is a body that refuses (issue #450).
+                REQUIRE(isHttpStatusSuccess(205) == true);
+                REQUIRE(isHttpStatusSuccess(206) == true);
             }
         }
         
@@ -217,13 +218,13 @@ SCENARIO("Backward compatibility considerations", "[http][compatibility]") {
                 INFO("These are still accepted as success");
             }
             
-            THEN("Ambiguous codes like 203, 205, 206 now fail") {
+            THEN("203 fails; other 2xx codes are the origin's verdict") {
                 REQUIRE(isHttpStatusSuccess(203) == false);
-                REQUIRE(isHttpStatusSuccess(205) == false);
-                REQUIRE(isHttpStatusSuccess(206) == false);
-                INFO("This is the breaking change");
-                INFO("However, these codes rarely indicate genuine success");
-                INFO("The new behavior is more accurate");
+                REQUIRE(isHttpStatusSuccess(205) == true);
+                REQUIRE(isHttpStatusSuccess(206) == true);
+                REQUIRE(isHttpStatusSuccess(208) == true);
+                INFO("203 is the one 2xx that says a proxy transformed the reply");
+                INFO("For the rest, the response body is what can refuse (issue #450)");
             }
         }
     }
@@ -502,6 +503,79 @@ SCENARIO("Real HTTP statuses survive classification unchanged",
                 REQUIRE(outcome.ackStatus == 65535);
                 REQUIRE(outcome.success == false);
             }
+        }
+    }
+}
+
+/**
+ * Issue #450: the status alone cannot say whether the service accepted the
+ * request. CallMeBot answers a rate-limit refusal with HTTP 203 and with HTTP
+ * 201, the same HTML page under both. The classifier now reads the body, and
+ * a refusal carries the service's words to the origin node.
+ */
+SCENARIO("The response body can overturn a success-class status",
+         "[http][body][issue450]") {
+    const std::string tooMany =
+        "<h1>Oops! Too many requests...</h1>"
+        "<p>You have called to the API to often. Please review your script/code/app.</p>";
+    const std::string queued =
+        "<p><b>Message queued.</b> You will receive it within a few seconds.</p>";
+
+    GIVEN("A refusal answered with HTTP 201") {
+        auto outcome = gateway::classifyHttpResult(201, tooMany);
+        THEN("It is a failure that names the service's reason") {
+            REQUIRE(outcome.success == false);
+            REQUIRE(outcome.refusedByBody == true);
+            REQUIRE(outcome.transportError == false);
+            REQUIRE(outcome.ackStatus == 201);
+            REQUIRE(outcome.reason.find("Too many requests") != std::string::npos);
+            REQUIRE(outcome.reason.find("<") == std::string::npos);
+        }
+    }
+
+    GIVEN("A queued message answered with HTTP 208") {
+        auto outcome = gateway::classifyHttpResult(208, queued);
+        THEN("It is delivered") {
+            REQUIRE(outcome.success == true);
+            REQUIRE(outcome.refusedByBody == false);
+            REQUIRE(outcome.reason.empty());
+        }
+    }
+
+    GIVEN("A queued message answered with HTTP 203") {
+        auto outcome = gateway::classifyHttpResult(203, queued);
+        THEN("It stays ambiguous: a proxy may have answered, not the service") {
+            REQUIRE(outcome.success == false);
+            REQUIRE(outcome.refusedByBody == false);
+        }
+    }
+
+    GIVEN("An ordinary failure with a JSON body") {
+        auto outcome = gateway::classifyHttpResult(
+            400, "{\"error\": \"missing phone\", \"ok\": false}");
+        THEN("The reason is the body, and a JSON 'error' key is not a refusal") {
+            REQUIRE(outcome.success == false);
+            REQUIRE(outcome.refusedByBody == false);
+            REQUIRE(outcome.reason.find("missing phone") != std::string::npos);
+        }
+    }
+
+    GIVEN("A success with a JSON body that merely contains the word error") {
+        auto outcome = gateway::classifyHttpResult(200, "{\"error\": null, \"ok\": true}");
+        THEN("It is still a success") {
+            REQUIRE(outcome.success == true);
+        }
+    }
+
+    GIVEN("A long HTML page") {
+        std::string page = "<html><body>";
+        for (int i = 0; i < 50; ++i) page += "<p>line " + std::to_string(i) + "</p>\n";
+        THEN("The summary is one line, untagged, and bounded") {
+            auto summary = gateway::summarizeResponseBody(page);
+            REQUIRE(summary.find("<") == std::string::npos);
+            REQUIRE(summary.find("\n") == std::string::npos);
+            REQUIRE(summary.size() <= gateway::GATEWAY_RESPONSE_REASON_MAX + 3);
+            REQUIRE(summary.substr(0, 6) == "line 0");
         }
     }
 }

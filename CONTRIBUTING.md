@@ -55,6 +55,21 @@ and OTA behaviour is validated on the Alteriom hardware-in-the-loop farm; a
 maintainer runs it on a pull request by adding the `run-hil` label, and the
 release gate is three consecutive clean runs of the whole suite.
 
+### The HTTP test point
+
+`test/mock-http-server/server.py` is the controlled Internet destination for
+`sendToInternet()` tests at every level. It answers the way real services do,
+including the ways they get it wrong (its CallMeBot emulation returns refusals
+as HTTP 201 and 203, as the real API does), and it keeps a delivery ledger:
+`GET /requests/{tag}` says whether the service actually accepted a request.
+The desktop CI job starts one and exports `PAINLESSMESH_TESTPOINT`, and
+`catch_issue450_testpoint_semantics` makes real HTTP requests to it and
+requires the library's verdict to match the ledger. The farm's gateway probe
+serves the same routes with the same record shape, so a hardware row and a
+desktop scenario are measured against one source of truth. When a gateway bug
+comes in, add the service behaviour that exposed it to the server first, then
+the test that fails against it.
+
 ### Adding tests for new features
 
 1. **Unit tests**: add to `test/catch/` for new components.

@@ -38,12 +38,12 @@ test_endpoint() {
     
     if [ "$status_code" = "$expected_status" ]; then
         echo -e "${GREEN}✓ PASS${NC} (HTTP $status_code)"
-        ((PASS++))
+        PASS=$((PASS+1))
         return 0
     else
         echo -e "${RED}✗ FAIL${NC} (Expected $expected_status, got $status_code)"
         echo "Response: $body"
-        ((FAIL++))
+        FAIL=$((FAIL+1))
         return 1
     fi
 }
@@ -58,6 +58,22 @@ test_endpoint "Default endpoint" "$SERVER_URL/" 200
 test_endpoint "Status 200" "$SERVER_URL/status/200" 200
 test_endpoint "Status 201" "$SERVER_URL/status/201" 201
 test_endpoint "Status 203" "$SERVER_URL/status/203" 203
+
+# CallMeBot emulation: status by profile, and the ledger's delivery verdict
+test_endpoint "CallMeBot queued" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=queued&text=t-queued" 200
+test_endpoint "CallMeBot ratelimit-203" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=ratelimit-203&text=t-203" 203
+test_endpoint "CallMeBot ratelimit-201" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=ratelimit-201&text=t-201" 201
+test_endpoint "CallMeBot queued-208" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=queued-208&text=t-q208" 208
+test_endpoint "CallMeBot error-208" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=error-208&text=t-e208" 208
+test_endpoint "CallMeBot unknown profile" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=nope&text=t-nope" 400
+test_endpoint "Ledger record" "$SERVER_URL/requests/t-201" 200
+test_endpoint "Ledger miss" "$SERVER_URL/requests/never-sent" 404
+echo -n "Ledger says ratelimit-201 was not delivered... "
+if curl -s "$SERVER_URL/requests/t-201" | grep -q '"delivered": false'; then
+    echo -e "${GREEN}✓ PASS${NC}"; PASS=$((PASS+1))
+else
+    echo -e "${RED}✗ FAIL${NC}"; FAIL=$((FAIL+1))
+fi
 test_endpoint "Status 400" "$SERVER_URL/status/400" 400
 test_endpoint "Status 404" "$SERVER_URL/status/404" 404
 test_endpoint "Status 500" "$SERVER_URL/status/500" 500
@@ -70,10 +86,10 @@ end=$(date +%s)
 duration=$((end - start))
 if [ $duration -ge 1 ]; then
     echo -e "${GREEN}✓ PASS${NC} (Delayed ${duration}s)"
-    ((PASS++))
+    PASS=$((PASS+1))
 else
     echo -e "${RED}✗ FAIL${NC} (Expected >= 1s delay, got ${duration}s)"
-    ((FAIL++))
+    FAIL=$((FAIL+1))
 fi
 
 # Echo endpoint
@@ -83,11 +99,11 @@ response=$(curl -s -X POST "$SERVER_URL/echo" \
     -d '{"sensor":"temp","value":25.5}')
 if echo "$response" | grep -q '"method": "POST"' && echo "$response" | grep -q '"body":'; then
     echo -e "${GREEN}✓ PASS${NC}"
-    ((PASS++))
+    PASS=$((PASS+1))
 else
     echo -e "${RED}✗ FAIL${NC}"
     echo "Response: $response"
-    ((FAIL++))
+    FAIL=$((FAIL+1))
 fi
 
 # WhatsApp endpoint - success
@@ -95,11 +111,11 @@ echo -n "Testing WhatsApp endpoint (valid)... "
 response=$(curl -s "$SERVER_URL/whatsapp?phone=%2B1234567890&apikey=test&text=Hello")
 if echo "$response" | grep -q '"message": "WhatsApp message queued successfully"'; then
     echo -e "${GREEN}✓ PASS${NC}"
-    ((PASS++))
+    PASS=$((PASS+1))
 else
     echo -e "${RED}✗ FAIL${NC}"
     echo "Response: $response"
-    ((FAIL++))
+    FAIL=$((FAIL+1))
 fi
 
 # WhatsApp endpoint - missing params
@@ -107,10 +123,10 @@ echo -n "Testing WhatsApp endpoint (missing params)... "
 status_code=$(curl -s -w "%{http_code}" -o /dev/null "$SERVER_URL/whatsapp?phone=%2B123")
 if [ "$status_code" = "400" ]; then
     echo -e "${GREEN}✓ PASS${NC} (Correctly rejected)"
-    ((PASS++))
+    PASS=$((PASS+1))
 else
     echo -e "${RED}✗ FAIL${NC} (Expected 400, got $status_code)"
-    ((FAIL++))
+    FAIL=$((FAIL+1))
 fi
 
 # Timeout endpoint (should timeout after 5 seconds)
@@ -121,10 +137,10 @@ end=$(date +%s)
 duration=$((end - start))
 if [ "$status_code" = "timeout" ] || [ $duration -ge 4 ]; then
     echo -e "${GREEN}✓ PASS${NC} (Timed out after ${duration}s)"
-    ((PASS++))
+    PASS=$((PASS+1))
 else
     echo -e "${RED}✗ FAIL${NC} (Should have timed out)"
-    ((FAIL++))
+    FAIL=$((FAIL+1))
 fi
 
 # Summary

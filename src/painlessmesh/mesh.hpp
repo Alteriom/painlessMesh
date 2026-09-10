@@ -1433,6 +1433,31 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
   /**
+   * Can this node serve a gateway request on its own uplink right now?
+   *
+   * hasLocalInternet() is the last periodic probe's answer. On a bridge the
+   * first probe runs while the station is still associating and fails, and
+   * the next is a full interval (30 s) away, so for that whole window a send
+   * fell through to the mesh path and was refused for want of a peer (issue
+   * #450). When the flag says no and the health check is running, spend the
+   * one on-demand probe the checker allows per period: a send made after the
+   * uplink came up is then served locally, and a node whose uplink really is
+   * down pays one probe per interval, not one per call.
+   *
+   * @return true if the request should go to this node's own gateway handler
+   */
+  bool uplinkServesLocally() {
+    if (hasLocalInternet()) return true;
+    if (!isInternetHealthCheckEnabled()) return false;
+    if (internetHealthChecker.checkOnDemand()) {
+      Log(logger::COMMUNICATION,
+          "uplinkServesLocally(): on-demand probe found the uplink up\n");
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Register callback for local Internet connectivity changes
    * 
    * This callback fires when THIS node's direct Internet connectivity changes,
@@ -1672,7 +1697,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // A shared gateway can execute its own gateway package locally. Keep the
     // same package handler, pending-request tracking and callback semantics,
     // but do not require a mesh peer merely to reach this node's own uplink.
-    if (hasLocalInternet()) {
+    if (uplinkServesLocally()) {
       PendingInternetRequest request;
       request.messageId = messageId;
       request.timestamp = millis();
@@ -2124,7 +2149,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     //
     // Copy what the redispatch needs first: the local handler runs
     // synchronously and can erase this entry, leaving `request` dangling.
-    if (request.gatewayNodeId == this->nodeId && hasLocalInternet()) {
+    if (request.gatewayNodeId == this->nodeId && uplinkServesLocally()) {
       const uint8_t priority = request.priority;
       const uint8_t retryCount = request.retryCount;
       const TSTRING destination = request.destination;

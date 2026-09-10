@@ -84,12 +84,28 @@ jobs:
       - name: Build
         run: ninja
 
+      # The gateway test point (test/mock-http-server/server.py) answers the
+      # way real Internet services do and keeps a delivery ledger. The
+      # catch_issue450_testpoint_semantics scenarios make real HTTP requests
+      # to it and require the library's verdict to match the ledger; without
+      # PAINLESSMESH_TESTPOINT they only warn, which is what a bench build
+      # without a server should do, not what CI should do.
+      - name: Start the HTTP test point
+        run: |
+          python3 test/mock-http-server/server.py --host 127.0.0.1 --port 8080             --log testpoint-ledger.jsonl > testpoint.log 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health
+
       - name: Run tests
         env:
           # Leak detection is intentionally off for the asan build: the test
           # fakes intentionally leak a few objects (e.g. fake_asynctcp peer
           # clients). The signal we want here is use-after-free/double-free.
           ASAN_OPTIONS: detect_leaks=0
+          PAINLESSMESH_TESTPOINT: http://127.0.0.1:8080
         run: run-parts --regex catch_ bin/
 
       - name: Upload test results
