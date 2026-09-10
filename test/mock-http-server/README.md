@@ -4,6 +4,14 @@ A lightweight HTTP server that simulates Internet endpoints for testing `sendToI
 
 ## Purpose
 
+This is the **test point** for `sendToInternet()`: one HTTP server that the
+desktop Catch2 suite in CI (`catch_issue450_testpoint_semantics`, pointed at
+it by `PAINLESSMESH_TESTPOINT`), the simulation host, the hardware farm and a
+developer bench can all target. It answers the way real services do,
+including the ways they get it wrong, and keeps a delivery ledger so a test can
+ask what actually happened rather than trust the status code.
+
+
 Testing bridge functionality in painlessMesh traditionally requires:
 - Physical hardware (ESP32/ESP8266)
 - Actual Internet connectivity
@@ -214,6 +222,45 @@ curl "http://localhost:8080/whatsapp?phone=%2B1234567890&apikey=mykey&text=Hello
 - Test WhatsApp integration without real API
 - Test parameter validation
 - Test message formatting
+
+### `GET /callmebot/whatsapp.php` - CallMeBot Emulation
+
+Answers the way the real CallMeBot WhatsApp API does: with HTTP statuses that
+do **not** encode whether the message was delivered. The `apikey` parameter
+selects the behaviour; `phone` and `text` are required, and `text` doubles as
+the ledger tag unless `tag` is given.
+
+| `apikey`        | Status | Body                       | Delivered | Origin |
+|-----------------|--------|----------------------------|-----------|--------|
+| `queued`        | 200    | "Message queued..."        | yes       | documented success |
+| `ratelimit-203` | 203    | "Oops! Too many requests"  | no        | observed 2026-09-10 |
+| `ratelimit-201` | 201    | "Oops! Too many requests"  | no        | observed 2026-09-10 |
+| `queued-208`    | 208    | "Message queued..."        | yes       | hypothesis for issue #450 |
+| `error-208`     | 208    | "Oops! Too many requests"  | no        | hypothesis for issue #450 |
+
+An unknown profile answers 400 so a typo in a test fails loudly.
+
+```bash
+curl -i "http://localhost:8080/callmebot/whatsapp.php?phone=%2B1234567890&apikey=ratelimit-201&text=hello"
+```
+
+### `GET /requests/{tag}` - Delivery Ledger
+
+Every request is recorded under a tag: the `tag` query parameter, else the
+`X-HIL-Tag` header, else (CallMeBot route) the message text. This returns the
+latest record for a tag, or 404. `delivered` is the ground truth a gateway
+test compares its own verdict against; the other fields match the Alteriom
+farm's gateway probe so a farm test runs unchanged against either server.
+
+```bash
+curl "http://localhost:8080/status/503?tag=abc" > /dev/null
+curl "http://localhost:8080/requests/abc"
+# {"body": "", "client": "127.0.0.1", "delivered": false, "method": "GET",
+#  "path": "/status/503", "status": 503, "tag": "abc", "ts": "..."}
+```
+
+Pass `--log FILE` (or `MOCK_HTTP_LOG`) to also append every record as JSON
+lines to a file.
 
 ### `GET/POST /health` - Health Check
 Returns server health status.

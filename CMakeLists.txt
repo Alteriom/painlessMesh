@@ -39,6 +39,14 @@ if(TARGET catch_node_timeout_override)
     "PAINLESSMESH_TEST_NODE_TIMEOUT_S=20")
 endif()
 
+# The test-point scenarios make a real HTTP request with Boost.Asio to the
+# server in test/mock-http-server/ and compare the library's verdict with the
+# server's delivery ledger. Asio is header-only on the Boost this CI installs,
+# but Boost_LIBRARIES is what links boost_system where it is still a library.
+if(TARGET catch_issue450_testpoint_semantics)
+  target_link_libraries(catch_issue450_testpoint_semantics ${Boost_LIBRARIES})
+endif()
+
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 add_executable(catch_tcp_integration test/boost/tcp_integration.cpp test/catch/fake_serial.cpp src/scheduler.cpp src/connection.cpp)
