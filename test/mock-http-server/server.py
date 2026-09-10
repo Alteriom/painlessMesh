@@ -305,10 +305,10 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         """Handle /timeout endpoint - never responds"""
         self._record(method, query_params, body, 0, False)
         print("[INFO] Timeout endpoint called - hanging connection")
-        try:
-            time.sleep(3600)  # 1 hour - client will timeout first
-        except Exception:
-            pass
+        # Nothing to catch: the client gives up long before this returns, and
+        # time.sleep() has retried on signal interruption since Python 3.5, so
+        # the only way out of it is the sleep expiring.
+        time.sleep(3600)  # 1 hour - client will timeout first
 
     def _handle_echo(self, method, query_params, body):
         """Handle /echo endpoint - echo request details"""
