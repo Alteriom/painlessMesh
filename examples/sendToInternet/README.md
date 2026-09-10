@@ -187,10 +187,10 @@ The callback provides `httpStatus` to indicate the result:
 
 **FAILURE (success = false):**
 - `203 Non-Authoritative Information` - **Cached/proxied response, NOT actual delivery**
-- `4xx` - Client error (bad request, unauthorized, not found, etc.)
-- `5xx` - Server error (service unavailable, gateway timeout, etc.)
 
-⚠️ **Important:** HTTP 203 is treated as **FAILURE** because it indicates the response came from a cache or proxy, not from the actual WhatsApp API server. If you see `HTTP Status: 203`, the message was **NOT delivered**.
+⚠️ **The status alone does not say whether WhatsApp got the message.** CallMeBot answers a refusal (for example "Too many requests") with HTTP 201 or HTTP 203, the same error page under both. The gateway therefore reads the start of the response body: a 2xx whose body says the service refused the request is reported as a failure, with the service's own words in the callback's `error` string, and HTTP 203 stays a failure because a proxy, not the WhatsApp API, may have answered. If your callback prints `HTTP 201: service refused the request: Oops! Too many requests...`, that is CallMeBot talking, and the message was **NOT delivered**.
+
+Also replace `CLOUD_URL` at the top of the sketch: the placeholder `api.example.com` does not resolve, and until you change it the sketch skips the cloud send and says so instead of reporting `connection refused` every minute.
 
 ## Files
 

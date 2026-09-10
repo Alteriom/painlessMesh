@@ -146,8 +146,10 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
                     profile + "&text=" + tag);
         REQUIRE(reply.status > 0);
 
-        // The real classifier, on the real status the service returned.
-        auto outcome = painlessmesh::gateway::classifyHttpResult(reply.status);
+        // The real classifier, on the real status and body the service
+        // returned -- exactly what the gateway handler hands it.
+        auto outcome =
+            painlessmesh::gateway::classifyHttpResult(reply.status, reply.body);
         bool delivered = ledgerSaysDelivered(tp, tag);
 
         INFO("service answered HTTP " << reply.status << " with body: " << reply.body);
@@ -155,6 +157,12 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
                                      << ", classifier says success=" << outcome.success);
         REQUIRE(outcome.transportError == false);
         REQUIRE(outcome.success == delivered);
+
+        if (!delivered) {
+          // The origin node must learn why, in the service's own words.
+          INFO("reason carried to the origin node: " << outcome.reason);
+          REQUIRE(outcome.reason.find("Too many requests") != std::string::npos);
+        }
       }
     }
   }
@@ -179,7 +187,8 @@ SCENARIO("Plain status routes still agree with the ledger",
       DYNAMIC_SECTION("route " << route.path) {
         auto tag = uniqueTag("status");
         auto reply = httpGet(tp, std::string(route.path) + "?tag=" + tag);
-        auto outcome = painlessmesh::gateway::classifyHttpResult(reply.status);
+        auto outcome =
+            painlessmesh::gateway::classifyHttpResult(reply.status, reply.body);
         REQUIRE(ledgerSaysDelivered(tp, tag) == route.delivered);
         REQUIRE(outcome.success == route.delivered);
       }

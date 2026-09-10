@@ -568,6 +568,8 @@ class InternetHealthChecker {
    * @return true if connection succeeded
    */
   bool checkNow() {
+    // A full probe answers the question the on-demand budget exists for.
+    onDemandSpent_ = false;
     status_.checkCount++;
     status_.lastCheckTime = millis();
 
@@ -589,6 +591,27 @@ class InternetHealthChecker {
       }
     }
 
+    return connected;
+  }
+
+  /**
+   * @brief Probe once outside the schedule, for a caller that needs the
+   *        answer now (issue #450)
+   *
+   * A bridge's first periodic probe runs while its station is still
+   * associating and fails, and the next is a full interval away. A send in
+   * that window may spend one extra probe to learn that the uplink has come
+   * up since. One: the probe is a blocking connect with a timeout, so the
+   * budget is a single on-demand probe per periodic one. A node whose uplink
+   * really is down pays it once per interval, not on every call.
+   *
+   * @return true if Internet is reachable now
+   */
+  bool checkOnDemand() {
+    if (status_.available) return true;
+    if (onDemandSpent_) return false;
+    const bool connected = checkNow();
+    onDemandSpent_ = true;
     return connected;
   }
 
@@ -667,6 +690,13 @@ class InternetHealthChecker {
     status_.lastError = "Mock: No Internet in test environment";
     return false;
 #elif defined(ESP32) || defined(ESP8266)
+    // No station, no uplink: answer at once instead of spending the connect
+    // timeout on a link that does not exist. This is what keeps the
+    // on-demand probe cheap on a bridge whose router is down.
+    if (WiFi.status() != WL_CONNECTED) {
+      status_.lastError = "Station not connected";
+      return false;
+    }
     WiFiClient client;
     uint32_t started = millis();
 #ifdef ESP32
@@ -704,6 +734,7 @@ class InternetHealthChecker {
   // State
   InternetStatus status_;
   InternetChangedCallback_t connectivityChangedCallback_;
+  bool onDemandSpent_ = false;
 
 #ifdef PAINLESSMESH_BOOST
   bool mockConnected_ = false;
@@ -988,19 +1019,116 @@ struct HttpRequestOutcome {
 
   /** True when the client failed before any HTTP status was received. */
   bool transportError = false;
+
+  /**
+   * True when the status was success-class but the response body said the
+   * service refused the request (issue #450).
+   */
+  bool refusedByBody = false;
+
+  /**
+   * One-line reason for a failure, taken from the response body when there
+   * is one; empty on success. Sized to fit a GatewayAckPackage::error.
+   */
+  TSTRING reason;
 };
 
+/** Longest response-body excerpt carried in an acknowledgment error. */
+static const size_t GATEWAY_RESPONSE_REASON_MAX = 120;
+
 /**
- * @brief Classify an HTTPClient return value for the gateway acknowledgment
+ * How much of a response body the gateway reads for classification and for
+ * the error it reports. Enough for a service's one-line verdict, small enough
+ * that an HTML error page cannot eat an ESP8266's heap.
+ */
+static const size_t GATEWAY_RESPONSE_HEAD_BYTES = 512;
+
+/** How long the gateway waits for that head to arrive after the status. */
+static const uint32_t GATEWAY_RESPONSE_HEAD_TIMEOUT_MS = 250;
+
+inline bool responseContains(const TSTRING& haystack, const char* needle) {
+#if defined(PAINLESSMESH_BOOST)
+  return haystack.find(needle) != std::string::npos;
+#else
+  return haystack.indexOf(needle) >= 0;
+#endif
+}
+
+/**
+ * @brief Reduce a response body to one line fit for a log or an error string
  *
- * Only 200, 201, 202 and 204 count as success. Other 2xx codes (notably 203,
- * Non-Authoritative Information) indicate a cached or proxied response rather
- * than delivery to the destination service, so they are failures.
+ * Tags are dropped, whitespace collapsed and the result cut at maxLen with an
+ * ellipsis, so an HTML error page reads "Oops! Too many requests... You have
+ * called to the API to often." in a serial log instead of markup.
+ */
+inline TSTRING summarizeResponseBody(
+    const TSTRING& body, size_t maxLen = GATEWAY_RESPONSE_REASON_MAX) {
+  TSTRING out;
+  bool inTag = false;
+  bool pendingSpace = false;
+  for (size_t i = 0; i < body.length(); ++i) {
+    const char c = body[i];
+    if (c == '<') {
+      inTag = true;
+      continue;
+    }
+    if (c == '>') {
+      inTag = false;
+      pendingSpace = true;
+      continue;
+    }
+    if (inTag) continue;
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+      pendingSpace = true;
+      continue;
+    }
+    if (pendingSpace && out.length() > 0) out += ' ';
+    pendingSpace = false;
+    out += c;
+    if (out.length() >= maxLen) {
+      out += "...";
+      break;
+    }
+  }
+  return out;
+}
+
+/**
+ * @brief Does a success-class response body say the service refused the request?
+ *
+ * Some services answer a refusal with a 2xx. CallMeBot's WhatsApp API, which
+ * the sendToInternet example integrates, returns its "Too many requests" page
+ * under HTTP 201 and HTTP 203 (issue #450). The phrases are the ones seen
+ * from services this library's examples target, and they are deliberately
+ * specific: a JSON payload that merely contains the word "error" is not a
+ * refusal.
+ */
+inline bool responseBodyRefuses(const TSTRING& body) {
+  static const char* const REFUSALS[] = {"Too many requests", "Oops!"};
+  for (const char* phrase : REFUSALS) {
+    if (responseContains(body, phrase)) return true;
+  }
+  return false;
+}
+
+/**
+ * @brief Classify an HTTPClient result for the gateway acknowledgment
+ *
+ * A transport error (rawCode <= 0) is neither success nor an HTTP status. A
+ * success-class status (2xx) is the origin's acceptance, with two exceptions:
+ * 203 Non-Authoritative Information means a proxy transformed the response,
+ * so it proves nothing about delivery; and a body that says the service
+ * refused the request outranks the status, because services like CallMeBot
+ * answer a refusal with 201 or 203 (issue #450). Every failure carries a
+ * one-line reason taken from the body when there is one, so the origin node
+ * learns why and not only a number.
  *
  * @param rawCode The int returned by HTTPClient::GET() or ::POST()
+ * @param body The start of the response body, empty if none was read
  * @return Classified outcome, safe to place in a GatewayAckPackage
  */
-inline HttpRequestOutcome classifyHttpResult(int rawCode) {
+inline HttpRequestOutcome classifyHttpResult(int rawCode,
+                                             const TSTRING& body = TSTRING()) {
   HttpRequestOutcome outcome;
   if (rawCode <= 0) {
     outcome.transportError = true;
@@ -1008,8 +1136,14 @@ inline HttpRequestOutcome classifyHttpResult(int rawCode) {
   }
   outcome.ackStatus =
       static_cast<uint16_t>(rawCode > 0xFFFF ? 0xFFFF : rawCode);
-  outcome.success = (rawCode == 200 || rawCode == 201 || rawCode == 202 ||
-                     rawCode == 204);
+  const bool successClass = rawCode >= 200 && rawCode < 300 && rawCode != 203;
+  if (successClass && responseBodyRefuses(body)) {
+    outcome.refusedByBody = true;
+    outcome.reason = summarizeResponseBody(body);
+    return outcome;
+  }
+  outcome.success = successClass;
+  if (!outcome.success) outcome.reason = summarizeResponseBody(body);
   return outcome;
 }
 

@@ -75,6 +75,19 @@
 #define WHATSAPP_APIKEY "your_api_key"   // Your Callmebot API key
 
 // ============================================
+// Cloud API Configuration
+// ============================================
+// The endpoint the periodic sensor readings are POSTed to. Replace it with
+// your own; the placeholder below does not resolve, so until you do the
+// sketch skips the cloud send and says so rather than reporting
+// "connection refused" every minute (issue #450).
+// Example endpoints:
+// - ThingsBoard: "https://demo.thingsboard.io/api/v1/YOUR_TOKEN/telemetry"
+// - AWS IoT:     "https://YOUR_ENDPOINT.iot.us-east-1.amazonaws.com/topics/sensors"
+// - Custom API:  "https://api.yourserver.com/sensors/data"
+#define CLOUD_URL       "https://api.example.com/sensors"
+
+// ============================================
 // Sensor Simulation Configuration
 // ============================================
 // These define the ranges for simulated sensor values
@@ -114,6 +127,15 @@ String urlEncode(const String& str);
 // ============================================
 // Task to periodically send sensor data (simulated)
 Task taskSendSensorData(60000, TASK_FOREVER, &sendSensorDataToCloud);
+
+// The startup WhatsApp used to be a single 30 s one-shot. A regular node that
+// took longer than that to find the mesh -- following a bridge to another
+// channel takes about a minute -- fired it with no gateway in sight and never
+// tried again (issue #450). It now retries until a gateway with Internet is
+// known, then disables itself.
+void sendStartupAlert();
+Task taskStartupAlert(30000, TASK_FOREVER, &sendStartupAlert);
+String startupMsg;
 
 // ============================================
 // URL Encoding Helper
@@ -184,13 +206,12 @@ void sendAlertToWhatsApp(String message) {
   
   // Use sendToInternet() to route the request through a gateway
   // The callback will be invoked when we get a response (or timeout)
-  // 
-  // SUCCESS CODES: Only specific HTTP codes indicate genuine delivery:
-  // - 200 OK: Standard success (most common for WhatsApp API)
-  // - 201 Created, 202 Accepted, 204 No Content
-  // 
-  // FAILURE: HTTP 203 (Non-Authoritative) is treated as FAILURE because
-  // it indicates a cached/proxied response, not actual delivery to WhatsApp.
+  //
+  // The gateway reads the response body, not only the status: CallMeBot
+  // answers a refusal ("Too many requests") with HTTP 201 or 203, so a 2xx
+  // alone proves nothing. A refusal arrives here as success=false with the
+  // service's own words in `error`; HTTP 203 stays a failure because a proxy,
+  // not WhatsApp, may have answered.
   uint32_t msgId = mesh.sendToInternet(
     url,
     "",  // No payload needed for GET request - params are in URL
@@ -249,14 +270,13 @@ void sendSensorDataToCloud() {
     return;
   }
   
-  // Send to cloud API (replace with your actual endpoint)
-  // Example endpoints:
-  // - ThingsBoard: "https://demo.thingsboard.io/api/v1/YOUR_TOKEN/telemetry"
-  // - AWS IoT: "https://YOUR_ENDPOINT.iot.us-east-1.amazonaws.com/topics/sensors"
-  // - Custom API: "https://api.yourserver.com/sensors/data"
-  
-  String cloudUrl = "https://api.example.com/sensors";  // Replace with your endpoint
-  
+  // Send to the cloud API configured at the top of the sketch
+  String cloudUrl = CLOUD_URL;
+  if (cloudUrl.indexOf("example.com") >= 0) {
+    Serial.println("   (CLOUD_URL is still the placeholder; set your endpoint to send readings)");
+    return;
+  }
+
   uint32_t msgId = mesh.sendToInternet(
     cloudUrl,
     payload,
@@ -275,6 +295,21 @@ void sendSensorDataToCloud() {
 // ============================================
 // Mesh Callbacks
 // ============================================
+
+/**
+ * Send the startup notification once a gateway with Internet is known.
+ *
+ * Runs every 30 s from taskStartupAlert until it has handed the message to
+ * sendToInternet(), then disables itself.
+ */
+void sendStartupAlert() {
+  if (!mesh.hasInternetConnection()) {
+    Serial.println("(startup WhatsApp waiting for a gateway with Internet; retrying in 30 s)");
+    return;
+  }
+  sendAlertToWhatsApp(startupMsg);
+  taskStartupAlert.disable();
+}
 
 void receivedCallback(uint32_t from, String& msg) {
   Serial.printf("📨 Received from %u: %s\n", from, msg.c_str());
@@ -347,14 +382,14 @@ void setup() {
   Serial.printf("Is Bridge: %s\n", mesh.isBridge() ? "YES" : "NO");
   Serial.println("================================================\n");
   
-  // Send a startup notification via WhatsApp (demonstrates sendToInternet)
-  String startupMsg = "🚀 Node " + String(mesh.getNodeId()) + " started!";
-  
-  // Delay to allow mesh to connect first
-  Serial.println("Will attempt to send startup WhatsApp in 30 seconds...\n");
-  mesh.addTask([startupMsg]() {
-    sendAlertToWhatsApp(startupMsg);
-  }, 30000);  // 30 second delay
+  // Send a startup notification via WhatsApp (demonstrates sendToInternet).
+  // First attempt in 30 s, then every 30 s until a gateway with Internet is
+  // known: a bridge can use its own uplink at once, a regular node has to
+  // find the mesh first.
+  startupMsg = "🚀 Node " + String(mesh.getNodeId()) + " started!";
+  Serial.println("Will send the startup WhatsApp as soon as a gateway with Internet is known (first try in 30 s)...\n");
+  userScheduler.addTask(taskStartupAlert);
+  taskStartupAlert.enableDelayed();
 }
 
 // ============================================

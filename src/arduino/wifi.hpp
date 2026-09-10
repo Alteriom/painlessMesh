@@ -2721,6 +2721,46 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Helper method to send gateway acknowledgment
    */
+#if defined(ESP32) || defined(ESP8266)
+  /**
+   * Read the start of an HTTP response body, bounded in bytes and in time
+   *
+   * The gateway used to discard the body, so a service that answers a refusal
+   * with a 2xx (CallMeBot, issue #450) was reported as delivered, and a
+   * failure reached the origin node as a bare status. When the length is
+   * known and small the whole body is taken; otherwise up to maxBytes are
+   * read from the stream, waiting at most GATEWAY_RESPONSE_HEAD_TIMEOUT_MS,
+   * which keeps a large or chunked page from eating the heap or the
+   * cooperative scheduler.
+   */
+  static TSTRING readResponseHead(HTTPClient& http, size_t maxBytes) {
+    const int size = http.getSize();
+    if (size >= 0 && static_cast<size_t>(size) <= maxBytes) {
+      return http.getString();
+    }
+    TSTRING head;
+    WiFiClient* stream = http.getStreamPtr();
+    if (stream == nullptr) return head;
+    const uint32_t deadline =
+        millis() + gateway::GATEWAY_RESPONSE_HEAD_TIMEOUT_MS;
+    while (head.length() < maxBytes &&
+           static_cast<int32_t>(deadline - millis()) > 0) {
+      int available = stream->available();
+      if (available <= 0) {
+        if (!stream->connected()) break;
+        delay(1);
+        continue;
+      }
+      while (available-- > 0 && head.length() < maxBytes) {
+        const int c = stream->read();
+        if (c < 0) break;
+        head += static_cast<char>(c);
+      }
+    }
+    return head;
+  }
+#endif
+
   void sendGatewayAck(
       const gateway::GatewayDataPackage& request, bool success,
       uint16_t httpStatus, const TSTRING& error,
@@ -2925,51 +2965,66 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             httpCode = http.GET();
           }
 
-          // Only specific 2xx status codes indicate genuine success:
-          // 200 OK, 201 Created, 202 Accepted, 204 No Content.
-          //
-          // Other 2xx codes like 203 (Non-Authoritative Information) often
-          // indicate cached/proxied responses that may not represent actual
-          // delivery to the destination service (e.g., WhatsApp API).
+          // A 2xx is the origin's acceptance, except 203 (a proxy transformed
+          // the response) and except when the body says the service refused
+          // the request: CallMeBot answers "Too many requests" under 201 and
+          // 203 (issue #450). The body is therefore read -- bounded -- before
+          // classifying, and it is what the origin node is told on failure.
           //
           // 3xx redirects are not automatically followed.
           //
           // The classification lives in painlessmesh::gateway so the desktop
           // test suite can exercise it; this file is ESP-only and never
           // compiled by the Catch2 build.
-          const auto outcome = gateway::classifyHttpResult(httpCode);
+          TSTRING responseHead;
+          if (httpCode > 0) {
+            responseHead =
+                readResponseHead(http, gateway::GATEWAY_RESPONSE_HEAD_BYTES);
+          }
+          const auto outcome =
+              gateway::classifyHttpResult(httpCode, responseHead);
           success = outcome.success;
 
           if (!outcome.transportError) {
+            char errorBuf[192];
+            const char* reason = outcome.reason.c_str();
+            const char* sep = outcome.reason.length() > 0 ? ": " : "";
             if (success) {
               Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
+            } else if (outcome.refusedByBody) {
+              // Success-class status, refusing body. Not retryable: the
+              // service answered, and the origin node gets its words.
+              snprintf(errorBuf, sizeof(errorBuf),
+                       "HTTP %d: service refused the request%s%s", httpCode,
+                       sep, reason);
+              error = TSTRING(errorBuf);
+              Log(ERROR, "HTTP request refused by the service: %s\n", errorBuf);
             } else if (httpCode >= 200 && httpCode < 300) {
-              // Other 2xx codes - ambiguous success
-              // HTTP 203 is retryable, so log at COMMUNICATION level to reduce noise
-              char errorBuf[128];
-              snprintf(errorBuf, sizeof(errorBuf), 
-                      "Ambiguous response - HTTP %d may indicate cached/proxied response, not actual delivery", 
-                      httpCode);
+              // 203: ambiguous, retryable, so log at COMMUNICATION level
+              snprintf(errorBuf, sizeof(errorBuf),
+                       "Ambiguous response - HTTP %d may indicate cached/proxied "
+                       "response, not actual delivery%s%s",
+                       httpCode, sep, reason);
               error = TSTRING(errorBuf);
               Log(COMMUNICATION, "HTTP request ambiguous: code=%d (treated as failure, will retry)\n", httpCode);
             } else if (httpCode >= 500 && httpCode < 600) {
               // 5xx server errors are retryable, log at COMMUNICATION level
-              char errorBuf[32];
-              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,
+                       reason);
               error = TSTRING(errorBuf);
               Log(COMMUNICATION, "HTTP server error: code=%d (will retry)\n", httpCode);
             } else if (httpCode == 429) {
               // HTTP 429 rate limit is retryable, log at COMMUNICATION level
-              char errorBuf[32];
-              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,
+                       reason);
               error = TSTRING(errorBuf);
               Log(COMMUNICATION, "HTTP rate limit: code=%d (will retry)\n", httpCode);
             } else {
               // 1xx, 3xx, 4xx (except 429) - non-retryable, log at ERROR level
-              char errorBuf[32];
-              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,
+                       reason);
               error = TSTRING(errorBuf);
-              Log(ERROR, "HTTP request failed: code=%d\n", httpCode);
+              Log(ERROR, "HTTP request failed: %s\n", errorBuf);
             }
           } else {
             // Network errors (httpCode <= 0) are retryable but indicate serious issues
@@ -2991,6 +3046,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           return true;  // Consume package - we have processed it and sent
                         // acknowledgment
         });
+  }
+
+  /**
+   * The station just got an IP. On a node that runs the Internet health
+   * check -- a bridge or a shared gateway, whose station is the manual router
+   * link -- the last probe most likely ran during association and failed,
+   * and the next is a full interval away (issue #450). Probe again now, from
+   * the scheduler rather than the Wi-Fi event task, so hasLocalInternet()
+   * and the bridge's own sends stop waiting out the interval. A regular
+   * node's mesh station never enables the check and is left alone.
+   */
+  void probeUplinkAfterAssociation() {
+    if (!this->isInternetHealthCheckEnabled() || !stationScan.manual) return;
+    this->addTask([this]() { this->checkInternetNow(); });
   }
 
   void eventHandleInit() {
@@ -3101,6 +3170,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             this->stationScan.stationAttemptOver();
             this->stationScan.stationUp();
             this->tcpConnect();  // Connect to TCP port
+            this->probeUplinkAfterAssociation();
             this->semaphoreGive();
           }
         },
@@ -3137,6 +3207,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           this->stationScan.stationAttemptOver();
           this->stationScan.stationUp();
           this->tcpConnect();  // Connect to TCP port
+          this->probeUplinkAfterAssociation();
         });
 #endif  // ESP32
     return;

@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A bridge's own `sendToInternet()` was refused for the first 30 s after
+  `initAsBridge()`** (#450). The Internet health check is armed one line after
+  `stationManual()` re-issues `WiFi.begin()`, so its first probe ran while the
+  station was still associating and failed, and the next was a full interval
+  away. Every send from the bridge in that window fell through to the mesh
+  path and was refused with "No active mesh connections" -- #445 again, with
+  a 30 s hole instead of forever. `sendToInternet()` and the retry path now
+  spend one on-demand probe per interval when the flag says no, and the
+  station's got-IP event re-probes at once on a bridge or shared gateway.
+  Reproduced on the desktop by `catch_issue450_bridge_first_send`.
+- **A gateway reported a refusal as delivered, and a failure as a bare
+  number** (#450). CallMeBot answers "Too many requests" with HTTP 201 and
+  HTTP 203, the same page under both, and 201 was on the success list; the
+  reporter's HTTP 208 could not be interpreted at all because the body was
+  discarded. The gateway now reads the start of the response body (bounded to
+  512 bytes and 250 ms), a success-class status whose body says the service
+  refused the request is a failure, and every failure carries a one-line,
+  tag-free excerpt of the body to the origin node's callback. Verified against
+  the test point's delivery ledger by `catch_issue450_testpoint_semantics`.
+
+### Changed
+
+- **HTTP 205, 206 and 208 now count as accepted on status alone.** 203 is the
+  one 2xx that means a proxy transformed the reply; the others are the
+  origin's own verdict, and the response body is what can overturn them.
+- **The mock HTTP server is now the gateway test point.** It keeps a delivery
+  ledger (`GET /requests/{tag}`) and emulates CallMeBot's status quirks
+  (`GET /callmebot/whatsapp.php`, profile chosen by `apikey`). The desktop CI
+  job starts it and `PAINLESSMESH_TESTPOINT` points the suite at it; the
+  Alteriom farm's probe serves the same routes.
+- **`sendToInternet` example.** The startup WhatsApp retries every 30 s until
+  a gateway with Internet is known instead of firing once before a regular
+  node has joined, and the cloud endpoint moved to a `CLOUD_URL` define whose
+  placeholder is skipped with a message rather than reported as
+  `connection refused`.
+
 ## [2.0.2] - 2026-09-08
 
 Two gateway defects that reached users on 2.0.1, both in code the desktop test
