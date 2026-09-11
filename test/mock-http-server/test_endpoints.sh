@@ -63,8 +63,7 @@ test_endpoint "Status 203" "$SERVER_URL/status/203" 203
 test_endpoint "CallMeBot queued" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=queued&text=t-queued" 200
 test_endpoint "CallMeBot ratelimit-203" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=ratelimit-203&text=t-203" 203
 test_endpoint "CallMeBot ratelimit-201" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=ratelimit-201&text=t-201" 201
-test_endpoint "CallMeBot queued-208" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=queued-208&text=t-q208" 208
-test_endpoint "CallMeBot error-208" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=error-208&text=t-e208" 208
+test_endpoint "CallMeBot unverified-208" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=unverified-208&text=t-208" 208
 test_endpoint "CallMeBot unknown profile" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=nope&text=t-nope" 400
 test_endpoint "Ledger record" "$SERVER_URL/requests/t-201" 200
 test_endpoint "Ledger miss" "$SERVER_URL/requests/never-sent" 404

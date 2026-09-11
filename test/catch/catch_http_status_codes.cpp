@@ -64,13 +64,14 @@ SCENARIO("HTTP status codes are correctly classified as success or failure", "[h
                 INFO("The message may not have reached the actual destination service");
             }
             
-            THEN("205 and 206 are the origin's own acceptance, not a proxy's") {
-                // Only 203 is defined as "someone in the middle changed this".
-                // 205 Reset Content and 206 Partial Content come from the
-                // origin, so on status alone they are accepted; what can
-                // still overturn them is a body that refuses (issue #450).
-                REQUIRE(isHttpStatusSuccess(205) == true);
-                REQUIRE(isHttpStatusSuccess(206) == true);
+            THEN("205, 206 and 208 are not deliveries the gateway can confirm") {
+                // #451 briefly accepted every 2xx but 203 as the origin's own
+                // verdict. The next report (#452) was a CallMeBot HTTP 208 for
+                // a message that never arrived, printed as "sent". Only 200,
+                // 201, 202 and 204 count on the status alone.
+                REQUIRE(isHttpStatusSuccess(205) == false);
+                REQUIRE(isHttpStatusSuccess(206) == false);
+                REQUIRE(isHttpStatusSuccess(208) == false);
             }
         }
         
@@ -218,13 +219,12 @@ SCENARIO("Backward compatibility considerations", "[http][compatibility]") {
                 INFO("These are still accepted as success");
             }
             
-            THEN("203 fails; other 2xx codes are the origin's verdict") {
+            THEN("2xx codes outside 200/201/202/204 are unverified, not success") {
                 REQUIRE(isHttpStatusSuccess(203) == false);
-                REQUIRE(isHttpStatusSuccess(205) == true);
-                REQUIRE(isHttpStatusSuccess(206) == true);
-                REQUIRE(isHttpStatusSuccess(208) == true);
-                INFO("203 is the one 2xx that says a proxy transformed the reply");
-                INFO("For the rest, the response body is what can refuse (issue #450)");
+                REQUIRE(isHttpStatusSuccess(205) == false);
+                REQUIRE(isHttpStatusSuccess(206) == false);
+                REQUIRE(isHttpStatusSuccess(208) == false);
+                INFO("CallMeBot's 208 never delivered (issue #452); the body is reported instead");
             }
         }
     }
@@ -533,20 +533,40 @@ SCENARIO("The response body can overturn a success-class status",
         }
     }
 
-    GIVEN("A queued message answered with HTTP 208") {
-        auto outcome = gateway::classifyHttpResult(208, queued);
-        THEN("It is delivered") {
-            REQUIRE(outcome.success == true);
+    GIVEN("HTTP 208 with a body, as CallMeBot answers a message that never arrives") {
+        auto outcome = gateway::classifyHttpResult(
+            208, "<p>HTTP 208 Already Reported</p>");
+        THEN("It is an unverified failure that carries the body (issue #452)") {
+            REQUIRE(outcome.success == false);
+            REQUIRE(outcome.unverifiedStatus == true);
             REQUIRE(outcome.refusedByBody == false);
-            REQUIRE(outcome.reason.empty());
+            REQUIRE(outcome.ackStatus == 208);
+            REQUIRE(outcome.reason.find("Already Reported") != std::string::npos);
+        }
+    }
+
+    GIVEN("HTTP 208 with a friendly body") {
+        auto outcome = gateway::classifyHttpResult(208, queued);
+        THEN("The words do not make it a delivery either") {
+            REQUIRE(outcome.success == false);
+            REQUIRE(outcome.unverifiedStatus == true);
+            REQUIRE(outcome.reason.find("Message queued") != std::string::npos);
         }
     }
 
     GIVEN("A queued message answered with HTTP 203") {
         auto outcome = gateway::classifyHttpResult(203, queued);
-        THEN("It stays ambiguous: a proxy may have answered, not the service") {
+        THEN("It stays unverified: a proxy may have answered, not the service") {
             REQUIRE(outcome.success == false);
+            REQUIRE(outcome.unverifiedStatus == true);
             REQUIRE(outcome.refusedByBody == false);
+        }
+    }
+
+    GIVEN("A 4xx and a 5xx") {
+        THEN("They are failures, and not 'unverified 2xx'") {
+            REQUIRE(gateway::classifyHttpResult(404, "").unverifiedStatus == false);
+            REQUIRE(gateway::classifyHttpResult(503, "").unverifiedStatus == false);
         }
     }
 
@@ -576,6 +596,66 @@ SCENARIO("The response body can overturn a success-class status",
             REQUIRE(summary.find("\n") == std::string::npos);
             REQUIRE(summary.size() <= gateway::GATEWAY_RESPONSE_REASON_MAX + 3);
             REQUIRE(summary.substr(0, 6) == "line 0");
+        }
+    }
+}
+
+/**
+ * Issue #453: a destination whose name does not resolve stalled the gateway
+ * on every attempt, for the resolver's own patience, and the origin node's
+ * relayed requests timed out behind it. The gateway now resolves once and
+ * remembers a failure for GATEWAY_DNS_NEGATIVE_TTL_MS.
+ */
+SCENARIO("A host that failed to resolve is refused without another lookup",
+         "[gateway][dns][issue453]") {
+    GIVEN("The host of a URL") {
+        THEN("It is the authority without scheme, port, path or query") {
+            REQUIRE(gateway::hostFromUrl("https://api.example.com/sensors") == "api.example.com");
+            REQUIRE(gateway::hostFromUrl("http://10.42.0.1:8088/status/200?tag=x") == "10.42.0.1");
+            REQUIRE(gateway::hostFromUrl("https://api.callmebot.com/whatsapp.php?phone=%2B1&text=a") == "api.callmebot.com");
+            REQUIRE(gateway::hostFromUrl("not a url") == "not a url");
+            REQUIRE(gateway::hostFromUrl("") == "");
+        }
+        THEN("An IPv4 literal is recognised, so it is never looked up") {
+            REQUIRE(gateway::looksLikeIpLiteral("10.42.0.1") == true);
+            REQUIRE(gateway::looksLikeIpLiteral("api.example.com") == false);
+            REQUIRE(gateway::looksLikeIpLiteral("") == false);
+        }
+    }
+
+    GIVEN("A cache that remembered a failure at t=1000") {
+        gateway::NegativeDnsCache cache;
+        cache.remember("api.example.com", 1000, 60000);
+
+        THEN("The host is refused inside the TTL, with its age") {
+            uint32_t age = 0;
+            REQUIRE(cache.isFailing("api.example.com", 31000, &age) == true);
+            REQUIRE(age == 30000);
+        }
+        THEN("Another host is not") {
+            REQUIRE(cache.isFailing("api.callmebot.com", 31000) == false);
+        }
+        THEN("The TTL expires, and the entry is released") {
+            REQUIRE(cache.isFailing("api.example.com", 61000) == false);
+            REQUIRE(cache.size() == 0);
+        }
+        THEN("A later failure of the same host refreshes its one entry") {
+            cache.remember("api.example.com", 5000, 60000);
+            REQUIRE(cache.size() == 1);
+            REQUIRE(cache.isFailing("api.example.com", 64000) == true);
+        }
+        THEN("The oldest entry is evicted when the slots are full") {
+            cache.remember("b", 2000, 60000);
+            cache.remember("c", 3000, 60000);
+            cache.remember("d", 4000, 60000);
+            cache.remember("e", 5000, 60000);
+            REQUIRE(cache.size() == gateway::NegativeDnsCache::SLOTS);
+            REQUIRE(cache.isFailing("api.example.com", 6000) == false);
+            REQUIRE(cache.isFailing("e", 6000) == true);
+        }
+        THEN("forget() releases a host once it resolves again") {
+            cache.forget("api.example.com");
+            REQUIRE(cache.isFailing("api.example.com", 2000) == false);
         }
     }
 }

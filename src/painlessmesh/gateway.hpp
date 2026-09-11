@@ -1027,6 +1027,14 @@ struct HttpRequestOutcome {
   bool refusedByBody = false;
 
   /**
+   * True for a 2xx the gateway cannot vouch for: anything but 200, 201, 202
+   * and 204. CallMeBot answers HTTP 208 to a message that never arrives
+   * (issue #452), so a status outside the verified set is reported as a
+   * failure that carries the body, never as a delivery.
+   */
+  bool unverifiedStatus = false;
+
+  /**
    * One-line reason for a failure, taken from the response body when there
    * is one; empty on success. Sized to fit a GatewayAckPackage::error.
    */
@@ -1114,14 +1122,16 @@ inline bool responseBodyRefuses(const TSTRING& body) {
 /**
  * @brief Classify an HTTPClient result for the gateway acknowledgment
  *
- * A transport error (rawCode <= 0) is neither success nor an HTTP status. A
- * success-class status (2xx) is the origin's acceptance, with two exceptions:
- * 203 Non-Authoritative Information means a proxy transformed the response,
- * so it proves nothing about delivery; and a body that says the service
- * refused the request outranks the status, because services like CallMeBot
- * answer a refusal with 201 or 203 (issue #450). Every failure carries a
- * one-line reason taken from the body when there is one, so the origin node
- * learns why and not only a number.
+ * A transport error (rawCode <= 0) is neither success nor an HTTP status.
+ * Only 200, 201, 202 and 204 count as delivery on the status alone, and even
+ * those are overturned by a body that says the service refused the request:
+ * CallMeBot answers "Too many requests" under 201 and 203 (issue #450). Any
+ * other 2xx is unverified. 203 means a proxy transformed the reply; 208 is
+ * what CallMeBot answers to a message that never arrives (issue #452); none
+ * of them is a delivery this library can vouch for, so they are failures
+ * that carry the body. Every failure's reason is a one-line excerpt of the
+ * body when there is one, so the origin node learns why and not only a
+ * number.
  *
  * @param rawCode The int returned by HTTPClient::GET() or ::POST()
  * @param body The start of the response body, empty if none was read
@@ -1136,16 +1146,140 @@ inline HttpRequestOutcome classifyHttpResult(int rawCode,
   }
   outcome.ackStatus =
       static_cast<uint16_t>(rawCode > 0xFFFF ? 0xFFFF : rawCode);
-  const bool successClass = rawCode >= 200 && rawCode < 300 && rawCode != 203;
-  if (successClass && responseBodyRefuses(body)) {
+  const bool verified =
+      rawCode == 200 || rawCode == 201 || rawCode == 202 || rawCode == 204;
+  if (verified && responseBodyRefuses(body)) {
     outcome.refusedByBody = true;
     outcome.reason = summarizeResponseBody(body);
     return outcome;
   }
-  outcome.success = successClass;
-  if (!outcome.success) outcome.reason = summarizeResponseBody(body);
+  outcome.success = verified;
+  if (!verified) {
+    outcome.unverifiedStatus = rawCode >= 200 && rawCode < 300;
+    outcome.reason = summarizeResponseBody(body);
+  }
   return outcome;
 }
+
+/**
+ * How long a destination whose name failed to resolve is refused without
+ * another lookup (issue #453). On ESP32 a DNS lookup has no timeout this
+ * library can set, so a dead name stalls the cooperative scheduler for the
+ * resolver's own patience; once a minute is survivable, once per attempt --
+ * with the origin node retrying and the bridge's own sends adding theirs --
+ * was not. On ESP8266 the core bounds HTTPClient's own lookup by the HTTP
+ * timeout, so the gateway performs no separate lookup there and this cache
+ * is never fed.
+ */
+static const uint32_t GATEWAY_DNS_NEGATIVE_TTL_MS = 60000;
+
+/**
+ * @brief The host of an http(s) URL, without scheme, port, path or query
+ *
+ * "https://api.example.com:8443/x?y" -> "api.example.com". Empty when the
+ * URL has no host.
+ */
+inline TSTRING hostFromUrl(const TSTRING& url) {
+  const char* s = url.c_str();
+  const size_t n = url.length();
+  size_t i = 0;
+  for (size_t k = 0; k + 2 < n; ++k) {
+    if (s[k] == ':' && s[k + 1] == '/' && s[k + 2] == '/') {
+      i = k + 3;
+      break;
+    }
+  }
+  size_t j = i;
+  while (j < n && s[j] != '/' && s[j] != '?' && s[j] != '#' && s[j] != ':') ++j;
+  TSTRING host;
+  for (size_t k = i; k < j; ++k) host += s[k];
+  return host;
+}
+
+/** True for a dotted-decimal IPv4 literal, which needs no DNS. */
+inline bool looksLikeIpLiteral(const TSTRING& host) {
+  if (host.length() == 0) return false;
+  for (size_t i = 0; i < host.length(); ++i) {
+    const char c = host[i];
+    if (!(c >= '0' && c <= '9') && c != '.') return false;
+  }
+  return true;
+}
+
+/**
+ * @brief A few hosts that recently failed to resolve, and when
+ *
+ * Small and fixed: a gateway talks to a handful of destinations. A host is
+ * remembered with a TTL; while it is within it, isFailing() says so and the
+ * caller answers the request without a lookup.
+ */
+class NegativeDnsCache {
+ public:
+  // An enum, not a static const member: the test suite passes it to Catch2 by
+  // reference, which needs a definition C++14 cannot give an in-class
+  // constant without an out-of-line one.
+  enum : size_t { SLOTS = 4 };
+
+  void remember(const TSTRING& host, uint32_t nowMs,
+                uint32_t ttlMs = GATEWAY_DNS_NEGATIVE_TTL_MS) {
+    Entry* slot = find(host);
+    if (slot == nullptr) {
+      slot = &entries_[0];
+      for (size_t i = 0; i < SLOTS; ++i) {
+        if (!entries_[i].used) {
+          slot = &entries_[i];
+          break;
+        }
+        if (static_cast<int32_t>(entries_[i].at - slot->at) < 0) slot = &entries_[i];
+      }
+    }
+    slot->used = true;
+    slot->host = host;
+    slot->at = nowMs;
+    slot->ttl = ttlMs;
+  }
+
+  /** Is `host` inside its negative TTL? `ageMs` receives how long ago it failed. */
+  bool isFailing(const TSTRING& host, uint32_t nowMs, uint32_t* ageMs = nullptr) {
+    Entry* slot = find(host);
+    if (slot == nullptr) return false;
+    const uint32_t age = nowMs - slot->at;
+    if (age >= slot->ttl) {
+      slot->used = false;
+      return false;
+    }
+    if (ageMs != nullptr) *ageMs = age;
+    return true;
+  }
+
+  void forget(const TSTRING& host) {
+    Entry* slot = find(host);
+    if (slot != nullptr) slot->used = false;
+  }
+
+  size_t size() const {
+    size_t n = 0;
+    for (size_t i = 0; i < SLOTS; ++i) n += entries_[i].used ? 1 : 0;
+    return n;
+  }
+
+ private:
+  struct Entry {
+    TSTRING host;
+    uint32_t at = 0;
+    uint32_t ttl = 0;
+    bool used = false;
+  };
+
+  Entry* find(const TSTRING& host) {
+    for (size_t i = 0; i < SLOTS; ++i) {
+      if (entries_[i].used && entries_[i].host == host) return &entries_[i];
+    }
+    return nullptr;
+  }
+
+  Entry entries_[SLOTS];
+};
 
 /**
  * @brief Gateway Acknowledgment Package for delivery confirmations
@@ -1396,13 +1530,15 @@ class GatewayAckPackage : public plugin::SinglePackage {
  * GATEWAY_DNS_TIMEOUT_MS on ESP8266, skipped on ESP32) runs before them
  * whenever the GATEWAY_CONNECTIVITY_CACHE_MS window has expired.
  *
- * @warning One residual is not in this budget: the HTTP calls resolve their
- *          hostnames inside the platform core before their socket timeout
- *          applies, and on ESP32 that in-request resolver wait is not
- *          separately boundable in the cores this library targets. On a
- *          network with blackholed DNS the request path can therefore still
- *          exceed this ceiling on ESP32. See SECURITY.md "Gateway blocking:
- *          the mesh partition risk".
+ * @warning One residual is not in this budget: hostname resolution on ESP32
+ *          is not separately boundable in the cores this library targets.
+ *          Since issue #453 the handler performs that lookup itself on
+ *          ESP32 and remembers a failure for GATEWAY_DNS_NEGATIVE_TTL_MS, so
+ *          on a network with blackholed DNS the request path can still
+ *          exceed this ceiling on ESP32, but at most once per TTL per
+ *          destination host rather than once per attempt. On ESP8266 the
+ *          core bounds HTTPClient's own lookup by the HTTP timeout. See
+ *          SECURITY.md "Gateway blocking: the mesh partition risk".
  */
 constexpr unsigned long gatewayBlockingBudgetMs() {
   return 2UL * static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
