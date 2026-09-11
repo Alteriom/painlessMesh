@@ -100,6 +100,11 @@ CALLMEBOT_PROFILES = {
     "unverified-208": {"status": 208, "body": CALLMEBOT_ALREADY_REPORTED,
                        "delivered": False,
                        "note": "observed in #450/#452: never delivered, body unknown"},
+    # The same 208 under the friendliest body the service has. Undelivered
+    # all the same: a gateway that decides by the body's words instead of the
+    # status would report this one as sent, and this profile rejects it.
+    "queued-208": {"status": 208, "body": CALLMEBOT_QUEUED, "delivered": False,
+                   "note": "208 with the delivered profile's body: still not a delivery"},
 }
 
 

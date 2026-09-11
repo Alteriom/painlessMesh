@@ -133,16 +133,20 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
   GIVEN("A CallMeBot-shaped service that does not encode delivery in the status") {
     // Profiles are documented in test/mock-http-server/server.py. For a
     // profile the service refuses or cannot vouch for, `phrase` is what the
-    // origin node must be told, in the service's own words. The 208 profile
-    // is the field finding of issue #452: CallMeBot answered it to a message
-    // that never arrived, so no body makes it a delivery.
+    // origin node must be told, in the service's own words, and it is chosen
+    // to be unique to the response body: "Already Reported" is also the HTTP
+    // reason phrase for 208, which a classifier could echo without reading a
+    // byte of the body. The two 208 profiles are the field finding of issue
+    // #452: CallMeBot answered 208 to a message that never arrived, so no
+    // body -- not even the delivered profile's own -- makes it a delivery.
     struct Profile {
       const char* name;
       const char* phrase;
     } profiles[] = {{"queued", ""},
                     {"ratelimit-203", "Too many requests"},
                     {"ratelimit-201", "Too many requests"},
-                    {"unverified-208", "Already Reported"}};
+                    {"unverified-208", "never arrived"},
+                    {"queued-208", "Message queued"}};
 
     for (const auto& p : profiles) {
       const char* profile = p.name;

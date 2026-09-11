@@ -236,6 +236,7 @@ the ledger tag unless `tag` is given.
 | `ratelimit-203` | 203    | "Oops! Too many requests"  | no        | observed 2026-09-10 |
 | `ratelimit-201` | 201    | "Oops! Too many requests"  | no        | observed 2026-09-10 |
 | `unverified-208`| 208    | "HTTP 208 Already Reported"| no        | observed in #450 and #452: never delivered |
+| `queued-208`    | 208    | "Message queued..."        | no        | 208 with the delivered body: still not a delivery |
 
 An unknown profile answers 400 so a typo in a test fails loudly.
 
