@@ -76,6 +76,13 @@ class PackageCallbackList {
     return size;
   }
 
+  /** How many callbacks are registered for one package id. */
+  size_t count(int id) {
+    auto generation = clearPending ? pendingCallbackMap : callbackMap;
+    auto it = generation->find(id);
+    return it == generation->end() ? 0 : it->second.size();
+  }
+
   void clear() {
     if (dispatchDepth > 0) {
       clearPending = true;

@@ -1162,6 +1162,16 @@ inline HttpRequestOutcome classifyHttpResult(int rawCode,
 }
 
 /**
+ * The phrase a node puts in a failed GATEWAY_ACK when it received a gateway
+ * request but serves none: a bridge that rebooted, crashed or was reflashed
+ * as a regular node announces nothing, and its peers keep routing Internet
+ * requests to it until its last bridge status ages out. The origin node
+ * recognises the phrase, forgets that node as a gateway, and retries through
+ * the next one. Changing it breaks that recognition across a mixed fleet.
+ */
+static const char GATEWAY_NOT_A_GATEWAY_PHRASE[] = "is not an Internet gateway";
+
+/**
  * How long a destination whose name failed to resolve is refused without
  * another lookup (issue #453). On ESP32 a DNS lookup has no timeout this
  * library can set, so a dead name stalls the cooperative scheduler for the
