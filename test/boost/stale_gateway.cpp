@@ -210,6 +210,71 @@ SCENARIO("A sender routed to a gateway that rebooted as a regular node recovers 
   rig.stop();
 }
 
+/**
+ * The rig's exact sequence (farm run 34621323832): the sender knew only the
+ * ex-bridge when it sent, and the live bridge's first status reached it half
+ * a second after the ex-bridge answered. A request already accepted must ride
+ * the ordinary retry backoff until a gateway is known, not fail on the spot.
+ */
+SCENARIO("A sender that learns of the live bridge just after the ex-bridge answers delivers through it",
+         "[gateway][internet][stale_gateway]") {
+  delay(1000);
+  Log.setLogLevel(logger::ERROR);
+  Rig rig;
+
+  rig.pumpFor(20000, [&] { return rig.converged(); });
+  REQUIRE(rig.converged());
+
+  GIVEN("A sender whose only known gateway is the ex-bridge") {
+    rig.sender->enableSendToInternet();
+    rig.sender->setInternetRequestTimeout(8000);
+    rig.sender->setInternetRetryDelay(200);
+    rig.sender->updateBridgeStatus(Rig::EX_BRIDGE, true, -28, 6, 1000,
+                                   "10.42.0.1", rig.sender->getNodeTime());
+
+    WHEN("It sends, and the live bridge is advertised only after the ex-bridge has answered") {
+      bool called = false, success = false;
+      uint16_t status = 0;
+      TSTRING error;
+      const auto started = millis();
+      rig.sender->sendToInternet("https://api.example.com/data", "{}",
+                                 [&](bool ok, uint16_t http, TSTRING err) {
+                                   called = true;
+                                   success = ok;
+                                   status = http;
+                                   error = err;
+                                 });
+
+      auto exBridgeForgotten = [&] {
+        for (const auto &b : rig.sender->getBridges()) {
+          if (b.nodeId == Rig::EX_BRIDGE) return false;
+        }
+        return true;
+      };
+      rig.pumpFor(3000, [&] { return called || exBridgeForgotten(); });
+      REQUIRE(exBridgeForgotten());
+      const bool failedBeforeLiveBridgeKnown = called;
+
+      rig.sender->updateBridgeStatus(Rig::BRIDGE, true, -62, 6, 1000,
+                                     "10.42.0.1", rig.sender->getNodeTime());
+      rig.pumpFor(6000, [&] { return called; });
+      const auto elapsed = millis() - started;
+
+      THEN("The request is still pending when the live bridge appears, and is delivered through it") {
+        INFO("called=" << called << " success=" << success << " http=" << status
+                       << " error=" << error << " after " << elapsed << " ms");
+        REQUIRE_FALSE(failedBeforeLiveBridgeKnown);
+        REQUIRE(called);
+        REQUIRE(success);
+        REQUIRE(status == 200);
+        REQUIRE(rig.served == 1);
+        REQUIRE(elapsed < 5000);
+      }
+    }
+  }
+  rig.stop();
+}
+
 SCENARIO("A sender whose only gateway rebooted as a regular node is told so",
          "[gateway][internet][stale_gateway]") {
   delay(1000);
@@ -240,7 +305,7 @@ SCENARIO("A sender whose only gateway rebooted as a regular node is told so",
       rig.pumpFor(6000, [&] { return called; });
       const auto elapsed = millis() - started;
 
-      THEN("It fails promptly, naming the node that is not a gateway") {
+      THEN("It fails once its retries find no gateway, naming the node that is not one") {
         INFO("error=" << error << " after " << elapsed << " ms");
         REQUIRE(called);
         REQUIRE(success == false);

@@ -98,6 +98,9 @@ struct PendingInternetRequest {
   TSTRING destination = "";        ///< Internet destination URL
   TSTRING payload = "";            ///< Request payload
   internetResultCallback_t callback;  ///< User callback for result
+  /// Why the last attempt failed, when retries were spent waiting for a
+  /// gateway; the final callback reports it instead of a bare retry count.
+  TSTRING lastError = "";
 
   /**
    * Check if this request has timed out
@@ -2094,11 +2097,16 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         // Fall through to the ordinary failure path below.
       } else if (this->getPrimaryBridge() == nullptr &&
                  !this->uplinkServesLocally()) {
+        // No gateway left right now. On the rig the live bridge's first
+        // status arrived half a second after the ex-bridge answered, so an
+        // accepted request rides the ordinary retry backoff rather than
+        // failing on the spot; retryInternetRequest() reschedules while no
+        // gateway is known, and the final callback carries this reason.
         char errorBuf[160];
         snprintf(errorBuf, sizeof(errorBuf),
                  "No Internet gateway available: %s", ack.error.c_str());
-        if (request.callback) request.callback(false, 0, TSTRING(errorBuf));
-        pendingInternetRequests.erase(it);
+        request.lastError = TSTRING(errorBuf);
+        scheduleInternetRetry(ack.messageId);
         return;
       } else {
         const uint32_t messageId = ack.messageId;
@@ -2232,11 +2240,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     PendingInternetRequest& request = it->second;
 
     if (request.retryCount >= request.maxRetries) {
-      // Max retries reached - fail the request
+      // Max retries reached - fail the request, with the reason the retries
+      // were spent on when there is one
       Log(logger::ERROR, "scheduleInternetRetry(): Max retries reached for msgId=%u\n",
           messageId);
       if (request.callback) {
-        request.callback(false, 0, "Max retries exceeded");
+        request.callback(false, 0,
+                         request.lastError.length() > 0 ? request.lastError
+                                                        : TSTRING("Max retries exceeded"));
       }
       pendingInternetRequests.erase(it);
       return;

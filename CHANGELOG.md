@@ -20,8 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   answers a gateway request it cannot serve with
   `Node <id> is not an Internet gateway`; the sender forgets that node as a
   gateway and sends again at once through the next one, without spending a
-  retry, or fails immediately with `No Internet gateway available: ...` when
-  none is left. Reproduced on the desktop by `catch_stale_gateway`, three
+  retry. When it knew no other gateway, the request rides the ordinary retry
+  backoff -- on the rig the live bridge was advertised half a second later --
+  and fails with `No Internet gateway available: ...` only when
+  none is left after its retries. Reproduced on the desktop by `catch_stale_gateway`, three
   meshes over loopback TCP, and on the rig by
   `gateway.stale_after_reboot`.
 - **Mismatched log format arguments in `routePackage()`** (CodeQL
