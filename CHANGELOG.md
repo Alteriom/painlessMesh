@@ -10,12 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.3] - 2026-09-11
 
 `sendToInternet()` fixes from one user's WhatsApp integration (#450, #452,
-#453). **Upgrade if a node of yours is a bridge or relays to the Internet**:
-on 2.0.2 a bridge's own sends were refused for 30 s after boot, a service that
-answered a refusal with HTTP 201 was reported as delivered, and a destination
-that does not resolve stalled an ESP32 gateway on every attempt. Every fix is
-reproduced first against the new HTTP test point, which CI now runs, and
-covered by rows on the hardware farm.
+#453), and one the hardware rig found while validating them. **Upgrade if a
+node of yours is a bridge or relays to the Internet**: on 2.0.2 a bridge's own
+sends were refused for 30 s after boot, a service that answered a refusal with
+HTTP 201 was reported as delivered, a destination that does not resolve
+stalled an ESP32 gateway on every attempt, and a bridge that rebooted as a
+regular node swallowed every request its peers still sent it. Every fix was
+reproduced first -- against the new HTTP test point, which CI now runs, or
+over real TCP on the desktop -- and is covered by a row on the hardware farm.
 
 ### Fixed
 
@@ -52,6 +54,26 @@ covered by rows on the hardware farm.
   reports `DNS lookup failed for <host>`, and refuses that host for 60 s
   without another lookup. ESP8266 is unchanged: its core bounds the lookup by
   the HTTP timeout. The gateway blocking budget is unchanged.
+- **A bridge that rebooted as a regular node swallowed every Internet request
+  routed to it.** Found on the hardware rig while validating this release. A
+  bridge that reboots, crashes, loses power or is reflashed announces nothing
+  -- only a bridge stepping down in-process sends `leaving` -- so its peers
+  kept it in their bridge list for the 60 s they trust a status, and could
+  prefer it over a live bridge on RSSI. A regular node had no handler for
+  gateway requests and dropped them without a reply; each sender waited out
+  its 30 s request timeout and reported "Request timed out". Every node now
+  answers a gateway request it cannot serve with
+  `Node <id> is not an Internet gateway`; the sender forgets that node as a
+  gateway and sends again at once through the next one, without spending a
+  retry. When it knows no other gateway, the request rides the ordinary retry
+  backoff -- on the rig the live bridge was advertised half a second later --
+  and fails with `No Internet gateway available: ...` only when none appears.
+- **Mismatched log format arguments in `routePackage()`** (CodeQL
+  `cpp/wrong-type-format-argument`). A message that failed to parse was logged
+  with its `size_t` lengths through `%d`/`%u` -- the wrong width on 64-bit
+  hosts -- and with its `DeserializationError` object passed through `%u`,
+  undefined behaviour on every platform, in the ArduinoJson 7 path every
+  current build compiles as well as the legacy one CodeQL flagged.
 
 ### Changed
 
@@ -62,6 +84,13 @@ covered by rows on the hardware farm.
   library's delivery verdict is checked against what the service actually did,
   not against a table of status codes. The Alteriom farm's gateway probe serves
   the same routes.
+- **`Mesh::sendGatewayAck()` is public and portable.** It moved from the ESP
+  gateway code into `painlessmesh::Mesh`, because every node now needs it to
+  answer a request it cannot serve.
+- **`Log()` is format-checked in the desktop build.** The test build marks it
+  printf-like, so CI's `-Wall -Werror` rejects an argument that does not match
+  its specifier. Device builds are unchanged: on ESP-IDF 5 `uint32_t` is
+  `unsigned long`, and every `%u` of a node id would warn there.
 - **`sendToInternet` example.** The startup WhatsApp retries every 30 s until
   a gateway with Internet is known instead of firing once before a regular
   node has joined, and the cloud endpoint moved to a `CLOUD_URL` define whose

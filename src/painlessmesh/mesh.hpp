@@ -98,6 +98,9 @@ struct PendingInternetRequest {
   TSTRING destination = "";        ///< Internet destination URL
   TSTRING payload = "";            ///< Request payload
   internetResultCallback_t callback;  ///< User callback for result
+  /// Why the last attempt failed, when retries were spent waiting for a
+  /// gateway; the final callback reports it instead of a bare retry count.
+  TSTRING lastError = "";
 
   /**
    * Check if this request has timed out
@@ -242,6 +245,37 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     // Add package handlers
     painlessmesh::ntp::addPackageCallback(this->callbackList, (*this));
     painlessmesh::router::addPackageCallback(this->callbackList, (*this));
+
+    // Every node answers a gateway request it cannot serve. A bridge that
+    // reboots, crashes or is reflashed as a regular node announces nothing
+    // -- only a bridge stepping down in-process sends `leaving` -- so its
+    // peers keep it in knownBridges until its last status ages out
+    // (bridgeTimeoutMs, 60 s) and may route every Internet request to it.
+    // A regular node had no GATEWAY_DATA handler and dropped them without a
+    // word; the origin waited out its request timeout, 30 s, each time.
+    // Found on the HIL rig while validating 2.0.3.
+    //
+    // Registered first, so a gateway's own handler (initGatewayInternetHandler
+    // in wifi.hpp, or a test's stand-in) is always the second: this one
+    // stays silent whenever any other GATEWAY_DATA handler exists.
+    this->callbackList.onPackage(
+        protocol::GATEWAY_DATA,
+        [this](protocol::Variant& variant, std::shared_ptr<T> ingress,
+               uint32_t) {
+          if (this->callbackList.count(protocol::GATEWAY_DATA) > 1) {
+            return false;  // this node is a gateway; its handler answers
+          }
+          auto pkg = variant.to<gateway::GatewayDataPackage>();
+          char errorBuf[96];
+          snprintf(errorBuf, sizeof(errorBuf), "Node %u %s",
+                   static_cast<unsigned>(this->nodeId),
+                   gateway::GATEWAY_NOT_A_GATEWAY_PHRASE);
+          Log(logger::ERROR,
+              "GATEWAY_DATA from node %u answered: %s\n",
+              static_cast<unsigned>(pkg.originNode), errorBuf);
+          this->sendGatewayAck(pkg, false, 0, TSTRING(errorBuf), ingress);
+          return true;
+        });
 
     // Seed delivery-confirmation ids with a random value so they do not
     // restart at 1 after a reboot — a delayed ACK for a pre-reboot
@@ -1349,7 +1383,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     
     size_t removed = sizeBefore - knownBridges.size();
     if (removed > 0) {
-      Log(GENERAL, "cleanupExpiredBridges(): Removed %u expired bridges\n", removed);
+      Log(GENERAL, "cleanupExpiredBridges(): Removed %lu expired bridges\n",
+          static_cast<unsigned long>(removed));
     }
   }
 
@@ -1960,6 +1995,65 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   /**
    * Handle incoming gateway acknowledgment package
    */
+ public:
+  // Public: the gateway handler in wifi.hpp, a derived class, answers with it.
+  /**
+   * Answer a gateway request: send its GATEWAY_ACK back to the origin node.
+   *
+   * A request this node originated completes locally, without a mesh hop.
+   * Otherwise the ack is routed to the origin; when the NodeTree has not yet
+   * converged enough for findRoute() to resolve it -- a freshly promoted
+   * gateway can receive data before that -- the connection the request
+   * arrived on is a valid reverse path, since every intermediate node routes
+   * the addressed ack onward toward the origin.
+   *
+   * Used by the gateway's own handler (wifi.hpp) and by the fallback every
+   * node registers for requests it cannot serve.
+   */
+  void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
+                      uint16_t httpStatus, const TSTRING& error,
+                      std::shared_ptr<T> ingressConnection = nullptr) {
+    using namespace logger;
+
+    gateway::GatewayAckPackage ack;
+    ack.from = this->nodeId;
+    ack.dest = request.originNode;
+    ack.messageId = request.messageId;
+    ack.originNode = request.originNode;
+    ack.success = success;
+    ack.httpStatus = httpStatus;
+    ack.error = error;
+    ack.timestamp = this->getNodeTime();
+
+    if (request.originNode == this->nodeId) {
+      protocol::Variant variant(&ack);
+      this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
+      Log(COMMUNICATION,
+          "Completed local GATEWAY_ACK (success=%d, http=%d)\n", success,
+          httpStatus);
+      return;
+    }
+
+    auto conn = router::findRoute<T>((*this), request.originNode);
+    if (!conn && ingressConnection) {
+      conn = ingressConnection;
+      Log(COMMUNICATION,
+          "Routing GATEWAY_ACK to node %u through request ingress while "
+          "topology converges\n",
+          request.originNode);
+    }
+    if (conn) {
+      protocol::Variant variant(&ack);
+      router::send(std::move(variant), conn);
+      Log(COMMUNICATION, "Sent GATEWAY_ACK to node %u (success=%d, http=%d)\n",
+          request.originNode, success, httpStatus);
+    } else {
+      Log(ERROR, "Failed to send GATEWAY_ACK: no route to node %u\n",
+          request.originNode);
+    }
+  }
+
+ private:
   void handleGatewayAck(const gateway::GatewayAckPackage& ack) {
     using namespace logger;
     Log(COMMUNICATION, "handleGatewayAck(): msgId=%u success=%d http=%u\n",
@@ -1981,6 +2075,46 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       }
       pendingInternetRequests.erase(it);
       return;
+    }
+
+    // The node this request went to is not a gateway (issue found on the
+    // HIL rig while validating 2.0.3): it rebooted or was reflashed as a
+    // regular node without announcing it, and its last bridge status is
+    // still inside bridgeTimeoutMs. Forget it and send again through the
+    // next gateway at once. The retry budget is not spent: nothing was
+    // attempted against the Internet, and every such answer removes one
+    // entry from knownBridges, so this cannot loop.
+    if (gateway::responseContains(ack.error,
+                                  gateway::GATEWAY_NOT_A_GATEWAY_PHRASE)) {
+      const uint32_t staleGateway = request.gatewayNodeId;
+      bool forgot = this->forgetBridge(staleGateway);
+      if (ack.from != staleGateway) forgot = this->forgetBridge(ack.from) || forgot;
+      Log(ERROR, "handleGatewayAck(): %s; forgot it as a gateway for msgId=%u\n",
+          ack.error.c_str(), ack.messageId);
+
+      if (!forgot) {
+        // Nothing to forget, so a redispatch would reach the same node.
+        // Fall through to the ordinary failure path below.
+      } else if (this->getPrimaryBridge() == nullptr &&
+                 !this->uplinkServesLocally()) {
+        // No gateway left right now. On the rig the live bridge's first
+        // status arrived half a second after the ex-bridge answered, so an
+        // accepted request rides the ordinary retry backoff rather than
+        // failing on the spot; retryInternetRequest() reschedules while no
+        // gateway is known, and the final callback carries this reason.
+        char errorBuf[160];
+        snprintf(errorBuf, sizeof(errorBuf),
+                 "No Internet gateway available: %s", ack.error.c_str());
+        request.lastError = TSTRING(errorBuf);
+        scheduleInternetRetry(ack.messageId);
+        return;
+      } else {
+        const uint32_t messageId = ack.messageId;
+        this->addTask([this, messageId]() {
+          this->retryInternetRequest(messageId);
+        });
+        return;
+      }
     }
 
     // Failure response - determine if retryable
@@ -2106,11 +2240,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     PendingInternetRequest& request = it->second;
 
     if (request.retryCount >= request.maxRetries) {
-      // Max retries reached - fail the request
+      // Max retries reached - fail the request, with the reason the retries
+      // were spent on when there is one
       Log(logger::ERROR, "scheduleInternetRetry(): Max retries reached for msgId=%u\n",
           messageId);
       if (request.callback) {
-        request.callback(false, 0, "Max retries exceeded");
+        request.callback(false, 0,
+                         request.lastError.length() > 0 ? request.lastError
+                                                        : TSTRING("Max retries exceeded"));
       }
       pendingInternetRequests.erase(it);
       return;
