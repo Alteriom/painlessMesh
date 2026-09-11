@@ -2721,6 +2721,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Helper method to send gateway acknowledgment
    */
+  /** Hosts that recently failed to resolve; fed on ESP32 only, see the
+   *  GATEWAY_DATA handler. */
+  gateway::NegativeDnsCache negativeDns;
+
 #if defined(ESP32) || defined(ESP8266)
   /**
    * Read the start of an HTTP response body, bounded in bytes and in time
@@ -2913,6 +2917,49 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           }
 
 #if defined(ESP32) || defined(ESP8266)
+#ifdef ESP32
+          // A destination whose name failed to resolve is refused for
+          // GATEWAY_DNS_NEGATIVE_TTL_MS without another lookup (issue #453).
+          // HTTPClient reports a failed lookup as "connection refused" after
+          // the resolver's own patience -- on ESP32 not boundable by this
+          // library -- and it did so on every attempt: the origin node's
+          // retries and, since #451, the bridge's own sends each paid it, and
+          // the scheduler stalled long enough for relayed requests to time
+          // out on their origin nodes. Resolving here, once, names the real
+          // failure and caps the stall to one lookup per TTL per host.
+          // ESP32 only: the ESP8266 core bounds HTTPClient's own lookup by the
+          // HTTP timeout, and a second bounded wait would not fit the
+          // blocking budget.
+          const TSTRING host = gateway::hostFromUrl(pkg.destination);
+          if (host.length() > 0 && !gateway::looksLikeIpLiteral(host)) {
+            uint32_t failedAgoMs = 0;
+            if (negativeDns.isFailing(host, millis(), &failedAgoMs)) {
+              char dnsBuf[160];
+              snprintf(dnsBuf, sizeof(dnsBuf),
+                       "DNS lookup for %s failed %lus ago; not retried for "
+                       "another %lus",
+                       host.c_str(),
+                       static_cast<unsigned long>(failedAgoMs / 1000),
+                       static_cast<unsigned long>(
+                           (gateway::GATEWAY_DNS_NEGATIVE_TTL_MS - failedAgoMs) /
+                           1000));
+              Log(ERROR, "%s\n", dnsBuf);
+              finish(false, 0, TSTRING(dnsBuf));
+              return true;
+            }
+            IPAddress resolved;
+            if (WiFi.hostByName(host.c_str(), resolved) != 1) {
+              negativeDns.remember(host, millis());
+              char dnsBuf[160];
+              snprintf(dnsBuf, sizeof(dnsBuf), "DNS lookup failed for %s",
+                       host.c_str());
+              Log(ERROR, "%s\n", dnsBuf);
+              finish(false, 0, TSTRING(dnsBuf));
+              return true;
+            }
+          }
+#endif  // ESP32
+
           // Make HTTP/HTTPS request
           HTTPClient http;
           http.setTimeout(GATEWAY_HTTP_TIMEOUT_MS);
@@ -2999,14 +3046,18 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                        sep, reason);
               error = TSTRING(errorBuf);
               Log(ERROR, "HTTP request refused by the service: %s\n", errorBuf);
-            } else if (httpCode >= 200 && httpCode < 300) {
-              // 203: ambiguous, retryable, so log at COMMUNICATION level
+            } else if (outcome.unverifiedStatus) {
+              // A 2xx outside 200/201/202/204. CallMeBot answers 208 to a
+              // message that never arrives (issue #452), so this is a
+              // failure, and the body -- the only place the service says
+              // what it did -- goes to the origin node and to the log at
+              // ERROR level, where a sketch running the default levels
+              // sees it. 203 stays retryable; the rest are final.
               snprintf(errorBuf, sizeof(errorBuf),
-                       "Ambiguous response - HTTP %d may indicate cached/proxied "
-                       "response, not actual delivery%s%s",
+                       "HTTP %d: not a delivery the gateway can confirm%s%s",
                        httpCode, sep, reason);
               error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP request ambiguous: code=%d (treated as failure, will retry)\n", httpCode);
+              Log(ERROR, "HTTP response unverified: %s\n", errorBuf);
             } else if (httpCode >= 500 && httpCode < 600) {
               // 5xx server errors are retryable, log at COMMUNICATION level
               snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,

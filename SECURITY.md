@@ -138,6 +138,13 @@ Fixed in v2.0 (`painlessmesh/gateway.hpp`, `arduino/wifi.hpp`):
   (`NODE_TIMEOUT / 10`); on ESP32, whose core exposes no resolver timeout,
   the standalone probe is **skipped** and reachability is established by the
   captive-portal probe, an HTTP round trip that is itself timed.
+- On ESP32 the destination's own name is resolved by the handler before the
+  request, and a name that fails is refused for `GATEWAY_DNS_NEGATIVE_TTL_MS`
+  (60 s) without another lookup (issue #453). Before that, every attempt —
+  the origin node's retries and the bridge's own sends — paid the resolver's
+  full patience for a dead destination. On ESP8266 the core already bounds
+  `HTTPClient`'s own lookup by the HTTP timeout, so no separate lookup is
+  made there.
 - A `static_assert` fails the build if the full budget — both socket waits
   of the request and of the captive-portal probe, plus the DNS probe —
   reaches `NODE_TIMEOUT`. Raising one timeout without raising `NODE_TIMEOUT`
@@ -166,9 +173,9 @@ their socket timeout applies. On ESP8266 the core's resolver honours a
 timeout; on ESP32 that in-request wait is not separately boundable in the
 cores this library targets, so on a network with blackholed DNS the request
 path can still exceed the budget on ESP32 — at most once per
-`GATEWAY_CONNECTIVITY_CACHE_MS` window in the common case, since failed
-probes are cached. Relaying to IP-literal destinations avoids the resolver
-entirely. Hardware verification of the bounded behaviour on both cores
+`GATEWAY_DNS_NEGATIVE_TTL_MS` per destination host, since a failed lookup is
+remembered (issue #453). Relaying to IP-literal destinations avoids the
+resolver entirely. Hardware verification of the bounded behaviour on both cores
 against an unreachable DNS server is still outstanding; #416 stays open for
 that.
 

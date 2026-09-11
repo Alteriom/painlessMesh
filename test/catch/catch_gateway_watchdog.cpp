@@ -103,7 +103,10 @@ SCENARIO("The gateway blocking budget fits inside the mesh watchdog") {
 
     THEN("the budget counts both socket waits of each HTTP call plus DNS") {
       // Each HTTPClient chain can wait twice (GET/POST + body read), and the
-      // DNS reachability probe (ESP8266) runs before them — issue #416.
+      // DNS reachability probe (ESP8266) runs before them — issue #416. The
+      // destination lookup the handler performs on ESP32 (issue #453) is the
+      // residual the budget documents, not a term: on ESP32 it cannot be
+      // bounded, and on ESP8266 it is not performed.
       REQUIRE(painlessmesh::gateway::gatewayBlockingBudgetMs() ==
               2UL * static_cast<unsigned long>(GATEWAY_HTTP_TIMEOUT_MS) +
                   2UL * static_cast<unsigned long>(

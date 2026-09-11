@@ -29,11 +29,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tag-free excerpt of the body to the origin node's callback. Verified against
   the test point's delivery ledger by `catch_issue450_testpoint_semantics`.
 
+- **A gateway reported CallMeBot's HTTP 208 as a delivery** (#452). The
+  #450 fix accepted every 2xx but 203 on the status alone, and the next report
+  was the same bridge printing `WhatsApp message sent! HTTP Status: 208` for
+  a message that never arrived. Only 200, 201, 202 and 204 count on the
+  status now; any other 2xx is reported as a failure that carries the body,
+  and logged at ERROR level so a sketch on the default log levels sees what
+  the service said.
+- **A destination whose name does not resolve stalled an ESP32 gateway on
+  every attempt** (#453). A failed lookup surfaced as `connection refused`
+  after the resolver's own patience, which this library cannot bound on
+  ESP32, and with the bridge now serving its own sends the stalls stacked
+  until relayed requests timed out on their origin nodes. An ESP32 gateway
+  resolves the host once, reports `DNS lookup failed for <host>`, and refuses
+  that host for 60 s without another lookup. ESP8266 is unchanged: its core
+  bounds the lookup by the HTTP timeout.
+
 ### Changed
 
-- **HTTP 205, 206 and 208 now count as accepted on status alone.** 203 is the
-  one 2xx that means a proxy transformed the reply; the others are the
-  origin's own verdict, and the response body is what can overturn them.
 - **The mock HTTP server is now the gateway test point.** It keeps a delivery
   ledger (`GET /requests/{tag}`) and emulates CallMeBot's status quirks
   (`GET /callmebot/whatsapp.php`, profile chosen by `apikey`). The desktop CI

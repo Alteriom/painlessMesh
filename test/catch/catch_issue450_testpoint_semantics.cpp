@@ -131,14 +131,21 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
   }
 
   GIVEN("A CallMeBot-shaped service that does not encode delivery in the status") {
-    // Profiles are documented in test/mock-http-server/server.py. The two
-    // marked "hypothesis" are the readings of the reporter's HTTP 208; a
-    // gateway that keeps the body can tell them apart, one that keeps only
-    // the status cannot, and it must not claim delivery it cannot show.
-    const char* profiles[] = {"queued", "ratelimit-203", "ratelimit-201",
-                              "queued-208", "error-208"};
+    // Profiles are documented in test/mock-http-server/server.py. For a
+    // profile the service refuses or cannot vouch for, `phrase` is what the
+    // origin node must be told, in the service's own words. The 208 profile
+    // is the field finding of issue #452: CallMeBot answered it to a message
+    // that never arrived, so no body makes it a delivery.
+    struct Profile {
+      const char* name;
+      const char* phrase;
+    } profiles[] = {{"queued", ""},
+                    {"ratelimit-203", "Too many requests"},
+                    {"ratelimit-201", "Too many requests"},
+                    {"unverified-208", "Already Reported"}};
 
-    for (const char* profile : profiles) {
+    for (const auto& p : profiles) {
+      const char* profile = p.name;
       DYNAMIC_SECTION("profile " << profile) {
         auto tag = uniqueTag(profile);
         auto reply = httpGet(
@@ -161,7 +168,7 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
         if (!delivered) {
           // The origin node must learn why, in the service's own words.
           INFO("reason carried to the origin node: " << outcome.reason);
-          REQUIRE(outcome.reason.find("Too many requests") != std::string::npos);
+          REQUIRE(outcome.reason.find(p.phrase) != std::string::npos);
         }
       }
     }

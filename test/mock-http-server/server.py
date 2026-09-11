@@ -63,7 +63,9 @@ from urllib.parse import parse_qs, urlparse
 #   * a request missing the apikey, or the phone, answered HTTP 201 with the
 #     same error page -- nothing was delivered either;
 #   * the reporter's bridge received HTTP 208, body unknown, because the
-#     gateway discards response bodies.
+#     gateway discarded response bodies; with the body read (#451) the same
+#     bridge printed the 208 as "sent" and the message still never arrived
+#     (issue #452). 208 is therefore a non-delivery whatever the body says.
 # The success text below is the one CallMeBot's own examples and every
 # published integration show for a queued message.
 #
@@ -79,6 +81,10 @@ CALLMEBOT_TOO_MANY = (
     "<h1>Oops! Too many requests...</h1>"
     "<p>You have called to the API to often. Please review your script/code/app.</p>"
 )
+CALLMEBOT_ALREADY_REPORTED = (
+    "<p>HTTP 208 Already Reported</p>"
+    "<p>Seen from CallMeBot in painlessMesh #450 and #452; the message never arrived.</p>"
+)
 
 CALLMEBOT_PROFILES = {
     # Observed or documented behaviour.
@@ -88,12 +94,12 @@ CALLMEBOT_PROFILES = {
                       "note": "observed 2026-09-10 for a bogus phone/apikey"},
     "ratelimit-201": {"status": 201, "body": CALLMEBOT_TOO_MANY, "delivered": False,
                       "note": "observed 2026-09-10 for a request missing apikey or phone"},
-    # The two readings of the HTTP 208 in issue #450. A gateway that keeps
-    # the body can tell them apart; one that only keeps the status cannot.
-    "queued-208": {"status": 208, "body": CALLMEBOT_QUEUED, "delivered": True,
-                   "note": "hypothesis: the reporter's message was delivered"},
-    "error-208": {"status": 208, "body": CALLMEBOT_TOO_MANY, "delivered": False,
-                  "note": "hypothesis: the reporter's message was refused"},
+    # The HTTP 208 of issues #450 and #452: answered four times to messages
+    # that never arrived. The body CallMeBot sends with it is still unknown;
+    # this one names the status so the reason a gateway forwards is legible.
+    "unverified-208": {"status": 208, "body": CALLMEBOT_ALREADY_REPORTED,
+                       "delivered": False,
+                       "note": "observed in #450/#452: never delivered, body unknown"},
 }
 
 
