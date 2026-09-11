@@ -204,9 +204,14 @@ void routePackage(const layout::Layout<T>& layout,
 #if ARDUINOJSON_VERSION_MAJOR == 7
   protocol::Variant variant(pkg);
   if (variant.error) {
+    // The error is a DeserializationError object, not an integer: passing it
+    // through varargs is undefined behaviour. size_t is unsigned long on the
+    // 64-bit desktop build and unsigned int on ESP32/ESP8266, so it is cast
+    // to one type and printed with the matching specifier.
     Log(ERROR,
-        "routePackage(): parsing failed. err=%u, total_length=%d, data=%s<--\n",
-        variant.error, pkg.length(), pkg.c_str());
+        "routePackage(): parsing failed. err=%s, total_length=%lu, data=%s<--\n",
+        variant.error.c_str(), static_cast<unsigned long>(pkg.length()),
+        pkg.c_str());
     return;
   }
 
@@ -248,15 +253,20 @@ void routePackage(const layout::Layout<T>& layout,
   auto variant = std::make_shared<protocol::Variant>(pkg, capacity);
   
   if (variant->error) {
+    // Same two defects as the ArduinoJson 7 branch above (CodeQL
+    // cpp/wrong-type-format-argument, alerts #6-#9).
     if (variant->error == DeserializationError::NoMemory) {
       Log(ERROR,
-          "routePackage(): Message too large. length=%d, calculated_capacity=%u, "
-          "nesting_depth=%u. Consider increasing MAX_MESSAGE_CAPACITY if needed.\n",
-          pkg.length(), calculatedCapacity, nestingDepth);
+          "routePackage(): Message too large. length=%lu, calculated_capacity=%lu, "
+          "nesting_depth=%lu. Consider increasing MAX_MESSAGE_CAPACITY if needed.\n",
+          static_cast<unsigned long>(pkg.length()),
+          static_cast<unsigned long>(calculatedCapacity),
+          static_cast<unsigned long>(nestingDepth));
     } else {
       Log(ERROR,
-          "routePackage(): parsing failed. err=%u, length=%d, data=%s<--\n",
-          variant->error, pkg.length(), pkg.c_str());
+          "routePackage(): parsing failed. err=%s, length=%lu, data=%s<--\n",
+          variant->error.c_str(), static_cast<unsigned long>(pkg.length()),
+          pkg.c_str());
     }
     return;
   }

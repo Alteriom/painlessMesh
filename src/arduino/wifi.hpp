@@ -2765,54 +2765,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 #endif
 
-  void sendGatewayAck(
-      const gateway::GatewayDataPackage& request, bool success,
-      uint16_t httpStatus, const TSTRING& error,
-      std::shared_ptr<Connection> ingressConnection = nullptr) {
-    using namespace logger;
-
-    gateway::GatewayAckPackage ack;
-    ack.from = this->nodeId;
-    ack.dest = request.originNode;
-    ack.messageId = request.messageId;
-    ack.originNode = request.originNode;
-    ack.success = success;
-    ack.httpStatus = httpStatus;
-    ack.error = error;
-    ack.timestamp = this->getNodeTime();
-
-    if (request.originNode == this->nodeId) {
-      protocol::Variant variant(&ack);
-      this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
-      Log(COMMUNICATION,
-          "Completed local GATEWAY_ACK (success=%d, http=%d)\n", success,
-          httpStatus);
-      return;
-    }
-
-    auto conn = router::findRoute<Connection>((*this), request.originNode);
-    if (!conn && ingressConnection) {
-      // A newly promoted gateway can receive data before its NodeTree has
-      // converged enough for findRoute() to resolve the request origin.  The
-      // ingress connection is nevertheless a valid reverse path: the request
-      // just arrived through it and every intermediate node can continue
-      // routing the addressed acknowledgment toward originNode.
-      conn = ingressConnection;
-      Log(COMMUNICATION,
-          "Routing GATEWAY_ACK to node %u through request ingress while "
-          "topology converges\n",
-          request.originNode);
-    }
-    if (conn) {
-      protocol::Variant variant(&ack);
-      router::send(std::move(variant), conn);
-      Log(COMMUNICATION, "Sent GATEWAY_ACK to node %u (success=%d, http=%d)\n",
-          request.originNode, success, httpStatus);
-    } else {
-      Log(ERROR, "Failed to send GATEWAY_ACK: no route to node %u\n",
-          request.originNode);
-    }
-  }
+  // sendGatewayAck() is portable and lives in painlessmesh::Mesh
+  // (mesh.hpp): every node needs it, not only a gateway, to answer a
+  // request it cannot serve.
 
   /**
    * Initialize gateway Internet handler

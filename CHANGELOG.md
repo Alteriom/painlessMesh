@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A bridge that rebooted as a regular node swallowed every Internet request
+  routed to it.** Found on the hardware rig while validating this release. A
+  bridge that reboots, crashes, loses power or is reflashed announces nothing
+  -- only a bridge stepping down in-process sends `leaving` -- so its peers
+  kept it in their bridge list for the 60 s they trust a status, and could
+  prefer it over a live bridge on RSSI. A regular node had no handler for
+  gateway requests and dropped them without a reply; each sender waited out
+  its 30 s request timeout and reported "Request timed out". Every node now
+  answers a gateway request it cannot serve with
+  `Node <id> is not an Internet gateway`; the sender forgets that node as a
+  gateway and sends again at once through the next one, without spending a
+  retry, or fails immediately with `No Internet gateway available: ...` when
+  none is left. Reproduced on the desktop by `catch_stale_gateway`, three
+  meshes over loopback TCP, and on the rig by
+  `gateway.stale_after_reboot`.
+- **Mismatched log format arguments in `routePackage()`** (CodeQL
+  `cpp/wrong-type-format-argument`). A message that failed to parse was logged
+  with its `size_t` lengths through `%d`/`%u` -- the wrong width on 64-bit
+  hosts -- and with its `DeserializationError` object passed through `%u`,
+  undefined behaviour on every platform, in the ArduinoJson 7 path every
+  current build compiles as well as the legacy one CodeQL flagged.
+
 - **A bridge's own `sendToInternet()` was refused for the first 30 s after
   `initAsBridge()`** (#450). The Internet health check is armed one line after
   `stationManual()` re-issues `WiFi.begin()`, so its first probe ran while the
@@ -47,6 +69,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`Mesh::sendGatewayAck()` is public and portable.** It moved from the ESP
+  gateway code into `painlessmesh::Mesh`, because every node now needs it to
+  answer a request it cannot serve.
+- **`Log()` is format-checked in the desktop build.** The test build marks it
+  printf-like, so CI's `-Wall -Werror` rejects an argument that does not match
+  its specifier. Device builds are unchanged: on ESP-IDF 5 `uint32_t` is
+  `unsigned long`, and every `%u` of a node id would warn there.
 - **The mock HTTP server is now the gateway test point.** It keeps a delivery
   ledger (`GET /requests/{tag}`) and emulates CallMeBot's status quirks
   (`GET /callmebot/whatsapp.php`, profile chosen by `apikey`). The desktop CI

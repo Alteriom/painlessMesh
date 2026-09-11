@@ -53,6 +53,12 @@ add_executable(catch_tcp_integration test/boost/tcp_integration.cpp test/catch/f
 target_include_directories(catch_tcp_integration PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
 TARGET_LINK_LIBRARIES(catch_tcp_integration ${Boost_LIBRARIES})
 
+# A gateway that rebooted as a regular node: three meshes over loopback TCP,
+# so the request, the "not a gateway" answer and the retry travel real routes.
+add_executable(catch_stale_gateway test/boost/stale_gateway.cpp test/catch/fake_serial.cpp src/scheduler.cpp src/connection.cpp)
+target_include_directories(catch_stale_gateway PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
+TARGET_LINK_LIBRARIES(catch_stale_gateway ${Boost_LIBRARIES})
+
 add_executable(catch_connection test/boost/connection.cpp test/catch/fake_serial.cpp src/scheduler.cpp src/connection.cpp)
 target_include_directories(catch_connection PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
 TARGET_LINK_LIBRARIES(catch_connection ${Boost_LIBRARIES})

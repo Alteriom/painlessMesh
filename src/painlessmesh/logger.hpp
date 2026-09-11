@@ -30,6 +30,19 @@ typedef enum {
   DEBUG = 1 << 11
 } LogLevel;
 
+// Log() is printf-like. In the desktop test build the compiler is told so,
+// and -Wall -Werror in CI then rejects any argument that does not match its
+// specifier. That class of bug reached main twice in routePackage(): size_t
+// through %d/%u, and a DeserializationError object through %u (CodeQL
+// cpp/wrong-type-format-argument). The check is kept to the desktop build on
+// purpose: ESP-IDF 5 makes uint32_t `unsigned long`, so on ESP32 every %u of
+// a node id would warn, harmlessly, in every user's build.
+#if defined(PAINLESSMESH_BOOST) && defined(__GNUC__)
+#define PAINLESSMESH_LOG_FORMAT __attribute__((format(printf, 3, 4)))
+#else
+#define PAINLESSMESH_LOG_FORMAT
+#endif
+
 class LogClass {
  public:
   // Where messages go instead of Serial. The sketch owns framing: on a board
@@ -83,7 +96,7 @@ class LogClass {
     Serial.println();
     return;
   }
-  void operator()(LogLevel type, const char *format...) {
+  void operator()(LogLevel type, const char *format...) PAINLESSMESH_LOG_FORMAT {
     if (type & types) {  // Print only the message types set for output
       va_list args;
       va_start(args, format);
