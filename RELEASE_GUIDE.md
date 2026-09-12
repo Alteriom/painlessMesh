@@ -38,12 +38,22 @@ These files must always contain the same semantic version:
 - `library.properties`
 - `library.json`
 - `package.json`
+- `package-lock.json` (the root `version` and `packages[""].version`)
+- `src/AlteriomPainlessMesh.h` (the version string and the MAJOR/MINOR/PATCH
+  defines a sketch compiles against)
+- `doxygen/Doxyfile` (`PROJECT_NUMBER`, the number on every generated API page)
 
-Use the repository script to change them together:
+Use the repository script to change them together; it updates all six and then
+verifies they agree:
 
 ```bash
 ./scripts/bump-version.sh patch
+./scripts/bump-version.sh patch 2.0.3 --yes   # no prompt, for CI or an agent
 ```
+
+`jq` is used when it is installed and awk otherwise, and both paths change only
+the package's own version — never a dependency range. `test/ci/test_bump_version.sh`
+holds that, and the Code Quality job runs it.
 
 You may use `minor`, `major`, or an explicit version when the release plan
 requires it. Version 2.0 patch releases must remain wire-compatible with the
