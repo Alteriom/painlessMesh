@@ -7,8 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-09-11
+
+`sendToInternet()` fixes from one user's WhatsApp integration (#450, #452,
+#453), and one the hardware rig found while validating them. **Upgrade if a
+node of yours is a bridge or relays to the Internet**: on 2.0.2 a bridge's own
+sends were refused for 30 s after boot, a service that answered a refusal with
+HTTP 201 was reported as delivered, a destination that does not resolve
+stalled an ESP32 gateway on every attempt, and a bridge that rebooted as a
+regular node swallowed every request its peers still sent it. Every fix was
+reproduced first -- against the new HTTP test point, which CI now runs, or
+over real TCP on the desktop -- and is covered by a row on the hardware farm.
+
 ### Fixed
 
+- **A bridge's own `sendToInternet()` was refused for the first 30 s after
+  `initAsBridge()`** (#450). The Internet health check is armed one line after
+  `stationManual()` re-issues `WiFi.begin()`, so its first probe ran while the
+  station was still associating and failed, and the next was a full interval
+  away. Every send from the bridge in that window fell through to the mesh
+  path and was refused with "No active mesh connections" -- #445 again, with
+  a 30 s hole instead of forever. `sendToInternet()` and the retry path now
+  spend one on-demand probe per interval when the flag says no, and the
+  station's got-IP event re-probes at once on a bridge or shared gateway.
+- **A gateway reported a refusal as delivered, and every failure as a bare
+  number** (#450, #452). The gateway decided on the HTTP status alone and
+  discarded the response body. CallMeBot's WhatsApp API answers "Too many
+  requests" with HTTP 201 and HTTP 203, the same page under both, so a refused
+  message sent through a gateway on 2.0.2 could be reported as delivered; and
+  it answers HTTP 208 to messages it never delivers, which 2.0.2 reported as
+  "Ambiguous response" with nothing to say why. The gateway now reads the
+  start of the body (bounded to 512 bytes and 250 ms). Only 200, 201, 202 and
+  204 count as delivered, and not when the body says the service refused the
+  request; every other 2xx is a failure. Every failure reaches the origin
+  node's callback with a one-line, tag-free excerpt of the body -- for example
+  `HTTP 201: service refused the request: Oops! Too many requests...` or
+  `HTTP 208: not a delivery the gateway can confirm: ...` -- and is logged at
+  ERROR level, so a sketch on the default log levels sees what the service
+  said.
+- **A destination whose name does not resolve stalled an ESP32 gateway on
+  every attempt** (#453). A failed lookup surfaced as `connection refused`
+  after the resolver's own patience, which this library cannot bound on ESP32,
+  and every attempt -- the origin node's retries and, since the bridge fix
+  above, the bridge's own sends -- paid it again, until relayed requests timed
+  out on their origin nodes. An ESP32 gateway now resolves the host once,
+  reports `DNS lookup failed for <host>`, and refuses that host for 60 s
+  without another lookup. ESP8266 is unchanged: its core bounds the lookup by
+  the HTTP timeout. The gateway blocking budget is unchanged.
 - **A bridge that rebooted as a regular node swallowed every Internet request
   routed to it.** Found on the hardware rig while validating this release. A
   bridge that reboots, crashes, loses power or is reflashed announces nothing
@@ -20,12 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   answers a gateway request it cannot serve with
   `Node <id> is not an Internet gateway`; the sender forgets that node as a
   gateway and sends again at once through the next one, without spending a
-  retry. When it knew no other gateway, the request rides the ordinary retry
+  retry. When it knows no other gateway, the request rides the ordinary retry
   backoff -- on the rig the live bridge was advertised half a second later --
-  and fails with `No Internet gateway available: ...` only when
-  none is left after its retries. Reproduced on the desktop by `catch_stale_gateway`, three
-  meshes over loopback TCP, and on the rig by
-  `gateway.stale_after_reboot`.
+  and fails with `No Internet gateway available: ...` only when none appears.
 - **Mismatched log format arguments in `routePackage()`** (CodeQL
   `cpp/wrong-type-format-argument`). A message that failed to parse was logged
   with its `size_t` lengths through `%d`/`%u` -- the wrong width on 64-bit
@@ -33,44 +75,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   undefined behaviour on every platform, in the ArduinoJson 7 path every
   current build compiles as well as the legacy one CodeQL flagged.
 
-- **A bridge's own `sendToInternet()` was refused for the first 30 s after
-  `initAsBridge()`** (#450). The Internet health check is armed one line after
-  `stationManual()` re-issues `WiFi.begin()`, so its first probe ran while the
-  station was still associating and failed, and the next was a full interval
-  away. Every send from the bridge in that window fell through to the mesh
-  path and was refused with "No active mesh connections" -- #445 again, with
-  a 30 s hole instead of forever. `sendToInternet()` and the retry path now
-  spend one on-demand probe per interval when the flag says no, and the
-  station's got-IP event re-probes at once on a bridge or shared gateway.
-  Reproduced on the desktop by `catch_issue450_bridge_first_send`.
-- **A gateway reported a refusal as delivered, and a failure as a bare
-  number** (#450). CallMeBot answers "Too many requests" with HTTP 201 and
-  HTTP 203, the same page under both, and 201 was on the success list; the
-  reporter's HTTP 208 could not be interpreted at all because the body was
-  discarded. The gateway now reads the start of the response body (bounded to
-  512 bytes and 250 ms), a success-class status whose body says the service
-  refused the request is a failure, and every failure carries a one-line,
-  tag-free excerpt of the body to the origin node's callback. Verified against
-  the test point's delivery ledger by `catch_issue450_testpoint_semantics`.
-
-- **A gateway reported CallMeBot's HTTP 208 as a delivery** (#452). The
-  #450 fix accepted every 2xx but 203 on the status alone, and the next report
-  was the same bridge printing `WhatsApp message sent! HTTP Status: 208` for
-  a message that never arrived. Only 200, 201, 202 and 204 count on the
-  status now; any other 2xx is reported as a failure that carries the body,
-  and logged at ERROR level so a sketch on the default log levels sees what
-  the service said.
-- **A destination whose name does not resolve stalled an ESP32 gateway on
-  every attempt** (#453). A failed lookup surfaced as `connection refused`
-  after the resolver's own patience, which this library cannot bound on
-  ESP32, and with the bridge now serving its own sends the stalls stacked
-  until relayed requests timed out on their origin nodes. An ESP32 gateway
-  resolves the host once, reports `DNS lookup failed for <host>`, and refuses
-  that host for 60 s without another lookup. ESP8266 is unchanged: its core
-  bounds the lookup by the HTTP timeout.
-
 ### Changed
 
+- **The mock HTTP server is now the gateway test point.** It keeps a delivery
+  ledger (`GET /requests/{tag}`) and emulates CallMeBot's status quirks
+  (`GET /callmebot/whatsapp.php`, profile chosen by `apikey`). The desktop CI
+  job starts it and `PAINLESSMESH_TESTPOINT` points the suite at it, so the
+  library's delivery verdict is checked against what the service actually did,
+  not against a table of status codes. The Alteriom farm's gateway probe serves
+  the same routes.
 - **`Mesh::sendGatewayAck()` is public and portable.** It moved from the ESP
   gateway code into `painlessmesh::Mesh`, because every node now needs it to
   answer a request it cannot serve.
@@ -78,11 +91,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   printf-like, so CI's `-Wall -Werror` rejects an argument that does not match
   its specifier. Device builds are unchanged: on ESP-IDF 5 `uint32_t` is
   `unsigned long`, and every `%u` of a node id would warn there.
-- **The mock HTTP server is now the gateway test point.** It keeps a delivery
-  ledger (`GET /requests/{tag}`) and emulates CallMeBot's status quirks
-  (`GET /callmebot/whatsapp.php`, profile chosen by `apikey`). The desktop CI
-  job starts it and `PAINLESSMESH_TESTPOINT` points the suite at it; the
-  Alteriom farm's probe serves the same routes.
 - **`sendToInternet` example.** The startup WhatsApp retries every 30 s until
   a gateway with Internet is known instead of firing once before a regular
   node has joined, and the cloud endpoint moved to a `CLOUD_URL` define whose
