@@ -278,6 +278,14 @@ jobs:
             echo "ℹ️ No Alteriom-specific files to check formatting"
           fi
 
+      # The release script, on a copy of this repository's version metadata.
+      # Its jq-less fallback used to rewrite every "version" key in
+      # library.json, including the dependency ranges; hosted runners have jq,
+      # so the test masks it to exercise the path a Windows Git Bash checkout
+      # takes, then repeats the run with jq.
+      - name: Version bump script
+        run: bash test/ci/test_bump_version.sh
+
       - name: Check for TODO/FIXME comments
         run: |
           # Only check for TODO/FIXME in newly added Alteriom files
