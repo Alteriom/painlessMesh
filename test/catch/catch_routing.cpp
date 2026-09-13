@@ -379,3 +379,44 @@ SCENARIO("A tree's fingerprint follows the time authority flag") {
     }
   }
 }
+
+SCENARIO("liveSubs counts the connections a node can actually use") {
+  GIVEN("a node whose only two connections have both closed") {
+    // The state the rig caught (issue #459): the node had closed its
+    // uplink, the connection objects had not been erased yet, and the
+    // station task had to decide whether to scan now or in fifteen
+    // seconds. Counting subs says "two connections"; the node had none.
+    layout::Layout<ClosableConnection> tree;
+    tree.subs.push_back(conn_holding(2098834584, /*up=*/false));
+    tree.subs.push_back(conn_holding(3198819345, /*up=*/false));
+
+    THEN("subs still lists them, and liveSubs does not count them") {
+      REQUIRE(tree.subs.size() == 2);
+      REQUIRE(layout::liveSubs(tree) == 0);
+    }
+  }
+
+  GIVEN("a node with one connection up and one closed") {
+    layout::Layout<ClosableConnection> tree;
+    tree.subs.push_back(conn_holding(2098834584, /*up=*/false));
+    tree.subs.push_back(conn_holding(3711130777));
+
+    THEN("only the live one counts") {
+      REQUIRE(layout::liveSubs(tree) == 1);
+    }
+    THEN("a connection going down is seen without erasing anything") {
+      // Which is the point: the station task reads this every scan, and
+      // eraseClosedConnections() runs on its own schedule.
+      tree.subs.back()->up = false;
+      REQUIRE(layout::liveSubs(tree) == 0);
+      REQUIRE(tree.subs.size() == 2);
+    }
+  }
+
+  GIVEN("a node with no connections at all") {
+    layout::Layout<ClosableConnection> tree;
+    THEN("liveSubs is zero rather than anything worse") {
+      REQUIRE(layout::liveSubs(tree) == 0);
+    }
+  }
+}

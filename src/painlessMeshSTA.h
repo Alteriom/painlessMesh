@@ -62,7 +62,14 @@ class StationScan {
   // The station got an address: its link is up. Cleared once the drop
   // callbacks have judged a disconnect, so they can tell a link that was
   // up and went away from an attempt that never got that far.
-  void stationUp() { stationLinkUp = true; }
+  void stationUp() {
+    stationLinkUp = true;
+    // A link again, so the immediate-rescan allowance is restored now
+    // rather than at the next scan. Without this a node that dropped
+    // twice inside one scan interval paid the full fifteen seconds for
+    // the second drop (#459).
+    rejoinScanned = false;
+  }
   void stationDown() { stationLinkUp = false; }
   bool stationLinkUp = false;
   // The station link was closed by this node's own channel move a moment
@@ -147,6 +154,11 @@ class StationScan {
   // channel re-detection runs, and consuming those results here found them
   // already deleted, reported "wifi scan failed", and rescanned at once.
   bool scanRequested = false;
+  // Whether this node has already scanned at once on losing its last
+  // connection. Cleared the moment it has one again, so the immediate
+  // rescan is one per outage and not a scan loop: a node that is out of
+  // the mesh and finds nothing still falls back to the interval below.
+  bool rejoinScanned = false;
   // Set when the next station scan must cover every channel: the empty
   // scans have piled up and the node is looking for the channel the mesh
   // moved to. The re-detection is this task's ordinary asynchronous scan
