@@ -2,13 +2,55 @@
 
 ## Branches
 
-- `main` holds released code. A push to `main` that carries a version bump,
-  or whose head commit message starts with `release:`, is what tags and
-  publishes a release (see [RELEASE_GUIDE.md](RELEASE_GUIDE.md)).
-- `Feat/next-release` is the integration branch for the next version. Open
-  pull requests against it.
-- Work happens on short-lived feature branches (`fix/…`, `feat/…`, `docs/…`)
-  cut from `Feat/next-release`.
+| Branch | What it is | Lifetime |
+|---|---|---|
+| `main` | the released line. A push carrying a version-file change, or whose head commit starts with `release:`, tags and publishes (see [RELEASE_GUIDE.md](RELEASE_GUIDE.md)) | permanent |
+| `release/<major>.x` | one major line — `release/3.x` while 3.0 is being built, and the same branch afterwards for patches to 2.x once `main` has moved on | as long as that major is being built or supported |
+| `release/<version>` | preparing one release: the version files, the changelog date | short-lived |
+| `fix/…` `feat/…` `docs/…` `ci/…` `test/…` `refactor/…` `chore/…` | one change | short-lived |
+
+**Open pull requests against `main`** unless the change belongs to a major
+line that has its own branch, in which case open them against that. This is
+also what the repository does in practice: every fix since #448 was merged to
+`main`.
+
+`Feat/next-release` is retired. It was where v2 was built while `main` still
+carried v1, which is exactly the job `release/<major>.x` now names; it holds
+nothing `main` does not, and leaving it there sent contributors at a branch
+27 commits behind.
+
+### Naming
+
+- **`type/short-slug`**, lowercase, hyphens — never underscores or capitals.
+  The type is one of the [Conventional Commits](https://www.conventionalcommits.org/)
+  types this repository already uses in commit subjects, so a branch and the
+  commits on it agree about what they are.
+- **An issue number goes at the end** when there is one: `fix/rejoin-459`.
+  A slug that says only the area (`fix/critical-bugs`) tells a later reader
+  nothing about what was wrong.
+- **No `v` in a branch name.** Tags carry it (`v2.0.3`); branches do not
+  (`release/2.0.4`, `release/3.x`). 2.0.2 shipped from `release/2.0.2` and
+  2.0.3 from `release/v2.0.3` — pick the one without.
+- **Tool-generated prefixes** (`copilot/…`, `claude/…`, `dependabot/…`) are
+  left as the tool makes them. They are ordinary short-lived work branches
+  and are deleted on merge like any other.
+
+### Status
+
+A branch is deleted when its pull request merges — by whoever merges it, or
+by GitHub's automatic branch deletion. Anything still on the remote is
+either live work or something that was forgotten, and the two look identical
+from a branch list, so:
+
+```bash
+./scripts/branch-status.sh          # every remote branch: ahead, behind, age, unmerged work
+./scripts/branch-status.sh --stale  # only the ones with nothing of their own
+```
+
+`ahead` counts commits `main` does not have; `unmerged` counts those whose
+change is not in `main` under any commit, which is the number that matters
+after a squash merge. A branch with `unmerged=0` can be deleted without
+losing anything.
 
 Maintainers merge quickly, often as a squash. Push every commit you describe
 before you describe it, and cut follow-up work from the merged base rather
@@ -16,7 +58,8 @@ than from a stale branch.
 
 ## Submit a pull request
 
-- Point the pull request at `Feat/next-release`, not `main`.
+- Point the pull request at `main`, or at the major line's own branch when
+  the change belongs to one (see [Branches](#branches)).
 - Say what was wrong, how you know (a log, a test, a measurement), and what
   the change does about it. For anything that touches the radio, routing,
   the gateway or OTA, the evidence is a serial log or a run on the
