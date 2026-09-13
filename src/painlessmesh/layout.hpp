@@ -127,6 +127,22 @@ class Layout {
   bool hasTimeAuthority = false;
 };
 
+/** How many of this node's connections are up.
+ *
+ * Zero means the node is out of the mesh: it has no route to anywhere, and
+ * nothing it is told about the topology can be acted on. A closed
+ * connection stays in `subs` until eraseClosedConnections() next runs, and
+ * a count of `subs` therefore says a node is connected when it is not --
+ * which is the same trap findRoute() was fixed for.
+ */
+template <class T>
+size_t liveSubs(const Layout<T>& layout) {
+  size_t live = 0;
+  for (auto&& sub : layout.subs)
+    if (sub->connected()) ++live;
+  return live;
+}
+
 template <class T>
 void syncLayout(Layout<T>& layout, uint32_t changedId) {
   // TODO: this should be called from changed connections and dropped

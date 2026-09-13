@@ -628,6 +628,9 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
 #endif
   bool isRooted = layout::isRooted(mesh->asNodeTree());
   if (isRooted) everRooted = true;
+  // The immediate-rescan allowance is per outage, and this is the one place
+  // every scan passes through: a node with a connection has not spent it.
+  if (painlessmesh::layout::liveSubs(*mesh) > 0) rejoinScanned = false;
   if (aps.empty()) {
     // No unknown nodes found
     consecutiveEmptyScans++;
@@ -732,11 +735,42 @@ void ICACHE_FLASH_ATTR StationScan::connectToAP() {
       task.delay(interval);
       if (orphanScanBackoff < 2) orphanScanBackoff++;
     } else {
-      // else scan fast (SCAN_INTERVAL)
-      Log(CONNECTION,
-          "connectToAP(): No unknown nodes found scan rate set to "
-          "fast\n");
+      // Not connected, and this scan turned up nothing to connect to.
+      //
+      // "Fast" here is 0.5 * SCAN_INTERVAL -- fifteen seconds. For a node
+      // that still has a live connection (an AP-side child) that is soon
+      // enough: it is in the mesh and reachable while it looks for more.
+      // For a node with none it is the whole cost of the outage, and it is
+      // paid while the node's neighbours still have it in their routing
+      // tables: they keep sending to it until their own NODE_TIMEOUT, and
+      // those messages are dropped.
+      //
+      // Measured on the Alteriom HIL rig (issue #459): an ESP32-C3 closed
+      // its only uplink on a momentary nodeSync contradiction, logged
+      // "scan rate set to fast" 12 ms later, and did not scan again for
+      // exactly 15 000 ms. It was out of the mesh for 16.2 s and answered
+      // an empty node list throughout; a unicast sent to it in that window
+      // was accepted by the sender and lost. The scan that finally ran
+      // found five mesh APs at -30 to -58 dBm and was associated 1.2 s
+      // later. There was nothing to wait for.
+      //
+      // So a node with no connections left scans at once. Once per outage:
+      // `rejoinScanned` is cleared as soon as it has a connection again,
+      // so a node that is simply alone falls back to the interval instead
+      // of scanning back to back.
       task.setInterval(0.5 * SCAN_INTERVAL);
+      if (painlessmesh::layout::liveSubs(*mesh) == 0 && !rejoinScanned) {
+        rejoinScanned = true;
+        Log(CONNECTION,
+            "connectToAP(): No connections left; scanning again now rather "
+            "than in %d s\n",
+            (int)(0.5 * SCAN_INTERVAL / TASK_SECOND));
+        task.forceNextIteration();
+      } else {
+        Log(CONNECTION,
+            "connectToAP(): No unknown nodes found scan rate set to "
+            "fast\n");
+      }
     }
     mesh->stability += min(1000 - mesh->stability, (size_t)25);
   } else {
