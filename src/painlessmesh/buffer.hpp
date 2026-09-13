@@ -206,12 +206,17 @@ class SentBuffer {
   size_t requestLength(size_t buffer_length) {
     // Use highest priority message available
     auto* msg = getNextMessage();
-    if (!msg)
-      return 0;
-    else
-      // String.toCharArray automatically turns the last character into
-      // a \0, we need the extra space to deal with that annoyance
-      return (std::min)(buffer_length - 1, msg->length() + 1);
+    if (!msg) return 0;
+    // A caller with no room is owed nothing. The subtraction below leaves
+    // space for the terminator toCharArray() always writes; on an unsigned
+    // zero it wraps to SIZE_MAX instead, min() then picks the message, and
+    // the answer comes back *larger* than was asked for -- which the
+    // documented contract above forbids and read() then acts on, writing
+    // length + 1 bytes into a buffer the caller said had none.
+    if (buffer_length == 0) return 0;
+    // String.toCharArray automatically turns the last character into
+    // a \0, we need the extra space to deal with that annoyance
+    return (std::min)(buffer_length - 1, msg->length() + 1);
   }
 
   /**

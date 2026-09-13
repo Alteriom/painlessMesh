@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`SentBuffer::requestLength(0)` answered 1, not 0.** `buffer_length - 1`
+  leaves room for the terminator `toCharArray()` always writes; on an
+  unsigned zero it wraps to `SIZE_MAX`, `min()` then picks the message, and
+  a caller with no room at all is told one byte is available -- which the
+  method's own contract forbids ("<= the requested length") and `read()`
+  acts on, writing `length + 1` bytes. Found because the randomised buffer
+  scenario draws its length from `runif(0, ...)`: it asked for zero about
+  once in sixty runs and failed CI on pull requests nowhere near the buffer.
+
 ## [2.0.3] - 2026-09-11
 
 `sendToInternet()` fixes from one user's WhatsApp integration (#450, #452,
