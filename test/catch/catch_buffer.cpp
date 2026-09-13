@@ -285,3 +285,38 @@ SCENARIO("SentBuffer receives strings and can be read in parts") {
     }
   }
 }
+
+SCENARIO("requestLength never answers with more than it was asked for") {
+  // The randomised scenario above draws its length from runif(0, ...), so it
+  // asked for zero about once in sixty runs -- and CI failed there, on
+  // `REQUIRE(rlength <= 2 * length)` expanding to `1 <= 0`, on pull requests
+  // that had not been near the buffer. `buffer_length - 1` on an unsigned
+  // zero is SIZE_MAX, so min() picked the message and a caller with no room
+  // was told one byte was available.
+  temp_buffer_t tmp_buffer;
+  SentBuffer<std::string> sBuffer = SentBuffer<std::string>();
+
+  GIVEN("an empty message in the buffer and a caller with no room") {
+    sBuffer.push(std::string(""));
+    REQUIRE(!sBuffer.empty());
+    THEN("requestLength(0) is 0") { REQUIRE(sBuffer.requestLength(0) == 0); }
+  }
+
+  GIVEN("a message longer than the room offered") {
+    sBuffer.push(std::string("0123456789"));
+    THEN("the answer is bounded by the room, terminator included") {
+      REQUIRE(sBuffer.requestLength(0) == 0);
+      REQUIRE(sBuffer.requestLength(1) == 0);
+      REQUIRE(sBuffer.requestLength(4) == 3);
+      // Room to spare: the whole message and its terminator.
+      REQUIRE(sBuffer.requestLength(tmp_buffer.length) == 11);
+    }
+  }
+
+  GIVEN("nothing in the buffer") {
+    THEN("every request is 0, whatever the room") {
+      REQUIRE(sBuffer.requestLength(0) == 0);
+      REQUIRE(sBuffer.requestLength(tmp_buffer.length) == 0);
+    }
+  }
+}
