@@ -82,6 +82,14 @@ typedef std::function<void(bool success, uint16_t httpStatus, TSTRING error)>
     internetResultCallback_t;
 
 /**
+ * Defined when sendToInternet() accepts an InternetResult callback, the
+ * gateway only retries requests that cannot have reached the server, and
+ * each request carries X-Request-Id. Code that must build against older
+ * releases too can test for it with #ifdef.
+ */
+#define PAINLESSMESH_HAS_INTERNET_RESULT 1
+
+/**
  * Everything the library learned about one sendToInternet() call
  *
  * The library applies HTTP's meaning of a reply and nothing more. Whether a
