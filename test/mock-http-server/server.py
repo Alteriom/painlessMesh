@@ -480,6 +480,9 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             "version": "2.0.0",
             "uptime": time.time() - server_start_time,
             "requests_seen": ledger.count,
+            # Named the way the Alteriom farm's gateway probe names them, so a
+            # row that asks for a feature runs against either server.
+            "features": ["ledger.count", "ledger.request_ids", "retry_after"],
             "timestamp": time.time()
         }
         self._send_response(200, body=json.dumps(response))

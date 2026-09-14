@@ -74,6 +74,13 @@ if curl -s "$SERVER_URL/requests/t-201" | grep -q '"delivered": false'; then
 else
     echo -e "${RED}✗ FAIL${NC}"; FAIL=$((FAIL+1))
 fi
+echo -n "Health names the ledger and Retry-After features... "
+if curl -s "$SERVER_URL/health" | grep -q '"retry_after"'; then
+    echo -e "${GREEN}✓ PASS${NC}"; PASS=$((PASS+1))
+else
+    echo -e "${RED}✗ FAIL${NC}"; FAIL=$((FAIL+1))
+fi
+
 # Retry-After: refused once per tag, accepted afterwards
 RA_TAG="ra-$$-$(date +%s)"
 test_endpoint "Retry-After first request" "$SERVER_URL/retry-after/1?tag=$RA_TAG" 429
