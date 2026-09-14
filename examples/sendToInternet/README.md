@@ -64,6 +64,54 @@ if (mesh.hasInternetConnection()) {
 }
 ```
 
+### Reading the reply: the whole result
+
+`success` means HTTP 200, 201, 202 or 204 -- what HTTP calls a success. It
+does not mean the service did what you wanted: CallMeBot, for one, answers
+"Too many requests" under HTTP 201. Pass a callback that takes an
+`InternetResult` to get the start of the response body as well, and decide
+in your sketch:
+
+```cpp
+#include "callmebot.h"  // from this example
+
+mesh.sendToInternet(url, "", [](const painlessmesh::InternetResult& result) {
+  // result.messageId, result.success, result.httpStatus, result.error,
+  // result.response (the body, as one line), result.retryable, result.attempts
+  const auto reply = callmebot::judge(result.httpStatus, result.response);
+  if (reply.accepted) {
+    Serial.println("CallMeBot queued the message");
+  } else {
+    Serial.printf("Not sent: %s -- CallMeBot said: %s\n", reply.meaning,
+                  result.response.c_str());
+  }
+});
+```
+
+`callmebot.h` is part of the example, not the library: it knows CallMeBot's
+wording ("Message queued", "Too many requests", "Your Account is Paused")
+and that its HTTP 208 has not meant a delivery. The desktop test suite checks
+it against the CallMeBot-shaped test point in `test/mock-http-server/`.
+
+### Retries and duplicates
+
+The library issues each request **once**, and retries only when a retry
+cannot deliver it twice:
+
+| What happened | Retried? |
+|---|---|
+| Connection refused, or a send failure before the request went out | yes |
+| Gateway without Internet, a host that does not resolve | no -- a retry within seconds fails the same way |
+| HTTP 429 or 503 (the server did not take it) | yes, not before `Retry-After` |
+| Read timeout, connection lost after sending | **no** -- the server may have it |
+| Any other status, including every 2xx and 500 | no |
+
+A request that was not retried reports `retryable == false`; a transport error
+says "(the request may have reached the server; not retried)". Resending is
+then your call, knowing it may arrive twice. Every attempt at one call carries
+the same `X-Request-Id` and `Idempotency-Key` header, so a service that honours
+idempotency keys drops the copy, and a log can tell a retry from a second send.
+
 ### Sending JSON to REST API
 
 ```cpp
@@ -143,7 +191,8 @@ mesh.sendToInternet("https://api.callmebot.com/...", "", callback);
 
 1. Verify your Callmebot API key is correct
 2. Ensure phone number includes country code (e.g., `+1234567890`)
-3. Check HTTP status code in callback (200 = success)
+3. Print `result.response` in the callback: CallMeBot says why in the body,
+   and HTTP 200/201 alone does not mean it sent anything
 4. URL-encode special characters in the message
 
 ### Gateway shows "no internet access" but WiFi is connected
@@ -188,7 +237,9 @@ The callback provides `httpStatus` to indicate the result:
 **FAILURE (success = false):**
 - `203 Non-Authoritative Information` - **Cached/proxied response, NOT actual delivery**
 
-⚠️ **The status alone does not say whether WhatsApp got the message.** CallMeBot answers a refusal (for example "Too many requests") with HTTP 201 or HTTP 203, the same error page under both. The gateway therefore reads the start of the response body: a 2xx whose body says the service refused the request is reported as a failure, with the service's own words in the callback's `error` string, and HTTP 203 stays a failure because a proxy, not the WhatsApp API, may have answered. If your callback prints `HTTP 201: service refused the request: Oops! Too many requests...`, that is CallMeBot talking, and the message was **NOT delivered**. Likewise `HTTP 208: not a delivery the gateway can confirm: ...`: CallMeBot answers 208 to messages that never arrive (issues #450 and #452), so only 200, 201, 202 and 204 with a clean body are reported as sent, and the rest of the line is whatever the service said.
+⚠️ **The status alone does not say whether WhatsApp got the message.** CallMeBot answers a refusal (for example "Too many requests") with HTTP 201 or HTTP 203, the same error page under both, and it has answered HTTP 208 to messages that never arrived (issues #450 and #452). The library reports HTTP's meaning -- 201 is a success, 203 and 208 are not -- and hands your callback the start of the body in `result.response`. The sketch's `callmebot::judge()` reads that body: `✅ WhatsApp message queued by CallMeBot` only when CallMeBot said "Message queued", and otherwise `❌ WhatsApp message not sent` followed by what CallMeBot said.
+
+**The sketch paces its alerts.** CallMeBot is free and rate-limited. The sketch sends one WhatsApp when O2 falls below the threshold, not one per reading, never more than one every 10 minutes per node, and waits 15 minutes after "Too many requests" or a paused account. Several nodes with the same API key share CallMeBot's limit; raise `ALERT_MIN_INTERVAL_MS` accordingly.
 
 Also replace `CLOUD_URL` at the top of the sketch: the placeholder `api.example.com` does not resolve, and until you change it the sketch skips the cloud send and says so instead of reporting `connection refused` every minute.
 

@@ -11,12 +11,18 @@
 
 #include "ArduinoJson.h"
 #include "painlessmesh/gateway.hpp"
+#include "sendToInternet/callmebot.h"
 
 // Logger for test environment
 painlessmesh::logger::LogClass Log;
 
 /**
  * Issue #450: the gateway's verdict disagrees with the service.
+ *
+ * (Since 2.0.4 the split is explicit: the library reports what HTTP says and
+ * carries the body; examples/sendToInternet/callmebot.h reads what CallMeBot
+ * means. The ledger is compared with the example's reading, and the library's
+ * part is checked on its own terms: the status, no retry, the words intact.)
  *
  * The bridge in the report reached CallMeBot, got HTTP 208, and told the
  * sketch "Ambiguous response ... not actual delivery". Nobody can say whether
@@ -131,22 +137,22 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
   }
 
   GIVEN("A CallMeBot-shaped service that does not encode delivery in the status") {
-    // Profiles are documented in test/mock-http-server/server.py. For a
-    // profile the service refuses or cannot vouch for, `phrase` is what the
-    // origin node must be told, in the service's own words, and it is chosen
-    // to be unique to the response body: "Already Reported" is also the HTTP
-    // reason phrase for 208, which a classifier could echo without reading a
+    // Profiles are documented in test/mock-http-server/server.py. `phrase`
+    // is what the application must be able to read in the body the library
+    // hands it, chosen to be unique to that body: "Already Reported" is also
+    // the HTTP reason phrase for 208, which could be echoed without reading a
     // byte of the body. The two 208 profiles are the field finding of issue
     // #452: CallMeBot answered 208 to a message that never arrived, so no
     // body -- not even the delivered profile's own -- makes it a delivery.
     struct Profile {
       const char* name;
       const char* phrase;
-    } profiles[] = {{"queued", ""},
-                    {"ratelimit-203", "Too many requests"},
-                    {"ratelimit-201", "Too many requests"},
-                    {"unverified-208", "never arrived"},
-                    {"queued-208", "Message queued"}};
+      callmebot::Verdict verdict;
+    } profiles[] = {{"queued", "Message queued", callmebot::Verdict::Queued},
+                    {"ratelimit-203", "Too many requests", callmebot::Verdict::RateLimited},
+                    {"ratelimit-201", "Too many requests", callmebot::Verdict::RateLimited},
+                    {"unverified-208", "never arrived", callmebot::Verdict::NotDelivered},
+                    {"queued-208", "Message queued", callmebot::Verdict::NotDelivered}};
 
     for (const auto& p : profiles) {
       const char* profile = p.name;
@@ -157,23 +163,28 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
                     profile + "&text=" + tag);
         REQUIRE(reply.status > 0);
 
-        // The real classifier, on the real status and body the service
-        // returned -- exactly what the gateway handler hands it.
+        // The real classifier and summary, on the real status and body the
+        // service returned -- exactly what the gateway handler hands them.
         auto outcome =
             painlessmesh::gateway::classifyHttpResult(reply.status, reply.body);
+        auto response = painlessmesh::gateway::summarizeResponseBody(reply.body);
+        auto judgement = callmebot::judge(outcome.ackStatus, response);
         bool delivered = ledgerSaysDelivered(tp, tag);
 
         INFO("service answered HTTP " << reply.status << " with body: " << reply.body);
-        INFO("ledger says delivered=" << delivered
-                                     << ", classifier says success=" << outcome.success);
-        REQUIRE(outcome.transportError == false);
-        REQUIRE(outcome.success == delivered);
+        INFO("ledger says delivered=" << delivered << ", example says accepted="
+                                     << judgement.accepted);
 
-        if (!delivered) {
-          // The origin node must learn why, in the service's own words.
-          INFO("reason carried to the origin node: " << outcome.reason);
-          REQUIRE(outcome.reason.find(p.phrase) != std::string::npos);
-        }
+        // The library: the status as HTTP reads it, never a retry after the
+        // server answered, and the service's words intact for the sketch.
+        REQUIRE(outcome.transportError == false);
+        REQUIRE(outcome.retryable == false);
+        REQUIRE(outcome.ackStatus == reply.status);
+        REQUIRE(response.find(p.phrase) != std::string::npos);
+
+        // The example: its reading agrees with what the service did.
+        REQUIRE(judgement.verdict == p.verdict);
+        REQUIRE(judgement.accepted == delivered);
       }
     }
   }

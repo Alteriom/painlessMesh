@@ -997,21 +997,72 @@ class GatewayDataPackage : public plugin::SinglePackage {
 };
 
 /**
+ * @brief HTTPClient transport errors, by what they say about the request
+ *
+ * HTTPClient::GET()/POST() return a negative code when the request failed
+ * below HTTP. The ESP32 and ESP8266 cores number them the same way. What
+ * matters to a retry is whether the request can have reached the server:
+ * resending one that did delivers it twice, which for a request with an
+ * effect -- a message, a payment, a counter -- is a second effect (the rig
+ * showed a timed-out send issued four times). These are the codes that
+ * cannot have reached a server.
+ */
+enum HttpTransportError : int {
+  HTTP_TRANSPORT_CONNECTION_REFUSED = -1,  ///< no connection was made
+  HTTP_TRANSPORT_SEND_HEADER_FAILED = -2,  ///< the request line never completed
+  HTTP_TRANSPORT_SEND_PAYLOAD_FAILED = -3, ///< the body never completed
+  HTTP_TRANSPORT_NOT_CONNECTED = -4,       ///< no connection to send on
+  HTTP_TRANSPORT_CONNECTION_LOST = -5,     ///< dropped; may be after the request
+  HTTP_TRANSPORT_NO_STREAM = -6,           ///< no client stream to send on
+  HTTP_TRANSPORT_NO_HTTP_SERVER = -7,      ///< the peer did not speak HTTP
+  HTTP_TRANSPORT_TOO_LESS_RAM = -8,        ///< the gateway ran out of memory first
+  HTTP_TRANSPORT_ENCODING = -9,            ///< the reply arrived malformed
+  HTTP_TRANSPORT_STREAM_WRITE = -10,       ///< the reply could not be stored
+  HTTP_TRANSPORT_READ_TIMEOUT = -11,       ///< sent, and no reply in time
+};
+
+/**
+ * @brief Can a request that failed with this transport error have reached
+ *        the server?
+ *
+ * True -- the safe answer -- for every code that is not known to fail before
+ * the request was complete, including codes this library does not know.
+ */
+inline bool transportErrorMayHaveReachedServer(int rawCode) {
+  switch (rawCode) {
+    case HTTP_TRANSPORT_CONNECTION_REFUSED:
+    case HTTP_TRANSPORT_SEND_HEADER_FAILED:
+    case HTTP_TRANSPORT_SEND_PAYLOAD_FAILED:
+    case HTTP_TRANSPORT_NOT_CONNECTED:
+    case HTTP_TRANSPORT_NO_STREAM:
+    case HTTP_TRANSPORT_NO_HTTP_SERVER:
+    case HTTP_TRANSPORT_TOO_LESS_RAM:
+      return false;
+    default:
+      return true;
+  }
+}
+
+/**
  * @brief The outcome of a gateway HTTP request, classified for the ack
  *
  * HTTPClient::GET()/POST() return an int with two distinct meanings: a
  * positive value is an HTTP status code from the destination, while a
- * negative value is one of the client's own transport errors (HTTPC_ERROR_*,
- * e.g. -1 for a refused connection or -11 for a read timeout). Zero is not
- * produced by either.
+ * negative value is one of the client's own transport errors (see
+ * HttpTransportError). Zero is not produced by either.
  *
  * GatewayAckPackage::httpStatus is a uint16_t, so a negative code cannot be
- * forwarded as-is. Transport errors are reported as httpStatus 0, which is
- * what Mesh::handleGatewayAck() already treats as a retryable network error;
- * the human-readable cause travels in GatewayAckPackage::error instead.
+ * forwarded as-is. Transport errors are reported as httpStatus 0 with the
+ * cause in GatewayAckPackage::error, and whether the origin node may resend
+ * the request travels in GatewayAckPackage::retryable.
+ *
+ * The library applies HTTP's meaning of a status and nothing else. Whether a
+ * particular service's reply means what the application wanted -- a message
+ * really queued, a record really written -- is the application's decision,
+ * made from the status and the response the result carries.
  */
 struct HttpRequestOutcome {
-  /** True only for status codes that indicate genuine delivery. */
+  /** True only for 200, 201, 202 and 204. */
   bool success = false;
 
   /** Value to place in GatewayAckPackage::httpStatus (0 for transport errors). */
@@ -1021,38 +1072,54 @@ struct HttpRequestOutcome {
   bool transportError = false;
 
   /**
-   * True when the status was success-class but the response body said the
-   * service refused the request (issue #450).
-   */
-  bool refusedByBody = false;
-
-  /**
-   * True for a 2xx the gateway cannot vouch for: anything but 200, 201, 202
-   * and 204. CallMeBot answers HTTP 208 to a message that never arrives
-   * (issue #452), so a status outside the verified set is reported as a
-   * failure that carries the body, never as a delivery.
+   * True for a 2xx outside 200, 201, 202 and 204. 203 says a proxy
+   * transformed the reply; 205, 206 and 208 are not what a request to an API
+   * endpoint expects. The server answered, so it is never retried; it is
+   * reported as a failure the application can inspect.
    */
   bool unverifiedStatus = false;
 
   /**
-   * One-line reason for a failure, taken from the response body when there
-   * is one; empty on success. Sized to fit a GatewayAckPackage::error.
+   * Whether resending the identical request is safe and useful: the request
+   * cannot have reached the server, or the server said it did not take it
+   * and to come back (429 Too Many Requests, 503 Service Unavailable). A
+   * reply that may mean the request was processed -- any 2xx, a 500, a
+   * gateway timeout, a read timeout -- is not retried, because a retry would
+   * be a second copy of it.
+   */
+  bool retryable = false;
+
+  /**
+   * One-line summary of the response body, for the error an application
+   * reads; empty on success and when no body was read.
    */
   TSTRING reason;
 };
 
-/** Longest response-body excerpt carried in an acknowledgment error. */
-static const size_t GATEWAY_RESPONSE_REASON_MAX = 120;
+/**
+ * Longest response-body summary carried in an acknowledgment. Long enough
+ * for a service that repeats the request back before its verdict -- the
+ * reply in issue #463 spent 97 of 120 characters on the echo and was cut
+ * before the part that said why.
+ */
+static const size_t GATEWAY_RESPONSE_REASON_MAX = 240;
 
 /**
- * How much of a response body the gateway reads for classification and for
- * the error it reports. Enough for a service's one-line verdict, small enough
- * that an HTML error page cannot eat an ESP8266's heap.
+ * How much of a response body the gateway reads for the summary. Enough for
+ * a service's verdict, small enough that an HTML error page cannot eat an
+ * ESP8266's heap.
  */
 static const size_t GATEWAY_RESPONSE_HEAD_BYTES = 512;
 
 /** How long the gateway waits for that head to arrive after the status. */
 static const uint32_t GATEWAY_RESPONSE_HEAD_TIMEOUT_MS = 250;
+
+/**
+ * Longest wait a server's Retry-After may impose before a retry. A longer one
+ * is not honoured with a retry at all: the request fails and says when the
+ * server asked to be retried, which is the application's call to make.
+ */
+static const uint32_t GATEWAY_RETRY_AFTER_MAX_MS = 60000;
 
 inline bool responseContains(const TSTRING& haystack, const char* needle) {
 #if defined(PAINLESSMESH_BOOST)
@@ -1065,13 +1132,15 @@ inline bool responseContains(const TSTRING& haystack, const char* needle) {
 /**
  * @brief Reduce a response body to one line fit for a log or an error string
  *
- * Tags are dropped, whitespace collapsed and the result cut at maxLen with an
- * ellipsis, so an HTML error page reads "Oops! Too many requests... You have
- * called to the API to often." in a serial log instead of markup.
+ * Tags are dropped and whitespace collapsed, so an HTML page reads as text in
+ * a serial log. A body longer than maxLen keeps its beginning and its end,
+ * joined by " ... ": services often lead with an echo of the request and
+ * finish with the verdict, and a summary that keeps only the beginning keeps
+ * the echo and loses the verdict (issue #463).
  */
 inline TSTRING summarizeResponseBody(
     const TSTRING& body, size_t maxLen = GATEWAY_RESPONSE_REASON_MAX) {
-  TSTRING out;
+  TSTRING text;
   bool inTag = false;
   bool pendingSpace = false;
   for (size_t i = 0; i < body.length(); ++i) {
@@ -1090,48 +1159,73 @@ inline TSTRING summarizeResponseBody(
       pendingSpace = true;
       continue;
     }
-    if (pendingSpace && out.length() > 0) out += ' ';
+    if (pendingSpace && text.length() > 0) text += ' ';
     pendingSpace = false;
-    out += c;
-    if (out.length() >= maxLen) {
-      out += "...";
-      break;
-    }
+    text += c;
   }
+  if (text.length() <= maxLen) return text;
+
+  static const char JOIN[] = " ... ";
+  const size_t joinLength = sizeof(JOIN) - 1;
+  const size_t room = maxLen > joinLength ? maxLen - joinLength : 0;
+  const size_t head = (room * 2) / 3;
+  const size_t tail = room - head;
+  TSTRING out;
+  for (size_t i = 0; i < head; ++i) out += text[i];
+  out += JOIN;
+  for (size_t i = text.length() - tail; i < text.length(); ++i) out += text[i];
   return out;
 }
 
 /**
- * @brief Does a success-class response body say the service refused the request?
+ * @brief The delay a Retry-After header asks for, in milliseconds
  *
- * Some services answer a refusal with a 2xx. CallMeBot's WhatsApp API, which
- * the sendToInternet example integrates, returns its "Too many requests" page
- * under HTTP 201 and HTTP 203 (issue #450). The phrases are the ones seen
- * from services this library's examples target, and they are deliberately
- * specific: a JSON payload that merely contains the word "error" is not a
- * refusal.
+ * Only the delay-seconds form is read; an HTTP-date, or anything else, is
+ * 0 -- no instruction -- rather than a guess. Values past
+ * GATEWAY_RETRY_AFTER_MAX_MS are returned as they are, so the caller can see
+ * the server asked for longer than it will wait.
  */
-inline bool responseBodyRefuses(const TSTRING& body) {
-  static const char* const REFUSALS[] = {"Too many requests", "Oops!"};
-  for (const char* phrase : REFUSALS) {
-    if (responseContains(body, phrase)) return true;
+inline uint32_t parseRetryAfterMs(const TSTRING& value) {
+  uint64_t seconds = 0;
+  size_t digits = 0;
+  for (size_t i = 0; i < value.length(); ++i) {
+    const char c = value[i];
+    if (c == ' ' || c == '\t') {
+      if (digits == 0) continue;
+      break;
+    }
+    if (c < '0' || c > '9') return 0;
+    seconds = seconds * 10 + static_cast<uint64_t>(c - '0');
+    if (seconds > 0xFFFFFFFFULL / 1000ULL) return 0xFFFFFFFFUL;
+    ++digits;
   }
-  return false;
+  return digits == 0 ? 0 : static_cast<uint32_t>(seconds * 1000ULL);
+}
+
+/**
+ * @brief The identifier the gateway sends with a request, as both
+ *        X-Request-Id and Idempotency-Key
+ *
+ * The same for every attempt at one sendToInternet() call, so a service that
+ * honours Idempotency-Key treats a retry as the request it already has, and
+ * anything recording requests can count the copies one call produced.
+ */
+inline TSTRING requestIdFor(uint32_t originNode, uint32_t messageId) {
+  char buffer[32];
+  snprintf(buffer, sizeof(buffer), "pm-%08x-%08x",
+           static_cast<unsigned>(originNode), static_cast<unsigned>(messageId));
+  return TSTRING(buffer);
 }
 
 /**
  * @brief Classify an HTTPClient result for the gateway acknowledgment
  *
- * A transport error (rawCode <= 0) is neither success nor an HTTP status.
- * Only 200, 201, 202 and 204 count as delivery on the status alone, and even
- * those are overturned by a body that says the service refused the request:
- * CallMeBot answers "Too many requests" under 201 and 203 (issue #450). Any
- * other 2xx is unverified. 203 means a proxy transformed the reply; 208 is
- * what CallMeBot answers to a message that never arrives (issue #452); none
- * of them is a delivery this library can vouch for, so they are failures
- * that carry the body. Every failure's reason is a one-line excerpt of the
- * body when there is one, so the origin node learns why and not only a
- * number.
+ * HTTP semantics only. 200, 201, 202 and 204 are a success. Any other 2xx is
+ * an unverified failure the server answered; 1xx, 3xx, 4xx and 5xx are
+ * failures. A retry is allowed only when it cannot produce a second copy of
+ * the request: a transport error that failed before the request was complete,
+ * or 429/503, where the server says it did not take the request. The reason
+ * is a summary of whatever body was read, so the application learns why.
  *
  * @param rawCode The int returned by HTTPClient::GET() or ::POST()
  * @param body The start of the response body, empty if none was read
@@ -1142,22 +1236,16 @@ inline HttpRequestOutcome classifyHttpResult(int rawCode,
   HttpRequestOutcome outcome;
   if (rawCode <= 0) {
     outcome.transportError = true;
+    outcome.retryable = !transportErrorMayHaveReachedServer(rawCode);
     return outcome;
   }
   outcome.ackStatus =
       static_cast<uint16_t>(rawCode > 0xFFFF ? 0xFFFF : rawCode);
-  const bool verified =
+  outcome.success =
       rawCode == 200 || rawCode == 201 || rawCode == 202 || rawCode == 204;
-  if (verified && responseBodyRefuses(body)) {
-    outcome.refusedByBody = true;
-    outcome.reason = summarizeResponseBody(body);
-    return outcome;
-  }
-  outcome.success = verified;
-  if (!verified) {
-    outcome.unverifiedStatus = rawCode >= 200 && rawCode < 300;
-    outcome.reason = summarizeResponseBody(body);
-  }
+  outcome.unverifiedStatus = !outcome.success && rawCode >= 200 && rawCode < 300;
+  outcome.retryable = rawCode == 429 || rawCode == 503;
+  if (!outcome.success) outcome.reason = summarizeResponseBody(body);
   return outcome;
 }
 
@@ -1395,12 +1483,39 @@ class GatewayAckPackage : public plugin::SinglePackage {
   uint32_t timestamp = 0;
 
   /**
+   * @brief The start of the response body, summarized to one line
+   *
+   * Carried on success as well as failure, because whether a reply means what
+   * the application wanted is the application's decision, not the library's.
+   * Empty when no body was read. JSON key "resp", omitted when empty.
+   */
+  TSTRING response = "";
+
+  /**
+   * @brief Whether the origin node may resend the identical request
+   *
+   * 1 when the request cannot have reached the server or the server asked to
+   * be retried, 0 when a resend could deliver it twice. -1 when the gateway
+   * did not say -- one that predates the field -- and the origin node falls
+   * back to its own reading of the status. JSON key "retry", omitted at -1.
+   */
+  int8_t retryable = -1;
+
+  /**
+   * @brief How long the server asked to wait before a retry, in milliseconds
+   *
+   * From a Retry-After header on a 429 or 503. JSON key "retryAfter",
+   * omitted when 0.
+   */
+  uint32_t retryAfterMs = 0;
+
+  /**
    * @brief Number of additional JSON fields in this package
    *
    * Used for jsonObjectSize() calculation in ArduinoJson v6.
-   * Count: msgId, origin, success, http, err, ts = 6 fields
+   * Count: msgId, origin, success, http, err, ts, resp, retry, retryAfter = 9
    */
-  static constexpr int numPackageFields = 6;
+  static constexpr int numPackageFields = 9;
 
   /**
    * @brief Default constructor
@@ -1427,10 +1542,19 @@ class GatewayAckPackage : public plugin::SinglePackage {
 #if ARDUINOJSON_VERSION_MAJOR < 7
     if (jsonObj.containsKey("err"))
       error = jsonObj["err"].as<TSTRING>();
+    if (jsonObj.containsKey("resp"))
+      response = jsonObj["resp"].as<TSTRING>();
+    if (jsonObj.containsKey("retry"))
+      retryable = jsonObj["retry"].as<bool>() ? 1 : 0;
 #else
     if (jsonObj["err"].is<TSTRING>())
       error = jsonObj["err"].as<TSTRING>();
+    if (jsonObj["resp"].is<TSTRING>())
+      response = jsonObj["resp"].as<TSTRING>();
+    if (jsonObj["retry"].is<bool>())
+      retryable = jsonObj["retry"].as<bool>() ? 1 : 0;
 #endif
+    retryAfterMs = jsonObj["retryAfter"] | 0UL;
   }
 
   /**
@@ -1449,6 +1573,11 @@ class GatewayAckPackage : public plugin::SinglePackage {
     jsonObj["http"] = httpStatus;
     jsonObj["err"] = error;
     jsonObj["ts"] = timestamp;
+    // Added in 2.0.4 and omitted when they say nothing, so an ack to a node
+    // that predates them is the ack it always was.
+    if (response.length() > 0) jsonObj["resp"] = response;
+    if (retryable >= 0) jsonObj["retry"] = retryable == 1;
+    if (retryAfterMs > 0) jsonObj["retryAfter"] = retryAfterMs;
     return jsonObj;
   }
 
@@ -1462,7 +1591,8 @@ class GatewayAckPackage : public plugin::SinglePackage {
    */
   size_t jsonObjectSize() const {
     // noJsonFields (from base class) + numPackageFields (our fields)
-    return JSON_OBJECT_SIZE(noJsonFields + numPackageFields) + error.length();
+    return JSON_OBJECT_SIZE(noJsonFields + numPackageFields) + error.length() +
+           response.length();
   }
 #endif
 

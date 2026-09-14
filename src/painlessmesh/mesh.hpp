@@ -82,6 +82,47 @@ typedef std::function<void(bool success, uint16_t httpStatus, TSTRING error)>
     internetResultCallback_t;
 
 /**
+ * Everything the library learned about one sendToInternet() call
+ *
+ * The library applies HTTP's meaning of a reply and nothing more. Whether a
+ * particular service's answer means what the application wanted -- a message
+ * really queued, a record really stored -- depends on that service, so the
+ * application decides, from `httpStatus` and `response`.
+ */
+struct InternetResult {
+  /** The id sendToInternet() returned. */
+  uint32_t messageId = 0;
+  /** True for HTTP 200, 201, 202 and 204. */
+  bool success = false;
+  /** The destination's HTTP status; 0 when no reply arrived. */
+  uint16_t httpStatus = 0;
+  /** Why it failed, for a log or a user; empty on success. */
+  TSTRING error;
+  /** The start of the response body as one line, when a body was read. */
+  TSTRING response;
+  /**
+   * True when the request cannot have reached the server, or the server said
+   * it did not take it. False when it may have been processed: resending it
+   * is then the application's decision, because it could arrive twice.
+   */
+  bool retryable = false;
+  /** How many times the request was issued, retries included. */
+  uint8_t attempts = 0;
+};
+
+/**
+ * Callback type for Internet request results, with the whole result
+ *
+ * \code
+ * mesh.sendToInternet(url, "", [](const InternetResult& result) {
+ *   Serial.printf("HTTP %u: %s\n", result.httpStatus, result.response.c_str());
+ * });
+ * \endcode
+ */
+typedef std::function<void(const InternetResult& result)>
+    internetResponseCallback_t;
+
+/**
  * Pending Internet request entry
  *
  * Tracks a pending sendToInternet() request for acknowledgment handling
@@ -98,6 +139,8 @@ struct PendingInternetRequest {
   TSTRING destination = "";        ///< Internet destination URL
   TSTRING payload = "";            ///< Request payload
   internetResultCallback_t callback;  ///< User callback for result
+  internetResponseCallback_t onResult;  ///< Or the whole-result callback
+  uint8_t attempts = 1;                 ///< Times the request was issued
   /// Why the last attempt failed, when retries were spent waiting for a
   /// gateway; the final callback reports it instead of a bare retry count.
   TSTRING lastError = "";
@@ -1721,6 +1764,55 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       TSTRING payload,
       internetResultCallback_t callback,
       uint8_t priority = static_cast<uint8_t>(gateway::GatewayPriority::PRIORITY_NORMAL)) {
+    return startInternetRequest(destination, payload, callback, nullptr, priority);
+  }
+
+  /**
+   * Send data to an Internet destination, receiving the whole result
+   *
+   * The same request as the (success, httpStatus, error) form, but the
+   * callback also gets the start of the response body, whether the request
+   * may be resent safely, and how many times it was issued. Use it when a
+   * service's status alone does not say whether it did what was asked -- the
+   * sendToInternet example judges CallMeBot's replies this way.
+   *
+   * @return Unique message ID for tracking, or 0 if immediate failure
+   */
+  uint32_t sendToInternet(
+      TSTRING destination,
+      TSTRING payload,
+      internetResponseCallback_t onResult,
+      uint8_t priority = static_cast<uint8_t>(gateway::GatewayPriority::PRIORITY_NORMAL)) {
+    return startInternetRequest(destination, payload, nullptr, onResult, priority);
+  }
+
+ private:
+  /** Hand a finished request's result to whichever callback it was given. */
+  static void deliverInternetResult(const PendingInternetRequest& request,
+                                    InternetResult result) {
+    result.messageId = request.messageId;
+    result.attempts = request.attempts;
+    if (request.onResult) {
+      request.onResult(result);
+    } else if (request.callback) {
+      request.callback(result.success, result.httpStatus, result.error);
+    }
+  }
+
+  static InternetResult failedInternetResult(const TSTRING& error,
+                                             uint16_t httpStatus = 0) {
+    InternetResult result;
+    result.httpStatus = httpStatus;
+    result.error = error;
+    return result;
+  }
+
+  uint32_t startInternetRequest(
+      TSTRING destination,
+      TSTRING payload,
+      internetResultCallback_t callback,
+      internetResponseCallback_t onResult,
+      uint8_t priority) {
     using namespace logger;
 
     // Generate unique message ID
@@ -1745,6 +1837,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       request.destination = destination;
       request.payload = payload;
       request.callback = callback;
+      request.onResult = onResult;
       pendingInternetRequests[messageId] = request;
 
       dispatchInternetRequestLocally(messageId, priority, 0, destination,
@@ -1752,13 +1845,20 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       return messageId;
     }
 
+    // A request refused before it is tracked still reports through the
+    // callback it was given, on the scheduler rather than inside this call.
+    PendingInternetRequest refused;
+    refused.callback = callback;
+    refused.onResult = onResult;
+    refused.attempts = 0;
+
     // Validate mesh connectivity before attempting to send
     if (!hasActiveMeshConnections()) {
       Log(ERROR, "sendToInternet(): No active mesh connections\n");
-      if (callback) {
-        // Schedule callback to avoid blocking
-        this->addTask([callback]() {
-          callback(false, 0, "No mesh connections - cannot route to gateway");
+      if (callback || onResult) {
+        this->addTask([refused]() {
+          deliverInternetResult(refused, failedInternetResult(
+              "No mesh connections - cannot route to gateway"));
         });
       }
       return 0;
@@ -1768,10 +1868,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     BridgeInfo* gateway = getPrimaryBridge();
     if (gateway == nullptr) {
       Log(ERROR, "sendToInternet(): No gateway available\n");
-      if (callback) {
-        // Schedule callback to avoid blocking
-        this->addTask([callback]() {
-          callback(false, 0, "No gateway available");
+      if (callback || onResult) {
+        this->addTask([refused]() {
+          deliverInternetResult(refused, failedInternetResult("No gateway available"));
         });
       }
       return 0;
@@ -1790,6 +1889,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     request.destination = destination;
     request.payload = payload;
     request.callback = callback;
+    request.onResult = onResult;
 
     // Store pending request
     pendingInternetRequests[messageId] = request;
@@ -1836,6 +1936,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return messageId;
   }
 
+ public:
   /**
    * Configure Internet request timeout
    *
@@ -1907,11 +2008,11 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   bool cancelInternetRequest(uint32_t messageId) {
     auto it = pendingInternetRequests.find(messageId);
     if (it != pendingInternetRequests.end()) {
-      auto callback = it->second.callback;
+      const PendingInternetRequest cancelled = it->second;
       pendingInternetRequests.erase(it);
-      if (callback) {
-        this->addTask([callback]() {
-          callback(false, 0, "Request cancelled");
+      if (cancelled.callback || cancelled.onResult) {
+        this->addTask([cancelled]() {
+          deliverInternetResult(cancelled, failedInternetResult("Request cancelled"));
         });
       }
       Log(logger::GENERAL, "cancelInternetRequest(): Cancelled msgId=%u\n", messageId);
@@ -1973,9 +2074,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
     // Cancel all pending requests
     for (auto& pair : pendingInternetRequests) {
-      if (pair.second.callback) {
-        pair.second.callback(false, 0, "API disabled");
-      }
+      deliverInternetResult(pair.second, failedInternetResult("API disabled"));
     }
     pendingInternetRequests.clear();
 
@@ -2012,7 +2111,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
                       uint16_t httpStatus, const TSTRING& error,
-                      std::shared_ptr<T> ingressConnection = nullptr) {
+                      std::shared_ptr<T> ingressConnection = nullptr,
+                      const TSTRING& response = TSTRING(), int8_t retryable = -1,
+                      uint32_t retryAfterMs = 0) {
     using namespace logger;
 
     gateway::GatewayAckPackage ack;
@@ -2024,6 +2125,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     ack.httpStatus = httpStatus;
     ack.error = error;
     ack.timestamp = this->getNodeTime();
+    ack.response = response;
+    ack.retryable = retryable;
+    ack.retryAfterMs = retryAfterMs;
 
     if (request.originNode == this->nodeId) {
       protocol::Variant variant(&ack);
@@ -2067,13 +2171,17 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
     PendingInternetRequest& request = it->second;
 
+    InternetResult result;
+    result.success = ack.success;
+    result.httpStatus = ack.httpStatus;
+    result.error = ack.error;
+    result.response = ack.response;
+
     // Check if this is a success response
     if (ack.success) {
-      // Success - call callback and remove request
-      if (request.callback) {
-        request.callback(ack.success, ack.httpStatus, ack.error);
-      }
+      const PendingInternetRequest done = request;
       pendingInternetRequests.erase(it);
+      deliverInternetResult(done, result);
       return;
     }
 
@@ -2117,84 +2225,73 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       }
     }
 
-    // Failure response - determine if retryable
+    // Failure: may the identical request be sent again?
+    //
+    // A gateway that says so decides (2.0.4 and later): it saw the transport
+    // error or the status, and it knows whether the request can have reached
+    // the server. Resending one that may have been processed delivers it
+    // twice -- on the rig one timed-out send was issued four times -- so only
+    // a request that cannot have arrived, or one the server told us to bring
+    // back (429, 503), is retried.
     bool isRetryable = false;
-    
-    // HTTP 203 (Non-Authoritative Information) indicates cached/proxied response
-    // This is often temporary and retrying may succeed when cache expires
-    if (ack.httpStatus == 203) {
-      isRetryable = true;
-      Log(COMMUNICATION, "handleGatewayAck(): HTTP 203 detected, marking as retryable\n");
-    }
-    // HTTP 5xx server errors are typically transient
-    else if (ack.httpStatus >= 500 && ack.httpStatus < 600) {
-      isRetryable = true;
-      Log(COMMUNICATION, "handleGatewayAck(): HTTP 5xx server error, marking as retryable\n");
-    }
-    // HTTP 429 (Too Many Requests) should be retried with backoff
-    else if (ack.httpStatus == 429) {
-      isRetryable = true;
-      Log(COMMUNICATION, "handleGatewayAck(): HTTP 429 rate limit, marking as retryable\n");
-    }
-    // Network errors (httpStatus == 0) EXCEPT gateway connectivity errors
-    // Gateway connectivity errors are infrastructure issues (not transient)
-    else if (ack.httpStatus == 0) {
-      // Check if this is a gateway-level connectivity error (non-retryable)
-      bool isGatewayConnectivityError = false;
-      
-      // These errors indicate infrastructure issues that won't be fixed by retrying:
-      // - "Router has no internet access" - WAN connection down
-      // - "Gateway WiFi not connected" - ESP not associated with WiFi
-      // - "Captive portal detected" - Router requires web authentication
-      // Use find() for std::string (test env) or indexOf() for Arduino String
-      bool routerError = false, wifiError = false, captivePortalError = false;
-      #if defined(PAINLESSMESH_BOOST)
-        // Test environment: TSTRING is std::string, use find()
-        routerError = (ack.error.find("Router has no internet") != std::string::npos);
-        wifiError = (ack.error.find("Gateway WiFi not connected") != std::string::npos);
-        captivePortalError = (ack.error.find("Captive portal detected") != std::string::npos);
-      #else
-        // Arduino environment: TSTRING is String, use indexOf()
-        routerError = (ack.error.indexOf("Router has no internet") >= 0);
-        wifiError = (ack.error.indexOf("Gateway WiFi not connected") >= 0);
-        captivePortalError = (ack.error.indexOf("Captive portal detected") >= 0);
-      #endif
-      
-      if (routerError || wifiError || captivePortalError) {
-        isGatewayConnectivityError = true;
-        Log(COMMUNICATION, "handleGatewayAck(): Gateway connectivity error detected (non-retryable): %s\n", 
-            ack.error.c_str());
+    uint32_t minDelayMs = 0;
+    if (ack.retryable >= 0) {
+      isRetryable = ack.retryable == 1;
+      if (isRetryable && ack.retryAfterMs > gateway::GATEWAY_RETRY_AFTER_MAX_MS) {
+        // The server asked to wait longer than a retry will: say when, and
+        // leave the resend to the application.
+        isRetryable = false;
+        char errorBuf[224];
+        snprintf(errorBuf, sizeof(errorBuf), "%s (the server asked to retry after %lu s)",
+                 ack.error.c_str(),
+                 static_cast<unsigned long>(ack.retryAfterMs / 1000));
+        result.error = TSTRING(errorBuf);
+      } else if (isRetryable) {
+        minDelayMs = ack.retryAfterMs;
       }
-      
-      // Only mark as retryable if it's NOT a gateway connectivity error
-      if (!isGatewayConnectivityError) {
-        isRetryable = true;
-        Log(COMMUNICATION, "handleGatewayAck(): Network error, marking as retryable\n");
-      }
+    } else {
+      // A gateway that predates the field. Keep its behaviour -- it has
+      // retried network errors and 5xx since 1.x -- except for a 2xx: the
+      // server answered, so a resend is a second copy.
+      isRetryable = legacyAckIsRetryable(ack);
     }
-    // HTTP 4xx client errors (except 429) are NOT retryable
-    // HTTP 3xx redirects are NOT retryable (should be followed by HTTPClient)
-    // Other status codes are NOT retryable
+    result.retryable = isRetryable;
 
     // If retryable and have retries left, schedule retry
     if (isRetryable && request.retryCount < request.maxRetries) {
       Log(COMMUNICATION, "handleGatewayAck(): Scheduling retry for msgId=%u (attempt %u/%u)\n",
           ack.messageId, request.retryCount + 1, request.maxRetries);
-      scheduleInternetRetry(ack.messageId);
+      request.lastError = result.error;
+      scheduleInternetRetry(ack.messageId, minDelayMs);
     } else {
-      // Not retryable or max retries reached - call callback and remove
-      if (request.retryCount >= request.maxRetries) {
+      if (isRetryable) {
         Log(ERROR, "handleGatewayAck(): Max retries reached for msgId=%u\n", ack.messageId);
       } else {
-        Log(COMMUNICATION, "handleGatewayAck(): Non-retryable failure for msgId=%u (HTTP %u)\n",
+        Log(COMMUNICATION, "handleGatewayAck(): Final failure for msgId=%u (HTTP %u)\n",
             ack.messageId, ack.httpStatus);
       }
-      
-      if (request.callback) {
-        request.callback(ack.success, ack.httpStatus, ack.error);
-      }
+      const PendingInternetRequest done = request;
       pendingInternetRequests.erase(it);
+      deliverInternetResult(done, result);
     }
+  }
+
+  /**
+   * How an ack from a gateway that does not say whether to retry was read
+   * before 2.0.4, minus retrying a 2xx.
+   */
+  static bool legacyAckIsRetryable(const gateway::GatewayAckPackage& ack) {
+    if (ack.httpStatus >= 500 && ack.httpStatus < 600) return true;
+    if (ack.httpStatus == 429) return true;
+    if (ack.httpStatus != 0) return false;
+    // Gateway-level connectivity failures are infrastructure, not transient.
+    static const char* const FINAL[] = {"Router has no internet",
+                                        "Gateway WiFi not connected",
+                                        "Captive portal detected"};
+    for (const char* phrase : FINAL) {
+      if (gateway::responseContains(ack.error, phrase)) return false;
+    }
+    return true;
   }
 
   /**
@@ -2231,7 +2328,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   /**
    * Schedule retry for a failed Internet request
    */
-  void scheduleInternetRetry(uint32_t messageId) {
+  void scheduleInternetRetry(uint32_t messageId, uint32_t minDelayMs = 0) {
     auto it = pendingInternetRequests.find(messageId);
     if (it == pendingInternetRequests.end()) {
       return;
@@ -2244,17 +2341,16 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       // were spent on when there is one
       Log(logger::ERROR, "scheduleInternetRetry(): Max retries reached for msgId=%u\n",
           messageId);
-      if (request.callback) {
-        request.callback(false, 0,
-                         request.lastError.length() > 0 ? request.lastError
-                                                        : TSTRING("Max retries exceeded"));
-      }
+      const PendingInternetRequest done = request;
       pendingInternetRequests.erase(it);
+      deliverInternetResult(done, failedInternetResult(
+          done.lastError.length() > 0 ? done.lastError : TSTRING("Max retries exceeded")));
       return;
     }
 
-    // Calculate exponential backoff delay
+    // Exponential backoff, never shorter than what the server asked for
     uint32_t delay = request.retryDelayMs * (1 << request.retryCount);
+    if (delay < minDelayMs) delay = minDelayMs;
     request.retryCount++;
 
     Log(logger::COMMUNICATION, "scheduleInternetRetry(): Retry %u for msgId=%u in %u ms\n",
@@ -2291,6 +2387,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       const uint8_t retryCount = request.retryCount;
       const TSTRING destination = request.destination;
       const TSTRING payload = request.payload;
+      request.attempts++;
       Log(logger::COMMUNICATION,
           "retryInternetRequest(): Retrying msgId=%u on the local uplink\n",
           messageId);
@@ -2346,6 +2443,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       Log(logger::ERROR, "retryInternetRequest(): Retry send failed msgId=%u\n", messageId);
       scheduleInternetRetry(messageId);
     } else {
+      request.attempts++;
       Log(logger::COMMUNICATION, "retryInternetRequest(): Retry sent msgId=%u to gateway %u\n",
           messageId, gateway->nodeId);
     }
@@ -2381,10 +2479,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     if (request.isTimedOut()) {
       Log(logger::ERROR, "checkInternetRequestTimeout(): Request timed out msgId=%u\n",
           messageId);
-      if (request.callback) {
-        request.callback(false, 0, "Request timed out");
-      }
+      const PendingInternetRequest done = request;
       pendingInternetRequests.erase(it);
+      deliverInternetResult(done, failedInternetResult("Request timed out"));
     }
   }
 
@@ -2397,9 +2494,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       if (it->second.isTimedOut()) {
         Log(logger::GENERAL, "cleanupTimedOutRequests(): Cleaning up msgId=%u\n",
             it->first);
-        if (it->second.callback) {
-          it->second.callback(false, 0, "Request timed out");
-        }
+        deliverInternetResult(it->second, failedInternetResult("Request timed out"));
         it = pendingInternetRequests.erase(it);
       } else {
         ++it;

@@ -74,6 +74,25 @@ if curl -s "$SERVER_URL/requests/t-201" | grep -q '"delivered": false'; then
 else
     echo -e "${RED}✗ FAIL${NC}"; FAIL=$((FAIL+1))
 fi
+# Retry-After: refused once per tag, accepted afterwards
+RA_TAG="ra-$$-$(date +%s)"
+test_endpoint "Retry-After first request" "$SERVER_URL/retry-after/1?tag=$RA_TAG" 429
+echo -n "Retry-After header is sent... "
+if curl -s -D - -o /dev/null "$SERVER_URL/retry-after/1?tag=$RA_TAG-h" | grep -qi '^Retry-After: 1'; then
+    echo -e "${GREEN}✓ PASS${NC}"; PASS=$((PASS+1))
+else
+    echo -e "${RED}✗ FAIL${NC}"; FAIL=$((FAIL+1))
+fi
+test_endpoint "Retry-After second request" "$SERVER_URL/retry-after/1?tag=$RA_TAG" 200
+echo -n "Ledger counts both requests and their request id... "
+curl -s -H "X-Request-Id: pm-1-1" "$SERVER_URL/status/200?tag=$RA_TAG-id" > /dev/null
+curl -s -H "X-Request-Id: pm-1-1" "$SERVER_URL/status/200?tag=$RA_TAG-id" > /dev/null
+record=$(curl -s "$SERVER_URL/requests/$RA_TAG-id")
+if echo "$record" | grep -q '"count": 2' && echo "$record" | grep -q '"request_ids": \["pm-1-1"\]'; then
+    echo -e "${GREEN}✓ PASS${NC}"; PASS=$((PASS+1))
+else
+    echo -e "${RED}✗ FAIL${NC} ($record)"; FAIL=$((FAIL+1))
+fi
 test_endpoint "Status 400" "$SERVER_URL/status/400" 400
 test_endpoint "Status 404" "$SERVER_URL/status/404" 404
 test_endpoint "Status 500" "$SERVER_URL/status/500" 500

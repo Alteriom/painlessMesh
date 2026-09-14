@@ -231,180 +231,96 @@ SCENARIO("Backward compatibility considerations", "[http][compatibility]") {
 }
 
 /**
- * Helper function to determine if an HTTP status code should trigger automatic retry
- * 
- * NOTE: This intentionally duplicates the retry logic in mesh.hpp handleGatewayAck()
- * to serve as:
- * 1. A specification/documentation of the expected retry behavior
- * 2. A regression test that will fail if the production code changes unexpectedly
- * 
- * If you change this logic, you MUST also update the production code in mesh.hpp
- * and vice versa.
+ * Whether the gateway tells the origin node it may resend a request that
+ * ended with this HTTPClient result.
+ *
+ * This used to be a test-local copy of the retry policy, kept "in sync" with
+ * mesh.hpp by hand -- which is how a policy that retried a read timeout, and
+ * so delivered one request four times on the rig, stayed green. It asks the
+ * production classifier instead.
  */
-bool isHttpStatusRetryable(uint16_t httpCode) {
-    // HTTP 203 (Non-Authoritative Information) - cached/proxied response
-    // Often temporary, retrying may succeed when cache expires
-    if (httpCode == 203) {
-        return true;
-    }
-    
-    // HTTP 5xx server errors are typically transient
-    if (httpCode >= 500 && httpCode < 600) {
-        return true;
-    }
-    
-    // HTTP 429 (Too Many Requests) should be retried with backoff
-    if (httpCode == 429) {
-        return true;
-    }
-    
-    // Network errors (httpCode == 0) are retryable
-    if (httpCode == 0) {
-        return true;
-    }
-    
-    // All other codes are NOT retryable:
-    // - 1xx informational: not errors
-    // - 2xx success (except 203): request succeeded
-    // - 3xx redirects: should be followed by HTTP client, not retried
-    // - 4xx client errors (except 429): user error, won't fix with retry
-    return false;
+bool retryableFor(int rawCode) {
+    return gateway::classifyHttpResult(rawCode).retryable;
 }
 
-SCENARIO("HTTP status codes trigger appropriate retry behavior", "[http][retry][issue]") {
-    GIVEN("Various HTTP status codes that should trigger retries") {
-        WHEN("HTTP 203 (Non-Authoritative Information) is received") {
-            THEN("It should be retryable") {
-                REQUIRE(isHttpStatusRetryable(203) == true);
-                
-                INFO("HTTP 203 indicates cached/proxied response");
-                INFO("Cache may expire, so retrying can succeed");
-                INFO("This fixes the 'permanent 203' issue");
-            }
+SCENARIO("A request is retried only when a retry cannot deliver it twice",
+         "[http][retry][duplicates]") {
+    GIVEN("Replies in which the server says it did not take the request") {
+        THEN("429 Too Many Requests and 503 Service Unavailable are retried") {
+            REQUIRE(retryableFor(429) == true);
+            REQUIRE(retryableFor(503) == true);
         }
-        
-        WHEN("HTTP 5xx server errors are received") {
-            THEN("500 Internal Server Error should be retryable") {
-                REQUIRE(isHttpStatusRetryable(500) == true);
-            }
-            
-            THEN("502 Bad Gateway should be retryable") {
-                REQUIRE(isHttpStatusRetryable(502) == true);
-            }
-            
-            THEN("503 Service Unavailable should be retryable") {
-                REQUIRE(isHttpStatusRetryable(503) == true);
-            }
-            
-            THEN("504 Gateway Timeout should be retryable") {
-                REQUIRE(isHttpStatusRetryable(504) == true);
-            }
-            
-            INFO("Server errors are often transient");
-            INFO("Retrying with backoff often succeeds");
-        }
-        
-        WHEN("HTTP 429 (Too Many Requests) is received") {
-            THEN("It should be retryable") {
-                REQUIRE(isHttpStatusRetryable(429) == true);
-                
-                INFO("Rate limiting is temporary");
-                INFO("Exponential backoff allows rate limit to reset");
-            }
-        }
-        
-        WHEN("Network error (HTTP 0) occurs") {
-            THEN("It should be retryable") {
-                REQUIRE(isHttpStatusRetryable(0) == true);
-                
-                INFO("Network errors are often transient");
-                INFO("Connection may be restored on retry");
+    }
+
+    GIVEN("Transport errors that fail before the request is complete") {
+        THEN("They are retried: nothing reached a server") {
+            for (int code : {-1, -2, -3, -4, -6, -7, -8}) {
+                INFO("HTTPClient error " << code);
+                REQUIRE(retryableFor(code) == true);
+                REQUIRE(gateway::transportErrorMayHaveReachedServer(code) == false);
             }
         }
     }
-    
-    GIVEN("Various HTTP status codes that should NOT trigger retries") {
-        WHEN("Successful 2xx codes are received") {
-            THEN("200 OK should NOT be retryable") {
-                REQUIRE(isHttpStatusRetryable(200) == false);
-                INFO("Request succeeded, no retry needed");
-            }
-            
-            THEN("201 Created should NOT be retryable") {
-                REQUIRE(isHttpStatusRetryable(201) == false);
-            }
-            
-            THEN("204 No Content should NOT be retryable") {
-                REQUIRE(isHttpStatusRetryable(204) == false);
+
+    GIVEN("Replies and errors after which the server may have processed it") {
+        THEN("A read timeout is not retried: the rig saw one send issued four times") {
+            REQUIRE(retryableFor(-11) == false);
+            REQUIRE(gateway::transportErrorMayHaveReachedServer(-11) == true);
+        }
+        THEN("A connection lost, a malformed reply or an unknown code are not retried") {
+            for (int code : {-5, -9, -10, -12, -99, 0}) {
+                INFO("HTTPClient error " << code);
+                REQUIRE(retryableFor(code) == false);
             }
         }
-        
-        WHEN("Client error 4xx codes are received") {
-            THEN("400 Bad Request should NOT be retryable") {
-                REQUIRE(isHttpStatusRetryable(400) == false);
-                INFO("User error, retrying won't help");
-            }
-            
-            THEN("401 Unauthorized should NOT be retryable") {
-                REQUIRE(isHttpStatusRetryable(401) == false);
-                INFO("Authentication error, needs user intervention");
-            }
-            
-            THEN("404 Not Found should NOT be retryable") {
-                REQUIRE(isHttpStatusRetryable(404) == false);
-                INFO("Resource doesn't exist, retrying won't help");
+        THEN("No 2xx is retried: the server answered") {
+            for (int code : {200, 201, 202, 203, 204, 205, 206, 208}) {
+                INFO("HTTP " << code);
+                REQUIRE(retryableFor(code) == false);
             }
         }
-        
-        WHEN("Redirect 3xx codes are received") {
-            THEN("301 Moved Permanently should NOT be retryable") {
-                REQUIRE(isHttpStatusRetryable(301) == false);
-                INFO("Should be followed by HTTP client, not retried");
-            }
-            
-            THEN("302 Found should NOT be retryable") {
-                REQUIRE(isHttpStatusRetryable(302) == false);
+        THEN("500, 502 and 504 are not retried: the request may have been handled") {
+            REQUIRE(retryableFor(500) == false);
+            REQUIRE(retryableFor(502) == false);
+            REQUIRE(retryableFor(504) == false);
+        }
+        THEN("Client errors and redirects are not retried") {
+            for (int code : {301, 302, 400, 401, 403, 404, 422}) {
+                INFO("HTTP " << code);
+                REQUIRE(retryableFor(code) == false);
             }
         }
     }
 }
 
-SCENARIO("HTTP 203 retry behavior resolves the permanent response issue", "[http][203][retry][fix]") {
-    GIVEN("The issue scenario: HTTP 203 appearing permanent") {
-        INFO("ORIGINAL ISSUE:");
-        INFO("- User sends WhatsApp message via sendToInternet()");
-        INFO("- Bridge receives HTTP 203 from Callmebot API");
-        INFO("- Request immediately fails with no retry");
-        INFO("- User sees repeated HTTP 203 failures");
-        INFO("- Problem described as '203 response is permanent'");
-        INFO("");
-        INFO("ROOT CAUSE:");
-        INFO("- HTTP 203 treated as terminal failure (no retry)");
-        INFO("- Even though cache may expire, request never retried");
-        INFO("- User stuck in permanent failure state");
-        
-        WHEN("HTTP 203 is received") {
-            uint16_t httpCode = 203;
-            bool shouldRetry = isHttpStatusRetryable(httpCode);
-            
-            THEN("It should be marked as retryable") {
-                REQUIRE(shouldRetry == true);
-                
-                INFO("FIX:");
-                INFO("- HTTP 203 now triggers automatic retry");
-                INFO("- Uses exponential backoff (increases delay each retry)");
-                INFO("- Gives cache time to expire");
-                INFO("- Eventually succeeds when fresh response available");
-                INFO("- Or fails after max retries with clear error message");
-                INFO("");
-                INFO("BEHAVIOR:");
-                INFO("- Attempt 1: Immediate send -> HTTP 203");
-                INFO("- Attempt 2: Wait 2s -> HTTP 203");
-                INFO("- Attempt 3: Wait 4s -> HTTP 203");  
-                INFO("- Attempt 4: Wait 8s -> HTTP 200 SUCCESS");
-                INFO("  (or max retries reached with clear failure)");
-            }
-        }
+SCENARIO("A server's Retry-After is read, and only its delay-seconds form",
+         "[http][retry][retry-after]") {
+    THEN("Seconds become milliseconds, surrounding spaces ignored") {
+        REQUIRE(gateway::parseRetryAfterMs("5") == 5000);
+        REQUIRE(gateway::parseRetryAfterMs(" 30 ") == 30000);
+        REQUIRE(gateway::parseRetryAfterMs("0") == 0);
+    }
+    THEN("An HTTP-date, garbage or nothing is no instruction") {
+        REQUIRE(gateway::parseRetryAfterMs("Wed, 21 Oct 2026 07:28:00 GMT") == 0);
+        REQUIRE(gateway::parseRetryAfterMs("soon") == 0);
+        REQUIRE(gateway::parseRetryAfterMs("") == 0);
+        REQUIRE(gateway::parseRetryAfterMs("-5") == 0);
+    }
+    THEN("A delay past the ceiling is kept as it is, so the caller can refuse it") {
+        REQUIRE(gateway::parseRetryAfterMs("3600") == 3600000UL);
+        REQUIRE(gateway::parseRetryAfterMs("3600") > gateway::GATEWAY_RETRY_AFTER_MAX_MS);
+        REQUIRE(gateway::parseRetryAfterMs("99999999999") == 0xFFFFFFFFUL);
+    }
+}
+
+SCENARIO("Every attempt at one request carries the same request id",
+         "[http][retry][request-id]") {
+    THEN("It depends on the origin node and the message id, and nothing else") {
+        const auto id = gateway::requestIdFor(0xCA4CFCF5, 0x0001000A);
+        REQUIRE(id == "pm-ca4cfcf5-0001000a");
+        REQUIRE(gateway::requestIdFor(0xCA4CFCF5, 0x0001000A) == id);
+        REQUIRE(gateway::requestIdFor(0xCA4CFCF5, 0x0001000B) != id);
+        REQUIRE(gateway::requestIdFor(0x00000001, 0x0001000A) != id);
     }
 }
 
@@ -438,8 +354,8 @@ SCENARIO("HTTPClient transport errors are not mistaken for HTTP statuses",
                 REQUIRE(outcome.ackStatus != 65535);
             }
 
-            THEN("handleGatewayAck() treats that status as retryable") {
-                REQUIRE(isHttpStatusRetryable(outcome.ackStatus) == true);
+            THEN("The gateway says it may be retried: nothing reached a server") {
+                REQUIRE(outcome.retryable == true);
 
                 INFO("Before the fix the ack carried 65535, which falls into");
                 INFO("the non-retryable bucket, so a transient network failure");
@@ -488,11 +404,11 @@ SCENARIO("Real HTTP statuses survive classification unchanged",
         WHEN("A failure code is returned") {
             auto outcome = gateway::classifyHttpResult(503);
 
-            THEN("The status reaches the origin node so it can be retried") {
+            THEN("The status reaches the origin node, marked retryable") {
                 REQUIRE(outcome.transportError == false);
                 REQUIRE(outcome.success == false);
                 REQUIRE(outcome.ackStatus == 503);
-                REQUIRE(isHttpStatusRetryable(outcome.ackStatus) == true);
+                REQUIRE(outcome.retryable == true);
             }
         }
 
@@ -508,104 +424,81 @@ SCENARIO("Real HTTP statuses survive classification unchanged",
 }
 
 /**
- * Issue #450: the status alone cannot say whether the service accepted the
- * request. CallMeBot answers a rate-limit refusal with HTTP 203 and with HTTP
- * 201, the same HTML page under both. The classifier now reads the body, and
- * a refusal carries the service's words to the origin node.
+ * Whether a reply means what the application wanted depends on the service,
+ * so the library does not decide it from the body. It applies HTTP's meaning
+ * of the status and carries the body, summarized, to the application. (2.0.3
+ * matched CallMeBot's "Too many requests" page inside the library; that
+ * knowledge now lives in the sendToInternet example, where it can be tested
+ * against the service without making the library a CallMeBot client.)
  */
-SCENARIO("The response body can overturn a success-class status",
-         "[http][body][issue450]") {
+SCENARIO("The library reports the status and carries the body; it does not judge it",
+         "[http][body]") {
     const std::string tooMany =
         "<h1>Oops! Too many requests...</h1>"
         "<p>You have called to the API to often. Please review your script/code/app.</p>";
-    const std::string queued =
-        "<p><b>Message queued.</b> You will receive it within a few seconds.</p>";
 
-    GIVEN("A refusal answered with HTTP 201") {
+    GIVEN("A 201 whose body a particular service uses to refuse") {
         auto outcome = gateway::classifyHttpResult(201, tooMany);
-        THEN("It is a failure that names the service's reason") {
-            REQUIRE(outcome.success == false);
-            REQUIRE(outcome.refusedByBody == true);
-            REQUIRE(outcome.transportError == false);
-            REQUIRE(outcome.ackStatus == 201);
-            REQUIRE(outcome.reason.find("Too many requests") != std::string::npos);
-            REQUIRE(outcome.reason.find("<") == std::string::npos);
+        THEN("It is an HTTP success; the words are for the application") {
+            REQUIRE(outcome.success == true);
+            REQUIRE(outcome.unverifiedStatus == false);
+            REQUIRE(outcome.retryable == false);
+            REQUIRE(outcome.reason.empty());
+            REQUIRE(gateway::summarizeResponseBody(tooMany).find("Too many requests") !=
+                    std::string::npos);
         }
     }
 
-    GIVEN("HTTP 208 with a body, as CallMeBot answers a message that never arrives") {
-        auto outcome = gateway::classifyHttpResult(
-            208, "<p>HTTP 208 Already Reported</p>");
-        THEN("It is an unverified failure that carries the body (issue #452)") {
+    GIVEN("HTTP 208") {
+        auto outcome = gateway::classifyHttpResult(208, "<p>HTTP 208 Already Reported</p>");
+        THEN("It is an unverified failure, never retried, that carries the body") {
             REQUIRE(outcome.success == false);
             REQUIRE(outcome.unverifiedStatus == true);
-            REQUIRE(outcome.refusedByBody == false);
+            REQUIRE(outcome.retryable == false);
             REQUIRE(outcome.ackStatus == 208);
             REQUIRE(outcome.reason.find("Already Reported") != std::string::npos);
-        }
-    }
-
-    GIVEN("HTTP 208 with a friendly body") {
-        auto outcome = gateway::classifyHttpResult(208, queued);
-        THEN("The words do not make it a delivery either") {
-            REQUIRE(outcome.success == false);
-            REQUIRE(outcome.unverifiedStatus == true);
-            REQUIRE(outcome.reason.find("Message queued") != std::string::npos);
-        }
-    }
-
-    GIVEN("A queued message answered with HTTP 203") {
-        auto outcome = gateway::classifyHttpResult(203, queued);
-        THEN("It stays unverified: a proxy may have answered, not the service") {
-            REQUIRE(outcome.success == false);
-            REQUIRE(outcome.unverifiedStatus == true);
-            REQUIRE(outcome.refusedByBody == false);
-        }
-    }
-
-    GIVEN("A 4xx and a 5xx") {
-        THEN("They are failures, and not 'unverified 2xx'") {
-            REQUIRE(gateway::classifyHttpResult(404, "").unverifiedStatus == false);
-            REQUIRE(gateway::classifyHttpResult(503, "").unverifiedStatus == false);
         }
     }
 
     GIVEN("An ordinary failure with a JSON body") {
         auto outcome = gateway::classifyHttpResult(
             400, "{\"error\": \"missing phone\", \"ok\": false}");
-        THEN("The reason is the body, and a JSON 'error' key is not a refusal") {
+        THEN("The reason is the body") {
             REQUIRE(outcome.success == false);
-            REQUIRE(outcome.refusedByBody == false);
             REQUIRE(outcome.reason.find("missing phone") != std::string::npos);
-        }
-    }
-
-    GIVEN("A success with a JSON body that merely contains the word error") {
-        auto outcome = gateway::classifyHttpResult(200, "{\"error\": null, \"ok\": true}");
-        THEN("It is still a success") {
-            REQUIRE(outcome.success == true);
         }
     }
 
     GIVEN("A long HTML page") {
         std::string page = "<html><body>";
         for (int i = 0; i < 50; ++i) page += "<p>line " + std::to_string(i) + "</p>\n";
-        THEN("The summary is one line, untagged, and bounded") {
+        THEN("The summary is one line, untagged, bounded, and keeps both ends") {
             auto summary = gateway::summarizeResponseBody(page);
             REQUIRE(summary.find("<") == std::string::npos);
             REQUIRE(summary.find("\n") == std::string::npos);
-            REQUIRE(summary.size() <= gateway::GATEWAY_RESPONSE_REASON_MAX + 3);
+            REQUIRE(summary.size() <= gateway::GATEWAY_RESPONSE_REASON_MAX);
             REQUIRE(summary.substr(0, 6) == "line 0");
+            REQUIRE(summary.find(" ... ") != std::string::npos);
+            REQUIRE(summary.find("line 49") != std::string::npos);
+        }
+    }
+
+    GIVEN("A reply that echoes the request before its verdict, as in issue #463") {
+        const std::string echoed =
+            "371 Message to: +10000000000 Text to send: ALARM: O2 level critical at "
+            "5.4 mg/L! Node: 3394043125 and a long tail of repeated request text "
+            "that pads the reply well past any single line a log will show "
+            "Your Account is Paused due to technical issues. Please send the word "
+            "'resume' to the bot to re-enable the service for your number.";
+        THEN("The summary still ends with the verdict") {
+            auto summary = gateway::summarizeResponseBody(echoed);
+            REQUIRE(summary.size() <= gateway::GATEWAY_RESPONSE_REASON_MAX);
+            REQUIRE(summary.find("re-enable the service for your number.") != std::string::npos);
+            REQUIRE(summary.find("371 Message to") == 0);
         }
     }
 }
 
-/**
- * Issue #453: a destination whose name does not resolve stalled the gateway
- * on every attempt, for the resolver's own patience, and the origin node's
- * relayed requests timed out behind it. The gateway now resolves once and
- * remembers a failure for GATEWAY_DNS_NEGATIVE_TTL_MS.
- */
 SCENARIO("A host that failed to resolve is refused without another lookup",
          "[gateway][dns][issue453]") {
     GIVEN("The host of a URL") {

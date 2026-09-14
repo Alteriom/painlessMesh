@@ -259,8 +259,29 @@ curl "http://localhost:8080/requests/abc"
 #  "path": "/status/503", "status": 503, "tag": "abc", "ts": "..."}
 ```
 
+Each record also carries `count`, the number of requests seen under the tag
+so far, and `request_ids`, the distinct `X-Request-Id` values they carried
+(`request_id` and `idempotency_key` are the latest request's headers). A
+painlessMesh gateway sends the same id on every attempt at one
+`sendToInternet()` call, so `count: 2` with one id is a retry, and a count
+above one where the call should not have been retried is a duplicate delivery.
+
 Pass `--log FILE` (or `MOCK_HTTP_LOG`) to also append every record as JSON
 lines to a file.
+
+### `GET/POST /retry-after/{seconds}` - Refuse Once, Then Accept
+
+The first request under a tag gets `429 Too Many Requests` with
+`Retry-After: {seconds}`; later ones get 200 and are delivered. The ledger
+record of a later request has `waited_s`, the time since the first, and
+`early`, true when it came sooner than the server asked. A tag is required.
+
+```bash
+curl -i "http://localhost:8080/retry-after/5?tag=r1"   # 429, Retry-After: 5
+sleep 5
+curl -i "http://localhost:8080/retry-after/5?tag=r1"   # 200
+curl "http://localhost:8080/requests/r1"               # "count": 2, "early": false
+```
 
 ### `GET/POST /health` - Health Check
 Returns server health status.

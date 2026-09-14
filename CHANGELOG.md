@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`sendToInternet()` no longer retries a request the server may already
+  have.** A read timeout or a connection lost after the request was sent used
+  to count as a "network error" and was retried up to three times; on the
+  hardware rig one timed-out send reached the server four times, which for a
+  message service is four messages, or one message and three refusals. The
+  gateway now tells the origin node whether the identical request may be sent
+  again (`GatewayAckPackage::retryable`, JSON `"retry"`), and says yes only
+  when it cannot have arrived -- connection refused, a failure before the
+  request went out -- or when the server said it did not take it: HTTP 429 and
+  503. A 500, 502 or 504 is no longer retried. The error of a transport
+  failure that was not retried ends "(the request may have reached the
+  server; not retried)", and resending is the application's decision.
+  Acks from gateways that predate the field keep their old reading, except
+  that a 2xx is never retried.
+- **The library no longer judges a response body.** 2.0.3 matched
+  CallMeBot's "Too many requests" page inside the gateway and reported that
+  HTTP 201 as a failure. Whether a reply means what an application wanted is
+  that service's language, not HTTP's, so the gateway now applies HTTP's
+  meaning of the status (200, 201, 202 and 204 succeed; 203, 205-299 are
+  unverified failures) and carries the body to the application instead. **A
+  CallMeBot rate-limit refusal under HTTP 201 is therefore `success == true`
+  again at the library level.** The sendToInternet example reads CallMeBot's
+  reply itself (`examples/sendToInternet/callmebot.h`); a sketch that relied
+  on 2.0.3's check should do the same with the new result callback.
+
+### Added
+
+- **`sendToInternet()` with an `InternetResult` callback.** Besides
+  `success`, `httpStatus` and `error`, the result carries `response` -- the
+  start of the response body as one line, on success as well as failure --
+  `retryable`, `attempts` and `messageId`. The three-argument callback is
+  unchanged. The response travels in the ack as `"resp"` and the error
+  excerpt keeps the end of a long body as well as its start, so a verdict
+  after an echo of the request survives (#463).
+- **Retry-After.** A 429 or 503 retry waits at least as long as the server's
+  `Retry-After` (delay-seconds); a server that asks for more than 60 s gets no
+  automatic retry, and the error says when it wants the request back.
+- **Request ids.** Every attempt at one call carries the same `X-Request-Id`
+  and `Idempotency-Key` header (`pm-<origin>-<messageId>`), so a service that
+  honours idempotency keys drops a copy and a log can count retries.
+- **Test point:** the ledger counts requests per tag and records their
+  request ids, and `/retry-after/{seconds}` refuses a tag once with 429 and
+  `Retry-After`, then accepts it and records whether the retry came early.
+- **sendToInternet example:** alerts once per O2 episode and at most every
+  10 minutes, backs off 15 minutes after a CallMeBot refusal, tags the
+  startup message per boot, URL-encodes the phone number, and no longer
+  prints the API key.
+
 ### Fixed
 
 - **`SentBuffer::requestLength(0)` answered 1, not 0.** `buffer_length - 1`

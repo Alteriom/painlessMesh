@@ -22,6 +22,8 @@ Test Endpoints:
     GET/POST /status/{code}     - Return specific HTTP status code
     GET/POST /delay/{seconds}   - Respond after delay
     GET/POST /timeout           - Never respond (for timeout testing)
+    GET/POST /retry-after/{s}   - 429 with Retry-After: s the first time a tag
+                                  is seen, 200 afterwards
     GET/POST /echo              - Echo request details back
     GET/POST /whatsapp          - Simple WhatsApp-style success response
     GET      /callmebot/whatsapp.php
@@ -36,6 +38,9 @@ Delivery ledger:
     ``GET /requests/{tag}`` returns the latest record for that tag, including a
     ``delivered`` boolean that says whether the emulated service accepted the
     message. A gateway test compares its own success verdict with that field.
+    ``count`` is how many requests arrived under the tag and ``request_ids``
+    the distinct X-Request-Id values they carried, so a test can tell one
+    request retried from one call issued several times.
     The record shape is a superset of the Alteriom farm's gateway probe, so a
     farm test can run against either server unchanged.
 """
@@ -115,6 +120,9 @@ class Ledger:
         self.path = Path(path) if path else None
         self.lock = threading.Lock()
         self.latest = {}
+        self.counts = {}
+        self.request_ids = {}
+        self.first_seen = {}
         self.count = 0
 
     def append(self, record):
@@ -122,6 +130,13 @@ class Ledger:
             self.count += 1
             tag = record.get("tag")
             if tag:
+                self.counts[tag] = self.counts.get(tag, 0) + 1
+                self.first_seen.setdefault(tag, time.time())
+                ids = self.request_ids.setdefault(tag, [])
+                if record.get("request_id") and record["request_id"] not in ids:
+                    ids.append(record["request_id"])
+                record["count"] = self.counts[tag]
+                record["request_ids"] = list(ids)
                 self.latest[tag] = record
             if self.path is not None:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,6 +146,11 @@ class Ledger:
     def get(self, tag):
         with self.lock:
             return self.latest.get(tag)
+
+    def seen(self, tag):
+        """How many requests arrived under tag, and when the first did"""
+        with self.lock:
+            return self.counts.get(tag, 0), self.first_seen.get(tag)
 
 
 ledger = Ledger()
@@ -149,10 +169,12 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         print(f"[{timestamp}] {self.address_string()} - {format % args}")
 
     def _send_response(self, status_code, content_type="application/json", body=None,
-                       delivered=None):
+                       delivered=None, headers=None):
         """Send HTTP response with given status code and body"""
         self.send_response(status_code)
         self.send_header("Content-Type", content_type)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Access-Control-Allow-Origin", "*")
         if delivered is not None:
             # For humans reading a capture. Tests must use the ledger: a
@@ -185,12 +207,17 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             return self.rfile.read(content_length).decode("utf-8", errors="replace")
         return ""
 
-    def _record(self, method, query_params, body, status, delivered, extra=None):
-        """Write one ledger entry for the request being served"""
-        parsed = urlparse(self.path)
+    def _tag(self, query_params, extra=None):
+        """The ledger tag of the request being served"""
         tag = query_params.get("tag", [self.headers.get("X-HIL-Tag", "")])[0]
         if not tag and extra and extra.get("text"):
             tag = extra["text"]
+        return tag
+
+    def _record(self, method, query_params, body, status, delivered, extra=None):
+        """Write one ledger entry for the request being served"""
+        parsed = urlparse(self.path)
+        tag = self._tag(query_params, extra)
         record = {
             "ts": datetime.now(timezone.utc).isoformat(),
             "method": method,
@@ -200,6 +227,9 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             "client": self.client_address[0],
             "status": status,
             "delivered": bool(delivered),
+            # painlessMesh gateways send one id for every attempt at a call
+            "request_id": self.headers.get("X-Request-Id", ""),
+            "idempotency_key": self.headers.get("Idempotency-Key", ""),
         }
         if extra:
             record.update(extra)
@@ -219,7 +249,8 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-HIL-Tag")
+        self.send_header("Access-Control-Allow-Headers",
+                         "Content-Type, X-HIL-Tag, X-Request-Id, Idempotency-Key")
         self.end_headers()
 
     def _handle_request(self, method):
@@ -241,6 +272,8 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             self._handle_delay(path_parts[1], method, query_params, body)
         elif path_parts[0] == "timeout":
             self._handle_timeout(method, query_params, body)
+        elif path_parts[0] == "retry-after" and len(path_parts) > 1:
+            self._handle_retry_after(path_parts[1], method, query_params, body)
         elif path_parts[0] == "echo":
             self._handle_echo(method, query_params, body)
         elif path_parts[0] == "whatsapp":
@@ -320,6 +353,45 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         # time.sleep() has retried on signal interruption since Python 3.5, so
         # the only way out of it is the sleep expiring.
         time.sleep(3600)  # 1 hour - client will timeout first
+
+    def _handle_retry_after(self, seconds_str, method, query_params, body):
+        """Handle /retry-after/{seconds} - refuse once, then accept
+
+        The first request under a tag gets 429 Too Many Requests with
+        Retry-After; every later one gets 200 and is delivered. The record of
+        a later request says how long after the first it came (``waited_s``)
+        and whether that was sooner than the server asked (``early``). A tag
+        is required: without one there is nothing to remember the refusal by.
+        """
+        try:
+            seconds = int(seconds_str)
+            if seconds < 0 or seconds > 3600:
+                raise ValueError("Retry-After out of range")
+        except ValueError:
+            self._send_response(400, body=json.dumps({
+                "error": "Invalid Retry-After seconds", "provided": seconds_str}))
+            return
+        tag = self._tag(query_params)
+        if not tag:
+            self._send_response(400, body=json.dumps({
+                "error": "/retry-after needs a tag (query parameter or X-HIL-Tag)"}))
+            return
+
+        seen, first = ledger.seen(tag)
+        if seen == 0:
+            self._record(method, query_params, body, 429, False,
+                         {"retry_after_s": seconds})
+            self._send_response(429, body=json.dumps({
+                "ok": False, "error": "Too Many Requests", "retry_after_s": seconds}),
+                delivered=False, headers={"Retry-After": str(seconds)})
+            return
+
+        waited = time.time() - first
+        self._record(method, query_params, body, 200, True,
+                     {"retry_after_s": seconds, "waited_s": round(waited, 3),
+                      "early": waited < seconds})
+        self._send_response(200, body=json.dumps({
+            "ok": True, "waited_s": round(waited, 3)}), delivered=True)
 
     def _handle_echo(self, method, query_params, body):
         """Handle /echo endpoint - echo request details"""
@@ -422,6 +494,7 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
                 "/status/{code}",
                 "/delay/{seconds}",
                 "/timeout",
+                "/retry-after/{seconds}",
                 "/echo",
                 "/whatsapp",
                 "/callmebot/whatsapp.php",

@@ -49,10 +49,24 @@
 // For Callmebot WhatsApp API:
 // - Get your API key from https://www.callmebot.com/blog/free-api-whatsapp-messages/
 // - Format: https://api.callmebot.com/whatsapp.php?phone=PHONE&apikey=KEY&text=MESSAGE
+// - CallMeBot is a free service with a rate limit, and it does not say in
+//   the HTTP status whether it will deliver: callmebot.h reads its reply.
+//   Send it alerts, not a message every minute.
+//
+// What painlessMesh does and does not do for you:
+// - It issues each request once. It retries only when the request cannot
+//   have reached the server (the connection was refused, say) or the server
+//   said to come back (HTTP 429/503, honouring Retry-After). A timeout after
+//   the request was sent is NOT retried: resending could deliver it twice.
+// - Every attempt carries the same X-Request-Id / Idempotency-Key header.
+// - The callback gets the HTTP status and the start of the response body.
+//   Whether that reply means "delivered" is the service's language, so the
+//   sketch decides -- here with callmebot::judge().
 //
 //************************************************************
 #include "painlessMesh.h"
-#include <WiFiClientSecure.h>
+
+#include "callmebot.h"
 
 // ============================================
 // Mesh Network Configuration
@@ -95,9 +109,18 @@
 #define TEMP_RANGE      10.0   // Temperature range (20-30°C)
 #define HUMIDITY_MIN    40.0   // Minimum humidity (%)
 #define HUMIDITY_RANGE  40.0   // Humidity range (40-80%)
-#define O2_MIN          5.0    // Minimum O2 level (mg/L)
-#define O2_RANGE        5.0    // O2 range (5-10 mg/L)
-#define O2_ALARM_THRESHOLD 6.0 // O2 level below this triggers alarm
+#define O2_MIN          5.0    // Lowest simulated O2 level (mg/L)
+#define O2_MAX          10.0   // Highest simulated O2 level (mg/L)
+#define O2_ALARM_THRESHOLD 6.0 // O2 level below this raises the alarm
+#define O2_ALARM_CLEAR     6.5 // ...and it clears only above this (hysteresis)
+
+// ============================================
+// Alert pacing
+// ============================================
+// One WhatsApp per alarm, not one per reading, and never more often than
+// this per node. A reading every minute that alerted every time it was low
+// is how a sketch runs into CallMeBot's rate limit.
+#define ALERT_MIN_INTERVAL_MS (10UL * 60UL * 1000UL)
 
 // ============================================
 // Mode Selection
@@ -115,7 +138,7 @@ painlessMesh mesh;
 // ============================================
 // Function Prototypes
 // ============================================
-void sendAlertToWhatsApp(String message);
+bool sendAlertToWhatsApp(String message);
 void sendSensorDataToCloud();
 void receivedCallback(uint32_t from, String& msg);
 void newConnectionCallback(uint32_t nodeId);
@@ -136,6 +159,13 @@ Task taskSendSensorData(60000, TASK_FOREVER, &sendSensorDataToCloud);
 void sendStartupAlert();
 Task taskStartupAlert(30000, TASK_FOREVER, &sendStartupAlert);
 String startupMsg;
+
+// Alert state
+bool alertInFlight = false;          // a WhatsApp request is on its way
+uint32_t lastAlertMs = 0;            // when the last one was handed over
+uint32_t alertHoldMs = 0;            // how long to wait after it
+bool o2Alarm = false;                // the alarm is raised
+float o2Level = 8.0;                 // simulated reading, a slow random walk
 
 // ============================================
 // URL Encoding Helper
@@ -175,61 +205,90 @@ String urlEncode(const String& str) {
 
 /**
  * Send a WhatsApp message via Callmebot using sendToInternet()
- * 
+ *
  * This function demonstrates how to use mesh.sendToInternet() to send
  * data to an Internet endpoint. The request is automatically routed
  * through a gateway node that has Internet access.
- * 
+ *
  * @param message The message to send via WhatsApp
+ * @return true when the request was handed to the mesh
  */
-void sendAlertToWhatsApp(String message) {
+bool sendAlertToWhatsApp(String message) {
   // Check if Internet is available via any gateway
   if (!mesh.hasInternetConnection()) {
     Serial.println("❌ No Internet available - no gateway with Internet found");
     Serial.println("   Make sure at least one node is a bridge with router access");
-    return;
+    return false;
   }
-  
+  if (alertInFlight) {
+    Serial.println("(a WhatsApp message is still on its way; not sending another)");
+    return false;
+  }
+  if (lastAlertMs != 0 && millis() - lastAlertMs < alertHoldMs) {
+    Serial.printf("(WhatsApp paused for another %lu s after the last message)\n",
+                  (unsigned long)((alertHoldMs - (millis() - lastAlertMs)) / 1000));
+    return false;
+  }
+
   // URL-encode the message for safe transmission
   String encodedMessage = urlEncode(message);
-  
+
   // Build the Callmebot WhatsApp API URL
   // Format: https://api.callmebot.com/whatsapp.php?phone=PHONE&apikey=KEY&text=MESSAGE
   String url = "https://api.callmebot.com/whatsapp.php";
-  url += "?phone=" + String(WHATSAPP_PHONE);
+  url += "?phone=" + urlEncode(WHATSAPP_PHONE);
   url += "&apikey=" + String(WHATSAPP_APIKEY);
   url += "&text=" + encodedMessage;
-  
+
   Serial.println("\n📱 Sending WhatsApp message via sendToInternet()...");
   Serial.printf("   Message: %s\n", message.c_str());
-  Serial.printf("   URL: %s\n", url.c_str());
-  
-  // Use sendToInternet() to route the request through a gateway
-  // The callback will be invoked when we get a response (or timeout)
+  // Logs end up pasted into bug reports; the key stays out of them.
+  Serial.printf("   URL: %s\n", callmebot::redactApiKey(url).c_str());
+
+  // Use sendToInternet() to route the request through a gateway.
   //
-  // The gateway reads the response body, not only the status: CallMeBot
-  // answers a refusal ("Too many requests") with HTTP 201 or 203, so a 2xx
-  // alone proves nothing. A refusal arrives here as success=false with the
-  // service's own words in `error`; HTTP 203 stays a failure because a proxy,
-  // not WhatsApp, may have answered.
+  // This callback receives the whole InternetResult: the HTTP status, the
+  // start of CallMeBot's reply, whether the library could retry it and how
+  // many requests it took. painlessMesh says what HTTP says; callmebot::judge()
+  // says what CallMeBot meant -- a "Too many requests" page can arrive under
+  // HTTP 201, and HTTP 208 has meant "not delivered".
+  alertInFlight = true;
+  lastAlertMs = millis();
+  alertHoldMs = ALERT_MIN_INTERVAL_MS;
   uint32_t msgId = mesh.sendToInternet(
     url,
     "",  // No payload needed for GET request - params are in URL
-    [](bool success, uint16_t httpStatus, String error) {
-      if (success) {
-        Serial.printf("✅ WhatsApp message sent! HTTP Status: %d\n", httpStatus);
+    [](const painlessmesh::InternetResult& result) {
+      alertInFlight = false;
+      const auto reply = callmebot::judge(result.httpStatus, result.response);
+      if (reply.accepted) {
+        Serial.printf("✅ WhatsApp message queued by CallMeBot (request %u, HTTP %u, %u attempt(s))\n",
+                      result.messageId, result.httpStatus, result.attempts);
       } else {
-        Serial.printf("❌ Failed to send WhatsApp: %s (HTTP: %d)\n", error.c_str(), httpStatus);
+        Serial.printf("❌ WhatsApp message not sent (request %u): %s\n",
+                      result.messageId, reply.meaning);
+        Serial.printf("   HTTP %u after %u attempt(s)\n", result.httpStatus, result.attempts);
+        if (result.error.length() > 0) {
+          Serial.printf("   Error: %s\n", result.error.c_str());
+        }
+        if (result.response.length() > 0) {
+          Serial.printf("   CallMeBot said: %s\n", result.response.c_str());
+        }
+      }
+      if (reply.holdOffMs > alertHoldMs) {
+        alertHoldMs = reply.holdOffMs;
       }
     },
     static_cast<uint8_t>(painlessmesh::gateway::GatewayPriority::PRIORITY_HIGH)
   );
-  
+
   if (msgId > 0) {
-    Serial.printf("   Message queued with ID: %u\n", msgId);
-  } else {
-    Serial.println("   ❌ Failed to queue message - no gateway available");
+    Serial.printf("   Handed to the mesh as request %u; the result follows when the gateway answers\n", msgId);
+    return true;
   }
+  // The callback reports why, from the scheduler, in a moment.
+  Serial.println("   Not handed to the mesh");
+  return false;
 }
 
 /**
@@ -243,7 +302,10 @@ void sendSensorDataToCloud() {
   // Simulate sensor readings using configured ranges
   float temperature = TEMP_MIN + random(0, (int)(TEMP_RANGE * 10)) / 10.0;
   float humidity = HUMIDITY_MIN + random(0, (int)(HUMIDITY_RANGE * 10)) / 10.0;
-  float o2Level = O2_MIN + random(0, (int)(O2_RANGE * 10)) / 10.0;
+  // O2 drifts rather than jumping, so an alarm is an episode, not a coin toss
+  o2Level += random(-3, 4) / 10.0;
+  if (o2Level < O2_MIN) o2Level = O2_MIN;
+  if (o2Level > O2_MAX) o2Level = O2_MAX;
   
   // Create JSON payload
   String payload = "{";
@@ -257,11 +319,15 @@ void sendSensorDataToCloud() {
   Serial.println("\n📊 Sending sensor data to cloud...");
   Serial.printf("   Payload: %s\n", payload.c_str());
   
-  // Check for alarm conditions using configured threshold
-  if (o2Level < O2_ALARM_THRESHOLD) {
-    // O2 level critical - send WhatsApp alert!
+  // Alert once when O2 falls below the threshold; re-arm once it recovers.
+  // An alert that could not be sent (no gateway yet, paused after a refusal)
+  // is tried again at the next reading while the alarm lasts.
+  if (!o2Alarm && o2Level < O2_ALARM_THRESHOLD) {
     String alertMsg = "⚠️ ALARM: O2 level critical at " + String(o2Level, 1) + " mg/L! Node: " + String(mesh.getNodeId());
-    sendAlertToWhatsApp(alertMsg);
+    o2Alarm = sendAlertToWhatsApp(alertMsg);
+  } else if (o2Alarm && o2Level > O2_ALARM_CLEAR) {
+    Serial.printf("   O2 back to %.1f mg/L; alarm cleared\n", o2Level);
+    o2Alarm = false;
   }
   
   // Only send if Internet is available
@@ -299,7 +365,7 @@ void sendSensorDataToCloud() {
 /**
  * Send the startup notification once a gateway with Internet is known.
  *
- * Runs every 30 s from taskStartupAlert until it has handed the message to
+ * Runs every 30 s from taskStartupAlert until the message has been handed to
  * sendToInternet(), then disables itself.
  */
 void sendStartupAlert() {
@@ -307,8 +373,9 @@ void sendStartupAlert() {
     Serial.println("(startup WhatsApp waiting for a gateway with Internet; retrying in 30 s)");
     return;
   }
-  sendAlertToWhatsApp(startupMsg);
-  taskStartupAlert.disable();
+  if (sendAlertToWhatsApp(startupMsg)) {
+    taskStartupAlert.disable();
+  }
 }
 
 void receivedCallback(uint32_t from, String& msg) {
@@ -386,7 +453,11 @@ void setup() {
   // First attempt in 30 s, then every 30 s until a gateway with Internet is
   // known: a bridge can use its own uplink at once, a regular node has to
   // find the mesh first.
-  startupMsg = "🚀 Node " + String(mesh.getNodeId()) + " started!";
+  // A boot tag makes every start's text different: a service that drops a
+  // repeat of the last message (or answers it with HTTP 208) will not
+  // swallow this one because the previous boot sent the same words.
+  startupMsg = "🚀 Node " + String(mesh.getNodeId()) + " started (boot " +
+               String((uint32_t)random(0x10000), HEX) + ")";
   Serial.println("Will send the startup WhatsApp as soon as a gateway with Internet is known (first try in 30 s)...\n");
   userScheduler.addTask(taskStartupAlert);
   taskStartupAlert.enableDelayed();
