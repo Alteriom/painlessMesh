@@ -2138,11 +2138,20 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     ack.retryAfterMs = retryAfterMs;
 
     if (request.originNode == this->nodeId) {
-      protocol::Variant variant(&ack);
-      this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
+      // Completed from the scheduler, not from inside the gateway handler
+      // that called this. There the handler's HTTPClient, its WiFiClient
+      // and the response buffers are all still allocated, and the
+      // application's callback runs on what is left: on the HIL rig an
+      // ESP8266 shared gateway with ~11 KB free delivered its own result
+      // into a callback that could no longer allocate the event it built.
+      this->addTask([this, ack]() {
+        gateway::GatewayAckPackage local = ack;
+        protocol::Variant variant(&local);
+        this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
+      });
       Log(COMMUNICATION,
-          "Completed local GATEWAY_ACK (success=%d, http=%d)\n", success,
-          httpStatus);
+          "Completing local GATEWAY_ACK from the scheduler (success=%d, http=%d)\n",
+          success, httpStatus);
       return;
     }
 
@@ -2309,9 +2318,10 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * acknowledgment, pending-request tracking and callback semantics stay
    * identical to a request served by a peer gateway.
    *
-   * The handler runs synchronously and its acknowledgment can erase the
-   * pending entry, so callers must not hold a reference into
-   * pendingInternetRequests across this call -- pass copies.
+   * The handler runs synchronously. sendGatewayAck() completes a local
+   * acknowledgment from the scheduler, but a handler is free to do otherwise,
+   * so callers must not hold a reference into pendingInternetRequests across
+   * this call -- pass copies.
    */
   void dispatchInternetRequestLocally(uint32_t messageId, uint8_t priority,
                                       uint8_t retryCount,

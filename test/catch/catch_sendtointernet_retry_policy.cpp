@@ -47,6 +47,7 @@ struct Harness {
   std::vector<Answer> script;
   std::vector<uint32_t> requestTimesMs;
   std::vector<TSTRING> requestIds;
+  bool inHandler = false;
 
   Harness() {
     node.init(&scheduler, 0x11111111);
@@ -63,8 +64,10 @@ struct Harness {
       REQUIRE(!script.empty());
       const size_t index = requestTimesMs.size() - 1;
       const Answer& a = script[index < script.size() ? index : script.size() - 1];
+      inHandler = true;
       node.sendGatewayAck(pkg, a.success, a.httpStatus, a.error, nullptr, a.response,
                           a.retryable, a.retryAfterMs);
+      inHandler = false;
       return true;
     });
   }
@@ -257,6 +260,32 @@ SCENARIO("An ack from a gateway without the retry field keeps its old reading, m
     h.runFor(1000, [&] { return done; });
     h.runFor(200, [] { return false; });
     THEN("It is not resent: the server answered") { REQUIRE(h.requests() == 1); }
+  }
+}
+
+SCENARIO("A gateway's own request completes after its handler has returned",
+         "[gateway][internet][local]") {
+  // On the HIL rig an ESP8266 shared gateway (~11 KB free) served its own
+  // request and delivered the result from inside the HTTP handler, where the
+  // HTTPClient, its WiFiClient and the response buffers were still allocated;
+  // the application's callback could not allocate the event it built.
+  Harness h;
+  GIVEN("A gateway answering its own request") {
+    h.script = {{true, 200, "", "ok", 0, 0}};
+    bool done = false;
+    bool calledInsideHandler = true;
+    h.node.sendToInternet("http://example.test/", "", [&](const InternetResult& r) {
+      done = true;
+      calledInsideHandler = h.inHandler;
+      REQUIRE(r.success);
+    });
+    THEN("The callback runs from the scheduler, once the handler is gone") {
+      REQUIRE_FALSE(done);
+      h.runFor(1000, [&] { return done; });
+      REQUIRE(done);
+      REQUIRE_FALSE(calledInsideHandler);
+      REQUIRE(h.requests() == 1);
+    }
   }
 }
 
