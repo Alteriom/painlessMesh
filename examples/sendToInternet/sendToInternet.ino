@@ -138,7 +138,7 @@ painlessMesh mesh;
 // ============================================
 // Function Prototypes
 // ============================================
-bool sendAlertToWhatsApp(String message);
+bool sendAlertToWhatsApp(String message, bool isO2Alarm = false);
 void sendSensorDataToCloud();
 void receivedCallback(uint32_t from, String& msg);
 void newConnectionCallback(uint32_t nodeId);
@@ -211,9 +211,11 @@ String urlEncode(const String& str) {
  * through a gateway node that has Internet access.
  *
  * @param message The message to send via WhatsApp
+ * @param isO2Alarm true for the O2 alarm, which is re-armed if CallMeBot
+ *                  does not take the message
  * @return true when the request was handed to the mesh
  */
-bool sendAlertToWhatsApp(String message) {
+bool sendAlertToWhatsApp(String message, bool isO2Alarm) {
   // Check if Internet is available via any gateway
   if (!mesh.hasInternetConnection()) {
     Serial.println("❌ No Internet available - no gateway with Internet found");
@@ -258,7 +260,7 @@ bool sendAlertToWhatsApp(String message) {
   uint32_t msgId = mesh.sendToInternet(
     url,
     "",  // No payload needed for GET request - params are in URL
-    [](const painlessmesh::InternetResult& result) {
+    [isO2Alarm](const painlessmesh::InternetResult& result) {
       alertInFlight = false;
       const auto reply = callmebot::judge(result.httpStatus, result.response);
       if (reply.accepted) {
@@ -277,6 +279,11 @@ bool sendAlertToWhatsApp(String message) {
       }
       if (reply.holdOffMs > alertHoldMs) {
         alertHoldMs = reply.holdOffMs;
+      }
+      // An alarm CallMeBot did not take is still an alarm nobody has seen:
+      // re-arm it, so a later reading sends it again once the pause is over.
+      if (isO2Alarm && !reply.accepted) {
+        o2Alarm = false;
       }
     },
     static_cast<uint8_t>(painlessmesh::gateway::GatewayPriority::PRIORITY_HIGH)
@@ -324,7 +331,7 @@ void sendSensorDataToCloud() {
   // is tried again at the next reading while the alarm lasts.
   if (!o2Alarm && o2Level < O2_ALARM_THRESHOLD) {
     String alertMsg = "⚠️ ALARM: O2 level critical at " + String(o2Level, 1) + " mg/L! Node: " + String(mesh.getNodeId());
-    o2Alarm = sendAlertToWhatsApp(alertMsg);
+    o2Alarm = sendAlertToWhatsApp(alertMsg, true);
   } else if (o2Alarm && o2Level > O2_ALARM_CLEAR) {
     Serial.printf("   O2 back to %.1f mg/L; alarm cleared\n", o2Level);
     o2Alarm = false;

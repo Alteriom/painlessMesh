@@ -46,10 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is defined, so code that also builds against older releases can `#ifdef` it.
 - **Retry-After.** A 429 or 503 retry waits at least as long as the server's
   `Retry-After` (delay-seconds); a server that asks for more than 60 s gets no
-  automatic retry, and the error says when it wants the request back.
+  automatic retry, and the error says when it wants the request back. The
+  request's timeout moves with the wait, so the invited retry is not timed
+  out first.
 - **Request ids.** Every attempt at one call carries the same `X-Request-Id`
   and `Idempotency-Key` header (`pm-<origin>-<messageId>`), so a service that
   honours idempotency keys drops a copy and a log can count retries.
+  Message ids now start at a random point each boot, so the first request
+  after a reboot does not reuse the key of the boot before.
 - **Test point:** the ledger counts requests per tag and records their
   request ids, and `/retry-after/{seconds}` refuses a tag once with 429 and
   `Retry-After`, then accepts it and records whether the retry came early.

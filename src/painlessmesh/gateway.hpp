@@ -39,6 +39,7 @@
 #endif
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
+#include "painlessmesh/validation.hpp"
 
 #include <functional>
 #include <map>
@@ -988,8 +989,14 @@ class GatewayDataPackage : public plugin::SinglePackage {
    * @return A unique message ID
    */
   static uint32_t generateMessageId(uint32_t nodeId) {
-    static uint16_t counter = 0;
+    // The counter starts at a random point each boot. Starting at zero, the
+    // first request after every reboot carried the same id as the first
+    // request of the boot before -- and so the same X-Request-Id and
+    // Idempotency-Key, which a service that remembers keys drops as a repeat.
+    static uint16_t counter =
+        static_cast<uint16_t>(validation::SecureRandom::generate());
     ++counter;
+    if (counter == 0) ++counter;
     // Combine node ID (upper 16 bits) with counter (lower 16 bits)
     return ((nodeId & 0xFFFF) << 16) | counter;
   }

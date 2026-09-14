@@ -201,6 +201,28 @@ SCENARIO("A server's Retry-After sets the earliest retry",
     }
   }
 
+  GIVEN("A Retry-After longer than what is left of the request timeout") {
+    // Request timeout 1 s; the periodic timeout sweep runs every 5 s, so a
+    // 5.5 s Retry-After crosses it with the request still pending.
+    h.node.setInternetRequestTimeout(1000);
+    h.script = {{false, 503, "HTTP 503", "maintenance", 1, 5500},
+                {true, 200, "", "ok", 1, 0}};
+    bool done = false;
+    InternetResult result;
+    h.node.sendToInternet("http://example.test/", "", [&](const InternetResult& r) {
+      done = true;
+      result = r;
+    });
+    h.runFor(8000, [&] { return done; });
+
+    THEN("The deadline moves with the wait, and the invited retry runs") {
+      REQUIRE(done);
+      INFO(result.error);
+      REQUIRE(result.success == true);
+      REQUIRE(h.requests() == 2);
+    }
+  }
+
   GIVEN("A 429 asking for longer than a retry will wait") {
     h.script = {{false, 429, "HTTP 429", "come back tomorrow", 1,
                  gateway::GATEWAY_RETRY_AFTER_MAX_MS + 1000}};

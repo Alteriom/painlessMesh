@@ -2371,6 +2371,16 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     if (delay < minDelayMs) delay = minDelayMs;
     request.retryCount++;
 
+    // A wait the server asked for moves the request's deadline with it:
+    // otherwise a Retry-After longer than what is left of the request
+    // timeout (30 s by default) times the request out before the retry the
+    // server invited can run. The retry gets a full timeout of its own.
+    if (minDelayMs > 0) {
+      const uint32_t elapsed = static_cast<uint32_t>(millis()) - request.timestamp;
+      const uint32_t needed = elapsed + delay + internetRequestTimeout;
+      if (needed > request.timeoutMs) request.timeoutMs = needed;
+    }
+
     Log(logger::COMMUNICATION, "scheduleInternetRetry(): Retry %u for msgId=%u in %u ms\n",
         request.retryCount, messageId, delay);
 
