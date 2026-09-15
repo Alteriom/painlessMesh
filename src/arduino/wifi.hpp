@@ -2727,41 +2727,44 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
 #if defined(ESP32) || defined(ESP8266)
   /**
-   * Read the start of an HTTP response body, bounded in bytes and in time
-   *
-   * The gateway used to discard the body, so a service that answers a refusal
-   * with a 2xx (CallMeBot, issue #450) was reported as delivered, and a
-   * failure reached the origin node as a bare status. When the length is
-   * known and small the whole body is taken; otherwise up to maxBytes are
-   * read from the stream, waiting at most GATEWAY_RESPONSE_HEAD_TIMEOUT_MS,
-   * which keeps a large or chunked page from eating the heap or the
-   * cooperative scheduler.
+   * The start and the end of the response body (gateway::ResponseExcerpt),
+   * read from the stream for at most GATEWAY_RESPONSE_HEAD_TIMEOUT_MS and
+   * GATEWAY_RESPONSE_SCAN_BYTES. A body that fits whole is read whole. A
+   * chunked body is read through gateway::ChunkedBodyDecoder: the raw stream
+   * carries the framing, which getString() would remove but only by keeping
+   * the whole body.
    */
-  static TSTRING readResponseHead(HTTPClient& http, size_t maxBytes) {
+  static TSTRING readResponseExcerpt(HTTPClient& http) {
     const int size = http.getSize();
-    if (size >= 0 && static_cast<size_t>(size) <= maxBytes) {
+    if (size >= 0 &&
+        static_cast<size_t>(size) <=
+            gateway::GATEWAY_RESPONSE_HEAD_BYTES + gateway::GATEWAY_RESPONSE_TAIL_BYTES) {
       return http.getString();
     }
-    TSTRING head;
+    gateway::ResponseExcerpt excerpt;
     WiFiClient* stream = http.getStreamPtr();
-    if (stream == nullptr) return head;
+    if (stream == nullptr) return excerpt.text();
+    const bool chunked =
+        size < 0 && gateway::transferEncodingIsChunked(http.header("Transfer-Encoding"));
+    gateway::ChunkedBodyDecoder decoder(excerpt);
     const uint32_t deadline =
         millis() + gateway::GATEWAY_RESPONSE_HEAD_TIMEOUT_MS;
-    while (head.length() < maxBytes &&
-           static_cast<int32_t>(deadline - millis()) > 0) {
+    bool more = true;
+    while (more && static_cast<int32_t>(deadline - millis()) > 0) {
       int available = stream->available();
       if (available <= 0) {
         if (!stream->connected()) break;
         delay(1);
         continue;
       }
-      while (available-- > 0 && head.length() < maxBytes) {
+      while (more && available-- > 0) {
         const int c = stream->read();
         if (c < 0) break;
-        head += static_cast<char>(c);
+        more = chunked ? decoder.add(static_cast<char>(c))
+                       : excerpt.add(static_cast<char>(c));
       }
     }
-    return head;
+    return excerpt.text();
   }
 #endif
 
@@ -2836,8 +2839,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           // that genuinely stopped answering NODE_SYNC still gets reaped even
           // under continuous gateway traffic from other peers.
           const auto blockingStartedMs = millis();
+          // `retryable` is the gateway's word to the origin node on whether
+          // the identical request may be sent again: 0 whenever it may have
+          // reached the server, so a retry cannot deliver it twice.
           auto finish = [this, &pkg, ingress, blockingStartedMs](
-                            bool ok, uint16_t code, const TSTRING& err) {
+                            bool ok, uint16_t code, const TSTRING& err,
+                            int8_t retryable, const TSTRING& response = TSTRING(),
+                            uint32_t retryAfterMs = 0) {
             const auto stalledMs = millis() - blockingStartedMs;
             auto refreshed = gateway::refreshPeerWatchdogs(*this, stalledMs);
             if (refreshed > 0) {
@@ -2847,27 +2855,28 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                   static_cast<unsigned>(refreshed),
                   static_cast<unsigned long>(stalledMs));
             }
-            this->sendGatewayAck(pkg, ok, code, err, ingress);
+            this->sendGatewayAck(pkg, ok, code, err, ingress, response, retryable,
+                                 retryAfterMs);
           };
 
           // Check Internet connectivity
           // First check WiFi status for quick fail
           if (WiFi.status() != WL_CONNECTED) {
-            finish(false, 0, "Gateway WiFi not connected");
+            finish(false, 0, "Gateway WiFi not connected", 0);
             return true;  // Consume package - we handled it (with error)
           }
           
           // Then check actual internet access (DNS resolution)
           // This detects when WiFi is connected but router has no internet
           if (!hasActualInternetAccess()) {
-            finish(false, 0, "Router has no internet access - check WAN connection");
+            finish(false, 0, "Router has no internet access - check WAN connection", 0);
             return true;  // Consume package - we handled it (with error)
           }
           
           // Finally, check for captive portal interference
           // This detects when DNS works but HTTP requests are intercepted
           if (!detectCaptivePortal()) {
-            finish(false, 0, "Captive portal detected - requires web authentication. Check router/WiFi settings");
+            finish(false, 0, "Captive portal detected - requires web authentication. Check router/WiFi settings", 0);
             return true;  // Consume package - we handled it (with error)
           }
 
@@ -2899,7 +2908,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                            (gateway::GATEWAY_DNS_NEGATIVE_TTL_MS - failedAgoMs) /
                            1000));
               Log(ERROR, "%s\n", dnsBuf);
-              finish(false, 0, TSTRING(dnsBuf));
+              finish(false, 0, TSTRING(dnsBuf), 0);
               return true;
             }
             IPAddress resolved;
@@ -2909,7 +2918,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               snprintf(dnsBuf, sizeof(dnsBuf), "DNS lookup failed for %s",
                        host.c_str());
               Log(ERROR, "%s\n", dnsBuf);
-              finish(false, 0, TSTRING(dnsBuf));
+              finish(false, 0, TSTRING(dnsBuf), 0);
               return true;
             }
           }
@@ -2959,6 +2968,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 #endif
           }
 
+          // The same id on every attempt at this call. A service that
+          // honours Idempotency-Key treats a retry as the request it already
+          // has; anything recording requests can count the copies.
+          const TSTRING requestId =
+              gateway::requestIdFor(pkg.originNode, pkg.messageId, pkg.requestNonce);
+          http.addHeader("X-Request-Id", requestId.c_str());
+          http.addHeader("Idempotency-Key", requestId.c_str());
+          // Not const: both cores declare collectHeaders(const char* keys[], ...).
+          const char* collected[] = {"Retry-After", "Transfer-Encoding"};
+          http.collectHeaders(collected, 2);
+
           // Make request (GET if no payload, POST if payload)
           if (pkg.payload.length() > 0) {
             http.addHeader("Content-Type", pkg.contentType.c_str());
@@ -2967,11 +2987,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             httpCode = http.GET();
           }
 
-          // A 2xx is the origin's acceptance, except 203 (a proxy transformed
-          // the response) and except when the body says the service refused
-          // the request: CallMeBot answers "Too many requests" under 201 and
-          // 203 (issue #450). The body is therefore read -- bounded -- before
-          // classifying, and it is what the origin node is told on failure.
+          // HTTP semantics only: 200/201/202/204 succeed, anything else fails,
+          // and a retry is allowed only when it cannot deliver the request
+          // twice (see gateway::classifyHttpResult). Whether a service's reply
+          // means what the application wanted is the application's decision,
+          // so the start of the body goes back on success as well as failure.
           //
           // 3xx redirects are not automatically followed.
           //
@@ -2981,72 +3001,68 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           TSTRING responseHead;
           if (httpCode > 0) {
             responseHead =
-                readResponseHead(http, gateway::GATEWAY_RESPONSE_HEAD_BYTES);
+                readResponseExcerpt(http);
           }
           const auto outcome =
               gateway::classifyHttpResult(httpCode, responseHead);
           success = outcome.success;
+          const TSTRING responseSummary =
+              httpCode > 0 ? gateway::summarizeResponseBody(responseHead) : TSTRING();
+          uint32_t retryAfterMs = 0;
+          if (outcome.retryable && httpCode > 0) {
+            retryAfterMs = gateway::parseRetryAfterMs(http.header("Retry-After"));
+          }
 
           if (!outcome.transportError) {
-            char errorBuf[192];
+            char errorBuf[320];
             const char* reason = outcome.reason.c_str();
             const char* sep = outcome.reason.length() > 0 ? ": " : "";
             if (success) {
               Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
-            } else if (outcome.refusedByBody) {
-              // Success-class status, refusing body. Not retryable: the
-              // service answered, and the origin node gets its words.
-              snprintf(errorBuf, sizeof(errorBuf),
-                       "HTTP %d: service refused the request%s%s", httpCode,
-                       sep, reason);
-              error = TSTRING(errorBuf);
-              Log(ERROR, "HTTP request refused by the service: %s\n", errorBuf);
             } else if (outcome.unverifiedStatus) {
-              // A 2xx outside 200/201/202/204. CallMeBot answers 208 to a
-              // message that never arrives (issue #452), so this is a
-              // failure, and the body -- the only place the service says
-              // what it did -- goes to the origin node and to the log at
-              // ERROR level, where a sketch running the default levels
-              // sees it. 203 stays retryable; the rest are final.
+              // A 2xx outside 200/201/202/204: the server answered, but not
+              // with a status this library can call a delivery. Never
+              // retried. Logged at ERROR, where a sketch on the default
+              // levels sees what the service said.
               snprintf(errorBuf, sizeof(errorBuf),
                        "HTTP %d: not a delivery the gateway can confirm%s%s",
                        httpCode, sep, reason);
               error = TSTRING(errorBuf);
               Log(ERROR, "HTTP response unverified: %s\n", errorBuf);
-            } else if (httpCode >= 500 && httpCode < 600) {
-              // 5xx server errors are retryable, log at COMMUNICATION level
+            } else if (outcome.retryable) {
+              // 429 or 503: the server says it did not take the request.
               snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,
                        reason);
               error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP server error: code=%d (will retry)\n", httpCode);
-            } else if (httpCode == 429) {
-              // HTTP 429 rate limit is retryable, log at COMMUNICATION level
-              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,
-                       reason);
-              error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP rate limit: code=%d (will retry)\n", httpCode);
+              Log(COMMUNICATION, "HTTP %d: the server asked to retry (after %lu ms)\n",
+                  httpCode, static_cast<unsigned long>(retryAfterMs));
             } else {
-              // 1xx, 3xx, 4xx (except 429) - non-retryable, log at ERROR level
               snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,
                        reason);
               error = TSTRING(errorBuf);
               Log(ERROR, "HTTP request failed: %s\n", errorBuf);
             }
           } else {
-            // Network errors (httpCode <= 0) are retryable but indicate serious issues
-            // Keep at ERROR level as they may indicate gateway connectivity problems
+            // Below HTTP. When the request may already be at the server -- a
+            // read timeout, a connection lost after sending -- it is not
+            // retried, and the error says why, so an application that
+            // resends does so knowing it may duplicate.
             error = http.errorToString(httpCode);
+            if (!outcome.retryable) {
+              error += " (the request may have reached the server; not retried)";
+            }
             Log(ERROR, "HTTP request failed: %s\n", error.c_str());
           }
 
           http.end();
 
-          // Send acknowledgment back. Transport errors carry status 0, the
-          // value handleGatewayAck() treats as a retryable network error.
-          finish(success, outcome.ackStatus, error);
+          // Send acknowledgment back, with the verdict on retrying and the
+          // start of whatever the server said.
+          finish(success, outcome.ackStatus, error, outcome.retryable ? 1 : 0,
+                 responseSummary, retryAfterMs);
 #else
         // Non-ESP platform - send error
-        finish(false, 0, "HTTP client not available on this platform");
+        finish(false, 0, "HTTP client not available on this platform", 0);
 #endif
 
           return true;  // Consume package - we have processed it and sent

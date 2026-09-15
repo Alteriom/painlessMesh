@@ -237,6 +237,8 @@ the ledger tag unless `tag` is given.
 | `ratelimit-201` | 201    | "Oops! Too many requests"  | no        | observed 2026-09-10 |
 | `unverified-208`| 208    | "HTTP 208 Already Reported"| no        | observed in #450 and #452: never delivered |
 | `queued-208`    | 208    | "Message queued..."        | no        | 208 with the delivered body: still not a delivery |
+| `queued-chunked` | 200 | "Message queued...", sent `Transfer-Encoding: chunked` in 16-byte chunks | yes | how the real service sends it: a gateway reading the raw stream must remove the framing |
+| `paused-after-echo` | 200 | a ~1 KB echo of the request, then "Your Account is Paused ... send the word 'resume'" | no | observed in #463: longer than the 512 + 256 bytes a gateway keeps, with the verdict only at the end |
 
 An unknown profile answers 400 so a typo in a test fails loudly.
 
@@ -259,8 +261,29 @@ curl "http://localhost:8080/requests/abc"
 #  "path": "/status/503", "status": 503, "tag": "abc", "ts": "..."}
 ```
 
+Each record also carries `count`, the number of requests seen under the tag
+so far, and `request_ids`, the distinct `X-Request-Id` values they carried
+(`request_id` and `idempotency_key` are the latest request's headers). A
+painlessMesh gateway sends the same id on every attempt at one
+`sendToInternet()` call, so `count: 2` with one id is a retry, and a count
+above one where the call should not have been retried is a duplicate delivery.
+
 Pass `--log FILE` (or `MOCK_HTTP_LOG`) to also append every record as JSON
 lines to a file.
+
+### `GET/POST /retry-after/{seconds}` - Refuse Once, Then Accept
+
+The first request under a tag gets `429 Too Many Requests` with
+`Retry-After: {seconds}`; later ones get 200 and are delivered. The ledger
+record of a later request has `waited_s`, the time since the first, and
+`early`, true when it came sooner than the server asked. A tag is required.
+
+```bash
+curl -i "http://localhost:8080/retry-after/5?tag=r1"   # 429, Retry-After: 5
+sleep 5
+curl -i "http://localhost:8080/retry-after/5?tag=r1"   # 200
+curl "http://localhost:8080/requests/r1"               # "count": 2, "early": false
+```
 
 ### `GET/POST /health` - Health Check
 Returns server health status.

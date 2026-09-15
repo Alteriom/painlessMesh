@@ -22,6 +22,8 @@ Test Endpoints:
     GET/POST /status/{code}     - Return specific HTTP status code
     GET/POST /delay/{seconds}   - Respond after delay
     GET/POST /timeout           - Never respond (for timeout testing)
+    GET/POST /retry-after/{s}   - 429 with Retry-After: s the first time a tag
+                                  is seen, 200 afterwards
     GET/POST /echo              - Echo request details back
     GET/POST /whatsapp          - Simple WhatsApp-style success response
     GET      /callmebot/whatsapp.php
@@ -36,6 +38,9 @@ Delivery ledger:
     ``GET /requests/{tag}`` returns the latest record for that tag, including a
     ``delivered`` boolean that says whether the emulated service accepted the
     message. A gateway test compares its own success verdict with that field.
+    ``count`` is how many requests arrived under the tag and ``request_ids``
+    the distinct X-Request-Id values they carried, so a test can tell one
+    request retried from one call issued several times.
     The record shape is a superset of the Alteriom farm's gateway probe, so a
     farm test can run against either server unchanged.
 """
@@ -86,6 +91,19 @@ CALLMEBOT_ALREADY_REPORTED = (
     "<p>Seen from CallMeBot in painlessMesh #450 and #452; the message never arrived.</p>"
 )
 
+# The reply of issue #463, in shape: CallMeBot echoed the request -- the
+# recipient and the whole text -- and gave its verdict last. Longer than the
+# 512 + 256 bytes a gateway keeps of a body, with the verdict only in the
+# tail, so a gateway that keeps just the start hands the application the echo
+# and nothing that says why. The number is a placeholder; the reporter's real
+# one is public in that issue and is not repeated here.
+CALLMEBOT_PAUSED_AFTER_ECHO = (
+    "<p>371 Message to: +10000000000</p><p>Text to send: "
+    + "ALARM: O2 level critical at 5.4 mg/L! Node: 3394043125 " * 16
+    + "</p><p><b>Your Account is Paused</b> due to technical issues. Please send "
+    "the word 'resume' to the bot to re-enable the service.</p>"
+)
+
 CALLMEBOT_PROFILES = {
     # Observed or documented behaviour.
     "queued": {"status": 200, "body": CALLMEBOT_QUEUED, "delivered": True,
@@ -105,6 +123,15 @@ CALLMEBOT_PROFILES = {
     # status would report this one as sent, and this profile rejects it.
     "queued-208": {"status": 208, "body": CALLMEBOT_QUEUED, "delivered": False,
                    "note": "208 with the delivered profile's body: still not a delivery"},
+    # The real CallMeBot answers with Transfer-Encoding: chunked (hardware rig,
+    # 2026-09-15). Served as HTTP/1.1 in 16-byte chunks with no
+    # Content-Length, so a gateway that reads the raw stream sees the framing.
+    "queued-chunked": {"status": 200, "body": CALLMEBOT_QUEUED, "delivered": True,
+                       "chunked": True,
+                       "note": "the documented success, chunked as the real service sends it"},
+    # #463: HTTP 200, a long echo, and the refusal at the very end.
+    "paused-after-echo": {"status": 200, "body": CALLMEBOT_PAUSED_AFTER_ECHO, "delivered": False,
+                          "note": "observed in #463: a paused account, verdict after a long echo"},
 }
 
 
@@ -115,6 +142,9 @@ class Ledger:
         self.path = Path(path) if path else None
         self.lock = threading.Lock()
         self.latest = {}
+        self.counts = {}
+        self.request_ids = {}
+        self.first_seen = {}
         self.count = 0
 
     def append(self, record):
@@ -122,6 +152,13 @@ class Ledger:
             self.count += 1
             tag = record.get("tag")
             if tag:
+                self.counts[tag] = self.counts.get(tag, 0) + 1
+                self.first_seen.setdefault(tag, time.time())
+                ids = self.request_ids.setdefault(tag, [])
+                if record.get("request_id") and record["request_id"] not in ids:
+                    ids.append(record["request_id"])
+                record["count"] = self.counts[tag]
+                record["request_ids"] = list(ids)
                 self.latest[tag] = record
             if self.path is not None:
                 self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,6 +168,11 @@ class Ledger:
     def get(self, tag):
         with self.lock:
             return self.latest.get(tag)
+
+    def seen(self, tag):
+        """How many requests arrived under tag, and when the first did"""
+        with self.lock:
+            return self.counts.get(tag, 0), self.first_seen.get(tag)
 
 
 ledger = Ledger()
@@ -149,10 +191,12 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         print(f"[{timestamp}] {self.address_string()} - {format % args}")
 
     def _send_response(self, status_code, content_type="application/json", body=None,
-                       delivered=None):
+                       delivered=None, headers=None):
         """Send HTTP response with given status code and body"""
         self.send_response(status_code)
         self.send_header("Content-Type", content_type)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Access-Control-Allow-Origin", "*")
         if delivered is not None:
             # For humans reading a capture. Tests must use the ledger: a
@@ -171,6 +215,22 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body_bytes)
 
+    def _send_chunked(self, status_code, content_type, body, delivered, chunk_size=16):
+        """Answer as HTTP/1.1 with Transfer-Encoding: chunked, then close."""
+        self.protocol_version = "HTTP/1.1"
+        self.send_response(status_code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.send_header("Connection", "close")
+        self.send_header("X-TestPoint-Delivered", "true" if delivered else "false")
+        self.end_headers()
+        data = body.encode("utf-8")
+        for start in range(0, len(data), chunk_size):
+            piece = data[start:start + chunk_size]
+            self.wfile.write(b"%x\r\n" % len(piece) + piece + b"\r\n")
+        self.wfile.write(b"0\r\n\r\n")
+        self.close_connection = True
+
     def _parse_path(self):
         """Parse request path and query parameters"""
         parsed = urlparse(self.path)
@@ -185,12 +245,17 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             return self.rfile.read(content_length).decode("utf-8", errors="replace")
         return ""
 
-    def _record(self, method, query_params, body, status, delivered, extra=None):
-        """Write one ledger entry for the request being served"""
-        parsed = urlparse(self.path)
+    def _tag(self, query_params, extra=None):
+        """The ledger tag of the request being served"""
         tag = query_params.get("tag", [self.headers.get("X-HIL-Tag", "")])[0]
         if not tag and extra and extra.get("text"):
             tag = extra["text"]
+        return tag
+
+    def _record(self, method, query_params, body, status, delivered, extra=None):
+        """Write one ledger entry for the request being served"""
+        parsed = urlparse(self.path)
+        tag = self._tag(query_params, extra)
         record = {
             "ts": datetime.now(timezone.utc).isoformat(),
             "method": method,
@@ -200,6 +265,9 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             "client": self.client_address[0],
             "status": status,
             "delivered": bool(delivered),
+            # painlessMesh gateways send one id for every attempt at a call
+            "request_id": self.headers.get("X-Request-Id", ""),
+            "idempotency_key": self.headers.get("Idempotency-Key", ""),
         }
         if extra:
             record.update(extra)
@@ -219,7 +287,8 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-HIL-Tag")
+        self.send_header("Access-Control-Allow-Headers",
+                         "Content-Type, X-HIL-Tag, X-Request-Id, Idempotency-Key")
         self.end_headers()
 
     def _handle_request(self, method):
@@ -241,6 +310,8 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             self._handle_delay(path_parts[1], method, query_params, body)
         elif path_parts[0] == "timeout":
             self._handle_timeout(method, query_params, body)
+        elif path_parts[0] == "retry-after" and len(path_parts) > 1:
+            self._handle_retry_after(path_parts[1], method, query_params, body)
         elif path_parts[0] == "echo":
             self._handle_echo(method, query_params, body)
         elif path_parts[0] == "whatsapp":
@@ -321,6 +392,45 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         # the only way out of it is the sleep expiring.
         time.sleep(3600)  # 1 hour - client will timeout first
 
+    def _handle_retry_after(self, seconds_str, method, query_params, body):
+        """Handle /retry-after/{seconds} - refuse once, then accept
+
+        The first request under a tag gets 429 Too Many Requests with
+        Retry-After; every later one gets 200 and is delivered. The record of
+        a later request says how long after the first it came (``waited_s``)
+        and whether that was sooner than the server asked (``early``). A tag
+        is required: without one there is nothing to remember the refusal by.
+        """
+        try:
+            seconds = int(seconds_str)
+            if seconds < 0 or seconds > 3600:
+                raise ValueError("Retry-After out of range")
+        except ValueError:
+            self._send_response(400, body=json.dumps({
+                "error": "Invalid Retry-After seconds", "provided": seconds_str}))
+            return
+        tag = self._tag(query_params)
+        if not tag:
+            self._send_response(400, body=json.dumps({
+                "error": "/retry-after needs a tag (query parameter or X-HIL-Tag)"}))
+            return
+
+        seen, first = ledger.seen(tag)
+        if seen == 0:
+            self._record(method, query_params, body, 429, False,
+                         {"retry_after_s": seconds})
+            self._send_response(429, body=json.dumps({
+                "ok": False, "error": "Too Many Requests", "retry_after_s": seconds}),
+                delivered=False, headers={"Retry-After": str(seconds)})
+            return
+
+        waited = time.time() - first
+        self._record(method, query_params, body, 200, True,
+                     {"retry_after_s": seconds, "waited_s": round(waited, 3),
+                      "early": waited < seconds})
+        self._send_response(200, body=json.dumps({
+            "ok": True, "waited_s": round(waited, 3)}), delivered=True)
+
     def _handle_echo(self, method, query_params, body):
         """Handle /echo endpoint - echo request details"""
         self._record(method, query_params, body, 200, True)
@@ -387,6 +497,10 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
 
         self._record(method, query_params, None, profile["status"], profile["delivered"],
                      {"text": text, "profile": apikey, "response": profile["body"]})
+        if profile.get("chunked"):
+            self._send_chunked(profile["status"], "text/html; charset=utf-8", profile["body"],
+                               profile["delivered"])
+            return
         self._send_response(profile["status"], content_type="text/html; charset=utf-8",
                             body=profile["body"], delivered=profile["delivered"])
 
@@ -408,6 +522,10 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             "version": "2.0.0",
             "uptime": time.time() - server_start_time,
             "requests_seen": ledger.count,
+            # Named the way the Alteriom farm's gateway probe names them, so a
+            # row that asks for a feature runs against either server.
+            "features": ["ledger.count", "ledger.request_ids", "retry_after",
+                         "callmebot.paused_after_echo", "callmebot.chunked"],
             "timestamp": time.time()
         }
         self._send_response(200, body=json.dumps(response))
@@ -422,6 +540,7 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
                 "/status/{code}",
                 "/delay/{seconds}",
                 "/timeout",
+                "/retry-after/{seconds}",
                 "/echo",
                 "/whatsapp",
                 "/callmebot/whatsapp.php",

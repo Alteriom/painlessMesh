@@ -39,6 +39,7 @@
 #endif
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
+#include "painlessmesh/validation.hpp"
 
 #include <functional>
 #include <map>
@@ -885,12 +886,25 @@ class GatewayDataPackage : public plugin::SinglePackage {
   bool requiresAck = false;
 
   /**
+   * @brief Random value drawn once per sendToInternet() call
+   *
+   * The same on every attempt at that call, and part of its X-Request-Id and
+   * Idempotency-Key (requestIdFor()). messageId alone repeats: its counter is
+   * 16 bits, so a node that sends more than 65,535 requests in one boot
+   * reissues old ids, and a service that remembers keys would drop the new
+   * request as a repeat. 0 from a node that predates the field. JSON key
+   * "nonce", omitted when 0.
+   */
+  uint32_t requestNonce = 0;
+
+  /**
    * @brief Number of additional JSON fields in this package
    *
    * Used for jsonObjectSize() calculation in ArduinoJson v6.
-   * Count: msgId, origin, ts, prio, dest_url, payload, content, retry, ack = 9 fields
+   * Count: msgId, origin, ts, prio, dest_url, payload, content, retry, ack,
+   * nonce = 10 fields
    */
-  static constexpr int numPackageFields = 9;
+  static constexpr int numPackageFields = 10;
 
   /**
    * @brief Default constructor
@@ -914,6 +928,7 @@ class GatewayDataPackage : public plugin::SinglePackage {
     priority = jsonObj["prio"];
     retryCount = jsonObj["retry"];
     requiresAck = jsonObj["ack"] | false;
+    requestNonce = jsonObj["nonce"] | 0UL;
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
     if (jsonObj.containsKey("dest_url"))
@@ -951,6 +966,7 @@ class GatewayDataPackage : public plugin::SinglePackage {
     jsonObj["content"] = contentType;
     jsonObj["retry"] = retryCount;
     jsonObj["ack"] = requiresAck;
+    if (requestNonce != 0) jsonObj["nonce"] = requestNonce;
     return jsonObj;
   }
 
@@ -988,8 +1004,14 @@ class GatewayDataPackage : public plugin::SinglePackage {
    * @return A unique message ID
    */
   static uint32_t generateMessageId(uint32_t nodeId) {
-    static uint16_t counter = 0;
+    // The counter starts at a random point each boot. Starting at zero, the
+    // first request after every reboot carried the same id as the first
+    // request of the boot before -- and so the same X-Request-Id and
+    // Idempotency-Key, which a service that remembers keys drops as a repeat.
+    static uint16_t counter =
+        static_cast<uint16_t>(validation::SecureRandom::generate());
     ++counter;
+    if (counter == 0) ++counter;
     // Combine node ID (upper 16 bits) with counter (lower 16 bits)
     return ((nodeId & 0xFFFF) << 16) | counter;
   }
@@ -997,21 +1019,74 @@ class GatewayDataPackage : public plugin::SinglePackage {
 };
 
 /**
+ * @brief HTTPClient transport errors, by what they say about the request
+ *
+ * HTTPClient::GET()/POST() return a negative code when the request failed
+ * below HTTP. The ESP32 and ESP8266 cores number them the same way. What
+ * matters to a retry is whether the request can have reached the server:
+ * resending one that did delivers it twice, which for a request with an
+ * effect -- a message, a payment, a counter -- is a second effect (the rig
+ * showed a timed-out send issued four times).
+ *
+ * Where each is raised, in both cores' HTTPClient::sendRequest() for the
+ * buffer GET()/POST() the gateway uses: -1, -2 and -3 before the request is
+ * complete; everything else from handleHeaderResponse(), which runs after the
+ * whole request was written -- so -4 is a connection that closed before the
+ * reply began and -7 a reply that was not HTTP, both with the request already
+ * at the server. -6 and -8 come from stream sends and from reading a body.
+ */
+enum HttpTransportError : int {
+  HTTP_TRANSPORT_CONNECTION_REFUSED = -1,  ///< no connection was made
+  HTTP_TRANSPORT_SEND_HEADER_FAILED = -2,  ///< the request line never completed
+  HTTP_TRANSPORT_SEND_PAYLOAD_FAILED = -3, ///< the body never completed
+  HTTP_TRANSPORT_NOT_CONNECTED = -4,       ///< closed before the reply began; sent
+  HTTP_TRANSPORT_CONNECTION_LOST = -5,     ///< dropped while reading the reply; sent
+  HTTP_TRANSPORT_NO_STREAM = -6,           ///< no stream to send or read with
+  HTTP_TRANSPORT_NO_HTTP_SERVER = -7,      ///< the reply was not HTTP; sent
+  HTTP_TRANSPORT_TOO_LESS_RAM = -8,        ///< out of memory sending or reading
+  HTTP_TRANSPORT_ENCODING = -9,            ///< the reply arrived malformed; sent
+  HTTP_TRANSPORT_STREAM_WRITE = -10,       ///< the reply could not be stored; sent
+  HTTP_TRANSPORT_READ_TIMEOUT = -11,       ///< sent, and no reply in time
+};
+
+/**
+ * @brief Can a request that failed with this transport error have reached
+ *        the server?
+ *
+ * True -- the safe answer -- for every code that is not known to fail before
+ * the request was complete, including codes this library does not know.
+ */
+inline bool transportErrorMayHaveReachedServer(int rawCode) {
+  switch (rawCode) {
+    case HTTP_TRANSPORT_CONNECTION_REFUSED:
+    case HTTP_TRANSPORT_SEND_HEADER_FAILED:
+    case HTTP_TRANSPORT_SEND_PAYLOAD_FAILED:
+      return false;
+    default:
+      return true;
+  }
+}
+
+/**
  * @brief The outcome of a gateway HTTP request, classified for the ack
  *
  * HTTPClient::GET()/POST() return an int with two distinct meanings: a
  * positive value is an HTTP status code from the destination, while a
- * negative value is one of the client's own transport errors (HTTPC_ERROR_*,
- * e.g. -1 for a refused connection or -11 for a read timeout). Zero is not
- * produced by either.
+ * negative value is one of the client's own transport errors (see
+ * HttpTransportError). Zero is not produced by either.
  *
  * GatewayAckPackage::httpStatus is a uint16_t, so a negative code cannot be
- * forwarded as-is. Transport errors are reported as httpStatus 0, which is
- * what Mesh::handleGatewayAck() already treats as a retryable network error;
- * the human-readable cause travels in GatewayAckPackage::error instead.
+ * forwarded as-is. Transport errors are reported as httpStatus 0 with the
+ * cause in GatewayAckPackage::error, and whether the origin node may resend
+ * the request travels in GatewayAckPackage::retryable.
+ *
+ * The library applies HTTP's meaning of a status and nothing else. Whether a
+ * particular service's reply means what the application wanted -- a message
+ * really queued, a record really written -- is the application's decision,
+ * made from the status and the response the result carries.
  */
 struct HttpRequestOutcome {
-  /** True only for status codes that indicate genuine delivery. */
+  /** True only for 200, 201, 202 and 204. */
   bool success = false;
 
   /** Value to place in GatewayAckPackage::httpStatus (0 for transport errors). */
@@ -1021,38 +1096,63 @@ struct HttpRequestOutcome {
   bool transportError = false;
 
   /**
-   * True when the status was success-class but the response body said the
-   * service refused the request (issue #450).
-   */
-  bool refusedByBody = false;
-
-  /**
-   * True for a 2xx the gateway cannot vouch for: anything but 200, 201, 202
-   * and 204. CallMeBot answers HTTP 208 to a message that never arrives
-   * (issue #452), so a status outside the verified set is reported as a
-   * failure that carries the body, never as a delivery.
+   * True for a 2xx outside 200, 201, 202 and 204. 203 says a proxy
+   * transformed the reply; 205, 206 and 208 are not what a request to an API
+   * endpoint expects. The server answered, so it is never retried; it is
+   * reported as a failure the application can inspect.
    */
   bool unverifiedStatus = false;
 
   /**
-   * One-line reason for a failure, taken from the response body when there
-   * is one; empty on success. Sized to fit a GatewayAckPackage::error.
+   * Whether resending the identical request is safe and useful: the request
+   * cannot have reached the server, or the server said it did not take it
+   * and to come back (429 Too Many Requests, 503 Service Unavailable). A
+   * reply that may mean the request was processed -- any 2xx, a 500, a
+   * gateway timeout, a read timeout -- is not retried, because a retry would
+   * be a second copy of it.
+   */
+  bool retryable = false;
+
+  /**
+   * One-line summary of the response body, for the error an application
+   * reads; empty on success and when no body was read.
    */
   TSTRING reason;
 };
 
-/** Longest response-body excerpt carried in an acknowledgment error. */
-static const size_t GATEWAY_RESPONSE_REASON_MAX = 120;
+/**
+ * Longest response-body summary carried in an acknowledgment. Long enough
+ * for a service that repeats the request back before its verdict -- the
+ * reply in issue #463 spent 97 of 120 characters on the echo and was cut
+ * before the part that said why.
+ */
+static const size_t GATEWAY_RESPONSE_REASON_MAX = 240;
 
 /**
- * How much of a response body the gateway reads for classification and for
- * the error it reports. Enough for a service's one-line verdict, small enough
- * that an HTML error page cannot eat an ESP8266's heap.
+ * How much of a response body the gateway keeps for the summary: its first
+ * GATEWAY_RESPONSE_HEAD_BYTES and its last GATEWAY_RESPONSE_TAIL_BYTES.
+ * Enough for a service's verdict at either end, small enough that an HTML
+ * error page cannot eat an ESP8266's heap.
  */
 static const size_t GATEWAY_RESPONSE_HEAD_BYTES = 512;
+static const size_t GATEWAY_RESPONSE_TAIL_BYTES = 256;
 
-/** How long the gateway waits for that head to arrive after the status. */
+/**
+ * How far into a body the gateway reads looking for its end. Past this the
+ * tail kept is the last of what was read, not the body's end; reading on
+ * would hold the uplink for a reply nobody summarises.
+ */
+static const size_t GATEWAY_RESPONSE_SCAN_BYTES = 8192;
+
+/** How long the gateway reads the body for, after the status. */
 static const uint32_t GATEWAY_RESPONSE_HEAD_TIMEOUT_MS = 250;
+
+/**
+ * Longest wait a server's Retry-After may impose before a retry. A longer one
+ * is not honoured with a retry at all: the request fails and says when the
+ * server asked to be retried, which is the application's call to make.
+ */
+static const uint32_t GATEWAY_RETRY_AFTER_MAX_MS = 60000;
 
 inline bool responseContains(const TSTRING& haystack, const char* needle) {
 #if defined(PAINLESSMESH_BOOST)
@@ -1065,13 +1165,15 @@ inline bool responseContains(const TSTRING& haystack, const char* needle) {
 /**
  * @brief Reduce a response body to one line fit for a log or an error string
  *
- * Tags are dropped, whitespace collapsed and the result cut at maxLen with an
- * ellipsis, so an HTML error page reads "Oops! Too many requests... You have
- * called to the API to often." in a serial log instead of markup.
+ * Tags are dropped and whitespace collapsed, so an HTML page reads as text in
+ * a serial log. A body longer than maxLen keeps its beginning and its end,
+ * joined by " ... ": services often lead with an echo of the request and
+ * finish with the verdict, and a summary that keeps only the beginning keeps
+ * the echo and loses the verdict (issue #463).
  */
 inline TSTRING summarizeResponseBody(
     const TSTRING& body, size_t maxLen = GATEWAY_RESPONSE_REASON_MAX) {
-  TSTRING out;
+  TSTRING text;
   bool inTag = false;
   bool pendingSpace = false;
   for (size_t i = 0; i < body.length(); ++i) {
@@ -1090,48 +1192,252 @@ inline TSTRING summarizeResponseBody(
       pendingSpace = true;
       continue;
     }
-    if (pendingSpace && out.length() > 0) out += ' ';
+    if (pendingSpace && text.length() > 0) text += ' ';
     pendingSpace = false;
-    out += c;
-    if (out.length() >= maxLen) {
-      out += "...";
-      break;
-    }
+    text += c;
   }
+  if (text.length() <= maxLen) return text;
+
+  static const char JOIN[] = " ... ";
+  const size_t joinLength = sizeof(JOIN) - 1;
+  const size_t room = maxLen > joinLength ? maxLen - joinLength : 0;
+  const size_t head = room / 2;
+  const size_t tail = room - head;
+  TSTRING out;
+  for (size_t i = 0; i < head; ++i) out += text[i];
+  out += JOIN;
+  for (size_t i = text.length() - tail; i < text.length(); ++i) out += text[i];
   return out;
 }
 
 /**
- * @brief Does a success-class response body say the service refused the request?
+ * @brief The start and the end of a response body, read a byte at a time
  *
- * Some services answer a refusal with a 2xx. CallMeBot's WhatsApp API, which
- * the sendToInternet example integrates, returns its "Too many requests" page
- * under HTTP 201 and HTTP 203 (issue #450). The phrases are the ones seen
- * from services this library's examples target, and they are deliberately
- * specific: a JSON payload that merely contains the word "error" is not a
- * refusal.
+ * The gateway cannot keep a whole body, and a service may put its verdict at
+ * either end: CallMeBot echoes the request first and says why last (#463), so
+ * a reply of a kilobyte kept as its first 512 bytes had lost the part that
+ * mattered before any summary ran. This keeps the first
+ * GATEWAY_RESPONSE_HEAD_BYTES and a rolling last GATEWAY_RESPONSE_TAIL_BYTES,
+ * and text() joins them with " ... " when bytes were dropped between.
  */
-inline bool responseBodyRefuses(const TSTRING& body) {
-  static const char* const REFUSALS[] = {"Too many requests", "Oops!"};
-  for (const char* phrase : REFUSALS) {
-    if (responseContains(body, phrase)) return true;
+class ResponseExcerpt {
+ public:
+  /** Keep one more byte; false once GATEWAY_RESPONSE_SCAN_BYTES were seen. */
+  bool add(char c) {
+    ++seen_;
+    if (head_.length() < GATEWAY_RESPONSE_HEAD_BYTES) {
+      head_ += c;
+    } else {
+      tail_[(tailStart_ + tailLength_) % GATEWAY_RESPONSE_TAIL_BYTES] = c;
+      if (tailLength_ < GATEWAY_RESPONSE_TAIL_BYTES) {
+        ++tailLength_;
+      } else {
+        tailStart_ = (tailStart_ + 1) % GATEWAY_RESPONSE_TAIL_BYTES;
+      }
+    }
+    return seen_ < GATEWAY_RESPONSE_SCAN_BYTES;
   }
-  return false;
+
+  void add(const TSTRING& text) {
+    for (size_t i = 0; i < text.length(); ++i) {
+      if (!add(text[i])) return;
+    }
+  }
+
+  TSTRING text() const {
+    TSTRING out = head_;
+    if (seen_ > head_.length() + tailLength_) out += " ... ";
+    for (size_t i = 0; i < tailLength_; ++i) {
+      out += tail_[(tailStart_ + i) % GATEWAY_RESPONSE_TAIL_BYTES];
+    }
+    return out;
+  }
+
+ private:
+  TSTRING head_;
+  char tail_[GATEWAY_RESPONSE_TAIL_BYTES] = {};
+  size_t tailStart_ = 0;
+  size_t tailLength_ = 0;
+  size_t seen_ = 0;
+};
+
+/**
+ * @brief Removes HTTP/1.1 chunked transfer framing from a body read a byte at
+ *        a time, and passes the content on to a ResponseExcerpt
+ *
+ * HTTPClient's getString() decodes a chunked body but keeps all of it; the
+ * gateway reads the raw stream to keep only a bounded excerpt, and the raw
+ * stream is the framing: CallMeBot's real reply reached the application as
+ * "a6 Message to: ... Message queued. ... 0" (hardware rig, 2026-09-15) --
+ * the chunk size in front, the terminating zero-length chunk behind. This
+ * reads the framing (hex size, optional ;extensions, CRLF, data, CRLF, ...,
+ * 0, trailers) and forwards only the data. A malformed size line stops
+ * decoding rather than guessing: what was decoded so far is kept.
+ */
+class ChunkedBodyDecoder {
+ public:
+  explicit ChunkedBodyDecoder(ResponseExcerpt& excerpt) : excerpt_(excerpt) {}
+
+  /** One byte of the raw body; false once the body ended or the excerpt is
+   *  full, when the caller can stop reading. */
+  bool add(char c) {
+    switch (state_) {
+      case State::Size:
+        if (c == '\r') {
+          state_ = State::SizeLf;
+        } else if (c == ';') {
+          state_ = State::Extension;
+        } else if (c == ' ' || c == '\t') {
+          // Tolerated around the size, as many servers emit it.
+        } else {
+          const int digit = hexValue(c);
+          if (digit < 0 || sizeDigits_ >= 8) return stop();
+          remaining_ = (remaining_ << 4) | static_cast<uint32_t>(digit);
+          ++sizeDigits_;
+        }
+        return true;
+      case State::Extension:
+        if (c == '\r') state_ = State::SizeLf;
+        return true;
+      case State::SizeLf:
+        if (c != '\n' || sizeDigits_ == 0) return stop();
+        sizeDigits_ = 0;
+        if (remaining_ == 0) {
+          state_ = State::Done;
+          return false;
+        }
+        state_ = State::Data;
+        return true;
+      case State::Data:
+        --remaining_;
+        if (remaining_ == 0) state_ = State::DataCr;
+        if (!excerpt_.add(c)) {
+          state_ = State::Done;
+          return false;
+        }
+        return true;
+      case State::DataCr:
+        if (c != '\r') return stop();
+        state_ = State::DataLf;
+        return true;
+      case State::DataLf:
+        if (c != '\n') return stop();
+        state_ = State::Size;
+        return true;
+      case State::Done:
+        return false;
+    }
+    return false;
+  }
+
+  void add(const TSTRING& raw) {
+    for (size_t i = 0; i < raw.length(); ++i) {
+      if (!add(raw[i])) return;
+    }
+  }
+
+  /** True when the terminating zero-length chunk was read. */
+  bool complete() const { return state_ == State::Done && !malformed_; }
+
+ private:
+  enum class State { Size, Extension, SizeLf, Data, DataCr, DataLf, Done };
+
+  static int hexValue(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+  }
+
+  bool stop() {
+    malformed_ = true;
+    state_ = State::Done;
+    return false;
+  }
+
+  ResponseExcerpt& excerpt_;
+  State state_ = State::Size;
+  uint32_t remaining_ = 0;
+  uint8_t sizeDigits_ = 0;
+  bool malformed_ = false;
+};
+
+/** Whether a Transfer-Encoding header value names chunked encoding. */
+inline bool transferEncodingIsChunked(const TSTRING& value) {
+  TSTRING lower;
+  for (size_t i = 0; i < value.length(); ++i) {
+    const char c = value[i];
+    lower += (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+  }
+  return responseContains(lower, "chunked");
+}
+
+/**
+ * @brief The delay a Retry-After header asks for, in milliseconds
+ *
+ * Only the delay-seconds form is read; an HTTP-date, or anything else, is
+ * 0 -- no instruction -- rather than a guess. Values past
+ * GATEWAY_RETRY_AFTER_MAX_MS are returned as they are, so the caller can see
+ * the server asked for longer than it will wait.
+ */
+inline uint32_t parseRetryAfterMs(const TSTRING& value) {
+  uint64_t seconds = 0;
+  size_t digits = 0;
+  for (size_t i = 0; i < value.length(); ++i) {
+    const char c = value[i];
+    if (c == ' ' || c == '\t') {
+      if (digits == 0) continue;
+      break;
+    }
+    if (c < '0' || c > '9') return 0;
+    seconds = seconds * 10 + static_cast<uint64_t>(c - '0');
+    if (seconds > 0xFFFFFFFFULL / 1000ULL) return 0xFFFFFFFFUL;
+    ++digits;
+  }
+  return digits == 0 ? 0 : static_cast<uint32_t>(seconds * 1000ULL);
+}
+
+/**
+ * @brief The identifier the gateway sends with a request, as both
+ *        X-Request-Id and Idempotency-Key
+ *
+ * The same for every attempt at one sendToInternet() call, so a service that
+ * honours Idempotency-Key treats a retry as the request it already has, and
+ * anything recording requests can count the copies one call produced.
+ *
+ * The request's nonce keeps it unique beyond its messageId, whose counter
+ * wraps after 65,535 requests in a boot. A package from a node that predates
+ * the nonce (0) keeps the two-part form it always had.
+ */
+inline TSTRING requestIdFor(uint32_t originNode, uint32_t messageId,
+                            uint32_t requestNonce = 0) {
+  char buffer[40];
+  if (requestNonce == 0) {
+    snprintf(buffer, sizeof(buffer), "pm-%08x-%08x",
+             static_cast<unsigned>(originNode), static_cast<unsigned>(messageId));
+  } else {
+    snprintf(buffer, sizeof(buffer), "pm-%08x-%08x-%08x",
+             static_cast<unsigned>(originNode), static_cast<unsigned>(messageId),
+             static_cast<unsigned>(requestNonce));
+  }
+  return TSTRING(buffer);
+}
+
+/** A request nonce: random, and never the 0 that means "none". */
+inline uint32_t newRequestNonce() {
+  uint32_t nonce = validation::SecureRandom::generate();
+  return nonce != 0 ? nonce : 1;
 }
 
 /**
  * @brief Classify an HTTPClient result for the gateway acknowledgment
  *
- * A transport error (rawCode <= 0) is neither success nor an HTTP status.
- * Only 200, 201, 202 and 204 count as delivery on the status alone, and even
- * those are overturned by a body that says the service refused the request:
- * CallMeBot answers "Too many requests" under 201 and 203 (issue #450). Any
- * other 2xx is unverified. 203 means a proxy transformed the reply; 208 is
- * what CallMeBot answers to a message that never arrives (issue #452); none
- * of them is a delivery this library can vouch for, so they are failures
- * that carry the body. Every failure's reason is a one-line excerpt of the
- * body when there is one, so the origin node learns why and not only a
- * number.
+ * HTTP semantics only. 200, 201, 202 and 204 are a success. Any other 2xx is
+ * an unverified failure the server answered; 1xx, 3xx, 4xx and 5xx are
+ * failures. A retry is allowed only when it cannot produce a second copy of
+ * the request: a transport error that failed before the request was complete,
+ * or 429/503, where the server says it did not take the request. The reason
+ * is a summary of whatever body was read, so the application learns why.
  *
  * @param rawCode The int returned by HTTPClient::GET() or ::POST()
  * @param body The start of the response body, empty if none was read
@@ -1142,22 +1448,16 @@ inline HttpRequestOutcome classifyHttpResult(int rawCode,
   HttpRequestOutcome outcome;
   if (rawCode <= 0) {
     outcome.transportError = true;
+    outcome.retryable = !transportErrorMayHaveReachedServer(rawCode);
     return outcome;
   }
   outcome.ackStatus =
       static_cast<uint16_t>(rawCode > 0xFFFF ? 0xFFFF : rawCode);
-  const bool verified =
+  outcome.success =
       rawCode == 200 || rawCode == 201 || rawCode == 202 || rawCode == 204;
-  if (verified && responseBodyRefuses(body)) {
-    outcome.refusedByBody = true;
-    outcome.reason = summarizeResponseBody(body);
-    return outcome;
-  }
-  outcome.success = verified;
-  if (!verified) {
-    outcome.unverifiedStatus = rawCode >= 200 && rawCode < 300;
-    outcome.reason = summarizeResponseBody(body);
-  }
+  outcome.unverifiedStatus = !outcome.success && rawCode >= 200 && rawCode < 300;
+  outcome.retryable = rawCode == 429 || rawCode == 503;
+  if (!outcome.success) outcome.reason = summarizeResponseBody(body);
   return outcome;
 }
 
@@ -1395,12 +1695,39 @@ class GatewayAckPackage : public plugin::SinglePackage {
   uint32_t timestamp = 0;
 
   /**
+   * @brief The start of the response body, summarized to one line
+   *
+   * Carried on success as well as failure, because whether a reply means what
+   * the application wanted is the application's decision, not the library's.
+   * Empty when no body was read. JSON key "resp", omitted when empty.
+   */
+  TSTRING response = "";
+
+  /**
+   * @brief Whether the origin node may resend the identical request
+   *
+   * 1 when the request cannot have reached the server or the server asked to
+   * be retried, 0 when a resend could deliver it twice. -1 when the gateway
+   * did not say -- one that predates the field -- and the origin node falls
+   * back to its own reading of the status. JSON key "retry", omitted at -1.
+   */
+  int8_t retryable = -1;
+
+  /**
+   * @brief How long the server asked to wait before a retry, in milliseconds
+   *
+   * From a Retry-After header on a 429 or 503. JSON key "retryAfter",
+   * omitted when 0.
+   */
+  uint32_t retryAfterMs = 0;
+
+  /**
    * @brief Number of additional JSON fields in this package
    *
    * Used for jsonObjectSize() calculation in ArduinoJson v6.
-   * Count: msgId, origin, success, http, err, ts = 6 fields
+   * Count: msgId, origin, success, http, err, ts, resp, retry, retryAfter = 9
    */
-  static constexpr int numPackageFields = 6;
+  static constexpr int numPackageFields = 9;
 
   /**
    * @brief Default constructor
@@ -1427,10 +1754,19 @@ class GatewayAckPackage : public plugin::SinglePackage {
 #if ARDUINOJSON_VERSION_MAJOR < 7
     if (jsonObj.containsKey("err"))
       error = jsonObj["err"].as<TSTRING>();
+    if (jsonObj.containsKey("resp"))
+      response = jsonObj["resp"].as<TSTRING>();
+    if (jsonObj.containsKey("retry"))
+      retryable = jsonObj["retry"].as<bool>() ? 1 : 0;
 #else
     if (jsonObj["err"].is<TSTRING>())
       error = jsonObj["err"].as<TSTRING>();
+    if (jsonObj["resp"].is<TSTRING>())
+      response = jsonObj["resp"].as<TSTRING>();
+    if (jsonObj["retry"].is<bool>())
+      retryable = jsonObj["retry"].as<bool>() ? 1 : 0;
 #endif
+    retryAfterMs = jsonObj["retryAfter"] | 0UL;
   }
 
   /**
@@ -1449,6 +1785,11 @@ class GatewayAckPackage : public plugin::SinglePackage {
     jsonObj["http"] = httpStatus;
     jsonObj["err"] = error;
     jsonObj["ts"] = timestamp;
+    // Added in 2.1.0 and omitted when they say nothing, so an ack to a node
+    // that predates them is the ack it always was.
+    if (response.length() > 0) jsonObj["resp"] = response;
+    if (retryable >= 0) jsonObj["retry"] = retryable == 1;
+    if (retryAfterMs > 0) jsonObj["retryAfter"] = retryAfterMs;
     return jsonObj;
   }
 
@@ -1462,7 +1803,8 @@ class GatewayAckPackage : public plugin::SinglePackage {
    */
   size_t jsonObjectSize() const {
     // noJsonFields (from base class) + numPackageFields (our fields)
-    return JSON_OBJECT_SIZE(noJsonFields + numPackageFields) + error.length();
+    return JSON_OBJECT_SIZE(noJsonFields + numPackageFields) + error.length() +
+           response.length();
   }
 #endif
 
