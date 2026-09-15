@@ -123,6 +123,12 @@ CALLMEBOT_PROFILES = {
     # status would report this one as sent, and this profile rejects it.
     "queued-208": {"status": 208, "body": CALLMEBOT_QUEUED, "delivered": False,
                    "note": "208 with the delivered profile's body: still not a delivery"},
+    # The real CallMeBot answers with Transfer-Encoding: chunked (hardware rig,
+    # 2026-09-15). Served as HTTP/1.1 in 16-byte chunks with no
+    # Content-Length, so a gateway that reads the raw stream sees the framing.
+    "queued-chunked": {"status": 200, "body": CALLMEBOT_QUEUED, "delivered": True,
+                       "chunked": True,
+                       "note": "the documented success, chunked as the real service sends it"},
     # #463: HTTP 200, a long echo, and the refusal at the very end.
     "paused-after-echo": {"status": 200, "body": CALLMEBOT_PAUSED_AFTER_ECHO, "delivered": False,
                           "note": "observed in #463: a paused account, verdict after a long echo"},
@@ -208,6 +214,22 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body_bytes)))
         self.end_headers()
         self.wfile.write(body_bytes)
+
+    def _send_chunked(self, status_code, content_type, body, delivered, chunk_size=16):
+        """Answer as HTTP/1.1 with Transfer-Encoding: chunked, then close."""
+        self.protocol_version = "HTTP/1.1"
+        self.send_response(status_code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.send_header("Connection", "close")
+        self.send_header("X-TestPoint-Delivered", "true" if delivered else "false")
+        self.end_headers()
+        data = body.encode("utf-8")
+        for start in range(0, len(data), chunk_size):
+            piece = data[start:start + chunk_size]
+            self.wfile.write(b"%x\r\n" % len(piece) + piece + b"\r\n")
+        self.wfile.write(b"0\r\n\r\n")
+        self.close_connection = True
 
     def _parse_path(self):
         """Parse request path and query parameters"""
@@ -475,6 +497,10 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
 
         self._record(method, query_params, None, profile["status"], profile["delivered"],
                      {"text": text, "profile": apikey, "response": profile["body"]})
+        if profile.get("chunked"):
+            self._send_chunked(profile["status"], "text/html; charset=utf-8", profile["body"],
+                               profile["delivered"])
+            return
         self._send_response(profile["status"], content_type="text/html; charset=utf-8",
                             body=profile["body"], delivered=profile["delivered"])
 
@@ -499,7 +525,7 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             # Named the way the Alteriom farm's gateway probe names them, so a
             # row that asks for a feature runs against either server.
             "features": ["ledger.count", "ledger.request_ids", "retry_after",
-                         "callmebot.paused_after_echo"],
+                         "callmebot.paused_after_echo", "callmebot.chunked"],
             "timestamp": time.time()
         }
         self._send_response(200, body=json.dumps(response))

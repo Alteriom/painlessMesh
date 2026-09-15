@@ -66,6 +66,14 @@ test_endpoint "CallMeBot ratelimit-201" "$SERVER_URL/callmebot/whatsapp.php?phon
 test_endpoint "CallMeBot unverified-208" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=unverified-208&text=t-208" 208
 test_endpoint "CallMeBot queued-208" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=queued-208&text=t-q208" 208
 test_endpoint "CallMeBot paused-after-echo" "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=paused-after-echo&text=t-paused" 200
+echo -n "The chunked profile is sent chunked and decodes to the queued text... "
+chunked_headers=$(curl -s -D - -o /dev/null --http1.1 "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=queued-chunked&text=t-chunked-h")
+chunked_body=$(curl -s --http1.1 "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=queued-chunked&text=t-chunked")
+if echo "$chunked_headers" | grep -qi '^Transfer-Encoding: chunked' && [[ "$chunked_body" == *"Message queued."* ]]; then
+    echo -e "${GREEN}✓ PASS${NC}"; PASS=$((PASS+1))
+else
+    echo -e "${RED}✗ FAIL${NC}"; FAIL=$((FAIL+1))
+fi
 echo -n "The paused reply is longer than a gateway keeps, verdict last... "
 paused_body=$(curl -s "$SERVER_URL/callmebot/whatsapp.php?phone=%2B1&apikey=paused-after-echo&text=t-paused2")
 if [ "${#paused_body}" -gt 768 ] && [[ "${paused_body: -160}" == *"Account is Paused"* ]]; then

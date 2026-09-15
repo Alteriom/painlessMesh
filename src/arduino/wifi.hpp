@@ -2729,7 +2729,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * The start and the end of the response body (gateway::ResponseExcerpt),
    * read from the stream for at most GATEWAY_RESPONSE_HEAD_TIMEOUT_MS and
-   * GATEWAY_RESPONSE_SCAN_BYTES. A body that fits whole is read whole.
+   * GATEWAY_RESPONSE_SCAN_BYTES. A body that fits whole is read whole. A
+   * chunked body is read through gateway::ChunkedBodyDecoder: the raw stream
+   * carries the framing, which getString() would remove but only by keeping
+   * the whole body.
    */
   static TSTRING readResponseExcerpt(HTTPClient& http) {
     const int size = http.getSize();
@@ -2741,6 +2744,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     gateway::ResponseExcerpt excerpt;
     WiFiClient* stream = http.getStreamPtr();
     if (stream == nullptr) return excerpt.text();
+    const bool chunked =
+        size < 0 && gateway::transferEncodingIsChunked(http.header("Transfer-Encoding"));
+    gateway::ChunkedBodyDecoder decoder(excerpt);
     const uint32_t deadline =
         millis() + gateway::GATEWAY_RESPONSE_HEAD_TIMEOUT_MS;
     bool more = true;
@@ -2754,7 +2760,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       while (more && available-- > 0) {
         const int c = stream->read();
         if (c < 0) break;
-        more = excerpt.add(static_cast<char>(c));
+        more = chunked ? decoder.add(static_cast<char>(c))
+                       : excerpt.add(static_cast<char>(c));
       }
     }
     return excerpt.text();
@@ -2969,8 +2976,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           http.addHeader("X-Request-Id", requestId.c_str());
           http.addHeader("Idempotency-Key", requestId.c_str());
           // Not const: both cores declare collectHeaders(const char* keys[], ...).
-          const char* collected[] = {"Retry-After"};
-          http.collectHeaders(collected, 1);
+          const char* collected[] = {"Retry-After", "Transfer-Encoding"};
+          http.collectHeaders(collected, 2);
 
           // Make request (GET if no payload, POST if payload)
           if (pkg.payload.length() > 0) {

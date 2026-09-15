@@ -517,6 +517,65 @@ SCENARIO("The library reports the status and carries the body; it does not judge
         }
     }
 
+    GIVEN("A chunked body, as CallMeBot's real reply was") {
+        // Hardware rig, 2026-09-15: the application received
+        // "a6 Message to: ... Message queued. ... 0".
+        const std::string content =
+            "Message to: +10000000000 Text to send: hello Message queued. "
+            "You will receive it in a few seconds.";
+        std::string raw;
+        for (size_t at = 0; at < content.size(); at += 16) {
+            const std::string piece = content.substr(at, 16);
+            char size[16];
+            snprintf(size, sizeof(size), "%zx", piece.size());
+            raw += std::string(size) + (at == 0 ? ";ext=1" : "") + "\r\n" + piece + "\r\n";
+        }
+        raw += "0\r\nX-Trailer: yes\r\n\r\n";
+
+        THEN("Only the content reaches the excerpt, with no framing at either end") {
+            gateway::ResponseExcerpt excerpt;
+            gateway::ChunkedBodyDecoder decoder(excerpt);
+            decoder.add(raw);
+            REQUIRE(decoder.complete());
+            REQUIRE(excerpt.text() == content);
+        }
+        THEN("A long chunked body keeps its real end, past the terminator") {
+            std::string longContent;
+            for (int i = 0; i < 200; ++i) longContent += "echo" + std::to_string(i) + " ";
+            longContent += "Your Account is Paused, send the word 'resume'";
+            std::string longRaw;
+            for (size_t at = 0; at < longContent.size(); at += 100) {
+                const std::string piece = longContent.substr(at, 100);
+                char size[16];
+                snprintf(size, sizeof(size), "%zX", piece.size());
+                longRaw += std::string(size) + "\r\n" + piece + "\r\n";
+            }
+            longRaw += "0\r\n\r\n";
+            gateway::ResponseExcerpt excerpt;
+            gateway::ChunkedBodyDecoder decoder(excerpt);
+            decoder.add(longRaw);
+            auto text = excerpt.text();
+            REQUIRE(text.find(" ... ") != std::string::npos);
+            const std::string ending = "send the word 'resume'";
+            REQUIRE(text.size() > ending.size());
+            REQUIRE(text.substr(text.size() - ending.size()) == ending);
+            REQUIRE(text.find("\r\n") == std::string::npos);
+        }
+        THEN("A malformed size line stops decoding and keeps what came before") {
+            gateway::ResponseExcerpt excerpt;
+            gateway::ChunkedBodyDecoder decoder(excerpt);
+            decoder.add(std::string("5\r\nhello\r\nzz\r\nworld"));
+            REQUIRE_FALSE(decoder.complete());
+            REQUIRE(excerpt.text() == "hello");
+        }
+        THEN("Transfer-Encoding is recognised however it is spelled") {
+            REQUIRE(gateway::transferEncodingIsChunked("chunked"));
+            REQUIRE(gateway::transferEncodingIsChunked("gzip, Chunked"));
+            REQUIRE_FALSE(gateway::transferEncodingIsChunked("identity"));
+            REQUIRE_FALSE(gateway::transferEncodingIsChunked(""));
+        }
+    }
+
     GIVEN("A body short enough to keep whole") {
         gateway::ResponseExcerpt excerpt;
         excerpt.add(std::string("<p>Message queued.</p>"));

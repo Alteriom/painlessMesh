@@ -4,6 +4,7 @@
 
 #include <boost/asio.hpp>
 
+#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <sstream>
@@ -79,6 +80,7 @@ TestPoint testPointFromEnvironment() {
 struct HttpReply {
   int status = 0;
   std::string body;
+  bool chunked = false;  // Transfer-Encoding: chunked; body is the raw framing
 };
 
 // A deliberately small HTTP/1.0 client: one request, one reply, connection
@@ -102,6 +104,12 @@ HttpReply httpGet(const TestPoint& tp, const std::string& target) {
   std::string line;
   std::getline(stream, line);  // rest of the status line
   while (std::getline(stream, line) && line != "\r") {
+    std::string lower = line;
+    for (auto& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (lower.rfind("transfer-encoding:", 0) == 0 &&
+        lower.find("chunked") != std::string::npos) {
+      reply.chunked = true;
+    }
   }
   std::ostringstream body;
   body << stream.rdbuf();
@@ -153,6 +161,9 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
                     {"ratelimit-201", "Too many requests", callmebot::Verdict::RateLimited},
                     {"unverified-208", "never arrived", callmebot::Verdict::NotDelivered},
                     {"queued-208", "Message queued", callmebot::Verdict::NotDelivered},
+                    // How the real service sends a success: chunked. The
+                    // application must get the words, not the framing.
+                    {"queued-chunked", "Message queued", callmebot::Verdict::Queued},
                     // #463: a success status, a long echo, and the verdict
                     // only in the part of the body past what a gateway keeps
                     // from the start.
@@ -172,7 +183,13 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
         // part of the body a gateway keeps -- exactly what the gateway
         // handler hands them.
         painlessmesh::gateway::ResponseExcerpt excerpt;
-        excerpt.add(reply.body);
+        if (reply.chunked) {
+          painlessmesh::gateway::ChunkedBodyDecoder decoder(excerpt);
+          decoder.add(reply.body);
+          REQUIRE(decoder.complete());
+        } else {
+          excerpt.add(reply.body);
+        }
         auto outcome =
             painlessmesh::gateway::classifyHttpResult(reply.status, excerpt.text());
         auto response = painlessmesh::gateway::summarizeResponseBody(excerpt.text());

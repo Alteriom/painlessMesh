@@ -1262,6 +1262,117 @@ class ResponseExcerpt {
 };
 
 /**
+ * @brief Removes HTTP/1.1 chunked transfer framing from a body read a byte at
+ *        a time, and passes the content on to a ResponseExcerpt
+ *
+ * HTTPClient's getString() decodes a chunked body but keeps all of it; the
+ * gateway reads the raw stream to keep only a bounded excerpt, and the raw
+ * stream is the framing: CallMeBot's real reply reached the application as
+ * "a6 Message to: ... Message queued. ... 0" (hardware rig, 2026-09-15) --
+ * the chunk size in front, the terminating zero-length chunk behind. This
+ * reads the framing (hex size, optional ;extensions, CRLF, data, CRLF, ...,
+ * 0, trailers) and forwards only the data. A malformed size line stops
+ * decoding rather than guessing: what was decoded so far is kept.
+ */
+class ChunkedBodyDecoder {
+ public:
+  explicit ChunkedBodyDecoder(ResponseExcerpt& excerpt) : excerpt_(excerpt) {}
+
+  /** One byte of the raw body; false once the body ended or the excerpt is
+   *  full, when the caller can stop reading. */
+  bool add(char c) {
+    switch (state_) {
+      case State::Size:
+        if (c == '\r') {
+          state_ = State::SizeLf;
+        } else if (c == ';') {
+          state_ = State::Extension;
+        } else if (c == ' ' || c == '\t') {
+          // Tolerated around the size, as many servers emit it.
+        } else {
+          const int digit = hexValue(c);
+          if (digit < 0 || sizeDigits_ >= 8) return stop();
+          remaining_ = (remaining_ << 4) | static_cast<uint32_t>(digit);
+          ++sizeDigits_;
+        }
+        return true;
+      case State::Extension:
+        if (c == '\r') state_ = State::SizeLf;
+        return true;
+      case State::SizeLf:
+        if (c != '\n' || sizeDigits_ == 0) return stop();
+        sizeDigits_ = 0;
+        if (remaining_ == 0) {
+          state_ = State::Done;
+          return false;
+        }
+        state_ = State::Data;
+        return true;
+      case State::Data:
+        --remaining_;
+        if (remaining_ == 0) state_ = State::DataCr;
+        if (!excerpt_.add(c)) {
+          state_ = State::Done;
+          return false;
+        }
+        return true;
+      case State::DataCr:
+        if (c != '\r') return stop();
+        state_ = State::DataLf;
+        return true;
+      case State::DataLf:
+        if (c != '\n') return stop();
+        state_ = State::Size;
+        return true;
+      case State::Done:
+        return false;
+    }
+    return false;
+  }
+
+  void add(const TSTRING& raw) {
+    for (size_t i = 0; i < raw.length(); ++i) {
+      if (!add(raw[i])) return;
+    }
+  }
+
+  /** True when the terminating zero-length chunk was read. */
+  bool complete() const { return state_ == State::Done && !malformed_; }
+
+ private:
+  enum class State { Size, Extension, SizeLf, Data, DataCr, DataLf, Done };
+
+  static int hexValue(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+  }
+
+  bool stop() {
+    malformed_ = true;
+    state_ = State::Done;
+    return false;
+  }
+
+  ResponseExcerpt& excerpt_;
+  State state_ = State::Size;
+  uint32_t remaining_ = 0;
+  uint8_t sizeDigits_ = 0;
+  bool malformed_ = false;
+};
+
+/** Whether a Transfer-Encoding header value names chunked encoding. */
+inline bool transferEncodingIsChunked(const TSTRING& value) {
+  TSTRING lower;
+  for (size_t i = 0; i < value.length(); ++i) {
+    const char c = value[i];
+    lower += (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+  }
+  return responseContains(lower, "chunked");
+}
+
+/**
  * @brief The delay a Retry-After header asks for, in milliseconds
  *
  * Only the delay-seconds form is read; an HTTP-date, or anything else, is

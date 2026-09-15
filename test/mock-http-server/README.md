@@ -237,6 +237,7 @@ the ledger tag unless `tag` is given.
 | `ratelimit-201` | 201    | "Oops! Too many requests"  | no        | observed 2026-09-10 |
 | `unverified-208`| 208    | "HTTP 208 Already Reported"| no        | observed in #450 and #452: never delivered |
 | `queued-208`    | 208    | "Message queued..."        | no        | 208 with the delivered body: still not a delivery |
+| `queued-chunked` | 200 | "Message queued...", sent `Transfer-Encoding: chunked` in 16-byte chunks | yes | how the real service sends it: a gateway reading the raw stream must remove the framing |
 | `paused-after-echo` | 200 | a ~1 KB echo of the request, then "Your Account is Paused ... send the word 'resume'" | no | observed in #463: longer than the 512 + 256 bytes a gateway keeps, with the verdict only at the end |
 
 An unknown profile answers 400 so a typo in a test fails loudly.
