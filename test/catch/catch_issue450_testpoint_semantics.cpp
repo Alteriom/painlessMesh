@@ -152,7 +152,12 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
                     {"ratelimit-203", "Too many requests", callmebot::Verdict::RateLimited},
                     {"ratelimit-201", "Too many requests", callmebot::Verdict::RateLimited},
                     {"unverified-208", "never arrived", callmebot::Verdict::NotDelivered},
-                    {"queued-208", "Message queued", callmebot::Verdict::NotDelivered}};
+                    {"queued-208", "Message queued", callmebot::Verdict::NotDelivered},
+                    // #463: a success status, a long echo, and the verdict
+                    // only in the part of the body past what a gateway keeps
+                    // from the start.
+                    {"paused-after-echo", "Account is Paused",
+                     callmebot::Verdict::AccountPaused}};
 
     for (const auto& p : profiles) {
       const char* profile = p.name;
@@ -163,11 +168,14 @@ SCENARIO("The gateway's success verdict agrees with the service's delivery ledge
                     profile + "&text=" + tag);
         REQUIRE(reply.status > 0);
 
-        // The real classifier and summary, on the real status and body the
-        // service returned -- exactly what the gateway handler hands them.
+        // The real classifier and summary, on the real status and on the
+        // part of the body a gateway keeps -- exactly what the gateway
+        // handler hands them.
+        painlessmesh::gateway::ResponseExcerpt excerpt;
+        excerpt.add(reply.body);
         auto outcome =
-            painlessmesh::gateway::classifyHttpResult(reply.status, reply.body);
-        auto response = painlessmesh::gateway::summarizeResponseBody(reply.body);
+            painlessmesh::gateway::classifyHttpResult(reply.status, excerpt.text());
+        auto response = painlessmesh::gateway::summarizeResponseBody(excerpt.text());
         auto judgement = callmebot::judge(outcome.ackStatus, response);
         bool delivered = ledgerSaysDelivered(tp, tag);
 

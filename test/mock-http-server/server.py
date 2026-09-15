@@ -91,6 +91,19 @@ CALLMEBOT_ALREADY_REPORTED = (
     "<p>Seen from CallMeBot in painlessMesh #450 and #452; the message never arrived.</p>"
 )
 
+# The reply of issue #463, in shape: CallMeBot echoed the request -- the
+# recipient and the whole text -- and gave its verdict last. Longer than the
+# 512 + 256 bytes a gateway keeps of a body, with the verdict only in the
+# tail, so a gateway that keeps just the start hands the application the echo
+# and nothing that says why. The number is a placeholder; the reporter's real
+# one is public in that issue and is not repeated here.
+CALLMEBOT_PAUSED_AFTER_ECHO = (
+    "<p>371 Message to: +10000000000</p><p>Text to send: "
+    + "ALARM: O2 level critical at 5.4 mg/L! Node: 3394043125 " * 16
+    + "</p><p><b>Your Account is Paused</b> due to technical issues. Please send "
+    "the word 'resume' to the bot to re-enable the service.</p>"
+)
+
 CALLMEBOT_PROFILES = {
     # Observed or documented behaviour.
     "queued": {"status": 200, "body": CALLMEBOT_QUEUED, "delivered": True,
@@ -110,6 +123,9 @@ CALLMEBOT_PROFILES = {
     # status would report this one as sent, and this profile rejects it.
     "queued-208": {"status": 208, "body": CALLMEBOT_QUEUED, "delivered": False,
                    "note": "208 with the delivered profile's body: still not a delivery"},
+    # #463: HTTP 200, a long echo, and the refusal at the very end.
+    "paused-after-echo": {"status": 200, "body": CALLMEBOT_PAUSED_AFTER_ECHO, "delivered": False,
+                          "note": "observed in #463: a paused account, verdict after a long echo"},
 }
 
 
@@ -482,7 +498,8 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             "requests_seen": ledger.count,
             # Named the way the Alteriom farm's gateway probe names them, so a
             # row that asks for a feature runs against either server.
-            "features": ["ledger.count", "ledger.request_ids", "retry_after"],
+            "features": ["ledger.count", "ledger.request_ids", "retry_after",
+                         "callmebot.paused_after_echo"],
             "timestamp": time.time()
         }
         self._send_response(200, body=json.dumps(response))
