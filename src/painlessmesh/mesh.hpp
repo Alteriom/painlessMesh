@@ -1804,6 +1804,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
                                     InternetResult result) {
     result.messageId = request.messageId;
     result.attempts = request.attempts;
+    // A request that never left this node -- refused for want of a mesh or a
+    // gateway, or whose every routing attempt failed to send -- cannot have
+    // reached a server, whatever ended it: resending it cannot duplicate.
+    if (!result.success && request.attempts == 0) {
+      result.retryable = true;
+    }
     if (request.onResult) {
       request.onResult(result);
     } else if (request.callback) {

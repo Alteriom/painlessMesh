@@ -315,6 +315,39 @@ SCENARIO("A gateway's own request completes after its handler has returned",
   }
 }
 
+SCENARIO("A request that never left the node is safe to resend",
+         "[gateway][internet][retry]") {
+  // No local Internet and no mesh peer: refused before anything is sent.
+  Scheduler scheduler;
+  Mesh<Connection> node;
+  node.init(&scheduler, 0x22222222);
+  node.enableSendToInternet();
+  node.updateBridgeStatus(0x11111111, true, -42, 6, 10000, "192.168.1.1",
+                          static_cast<uint32_t>(millis()));
+  REQUIRE_FALSE(node.hasActiveMeshConnections());
+
+  bool done = false;
+  InternetResult result;
+  const uint32_t id = node.sendToInternet("http://example.test/", "",
+                                          [&](const InternetResult& r) {
+                                            done = true;
+                                            result = r;
+                                          });
+  const auto start = millis();
+  while (!done && millis() - start < 1000) {
+    scheduler.execute();
+    delay(1);
+  }
+
+  THEN("The application is told nothing was issued, and it may resend") {
+    REQUIRE(id == 0);
+    REQUIRE(done);
+    REQUIRE(result.success == false);
+    REQUIRE(result.attempts == 0);
+    REQUIRE(result.retryable == true);
+  }
+}
+
 SCENARIO("Two calls never share a request id, even when their message ids do",
          "[gateway][internet][request-id]") {
   // A 16-bit message-id counter wraps after 65,535 requests in a boot; the
