@@ -254,7 +254,7 @@ SCENARIO("A request is retried only when a retry cannot deliver it twice",
 
     GIVEN("Transport errors that fail before the request is complete") {
         THEN("They are retried: nothing reached a server") {
-            for (int code : {-1, -2, -3, -4, -6, -7, -8}) {
+            for (int code : {-1, -2, -3}) {
                 INFO("HTTPClient error " << code);
                 REQUIRE(retryableFor(code) == true);
                 REQUIRE(gateway::transportErrorMayHaveReachedServer(code) == false);
@@ -267,8 +267,18 @@ SCENARIO("A request is retried only when a retry cannot deliver it twice",
             REQUIRE(retryableFor(-11) == false);
             REQUIRE(gateway::transportErrorMayHaveReachedServer(-11) == true);
         }
-        THEN("A connection lost, a malformed reply or an unknown code are not retried") {
-            for (int code : {-5, -9, -10, -12, -99, 0}) {
+        THEN("Every error raised after the request was written is not retried") {
+            // handleHeaderResponse() runs once the whole request is out: a
+            // connection closed before the reply (-4) or a reply that was not
+            // HTTP (-7) left a request the server may have processed.
+            for (int code : {-4, -5, -7, -9, -10}) {
+                INFO("HTTPClient error " << code);
+                REQUIRE(retryableFor(code) == false);
+                REQUIRE(gateway::transportErrorMayHaveReachedServer(code) == true);
+            }
+        }
+        THEN("Stream and memory errors, and unknown codes, are not retried") {
+            for (int code : {-6, -8, -12, -99, 0}) {
                 INFO("HTTPClient error " << code);
                 REQUIRE(retryableFor(code) == false);
             }
@@ -480,6 +490,43 @@ SCENARIO("The library reports the status and carries the body; it does not judge
             REQUIRE(summary.substr(0, 6) == "line 0");
             REQUIRE(summary.find(" ... ") != std::string::npos);
             REQUIRE(summary.find("line 49") != std::string::npos);
+        }
+    }
+
+    GIVEN("A body longer than the gateway keeps") {
+        std::string body = "BEGIN ";
+        for (int i = 0; i < 400; ++i) body += "filler" + std::to_string(i) + " ";
+        body += "the verdict is here END";
+        gateway::ResponseExcerpt excerpt;
+        excerpt.add(body);
+        THEN("The excerpt keeps both ends, marks the gap, and is bounded") {
+            auto text = excerpt.text();
+            REQUIRE(text.substr(0, 6) == "BEGIN ");
+            REQUIRE(text.find(" ... ") != std::string::npos);
+            REQUIRE(text.size() == gateway::GATEWAY_RESPONSE_HEAD_BYTES + 5 +
+                                       gateway::GATEWAY_RESPONSE_TAIL_BYTES);
+            REQUIRE(text.substr(text.size() - 23) == "the verdict is here END");
+            auto summary = gateway::summarizeResponseBody(text);
+            REQUIRE(summary.find("the verdict is here END") != std::string::npos);
+        }
+    }
+
+    GIVEN("A body short enough to keep whole") {
+        gateway::ResponseExcerpt excerpt;
+        excerpt.add(std::string("<p>Message queued.</p>"));
+        THEN("It is kept as it was, with no gap") {
+            REQUIRE(excerpt.text() == "<p>Message queued.</p>");
+        }
+    }
+
+    GIVEN("A body past the scan limit") {
+        gateway::ResponseExcerpt excerpt;
+        size_t accepted = 0;
+        while (excerpt.add('x')) ++accepted;
+        THEN("Reading stops, and the excerpt stays bounded") {
+            REQUIRE(accepted + 1 == gateway::GATEWAY_RESPONSE_SCAN_BYTES);
+            REQUIRE(excerpt.text().size() == gateway::GATEWAY_RESPONSE_HEAD_BYTES + 5 +
+                                                 gateway::GATEWAY_RESPONSE_TAIL_BYTES);
         }
     }
 

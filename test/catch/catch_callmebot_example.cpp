@@ -68,7 +68,13 @@ SCENARIO("The example reads CallMeBot's replies, not its status codes",
     for (int i = 0; i < 20; ++i) reply += "ALARM: O2 level critical at 5.4 mg/L! ";
     reply += "<b>Your Account is Paused</b> due to technical issues. Please send the "
              "word 'resume' to the bot to re-enable the service.";
-    auto j = judgeRaw(200, reply);
+    REQUIRE(reply.size() > painlessmesh::gateway::GATEWAY_RESPONSE_HEAD_BYTES +
+                               painlessmesh::gateway::GATEWAY_RESPONSE_TAIL_BYTES);
+    // Through what the gateway keeps of a body, not the whole string: its
+    // first bytes are all echo, and the verdict is only in the tail.
+    painlessmesh::gateway::ResponseExcerpt excerpt;
+    excerpt.add(reply);
+    auto j = judgeRaw(200, excerpt.text());
     REQUIRE(j.verdict == Verdict::AccountPaused);
     REQUIRE_FALSE(j.accepted);
     REQUIRE(std::string(j.meaning).find("resume") != std::string::npos);

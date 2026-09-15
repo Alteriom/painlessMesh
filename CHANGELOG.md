@@ -42,7 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `retryable`, `attempts` and `messageId`. The three-argument callback is
   unchanged. The response travels in the ack as `"resp"` and the error
   excerpt keeps the end of a long body as well as its start, so a verdict
-  after an echo of the request survives (#463). `PAINLESSMESH_HAS_INTERNET_RESULT`
+  after an echo of the request survives (#463): the gateway keeps the first
+  512 and the last 256 bytes of a body, not only its start. `PAINLESSMESH_HAS_INTERNET_RESULT`
   is defined, so code that also builds against older releases can `#ifdef` it.
 - **Retry-After.** A 429 or 503 retry waits at least as long as the server's
   `Retry-After` (delay-seconds); a server that asks for more than 60 s gets no

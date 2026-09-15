@@ -2727,41 +2727,37 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
 #if defined(ESP32) || defined(ESP8266)
   /**
-   * Read the start of an HTTP response body, bounded in bytes and in time
-   *
-   * The gateway used to discard the body, so a service that answers a refusal
-   * with a 2xx (CallMeBot, issue #450) was reported as delivered, and a
-   * failure reached the origin node as a bare status. When the length is
-   * known and small the whole body is taken; otherwise up to maxBytes are
-   * read from the stream, waiting at most GATEWAY_RESPONSE_HEAD_TIMEOUT_MS,
-   * which keeps a large or chunked page from eating the heap or the
-   * cooperative scheduler.
+   * The start and the end of the response body (gateway::ResponseExcerpt),
+   * read from the stream for at most GATEWAY_RESPONSE_HEAD_TIMEOUT_MS and
+   * GATEWAY_RESPONSE_SCAN_BYTES. A body that fits whole is read whole.
    */
-  static TSTRING readResponseHead(HTTPClient& http, size_t maxBytes) {
+  static TSTRING readResponseExcerpt(HTTPClient& http) {
     const int size = http.getSize();
-    if (size >= 0 && static_cast<size_t>(size) <= maxBytes) {
+    if (size >= 0 &&
+        static_cast<size_t>(size) <=
+            gateway::GATEWAY_RESPONSE_HEAD_BYTES + gateway::GATEWAY_RESPONSE_TAIL_BYTES) {
       return http.getString();
     }
-    TSTRING head;
+    gateway::ResponseExcerpt excerpt;
     WiFiClient* stream = http.getStreamPtr();
-    if (stream == nullptr) return head;
+    if (stream == nullptr) return excerpt.text();
     const uint32_t deadline =
         millis() + gateway::GATEWAY_RESPONSE_HEAD_TIMEOUT_MS;
-    while (head.length() < maxBytes &&
-           static_cast<int32_t>(deadline - millis()) > 0) {
+    bool more = true;
+    while (more && static_cast<int32_t>(deadline - millis()) > 0) {
       int available = stream->available();
       if (available <= 0) {
         if (!stream->connected()) break;
         delay(1);
         continue;
       }
-      while (available-- > 0 && head.length() < maxBytes) {
+      while (more && available-- > 0) {
         const int c = stream->read();
         if (c < 0) break;
-        head += static_cast<char>(c);
+        more = excerpt.add(static_cast<char>(c));
       }
     }
-    return head;
+    return excerpt.text();
   }
 #endif
 
@@ -2998,7 +2994,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           TSTRING responseHead;
           if (httpCode > 0) {
             responseHead =
-                readResponseHead(http, gateway::GATEWAY_RESPONSE_HEAD_BYTES);
+                readResponseExcerpt(http);
           }
           const auto outcome =
               gateway::classifyHttpResult(httpCode, responseHead);

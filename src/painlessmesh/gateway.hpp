@@ -1011,20 +1011,26 @@ class GatewayDataPackage : public plugin::SinglePackage {
  * matters to a retry is whether the request can have reached the server:
  * resending one that did delivers it twice, which for a request with an
  * effect -- a message, a payment, a counter -- is a second effect (the rig
- * showed a timed-out send issued four times). These are the codes that
- * cannot have reached a server.
+ * showed a timed-out send issued four times).
+ *
+ * Where each is raised, in both cores' HTTPClient::sendRequest() for the
+ * buffer GET()/POST() the gateway uses: -1, -2 and -3 before the request is
+ * complete; everything else from handleHeaderResponse(), which runs after the
+ * whole request was written -- so -4 is a connection that closed before the
+ * reply began and -7 a reply that was not HTTP, both with the request already
+ * at the server. -6 and -8 come from stream sends and from reading a body.
  */
 enum HttpTransportError : int {
   HTTP_TRANSPORT_CONNECTION_REFUSED = -1,  ///< no connection was made
   HTTP_TRANSPORT_SEND_HEADER_FAILED = -2,  ///< the request line never completed
   HTTP_TRANSPORT_SEND_PAYLOAD_FAILED = -3, ///< the body never completed
-  HTTP_TRANSPORT_NOT_CONNECTED = -4,       ///< no connection to send on
-  HTTP_TRANSPORT_CONNECTION_LOST = -5,     ///< dropped; may be after the request
-  HTTP_TRANSPORT_NO_STREAM = -6,           ///< no client stream to send on
-  HTTP_TRANSPORT_NO_HTTP_SERVER = -7,      ///< the peer did not speak HTTP
-  HTTP_TRANSPORT_TOO_LESS_RAM = -8,        ///< the gateway ran out of memory first
-  HTTP_TRANSPORT_ENCODING = -9,            ///< the reply arrived malformed
-  HTTP_TRANSPORT_STREAM_WRITE = -10,       ///< the reply could not be stored
+  HTTP_TRANSPORT_NOT_CONNECTED = -4,       ///< closed before the reply began; sent
+  HTTP_TRANSPORT_CONNECTION_LOST = -5,     ///< dropped while reading the reply; sent
+  HTTP_TRANSPORT_NO_STREAM = -6,           ///< no stream to send or read with
+  HTTP_TRANSPORT_NO_HTTP_SERVER = -7,      ///< the reply was not HTTP; sent
+  HTTP_TRANSPORT_TOO_LESS_RAM = -8,        ///< out of memory sending or reading
+  HTTP_TRANSPORT_ENCODING = -9,            ///< the reply arrived malformed; sent
+  HTTP_TRANSPORT_STREAM_WRITE = -10,       ///< the reply could not be stored; sent
   HTTP_TRANSPORT_READ_TIMEOUT = -11,       ///< sent, and no reply in time
 };
 
@@ -1040,10 +1046,6 @@ inline bool transportErrorMayHaveReachedServer(int rawCode) {
     case HTTP_TRANSPORT_CONNECTION_REFUSED:
     case HTTP_TRANSPORT_SEND_HEADER_FAILED:
     case HTTP_TRANSPORT_SEND_PAYLOAD_FAILED:
-    case HTTP_TRANSPORT_NOT_CONNECTED:
-    case HTTP_TRANSPORT_NO_STREAM:
-    case HTTP_TRANSPORT_NO_HTTP_SERVER:
-    case HTTP_TRANSPORT_TOO_LESS_RAM:
       return false;
     default:
       return true;
@@ -1112,13 +1114,22 @@ struct HttpRequestOutcome {
 static const size_t GATEWAY_RESPONSE_REASON_MAX = 240;
 
 /**
- * How much of a response body the gateway reads for the summary. Enough for
- * a service's verdict, small enough that an HTML error page cannot eat an
- * ESP8266's heap.
+ * How much of a response body the gateway keeps for the summary: its first
+ * GATEWAY_RESPONSE_HEAD_BYTES and its last GATEWAY_RESPONSE_TAIL_BYTES.
+ * Enough for a service's verdict at either end, small enough that an HTML
+ * error page cannot eat an ESP8266's heap.
  */
 static const size_t GATEWAY_RESPONSE_HEAD_BYTES = 512;
+static const size_t GATEWAY_RESPONSE_TAIL_BYTES = 256;
 
-/** How long the gateway waits for that head to arrive after the status. */
+/**
+ * How far into a body the gateway reads looking for its end. Past this the
+ * tail kept is the last of what was read, not the body's end; reading on
+ * would hold the uplink for a reply nobody summarises.
+ */
+static const size_t GATEWAY_RESPONSE_SCAN_BYTES = 8192;
+
+/** How long the gateway reads the body for, after the status. */
 static const uint32_t GATEWAY_RESPONSE_HEAD_TIMEOUT_MS = 250;
 
 /**
@@ -1175,7 +1186,7 @@ inline TSTRING summarizeResponseBody(
   static const char JOIN[] = " ... ";
   const size_t joinLength = sizeof(JOIN) - 1;
   const size_t room = maxLen > joinLength ? maxLen - joinLength : 0;
-  const size_t head = (room * 2) / 3;
+  const size_t head = room / 2;
   const size_t tail = room - head;
   TSTRING out;
   for (size_t i = 0; i < head; ++i) out += text[i];
@@ -1183,6 +1194,57 @@ inline TSTRING summarizeResponseBody(
   for (size_t i = text.length() - tail; i < text.length(); ++i) out += text[i];
   return out;
 }
+
+/**
+ * @brief The start and the end of a response body, read a byte at a time
+ *
+ * The gateway cannot keep a whole body, and a service may put its verdict at
+ * either end: CallMeBot echoes the request first and says why last (#463), so
+ * a reply of a kilobyte kept as its first 512 bytes had lost the part that
+ * mattered before any summary ran. This keeps the first
+ * GATEWAY_RESPONSE_HEAD_BYTES and a rolling last GATEWAY_RESPONSE_TAIL_BYTES,
+ * and text() joins them with " ... " when bytes were dropped between.
+ */
+class ResponseExcerpt {
+ public:
+  /** Keep one more byte; false once GATEWAY_RESPONSE_SCAN_BYTES were seen. */
+  bool add(char c) {
+    ++seen_;
+    if (head_.length() < GATEWAY_RESPONSE_HEAD_BYTES) {
+      head_ += c;
+    } else {
+      tail_[(tailStart_ + tailLength_) % GATEWAY_RESPONSE_TAIL_BYTES] = c;
+      if (tailLength_ < GATEWAY_RESPONSE_TAIL_BYTES) {
+        ++tailLength_;
+      } else {
+        tailStart_ = (tailStart_ + 1) % GATEWAY_RESPONSE_TAIL_BYTES;
+      }
+    }
+    return seen_ < GATEWAY_RESPONSE_SCAN_BYTES;
+  }
+
+  void add(const TSTRING& text) {
+    for (size_t i = 0; i < text.length(); ++i) {
+      if (!add(text[i])) return;
+    }
+  }
+
+  TSTRING text() const {
+    TSTRING out = head_;
+    if (seen_ > head_.length() + tailLength_) out += " ... ";
+    for (size_t i = 0; i < tailLength_; ++i) {
+      out += tail_[(tailStart_ + i) % GATEWAY_RESPONSE_TAIL_BYTES];
+    }
+    return out;
+  }
+
+ private:
+  TSTRING head_;
+  char tail_[GATEWAY_RESPONSE_TAIL_BYTES] = {};
+  size_t tailStart_ = 0;
+  size_t tailLength_ = 0;
+  size_t seen_ = 0;
+};
 
 /**
  * @brief The delay a Retry-After header asks for, in milliseconds
