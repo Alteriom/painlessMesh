@@ -46,4 +46,4 @@ pio run -e <env>
 
 ## Version
 
-Current: **v2.0.0**
+Current: **v2.1.0**
