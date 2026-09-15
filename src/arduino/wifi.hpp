@@ -2965,7 +2965,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           // honours Idempotency-Key treats a retry as the request it already
           // has; anything recording requests can count the copies.
           const TSTRING requestId =
-              gateway::requestIdFor(pkg.originNode, pkg.messageId);
+              gateway::requestIdFor(pkg.originNode, pkg.messageId, pkg.requestNonce);
           http.addHeader("X-Request-Id", requestId.c_str());
           http.addHeader("Idempotency-Key", requestId.c_str());
           // Not const: both cores declare collectHeaders(const char* keys[], ...).

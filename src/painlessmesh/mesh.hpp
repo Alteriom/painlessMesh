@@ -148,7 +148,11 @@ struct PendingInternetRequest {
   TSTRING payload = "";            ///< Request payload
   internetResultCallback_t callback;  ///< User callback for result
   internetResponseCallback_t onResult;  ///< Or the whole-result callback
-  uint8_t attempts = 1;                 ///< Times the request was issued
+  /// Times the request was handed to a gateway: 0 until the first send
+  /// leaves this node, whatever retries were scheduled meanwhile.
+  uint8_t attempts = 0;
+  /// Drawn once for the call, sent on every attempt (GatewayDataPackage).
+  uint32_t requestNonce = 0;
   /// Why the last attempt failed, when retries were spent waiting for a
   /// gateway; the final callback reports it instead of a bare retry count.
   TSTRING lastError = "";
@@ -1846,10 +1850,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       request.payload = payload;
       request.callback = callback;
       request.onResult = onResult;
+      request.requestNonce = gateway::newRequestNonce();
+      // Handed to this node's own handler below, unconditionally.
+      request.attempts = 1;
+      const uint32_t nonce = request.requestNonce;
       pendingInternetRequests[messageId] = request;
 
       dispatchInternetRequestLocally(messageId, priority, 0, destination,
-                                     payload);
+                                     payload, nonce);
       return messageId;
     }
 
@@ -1898,6 +1906,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     request.payload = payload;
     request.callback = callback;
     request.onResult = onResult;
+    request.requestNonce = gateway::newRequestNonce();
 
     // Store pending request
     pendingInternetRequests[messageId] = request;
@@ -1915,6 +1924,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     pkg.contentType = "application/json";
     pkg.retryCount = 0;
     pkg.requiresAck = true;
+    pkg.requestNonce = request.requestNonce;
 
     // Send the package with priority
     bool sent = false;
@@ -1937,6 +1947,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       scheduleInternetRetry(messageId);
     } else {
       Log(COMMUNICATION, "sendToInternet(): Sent to gateway %u\n", gateway->nodeId);
+      // Only a send that left this node is an attempt.
+      pendingInternetRequests[messageId].attempts = 1;
       // Schedule timeout check
       scheduleInternetTimeout(messageId);
     }
@@ -2326,7 +2338,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   void dispatchInternetRequestLocally(uint32_t messageId, uint8_t priority,
                                       uint8_t retryCount,
                                       const TSTRING& destination,
-                                      const TSTRING& payload) {
+                                      const TSTRING& payload,
+                                      uint32_t requestNonce) {
     gateway::GatewayDataPackage pkg;
     pkg.from = this->nodeId;
     pkg.dest = this->nodeId;
@@ -2339,6 +2352,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     pkg.contentType = "application/json";
     pkg.retryCount = retryCount;
     pkg.requiresAck = true;
+    pkg.requestNonce = requestNonce;
     protocol::Variant variant(&pkg);
     this->callbackList.execute(protocol::GATEWAY_DATA, variant, nullptr, 0);
   }
@@ -2415,12 +2429,13 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       const uint8_t retryCount = request.retryCount;
       const TSTRING destination = request.destination;
       const TSTRING payload = request.payload;
+      const uint32_t nonce = request.requestNonce;
       request.attempts++;
       Log(logger::COMMUNICATION,
           "retryInternetRequest(): Retrying msgId=%u on the local uplink\n",
           messageId);
       dispatchInternetRequestLocally(messageId, priority, retryCount,
-                                     destination, payload);
+                                     destination, payload, nonce);
       return;
     }
 
@@ -2458,6 +2473,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     pkg.contentType = "application/json";
     pkg.retryCount = request.retryCount;
     pkg.requiresAck = true;
+    pkg.requestNonce = request.requestNonce;
 
     // Send the package
     auto conn = painlessmesh::router::findRoute<T>((*this), gateway->nodeId);

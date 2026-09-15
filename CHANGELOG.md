@@ -51,8 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   request's timeout moves with the wait, so the invited retry is not timed
   out first.
 - **Request ids.** Every attempt at one call carries the same `X-Request-Id`
-  and `Idempotency-Key` header (`pm-<origin>-<messageId>`), so a service that
-  honours idempotency keys drops a copy and a log can count retries.
+  and `Idempotency-Key` header (`pm-<origin>-<messageId>-<nonce>`), so a
+  service that honours idempotency keys drops a copy and a log can count
+  retries. The nonce is drawn per call and travels in the request (`"nonce"`),
+  so ids stay unique after the 16-bit message-id counter wraps; a request from
+  an older node keeps `pm-<origin>-<messageId>`.
   Message ids now start at a random point each boot, so the first request
   after a reboot does not reuse the key of the boot before.
 - **Test point:** the ledger counts requests per tag and records their

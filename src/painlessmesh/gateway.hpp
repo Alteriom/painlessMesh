@@ -886,12 +886,25 @@ class GatewayDataPackage : public plugin::SinglePackage {
   bool requiresAck = false;
 
   /**
+   * @brief Random value drawn once per sendToInternet() call
+   *
+   * The same on every attempt at that call, and part of its X-Request-Id and
+   * Idempotency-Key (requestIdFor()). messageId alone repeats: its counter is
+   * 16 bits, so a node that sends more than 65,535 requests in one boot
+   * reissues old ids, and a service that remembers keys would drop the new
+   * request as a repeat. 0 from a node that predates the field. JSON key
+   * "nonce", omitted when 0.
+   */
+  uint32_t requestNonce = 0;
+
+  /**
    * @brief Number of additional JSON fields in this package
    *
    * Used for jsonObjectSize() calculation in ArduinoJson v6.
-   * Count: msgId, origin, ts, prio, dest_url, payload, content, retry, ack = 9 fields
+   * Count: msgId, origin, ts, prio, dest_url, payload, content, retry, ack,
+   * nonce = 10 fields
    */
-  static constexpr int numPackageFields = 9;
+  static constexpr int numPackageFields = 10;
 
   /**
    * @brief Default constructor
@@ -915,6 +928,7 @@ class GatewayDataPackage : public plugin::SinglePackage {
     priority = jsonObj["prio"];
     retryCount = jsonObj["retry"];
     requiresAck = jsonObj["ack"] | false;
+    requestNonce = jsonObj["nonce"] | 0UL;
 
 #if ARDUINOJSON_VERSION_MAJOR < 7
     if (jsonObj.containsKey("dest_url"))
@@ -952,6 +966,7 @@ class GatewayDataPackage : public plugin::SinglePackage {
     jsonObj["content"] = contentType;
     jsonObj["retry"] = retryCount;
     jsonObj["ack"] = requiresAck;
+    if (requestNonce != 0) jsonObj["nonce"] = requestNonce;
     return jsonObj;
   }
 
@@ -1278,12 +1293,29 @@ inline uint32_t parseRetryAfterMs(const TSTRING& value) {
  * The same for every attempt at one sendToInternet() call, so a service that
  * honours Idempotency-Key treats a retry as the request it already has, and
  * anything recording requests can count the copies one call produced.
+ *
+ * The request's nonce keeps it unique beyond its messageId, whose counter
+ * wraps after 65,535 requests in a boot. A package from a node that predates
+ * the nonce (0) keeps the two-part form it always had.
  */
-inline TSTRING requestIdFor(uint32_t originNode, uint32_t messageId) {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "pm-%08x-%08x",
-           static_cast<unsigned>(originNode), static_cast<unsigned>(messageId));
+inline TSTRING requestIdFor(uint32_t originNode, uint32_t messageId,
+                            uint32_t requestNonce = 0) {
+  char buffer[40];
+  if (requestNonce == 0) {
+    snprintf(buffer, sizeof(buffer), "pm-%08x-%08x",
+             static_cast<unsigned>(originNode), static_cast<unsigned>(messageId));
+  } else {
+    snprintf(buffer, sizeof(buffer), "pm-%08x-%08x-%08x",
+             static_cast<unsigned>(originNode), static_cast<unsigned>(messageId),
+             static_cast<unsigned>(requestNonce));
+  }
   return TSTRING(buffer);
+}
+
+/** A request nonce: random, and never the 0 that means "none". */
+inline uint32_t newRequestNonce() {
+  uint32_t nonce = validation::SecureRandom::generate();
+  return nonce != 0 ? nonce : 1;
 }
 
 /**

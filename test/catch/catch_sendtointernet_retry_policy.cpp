@@ -2,6 +2,7 @@
 #include "catch2/catch.hpp"
 #include "Arduino.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "catch_utils.hpp"
@@ -60,7 +61,8 @@ struct Harness {
     node.onPackage(protocol::GATEWAY_DATA, [this](protocol::Variant& variant) {
       auto pkg = variant.to<gateway::GatewayDataPackage>();
       requestTimesMs.push_back(millis());
-      requestIds.push_back(gateway::requestIdFor(pkg.originNode, pkg.messageId));
+      requestIds.push_back(
+          gateway::requestIdFor(pkg.originNode, pkg.messageId, pkg.requestNonce));
       REQUIRE(!script.empty());
       const size_t index = requestTimesMs.size() - 1;
       const Answer& a = script[index < script.size() ? index : script.size() - 1];
@@ -155,6 +157,8 @@ SCENARIO("A request that cannot have arrived is retried, with the same id",
       REQUIRE(done);
       REQUIRE(h.requests() == 2);
       REQUIRE(h.requestIds[0] == h.requestIds[1]);
+      // Three parts: origin, message id, and the call's nonce.
+      REQUIRE(std::count(h.requestIds[0].begin(), h.requestIds[0].end(), '-') == 3);
       REQUIRE(result.success == true);
       REQUIRE(result.messageId == id);
       REQUIRE(result.httpStatus == 200);
@@ -311,6 +315,28 @@ SCENARIO("A gateway's own request completes after its handler has returned",
   }
 }
 
+SCENARIO("Two calls never share a request id, even when their message ids do",
+         "[gateway][internet][request-id]") {
+  // A 16-bit message-id counter wraps after 65,535 requests in a boot; the
+  // call's nonce keeps the Idempotency-Key a service sees unique anyway.
+  Harness h;
+  h.script = {{true, 200, "", "ok", 0, 0}};
+  int done = 0;
+  for (int i = 0; i < 2; ++i) {
+    h.node.sendToInternet("http://example.test/", "",
+                          [&](const InternetResult&) { ++done; });
+  }
+  h.runFor(1000, [&] { return done == 2; });
+  REQUIRE(h.requests() == 2);
+  REQUIRE(h.requestIds[0] != h.requestIds[1]);
+
+  THEN("The nonce is what differs for the same origin and message id") {
+    REQUIRE(gateway::requestIdFor(1, 2, 3) != gateway::requestIdFor(1, 2, 4));
+    REQUIRE(gateway::requestIdFor(1, 2, 0) == "pm-00000001-00000002");
+    REQUIRE(gateway::newRequestNonce() != 0);
+  }
+}
+
 SCENARIO("The new ack fields survive the mesh, and old acks parse as before",
          "[gateway][internet][ack]") {
   GIVEN("An ack carrying a response, a retry verdict and a Retry-After") {
@@ -325,6 +351,22 @@ SCENARIO("The new ack fields survive the mesh, and old acks parse as before",
     ack.response = "Too many requests";
     ack.retryable = 1;
     ack.retryAfterMs = 5000;
+
+    gateway::GatewayDataPackage data;
+    data.messageId = 3;
+    data.originNode = 2;
+    data.requestNonce = 0xDEADBEEF;
+    auto dataCopy = protocol::Variant(&data).to<gateway::GatewayDataPackage>();
+    gateway::GatewayDataPackage legacy;
+    legacy.messageId = 3;
+    TSTRING legacyJson;
+    protocol::Variant(&legacy).printTo(legacyJson);
+    auto legacyCopy = protocol::Variant(&legacy).to<gateway::GatewayDataPackage>();
+    THEN("A request's nonce survives, and is absent and 0 when unset") {
+      REQUIRE(dataCopy.requestNonce == 0xDEADBEEF);
+      REQUIRE(legacyJson.find("nonce") == TSTRING::npos);
+      REQUIRE(legacyCopy.requestNonce == 0);
+    }
 
     auto copy = protocol::Variant(&ack).to<gateway::GatewayAckPackage>();
     THEN("They arrive intact") {

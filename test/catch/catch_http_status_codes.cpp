@@ -332,6 +332,12 @@ SCENARIO("Every attempt at one request carries the same request id",
         REQUIRE(gateway::requestIdFor(0xCA4CFCF5, 0x0001000B) != id);
         REQUIRE(gateway::requestIdFor(0x00000001, 0x0001000A) != id);
     }
+    THEN("With the call's nonce it has a third part, and the nonce alone separates two calls") {
+        REQUIRE(gateway::requestIdFor(0xCA4CFCF5, 0x0001000A, 0x00C0FFEE) ==
+                "pm-ca4cfcf5-0001000a-00c0ffee");
+        REQUIRE(gateway::requestIdFor(0xCA4CFCF5, 0x0001000A, 1) !=
+                gateway::requestIdFor(0xCA4CFCF5, 0x0001000A, 2));
+    }
 }
 
 // ============================================================================
