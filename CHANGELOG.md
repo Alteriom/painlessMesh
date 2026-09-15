@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-15
+
+`sendToInternet()` you can build a notifier on (#463). One user's WhatsApp
+alerts through CallMeBot kept failing, and the hardware rig showed why in the
+library: a request whose reply was slow was sent again -- one call reached the
+server four times --, a long reply was cut before the service said what it did,
+and a chunked reply reached the application with its transfer framing. 2.1.0
+issues each request once, retries only what cannot arrive twice, honours
+Retry-After, gives every attempt one request id, and hands the application the
+whole result: status, the service's own words, whether a resend is safe, and
+how many attempts it took. **Upgrade if a node of yours sends to the
+Internet.**
+
+**One behaviour change to read before upgrading:** the library no longer
+decides from a reply's words whether a service did what you asked. A CallMeBot
+"Too many requests" page under HTTP 201 is `success == true`, as HTTP says;
+read the reply in your sketch with the new result callback, as
+`examples/sendToInternet/callmebot.h` does. Wire-compatible with 2.0 nodes: the
+new ack and request fields are optional and ignored by older nodes. Validated
+on the six-family hardware rig, including a real WhatsApp delivered through
+the mesh and a real CallMeBot refusal reaching the application intact.
+
 ### Changed
 
 - **`sendToInternet()` no longer retries a request the server may already
@@ -70,6 +92,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reply (seen from the hardware rig) instead of calling it unrecognised.
 
 ### Fixed
+
+- **A gateway's own request completed inside its HTTP handler.** A bridge or
+  shared gateway serving its own `sendToInternet()` delivered the result from
+  inside the gateway handler, while its `HTTPClient`, `WiFiClient` and response
+  buffers were still allocated; on an ESP8266 with ~11 KB free the
+  application's callback could not allocate what it built (hardware rig). The
+  local acknowledgment now completes from the scheduler, after the handler has
+  freed.
+- **`InternetResult::attempts` and `retryable` describe what was sent.**
+  `attempts` counts only a request that left the node, and a request that
+  never did -- refused for want of a mesh or a gateway, or whose every routing
+  attempt failed -- is reported safe to resend.
 
 - **`SentBuffer::requestLength(0)` answered 1, not 0.** `buffer_length - 1`
   leaves room for the terminator `toCharArray()` always writes; on an
