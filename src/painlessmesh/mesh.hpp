@@ -2262,7 +2262,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
     // Failure: may the identical request be sent again?
     //
-    // A gateway that says so decides (2.0.4 and later): it saw the transport
+    // A gateway that says so decides (2.1.0 and later): it saw the transport
     // error or the status, and it knows whether the request can have reached
     // the server. Resending one that may have been processed delivers it
     // twice -- on the rig one timed-out send was issued four times -- so only
@@ -2313,7 +2313,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
   /**
    * How an ack from a gateway that does not say whether to retry was read
-   * before 2.0.4, minus retrying a 2xx.
+   * before 2.1.0, minus retrying a 2xx.
    */
   static bool legacyAckIsRetryable(const gateway::GatewayAckPackage& ack) {
     if (ack.httpStatus >= 500 && ack.httpStatus < 600) return true;

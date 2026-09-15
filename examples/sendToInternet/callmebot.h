@@ -11,6 +11,9 @@
 //   * HTTP 208 came back four times for messages that never arrived (#452);
 //   * a paused account answers with the request echoed back and, at the end,
 //     "Your Account is Paused ... send the word 'resume'" (#463);
+//   * an API key CallMeBot does not know answers HTTP 203 with the request
+//     echoed back and "APIKey is invalid. Please create a new one ..."
+//     (observed from the hardware rig, 2026-09-15);
 //   * a message CallMeBot accepted answers "Message queued".
 //
 // So the sketch reads the reply with judge() below. It is plain C++ over the
@@ -36,6 +39,8 @@ enum class Verdict {
   RateLimited,
   /** The account is paused: send "resume" to the bot; resending won't help. */
   AccountPaused,
+  /** The API key is not one CallMeBot knows: get a new one; resending won't help. */
+  InvalidApiKey,
   /** HTTP 208: in the field this never meant a delivery, whatever the body. */
   NotDelivered,
   /** No HTTP reply at all; the library's error says why. */
@@ -87,6 +92,12 @@ inline Judgement judge(uint16_t httpStatus, const TSTRING& response) {
       responseContains(response, "send the word 'resume'")) {
     return {Verdict::AccountPaused, false, RATE_LIMIT_HOLD_OFF_MS,
             "CallMeBot account paused: send 'resume' to the CallMeBot bot on WhatsApp"};
+  }
+  if (responseContains(response, "APIKey is invalid")) {
+    // Nothing a retry changes: hold off like a refusal, so a sketch with a
+    // wrong key does not call the API once a minute until someone notices.
+    return {Verdict::InvalidApiKey, false, RATE_LIMIT_HOLD_OFF_MS,
+            "CallMeBot rejected the API key: get a new one from CallMeBot and set WHATSAPP_APIKEY"};
   }
   // Before the success text: a 208 carrying "Message queued" still did not
   // arrive in the field.

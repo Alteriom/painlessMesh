@@ -20,7 +20,7 @@ painlessmesh::logger::LogClass Log;
 /**
  * Issue #450: the gateway's verdict disagrees with the service.
  *
- * (Since 2.0.4 the split is explicit: the library reports what HTTP says and
+ * (Since 2.1.0 the split is explicit: the library reports what HTTP says and
  * carries the body; examples/sendToInternet/callmebot.h reads what CallMeBot
  * means. The ledger is compared with the example's reading, and the library's
  * part is checked on its own terms: the status, no retry, the words intact.)

@@ -66,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **sendToInternet example:** alerts once per O2 episode and at most every
   10 minutes, backs off 15 minutes after a CallMeBot refusal, tags the
   startup message per boot, URL-encodes the phone number, and no longer
-  prints the API key.
+  prints the API key. `callmebot.h` names CallMeBot's "APIKey is invalid"
+  reply (seen from the hardware rig) instead of calling it unrecognised.
 
 ### Fixed
 

@@ -1785,7 +1785,7 @@ class GatewayAckPackage : public plugin::SinglePackage {
     jsonObj["http"] = httpStatus;
     jsonObj["err"] = error;
     jsonObj["ts"] = timestamp;
-    // Added in 2.0.4 and omitted when they say nothing, so an ack to a node
+    // Added in 2.1.0 and omitted when they say nothing, so an ack to a node
     // that predates them is the ack it always was.
     if (response.length() > 0) jsonObj["resp"] = response;
     if (retryable >= 0) jsonObj["retry"] = retryable == 1;

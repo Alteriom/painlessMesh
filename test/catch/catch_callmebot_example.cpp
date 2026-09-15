@@ -80,6 +80,19 @@ SCENARIO("The example reads CallMeBot's replies, not its status codes",
     REQUIRE(std::string(j.meaning).find("resume") != std::string::npos);
   }
 
+  THEN("An API key CallMeBot does not know is named, not left unrecognised") {
+    // The real reply to an invalid key, from the hardware rig (2026-09-15).
+    const std::string reply =
+        "Message to: +10000000000 Text to send: painlessMesh HIL refusal check "
+        "callmebot-refusal-1789506955409919286 APIKey is invalid. Please create a "
+        "new one or contact support if you lost it.";
+    auto j = judgeRaw(203, reply);
+    REQUIRE(j.verdict == Verdict::InvalidApiKey);
+    REQUIRE_FALSE(j.accepted);
+    REQUIRE(j.holdOffMs == callmebot::RATE_LIMIT_HOLD_OFF_MS);
+    REQUIRE(std::string(j.meaning).find("API key") != std::string::npos);
+  }
+
   THEN("No reply and unknown replies are never counted as sent") {
     REQUIRE(callmebot::judge(0, "").verdict == Verdict::NoReply);
     REQUIRE(judgeRaw(200, "<p>Something new</p>").verdict == Verdict::Unrecognized);

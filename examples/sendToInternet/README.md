@@ -89,7 +89,8 @@ mesh.sendToInternet(url, "", [](const painlessmesh::InternetResult& result) {
 ```
 
 `callmebot.h` is part of the example, not the library: it knows CallMeBot's
-wording ("Message queued", "Too many requests", "Your Account is Paused")
+wording ("Message queued", "Too many requests", "Your Account is Paused",
+"APIKey is invalid")
 and that its HTTP 208 has not meant a delivery. The desktop test suite checks
 it against the CallMeBot-shaped test point in `test/mock-http-server/`.
 
