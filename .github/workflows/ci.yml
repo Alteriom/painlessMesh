@@ -12,6 +12,8 @@ on:
       - 'docs/**'
       - '*.md'
       - 'LICENSE'
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch: {}
 
 # Prevent duplicate runs for the same workflow
@@ -49,7 +51,7 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -82,12 +84,28 @@ jobs:
       - name: Build
         run: ninja
 
+      # The gateway test point (test/mock-http-server/server.py) answers the
+      # way real Internet services do and keeps a delivery ledger. The
+      # catch_issue450_testpoint_semantics scenarios make real HTTP requests
+      # to it and require the library's verdict to match the ledger; without
+      # PAINLESSMESH_TESTPOINT they only warn, which is what a bench build
+      # without a server should do, not what CI should do.
+      - name: Start the HTTP test point
+        run: |
+          python3 test/mock-http-server/server.py --host 127.0.0.1 --port 8080             --log testpoint-ledger.jsonl > testpoint.log 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health
+
       - name: Run tests
         env:
           # Leak detection is intentionally off for the asan build: the test
           # fakes intentionally leak a few objects (e.g. fake_asynctcp peer
           # clients). The signal we want here is use-after-free/double-free.
           ASAN_OPTIONS: detect_leaks=0
+          PAINLESSMESH_TESTPOINT: http://127.0.0.1:8080
         run: run-parts --regex catch_ bin/
 
       - name: Upload test results
@@ -112,13 +130,15 @@ jobs:
             core: esp32:esp32
             async_lib: AsyncTCP
           - board: esp8266
-            fqbn: esp8266:esp8266:generic
+            # nodemcuv2 (not generic): examples use NodeMCU pin aliases
+            # (D8 etc.) and the example platformio.ini targets nodemcuv2
+            fqbn: esp8266:esp8266:nodemcuv2
             core: esp8266:esp8266
             async_lib: ESPAsyncTCP
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v2
@@ -162,30 +182,40 @@ jobs:
 
       - name: Install library dependencies
         run: |
-          arduino-cli --config-dir test/ci/ lib install \
-            ArduinoJson \
-            TaskScheduler \
-            ${{ matrix.async_lib }} \
-            PubSubClient
+          # "Async TCP" is the maintained ESP32Async v3.x library that
+          # library.json declares (esp32async/AsyncTCP ^3.4.7) and that
+          # ESP Async WebServer v3 requires — NOT the legacy v1 "AsyncTCP"
+          arduino-cli lib install ArduinoJson TaskScheduler "Async TCP" ESPAsyncTCP PubSubClient "ESP Async WebServer" --config-dir test/ci/
 
       - name: Install library from source
         run: |
-          mkdir -p ~/Arduino/libraries/painlessMesh
-          cp -r src examples library.properties ~/Arduino/libraries/painlessMesh/
+          # Resolve the sketchbook/user dir from the SAME config the compile
+          # step uses, so the source copy is guaranteed to be visible
+          USER_DIR=$(arduino-cli config get directories.user --config-dir test/ci/)
+          echo "Arduino user dir: $USER_DIR"
+          mkdir -p "$USER_DIR/libraries/painlessMesh"
+          cp -r src examples library.properties "$USER_DIR/libraries/painlessMesh/"
 
       - name: Compile examples
         run: |
-          for example in examples/*/; do
-            if [ "$(basename "$example")" = "webServer" ]; then
-              echo "Skipping example with external dependency not available via Arduino Library Manager: $example"
-              continue
+          # NOTE: an earlier version tested [ -f "${example}*.ino" ] — a
+          # quoted glob that never matches, so no example was ever compiled.
+          # Compile every proper sketch dir (dir name == ino name), including
+          # nested ones (e.g. examples/priority/priority_basic_example/).
+          failed=0
+          while read -r ino; do
+            dir=$(dirname "$ino")
+            base=$(basename "$dir")
+            if [ "$(basename "$ino")" = "$base.ino" ]; then
+              echo "::group::Building example: $dir"
+              if ! arduino-cli compile --config-dir test/ci/ --fqbn ${{ matrix.fqbn }} "$dir"; then
+                echo "::error::Example failed to compile: $dir"
+                failed=1
+              fi
+              echo "::endgroup::"
             fi
-            sketch="${example}$(basename "$example").ino"
-            if [ -f "$sketch" ]; then
-              echo "Building example: $example"
-              arduino-cli compile --fqbn ${{ matrix.fqbn }} "$example" --config-dir test/ci/
-            fi
-          done
+          done < <(find examples -name '*.ino' | sort)
+          exit $failed
 
   build-platformio:
     name: PlatformIO Build Test  
@@ -193,10 +223,10 @@ jobs:
     
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
@@ -209,12 +239,28 @@ jobs:
           bash test/ci/test_platformio.sh --example basic
           bash test/ci/test_platformio.sh --example alteriom
 
+      - name: Build documented build-flag configurations
+        run: |
+          # Each project pins a build flag the docs tell operators to set:
+          # -DPAINLESSMESH_DISABLE_OTA (the only mitigation for unauthenticated
+          # mesh OTA) and -DNODE_TIMEOUT (the documented remedy for an endpoint
+          # slower than the derived gateway budget).
+          #
+          # They exist as PlatformIO projects rather than desktop tests because
+          # test/catch/Arduino.h defines _PAINLESS_MESH_CONFIGURATION_HPP_ and
+          # supplies its own copies of these macros, so a catch test never
+          # parses the guards in painlessmesh/configuration.hpp and would stay
+          # green if they were dropped. These have no shim, and apply each flag
+          # to every translation unit -- the documented form.
+          (cd test/ci/no-ota && pio run -e esp32 && pio run -e esp8266)
+          (cd test/ci/tuned-timeouts && pio run -e esp32 && pio run -e esp8266)
+
   code-quality:
     name: Code Quality Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check formatting
         run: |
@@ -231,6 +277,14 @@ jobs:
           else
             echo "ℹ️ No Alteriom-specific files to check formatting"
           fi
+
+      # The release script, on a copy of this repository's version metadata.
+      # Its jq-less fallback used to rewrite every "version" key in
+      # library.json, including the dependency ranges; hosted runners have jq,
+      # so the test masks it to exercise the path a Windows Git Bash checkout
+      # takes, then repeats the run with jq.
+      - name: Version bump script
+        run: bash test/ci/test_bump_version.sh
 
       - name: Check for TODO/FIXME comments
         run: |
@@ -252,7 +306,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0  # Fetch all history for tags
 

@@ -123,9 +123,9 @@ print(df.groupby('node_id')['messages_received'].sum())
 
 ## Documentation
 
-- [Simulator Documentation](../../../../test/simulator/README.md)
-- [Integration Guide](../../../../test/simulator/docs/INTEGRATING_INTO_YOUR_PROJECT.md)
-- [Configuration Reference](../../../../test/simulator/docs/CONFIGURATION_GUIDE.md)
+- [Simulator Documentation](https://github.com/Alteriom/painlessMesh-simulator#readme)
+- [Integration Guide](https://github.com/Alteriom/painlessMesh-simulator/blob/main/docs/INTEGRATING_INTO_YOUR_PROJECT.md)
+- [Configuration Reference](https://github.com/Alteriom/painlessMesh-simulator/blob/main/docs/CONFIGURATION_GUIDE.md)
 
 ## Troubleshooting
 

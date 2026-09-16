@@ -710,9 +710,9 @@ void setup() {
 
 These examples provide a foundation for building more complex mesh applications. Consider exploring:
 
-- [Custom Packages Tutorial](custom-packages.md) for type-safe messaging
-- [Sensor Networks Tutorial](sensor-networks.md) for IoT applications  
+- [Custom Packages Tutorial](../architecture/plugin-system.md#creating-custom-packages) for type-safe messaging
+- [Sensor Network Pattern](../alteriom/overview.md#sensor-network-pattern) for IoT applications
 - [Alteriom Extensions](../alteriom/overview.md) for production-ready packages
-- [Performance Optimization](../advanced/performance.md) for scaling up
+- [Performance Optimization](../api/configuration.md#performance-configuration) for scaling up
 
 Each example can be extended with additional features like data persistence, external connectivity, or advanced routing strategies based on your specific needs.

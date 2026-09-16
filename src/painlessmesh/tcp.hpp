@@ -160,7 +160,17 @@ void initServer(AsyncServer &server, M &mesh) {
           conn->initTasks();
           mesh.subs.push_back(conn);
           mesh.semaphoreGive();
+          return;
         }
+        // The mesh was busy for the whole second the semaphore allows. The
+        // stack has accepted the client already; left like this it is
+        // neither the mesh's nor closed, and the peer waits on a link that
+        // will never carry a node sync. Say so, and close it, so the peer
+        // tries again at once rather than after its own timeout.
+        Log(ERROR,
+            "New AP connection refused: mesh busy, closing it so the peer "
+            "retries\n");
+        client->close(true);
       },
       NULL);
   server.begin();

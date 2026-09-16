@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Mock HTTP Server for painlessMesh Bridge Testing
+HTTP test point for painlessMesh gateway testing
 
-This server provides a local endpoint for testing sendToInternet() functionality
-without requiring actual Internet connectivity. It simulates various HTTP responses,
-error conditions, and DNS resolution scenarios.
+This server is the controlled Internet destination that every layer of the
+gateway test suite can point at: the desktop Catch2 tests in CI, the
+simulation host, the hardware farm, and a developer's bench. It answers the
+way real services do -- including the ways real services get it wrong -- and
+it keeps a delivery ledger so a test can ask, independently of whatever HTTP
+status the gateway saw, whether the message actually arrived.
 
 Usage:
-    python3 server.py [--port PORT] [--host HOST]
+    python3 server.py [--port PORT] [--host HOST] [--log FILE]
 
 Environment Variables:
     MOCK_HTTP_PORT: Port to listen on (default: 8080)
@@ -19,24 +22,167 @@ Test Endpoints:
     GET/POST /status/{code}     - Return specific HTTP status code
     GET/POST /delay/{seconds}   - Respond after delay
     GET/POST /timeout           - Never respond (for timeout testing)
+    GET/POST /retry-after/{s}   - 429 with Retry-After: s the first time a tag
+                                  is seen, 200 afterwards
     GET/POST /echo              - Echo request details back
-    GET/POST /whatsapp          - Simulate Callmebot WhatsApp API
+    GET/POST /whatsapp          - Simple WhatsApp-style success response
+    GET      /callmebot/whatsapp.php
+                                - CallMeBot emulation, see PROFILES below
+    GET      /requests/{tag}    - Delivery ledger: what the service saw for a tag
     GET/POST /health            - Health check endpoint
     GET/POST /                  - Default success response
+
+Delivery ledger:
+    Every request is recorded under a tag: the ``tag`` query parameter, else
+    the ``X-HIL-Tag`` header, else (for the CallMeBot route) the message text.
+    ``GET /requests/{tag}`` returns the latest record for that tag, including a
+    ``delivered`` boolean that says whether the emulated service accepted the
+    message. A gateway test compares its own success verdict with that field.
+    ``count`` is how many requests arrived under the tag and ``request_ids``
+    the distinct X-Request-Id values they carried, so a test can tell one
+    request retried from one call issued several times.
+    The record shape is a superset of the Alteriom farm's gateway probe, so a
+    farm test can run against either server unchanged.
 """
 
 import argparse
 import json
 import os
 import sys
+import threading
 import time
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, urlparse
 
 
+# ---------------------------------------------------------------------------
+# CallMeBot emulation
+#
+# CallMeBot's WhatsApp API does not encode delivery in its HTTP status. Probed
+# on 2026-09-10 (painlessMesh issue #450):
+#   * a bogus phone/apikey answered HTTP 203 with an HTML "Oops! Too many
+#     requests" page -- nothing was delivered;
+#   * a request missing the apikey, or the phone, answered HTTP 201 with the
+#     same error page -- nothing was delivered either;
+#   * the reporter's bridge received HTTP 208, body unknown, because the
+#     gateway discarded response bodies; with the body read (#451) the same
+#     bridge printed the 208 as "sent" and the message still never arrived
+#     (issue #452). 208 is therefore a non-delivery whatever the body says.
+# The success text below is the one CallMeBot's own examples and every
+# published integration show for a queued message.
+#
+# The profile is selected by the ``apikey`` query parameter, so a test picks
+# the service behaviour it wants to face without any server-side state.
+# ``delivered`` is the ground truth the ledger reports for that request.
+# ---------------------------------------------------------------------------
+
+CALLMEBOT_QUEUED = (
+    "<p><b>Message queued.</b> You will receive it within a few seconds.</p>"
+)
+CALLMEBOT_TOO_MANY = (
+    "<h1>Oops! Too many requests...</h1>"
+    "<p>You have called to the API to often. Please review your script/code/app.</p>"
+)
+CALLMEBOT_ALREADY_REPORTED = (
+    "<p>HTTP 208 Already Reported</p>"
+    "<p>Seen from CallMeBot in painlessMesh #450 and #452; the message never arrived.</p>"
+)
+
+# The reply of issue #463, in shape: CallMeBot echoed the request -- the
+# recipient and the whole text -- and gave its verdict last. Longer than the
+# 512 + 256 bytes a gateway keeps of a body, with the verdict only in the
+# tail, so a gateway that keeps just the start hands the application the echo
+# and nothing that says why. The number is a placeholder; the reporter's real
+# one is public in that issue and is not repeated here.
+CALLMEBOT_PAUSED_AFTER_ECHO = (
+    "<p>371 Message to: +10000000000</p><p>Text to send: "
+    + "ALARM: O2 level critical at 5.4 mg/L! Node: 3394043125 " * 16
+    + "</p><p><b>Your Account is Paused</b> due to technical issues. Please send "
+    "the word 'resume' to the bot to re-enable the service.</p>"
+)
+
+CALLMEBOT_PROFILES = {
+    # Observed or documented behaviour.
+    "queued": {"status": 200, "body": CALLMEBOT_QUEUED, "delivered": True,
+               "note": "documented success"},
+    "ratelimit-203": {"status": 203, "body": CALLMEBOT_TOO_MANY, "delivered": False,
+                      "note": "observed 2026-09-10 for a bogus phone/apikey"},
+    "ratelimit-201": {"status": 201, "body": CALLMEBOT_TOO_MANY, "delivered": False,
+                      "note": "observed 2026-09-10 for a request missing apikey or phone"},
+    # The HTTP 208 of issues #450 and #452: answered four times to messages
+    # that never arrived. The body CallMeBot sends with it is still unknown;
+    # this one names the status so the reason a gateway forwards is legible.
+    "unverified-208": {"status": 208, "body": CALLMEBOT_ALREADY_REPORTED,
+                       "delivered": False,
+                       "note": "observed in #450/#452: never delivered, body unknown"},
+    # The same 208 under the friendliest body the service has. Undelivered
+    # all the same: a gateway that decides by the body's words instead of the
+    # status would report this one as sent, and this profile rejects it.
+    "queued-208": {"status": 208, "body": CALLMEBOT_QUEUED, "delivered": False,
+                   "note": "208 with the delivered profile's body: still not a delivery"},
+    # The real CallMeBot answers with Transfer-Encoding: chunked (hardware rig,
+    # 2026-09-15). Served as HTTP/1.1 in 16-byte chunks with no
+    # Content-Length, so a gateway that reads the raw stream sees the framing.
+    "queued-chunked": {"status": 200, "body": CALLMEBOT_QUEUED, "delivered": True,
+                       "chunked": True,
+                       "note": "the documented success, chunked as the real service sends it"},
+    # #463: HTTP 200, a long echo, and the refusal at the very end.
+    "paused-after-echo": {"status": 200, "body": CALLMEBOT_PAUSED_AFTER_ECHO, "delivered": False,
+                          "note": "observed in #463: a paused account, verdict after a long echo"},
+}
+
+
+class Ledger:
+    """Thread-safe record of every request the test point served."""
+
+    def __init__(self, path=None):
+        self.path = Path(path) if path else None
+        self.lock = threading.Lock()
+        self.latest = {}
+        self.counts = {}
+        self.request_ids = {}
+        self.first_seen = {}
+        self.count = 0
+
+    def append(self, record):
+        with self.lock:
+            self.count += 1
+            tag = record.get("tag")
+            if tag:
+                self.counts[tag] = self.counts.get(tag, 0) + 1
+                self.first_seen.setdefault(tag, time.time())
+                ids = self.request_ids.setdefault(tag, [])
+                if record.get("request_id") and record["request_id"] not in ids:
+                    ids.append(record["request_id"])
+                record["count"] = self.counts[tag]
+                record["request_ids"] = list(ids)
+                self.latest[tag] = record
+            if self.path is not None:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                with self.path.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(record, sort_keys=True) + "\n")
+
+    def get(self, tag):
+        with self.lock:
+            return self.latest.get(tag)
+
+    def seen(self, tag):
+        """How many requests arrived under tag, and when the first did"""
+        with self.lock:
+            return self.counts.get(tag, 0), self.first_seen.get(tag)
+
+
+ledger = Ledger()
+server_start_time = time.time()
+
+
 class MockHTTPHandler(BaseHTTPRequestHandler):
-    """HTTP request handler for mock server"""
+    """HTTP request handler for the test point"""
+
+    server_version = "painlessMesh-TestPoint/2"
 
     # Suppress default logging to reduce noise
     def log_message(self, format, *args):
@@ -44,24 +190,46 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         timestamp = self.log_date_time_string()
         print(f"[{timestamp}] {self.address_string()} - {format % args}")
 
-    def _send_response(self, status_code, content_type="application/json", body=None):
+    def _send_response(self, status_code, content_type="application/json", body=None,
+                       delivered=None, headers=None):
         """Send HTTP response with given status code and body"""
         self.send_response(status_code)
         self.send_header("Content-Type", content_type)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Server", "painlessMesh-MockServer/1.0")
-        
+        if delivered is not None:
+            # For humans reading a capture. Tests must use the ledger: a
+            # gateway that only forwards the status never sees this header.
+            self.send_header("X-TestPoint-Delivered", "true" if delivered else "false")
+
         if body is None:
             body = json.dumps({
                 "status": status_code,
                 "message": self.responses.get(status_code, ["Unknown"])[0],
                 "timestamp": time.time()
             })
-        
+
         body_bytes = body.encode("utf-8")
         self.send_header("Content-Length", str(len(body_bytes)))
         self.end_headers()
         self.wfile.write(body_bytes)
+
+    def _send_chunked(self, status_code, content_type, body, delivered, chunk_size=16):
+        """Answer as HTTP/1.1 with Transfer-Encoding: chunked, then close."""
+        self.protocol_version = "HTTP/1.1"
+        self.send_response(status_code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.send_header("Connection", "close")
+        self.send_header("X-TestPoint-Delivered", "true" if delivered else "false")
+        self.end_headers()
+        data = body.encode("utf-8")
+        for start in range(0, len(data), chunk_size):
+            piece = data[start:start + chunk_size]
+            self.wfile.write(b"%x\r\n" % len(piece) + piece + b"\r\n")
+        self.wfile.write(b"0\r\n\r\n")
+        self.close_connection = True
 
     def _parse_path(self):
         """Parse request path and query parameters"""
@@ -74,8 +242,37 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         """Read request body if present"""
         content_length = int(self.headers.get("Content-Length", 0))
         if content_length > 0:
-            return self.rfile.read(content_length).decode("utf-8")
+            return self.rfile.read(content_length).decode("utf-8", errors="replace")
         return ""
+
+    def _tag(self, query_params, extra=None):
+        """The ledger tag of the request being served"""
+        tag = query_params.get("tag", [self.headers.get("X-HIL-Tag", "")])[0]
+        if not tag and extra and extra.get("text"):
+            tag = extra["text"]
+        return tag
+
+    def _record(self, method, query_params, body, status, delivered, extra=None):
+        """Write one ledger entry for the request being served"""
+        parsed = urlparse(self.path)
+        tag = self._tag(query_params, extra)
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "method": method,
+            "path": parsed.path,
+            "tag": tag,
+            "body": body or "",
+            "client": self.client_address[0],
+            "status": status,
+            "delivered": bool(delivered),
+            # painlessMesh gateways send one id for every attempt at a call
+            "request_id": self.headers.get("X-Request-Id", ""),
+            "idempotency_key": self.headers.get("Idempotency-Key", ""),
+        }
+        if extra:
+            record.update(extra)
+        ledger.append(record)
+        return record
 
     def do_GET(self):
         """Handle GET requests"""
@@ -90,7 +287,8 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers",
+                         "Content-Type, X-HIL-Tag, X-Request-Id, Idempotency-Key")
         self.end_headers()
 
     def _handle_request(self, method):
@@ -105,82 +303,137 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
 
         # Route to appropriate handler
         if not path_parts or path_parts[0] == "":
-            self._handle_default()
+            self._handle_default(method, query_params, body)
         elif path_parts[0] == "status" and len(path_parts) > 1:
-            self._handle_status(path_parts[1])
+            self._handle_status(path_parts[1], method, query_params, body)
         elif path_parts[0] == "delay" and len(path_parts) > 1:
-            self._handle_delay(path_parts[1])
+            self._handle_delay(path_parts[1], method, query_params, body)
         elif path_parts[0] == "timeout":
-            self._handle_timeout()
+            self._handle_timeout(method, query_params, body)
+        elif path_parts[0] == "retry-after" and len(path_parts) > 1:
+            self._handle_retry_after(path_parts[1], method, query_params, body)
         elif path_parts[0] == "echo":
             self._handle_echo(method, query_params, body)
         elif path_parts[0] == "whatsapp":
-            self._handle_whatsapp(query_params)
+            self._handle_whatsapp(method, query_params, body)
+        elif path_parts[0] == "callmebot":
+            self._handle_callmebot(method, path_parts[1:], query_params)
+        elif path_parts[0] == "requests":
+            self._handle_requests(path_parts[1:])
         elif path_parts[0] == "health":
             self._handle_health()
         else:
             self._handle_not_found()
 
-    def _handle_default(self):
+    def _handle_default(self, method, query_params, body):
         """Handle default endpoint"""
         status = int(os.getenv("MOCK_HTTP_STATUS", "200"))
+        self._record(method, query_params, body, status, 200 <= status < 300)
         response = {
-            "message": "painlessMesh Mock HTTP Server",
+            "message": "painlessMesh HTTP test point",
             "status": "ok",
             "timestamp": time.time()
         }
         self._send_response(status, body=json.dumps(response))
 
-    def _handle_status(self, code_str):
+    def _handle_status(self, code_str, method, query_params, body):
         """Handle /status/{code} endpoint"""
         try:
             status_code = int(code_str)
             if status_code < 100 or status_code > 599:
                 raise ValueError("Invalid status code")
-            
+
+            delivered = 200 <= status_code < 300
+            record = self._record(method, query_params, body, status_code, delivered)
             response = {
+                "ok": delivered,
                 "requested_status": status_code,
                 "message": f"Mock response with status {status_code}",
+                "request": record,
                 "timestamp": time.time()
             }
-            self._send_response(status_code, body=json.dumps(response))
+            self._send_response(status_code, body=json.dumps(response), delivered=delivered)
         except ValueError:
             self._send_response(400, body=json.dumps({
                 "error": "Invalid status code",
                 "provided": code_str
             }))
 
-    def _handle_delay(self, delay_str):
+    def _handle_delay(self, delay_str, method, query_params, body):
         """Handle /delay/{seconds} endpoint"""
         try:
             delay = float(delay_str)
             if delay < 0 or delay > 300:  # Max 5 minutes
                 raise ValueError("Delay out of range")
-            
+
+            # Recorded before the stall, so /requests/{tag} proves the gateway
+            # issued the request even when it gives up before the reply lands.
+            self._record(method, query_params, body, 200, True)
             time.sleep(delay)
             response = {
+                "ok": True,
                 "message": f"Response delayed by {delay} seconds",
                 "delay": delay,
                 "timestamp": time.time()
             }
-            self._send_response(200, body=json.dumps(response))
+            self._send_response(200, body=json.dumps(response), delivered=True)
         except ValueError as e:
             self._send_response(400, body=json.dumps({
                 "error": f"Invalid delay: {e}",
                 "provided": delay_str
             }))
 
-    def _handle_timeout(self):
+    def _handle_timeout(self, method, query_params, body):
         """Handle /timeout endpoint - never responds"""
-        # Simply wait indefinitely - client will timeout
-        print(f"[INFO] Timeout endpoint called - hanging connection")
+        self._record(method, query_params, body, 0, False)
+        print("[INFO] Timeout endpoint called - hanging connection")
+        # Nothing to catch: the client gives up long before this returns, and
+        # time.sleep() has retried on signal interruption since Python 3.5, so
+        # the only way out of it is the sleep expiring.
+        time.sleep(3600)  # 1 hour - client will timeout first
+
+    def _handle_retry_after(self, seconds_str, method, query_params, body):
+        """Handle /retry-after/{seconds} - refuse once, then accept
+
+        The first request under a tag gets 429 Too Many Requests with
+        Retry-After; every later one gets 200 and is delivered. The record of
+        a later request says how long after the first it came (``waited_s``)
+        and whether that was sooner than the server asked (``early``). A tag
+        is required: without one there is nothing to remember the refusal by.
+        """
         try:
-            time.sleep(3600)  # 1 hour - client will timeout first
-        except:
-            pass
+            seconds = int(seconds_str)
+            if seconds < 0 or seconds > 3600:
+                raise ValueError("Retry-After out of range")
+        except ValueError:
+            self._send_response(400, body=json.dumps({
+                "error": "Invalid Retry-After seconds", "provided": seconds_str}))
+            return
+        tag = self._tag(query_params)
+        if not tag:
+            self._send_response(400, body=json.dumps({
+                "error": "/retry-after needs a tag (query parameter or X-HIL-Tag)"}))
+            return
+
+        seen, first = ledger.seen(tag)
+        if seen == 0:
+            self._record(method, query_params, body, 429, False,
+                         {"retry_after_s": seconds})
+            self._send_response(429, body=json.dumps({
+                "ok": False, "error": "Too Many Requests", "retry_after_s": seconds}),
+                delivered=False, headers={"Retry-After": str(seconds)})
+            return
+
+        waited = time.time() - first
+        self._record(method, query_params, body, 200, True,
+                     {"retry_after_s": seconds, "waited_s": round(waited, 3),
+                      "early": waited < seconds})
+        self._send_response(200, body=json.dumps({
+            "ok": True, "waited_s": round(waited, 3)}), delivered=True)
 
     def _handle_echo(self, method, query_params, body):
         """Handle /echo endpoint - echo request details"""
+        self._record(method, query_params, body, 200, True)
         response = {
             "method": method,
             "path": self.path,
@@ -190,40 +443,89 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
             "client": self.client_address[0],
             "timestamp": time.time()
         }
-        self._send_response(200, body=json.dumps(response, indent=2))
+        self._send_response(200, body=json.dumps(response, indent=2), delivered=True)
 
-    def _handle_whatsapp(self, query_params):
-        """Handle /whatsapp endpoint - simulate Callmebot WhatsApp API"""
-        # Validate required parameters
+    def _handle_whatsapp(self, method, query_params, body):
+        """Handle /whatsapp endpoint - a well-behaved WhatsApp-style API"""
         phone = query_params.get("phone", [None])[0]
         apikey = query_params.get("apikey", [None])[0]
         text = query_params.get("text", [None])[0]
 
         if not phone or not apikey or not text:
+            self._record(method, query_params, body, 400, False)
             response = {
                 "error": "Missing required parameters",
                 "required": ["phone", "apikey", "text"],
                 "provided": list(query_params.keys())
             }
-            self._send_response(400, body=json.dumps(response))
+            self._send_response(400, body=json.dumps(response), delivered=False)
             return
 
-        # Simulate successful WhatsApp API response
+        self._record(method, query_params, body, 200, True, {"text": text})
         response = {
             "message": "WhatsApp message queued successfully",
             "phone": phone,
             "text": text[:50] + "..." if len(text) > 50 else text,
             "timestamp": time.time()
         }
-        self._send_response(200, body=json.dumps(response))
+        self._send_response(200, body=json.dumps(response), delivered=True)
+
+    def _handle_callmebot(self, method, subpath, query_params):
+        """Handle /callmebot/whatsapp.php - emulate CallMeBot, profile by apikey"""
+        if subpath != ["whatsapp.php"] or method != "GET":
+            self._send_response(404, body=json.dumps({
+                "error": "CallMeBot emulation serves GET /callmebot/whatsapp.php only",
+                "profiles": sorted(CALLMEBOT_PROFILES),
+            }))
+            return
+
+        phone = query_params.get("phone", [None])[0]
+        apikey = query_params.get("apikey", [None])[0]
+        text = query_params.get("text", [None])[0]
+        profile = CALLMEBOT_PROFILES.get(apikey or "")
+
+        if profile is None or not phone or not text:
+            # A typo in a test must fail loudly, not look like a service quirk.
+            self._record(method, query_params, None, 400, False,
+                         {"text": text or "", "profile": apikey or ""})
+            self._send_response(400, body=json.dumps({
+                "error": "unknown CallMeBot profile or missing phone/text",
+                "apikey": apikey,
+                "profiles": {k: v["note"] for k, v in CALLMEBOT_PROFILES.items()},
+            }), delivered=False)
+            return
+
+        self._record(method, query_params, None, profile["status"], profile["delivered"],
+                     {"text": text, "profile": apikey, "response": profile["body"]})
+        if profile.get("chunked"):
+            self._send_chunked(profile["status"], "text/html; charset=utf-8", profile["body"],
+                               profile["delivered"])
+            return
+        self._send_response(profile["status"], content_type="text/html; charset=utf-8",
+                            body=profile["body"], delivered=profile["delivered"])
+
+    def _handle_requests(self, subpath):
+        """Handle /requests/{tag} - read the delivery ledger"""
+        tag = "/".join(subpath)
+        record = ledger.get(tag) if tag else None
+        if record is None:
+            self._send_response(404, body=json.dumps({"error": "not found", "tag": tag}))
+            return
+        self._send_response(200, body=json.dumps(record, sort_keys=True))
 
     def _handle_health(self):
         """Handle /health endpoint"""
         response = {
             "status": "healthy",
-            "server": "painlessMesh-MockServer",
-            "version": "1.0.0",
+            "ok": True,
+            "server": "painlessMesh-TestPoint",
+            "version": "2.0.0",
             "uptime": time.time() - server_start_time,
+            "requests_seen": ledger.count,
+            # Named the way the Alteriom farm's gateway probe names them, so a
+            # row that asks for a feature runs against either server.
+            "features": ["ledger.count", "ledger.request_ids", "retry_after",
+                         "callmebot.paused_after_echo", "callmebot.chunked"],
             "timestamp": time.time()
         }
         self._send_response(200, body=json.dumps(response))
@@ -238,8 +540,11 @@ class MockHTTPHandler(BaseHTTPRequestHandler):
                 "/status/{code}",
                 "/delay/{seconds}",
                 "/timeout",
+                "/retry-after/{seconds}",
                 "/echo",
                 "/whatsapp",
+                "/callmebot/whatsapp.php",
+                "/requests/{tag}",
                 "/health"
             ]
         }
@@ -254,11 +559,11 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 def main():
     """Main entry point"""
-    global server_start_time
+    global ledger, server_start_time
     server_start_time = time.time()
 
     parser = argparse.ArgumentParser(
-        description="Mock HTTP Server for painlessMesh Bridge Testing"
+        description="HTTP test point for painlessMesh gateway testing"
     )
     parser.add_argument(
         "--port",
@@ -271,24 +576,38 @@ def main():
         default=os.getenv("MOCK_HTTP_HOST", "0.0.0.0"),
         help="Host to bind to (default: 0.0.0.0)"
     )
+    parser.add_argument(
+        "--log",
+        default=os.getenv("MOCK_HTTP_LOG", ""),
+        help="Append every ledger record as JSON lines to this file (default: memory only)"
+    )
     args = parser.parse_args()
 
+    ledger = Ledger(args.log or None)
     server = ThreadedHTTPServer((args.host, args.port), MockHTTPHandler)
-    
+
     print("=" * 60)
-    print("painlessMesh Mock HTTP Server")
+    print("painlessMesh HTTP test point")
     print("=" * 60)
     print(f"Listening on: http://{args.host}:{args.port}")
     print(f"Start time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    if args.log:
+        print(f"Ledger log: {args.log}")
     print()
     print("Available endpoints:")
-    print("  GET/POST /                  - Default success response")
-    print("  GET/POST /status/{code}     - Return specific HTTP status")
-    print("  GET/POST /delay/{seconds}   - Delayed response")
-    print("  GET/POST /timeout           - Never responds (timeout test)")
-    print("  GET/POST /echo              - Echo request details")
-    print("  GET/POST /whatsapp          - Simulate Callmebot API")
-    print("  GET/POST /health            - Health check")
+    print("  GET/POST /                        - Default success response")
+    print("  GET/POST /status/{code}           - Return specific HTTP status")
+    print("  GET/POST /delay/{seconds}         - Delayed response")
+    print("  GET/POST /timeout                 - Never responds (timeout test)")
+    print("  GET/POST /echo                    - Echo request details")
+    print("  GET/POST /whatsapp                - Well-behaved WhatsApp-style API")
+    print("  GET      /callmebot/whatsapp.php  - CallMeBot emulation (apikey = profile)")
+    print("  GET      /requests/{tag}          - Delivery ledger")
+    print("  GET/POST /health                  - Health check")
+    print()
+    print("CallMeBot profiles:")
+    for name, profile in CALLMEBOT_PROFILES.items():
+        print(f"  {name:14s} HTTP {profile['status']}  delivered={profile['delivered']!s:5}  {profile['note']}")
     print()
     print("Press Ctrl+C to stop")
     print("=" * 60)

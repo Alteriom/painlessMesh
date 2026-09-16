@@ -7,6 +7,815 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-15
+
+`sendToInternet()` you can build a notifier on (#463). One user's WhatsApp
+alerts through CallMeBot kept failing, and the hardware rig showed why in the
+library: a request whose reply was slow was sent again -- one call reached the
+server four times --, a long reply was cut before the service said what it did,
+and a chunked reply reached the application with its transfer framing. 2.1.0
+issues each request once, retries only what cannot arrive twice, honours
+Retry-After, gives every attempt one request id, and hands the application the
+whole result: status, the service's own words, whether a resend is safe, and
+how many attempts it took. **Upgrade if a node of yours sends to the
+Internet.**
+
+**One behaviour change to read before upgrading:** the library no longer
+decides from a reply's words whether a service did what you asked. A CallMeBot
+"Too many requests" page under HTTP 201 is `success == true`, as HTTP says;
+read the reply in your sketch with the new result callback, as
+`examples/sendToInternet/callmebot.h` does. Wire-compatible with 2.0 nodes: the
+new ack and request fields are optional and ignored by older nodes. Validated
+on the six-family hardware rig, including a real WhatsApp delivered through
+the mesh and a real CallMeBot refusal reaching the application intact.
+
+### Changed
+
+- **`sendToInternet()` no longer retries a request the server may already
+  have.** A read timeout or a connection lost after the request was sent used
+  to count as a "network error" and was retried up to three times; on the
+  hardware rig one timed-out send reached the server four times, which for a
+  message service is four messages, or one message and three refusals. The
+  gateway now tells the origin node whether the identical request may be sent
+  again (`GatewayAckPackage::retryable`, JSON `"retry"`), and says yes only
+  when it cannot have arrived -- connection refused, a failure before the
+  request went out -- or when the server said it did not take it: HTTP 429 and
+  503. A 500, 502 or 504 is no longer retried. The error of a transport
+  failure that was not retried ends "(the request may have reached the
+  server; not retried)", and resending is the application's decision.
+  Acks from gateways that predate the field keep their old reading, except
+  that a 2xx is never retried.
+- **The library no longer judges a response body.** 2.0.3 matched
+  CallMeBot's "Too many requests" page inside the gateway and reported that
+  HTTP 201 as a failure. Whether a reply means what an application wanted is
+  that service's language, not HTTP's, so the gateway now applies HTTP's
+  meaning of the status (200, 201, 202 and 204 succeed; 203, 205-299 are
+  unverified failures) and carries the body to the application instead. **A
+  CallMeBot rate-limit refusal under HTTP 201 is therefore `success == true`
+  again at the library level.** The sendToInternet example reads CallMeBot's
+  reply itself (`examples/sendToInternet/callmebot.h`); a sketch that relied
+  on 2.0.3's check should do the same with the new result callback.
+
+### Added
+
+- **`sendToInternet()` with an `InternetResult` callback.** Besides
+  `success`, `httpStatus` and `error`, the result carries `response` -- the
+  start of the response body as one line, on success as well as failure --
+  `retryable`, `attempts` and `messageId`. The three-argument callback is
+  unchanged. The response travels in the ack as `"resp"` and the error
+  excerpt keeps the end of a long body as well as its start, so a verdict
+  after an echo of the request survives (#463): the gateway keeps the first
+  512 and the last 256 bytes of a body, not only its start, and removes
+  chunked transfer framing -- CallMeBot answers chunked, and its reply reached
+  the application as "a6 ... Message queued ... 0". `PAINLESSMESH_HAS_INTERNET_RESULT`
+  is defined, so code that also builds against older releases can `#ifdef` it.
+- **Retry-After.** A 429 or 503 retry waits at least as long as the server's
+  `Retry-After` (delay-seconds); a server that asks for more than 60 s gets no
+  automatic retry, and the error says when it wants the request back. The
+  request's timeout moves with the wait, so the invited retry is not timed
+  out first.
+- **Request ids.** Every attempt at one call carries the same `X-Request-Id`
+  and `Idempotency-Key` header (`pm-<origin>-<messageId>-<nonce>`), so a
+  service that honours idempotency keys drops a copy and a log can count
+  retries. The nonce is drawn per call and travels in the request (`"nonce"`),
+  so ids stay unique after the 16-bit message-id counter wraps; a request from
+  an older node keeps `pm-<origin>-<messageId>`.
+  Message ids now start at a random point each boot, so the first request
+  after a reboot does not reuse the key of the boot before.
+- **Test point:** the ledger counts requests per tag and records their
+  request ids, and `/retry-after/{seconds}` refuses a tag once with 429 and
+  `Retry-After`, then accepts it and records whether the retry came early.
+- **sendToInternet example:** alerts once per O2 episode and at most every
+  10 minutes, backs off 15 minutes after a CallMeBot refusal, tags the
+  startup message per boot, URL-encodes the phone number, and no longer
+  prints the API key. `callmebot.h` names CallMeBot's "APIKey is invalid"
+  reply (seen from the hardware rig) instead of calling it unrecognised.
+
+### Fixed
+
+- **A gateway's own request completed inside its HTTP handler.** A bridge or
+  shared gateway serving its own `sendToInternet()` delivered the result from
+  inside the gateway handler, while its `HTTPClient`, `WiFiClient` and response
+  buffers were still allocated; on an ESP8266 with ~11 KB free the
+  application's callback could not allocate what it built (hardware rig). The
+  local acknowledgment now completes from the scheduler, after the handler has
+  freed.
+- **`InternetResult::attempts` and `retryable` describe what was sent.**
+  `attempts` counts only a request that left the node, and a request that
+  never did -- refused for want of a mesh or a gateway, or whose every routing
+  attempt failed -- is reported safe to resend.
+
+- **`SentBuffer::requestLength(0)` answered 1, not 0.** `buffer_length - 1`
+  leaves room for the terminator `toCharArray()` always writes; on an
+  unsigned zero it wraps to `SIZE_MAX`, `min()` then picks the message, and
+  a caller with no room at all is told one byte is available -- which the
+  method's own contract forbids ("<= the requested length") and `read()`
+  acts on, writing `length + 1` bytes. Found because the randomised buffer
+  scenario draws its length from `runif(0, ...)`: it asked for zero about
+  once in sixty runs and failed CI on pull requests nowhere near the buffer.
+
+- **A node that lost its last connection waited 15 s before it scanned**
+  (#459). `connectToAP()` logs "scan rate set to fast" and sets a
+  `0.5 * SCAN_INTERVAL` period -- fifteen seconds, and the shortest of a set
+  of long ones; "slow" is four intervals. For a node that still has a live
+  connection that is soon enough. For one with none it is the whole cost of
+  the outage, and it is paid while its neighbours still route to it until
+  their own `NODE_TIMEOUT`, so unicasts addressed to it are accepted by the
+  sender and dropped. Caught on the hardware rig: an ESP32-C3 closed its only
+  uplink on a momentary nodeSync contradiction, logged the "fast" line 12 ms
+  later, and did not scan for exactly 15 000 ms -- 16.2 s out of the mesh,
+  answering an empty node list, while the scan that eventually ran found five
+  mesh APs at -30 to -58 dBm and associated 1.2 s later. A node with no live
+  connections now scans at once, once per outage (`layout::liveSubs()` is the
+  test, and a node that is simply alone falls back to the interval rather
+  than scanning back to back).
+
+## [2.0.3] - 2026-09-11
+
+`sendToInternet()` fixes from one user's WhatsApp integration (#450, #452,
+#453), and one the hardware rig found while validating them. **Upgrade if a
+node of yours is a bridge or relays to the Internet**: on 2.0.2 a bridge's own
+sends were refused for 30 s after boot, a service that answered a refusal with
+HTTP 201 was reported as delivered, a destination that does not resolve
+stalled an ESP32 gateway on every attempt, and a bridge that rebooted as a
+regular node swallowed every request its peers still sent it. Every fix was
+reproduced first -- against the new HTTP test point, which CI now runs, or
+over real TCP on the desktop -- and is covered by a row on the hardware farm.
+
+### Fixed
+
+- **A bridge's own `sendToInternet()` was refused for the first 30 s after
+  `initAsBridge()`** (#450). The Internet health check is armed one line after
+  `stationManual()` re-issues `WiFi.begin()`, so its first probe ran while the
+  station was still associating and failed, and the next was a full interval
+  away. Every send from the bridge in that window fell through to the mesh
+  path and was refused with "No active mesh connections" -- #445 again, with
+  a 30 s hole instead of forever. `sendToInternet()` and the retry path now
+  spend one on-demand probe per interval when the flag says no, and the
+  station's got-IP event re-probes at once on a bridge or shared gateway.
+- **A gateway reported a refusal as delivered, and every failure as a bare
+  number** (#450, #452). The gateway decided on the HTTP status alone and
+  discarded the response body. CallMeBot's WhatsApp API answers "Too many
+  requests" with HTTP 201 and HTTP 203, the same page under both, so a refused
+  message sent through a gateway on 2.0.2 could be reported as delivered; and
+  it answers HTTP 208 to messages it never delivers, which 2.0.2 reported as
+  "Ambiguous response" with nothing to say why. The gateway now reads the
+  start of the body (bounded to 512 bytes and 250 ms). Only 200, 201, 202 and
+  204 count as delivered, and not when the body says the service refused the
+  request; every other 2xx is a failure. Every failure reaches the origin
+  node's callback with a one-line, tag-free excerpt of the body -- for example
+  `HTTP 201: service refused the request: Oops! Too many requests...` or
+  `HTTP 208: not a delivery the gateway can confirm: ...` -- and is logged at
+  ERROR level, so a sketch on the default log levels sees what the service
+  said.
+- **A destination whose name does not resolve stalled an ESP32 gateway on
+  every attempt** (#453). A failed lookup surfaced as `connection refused`
+  after the resolver's own patience, which this library cannot bound on ESP32,
+  and every attempt -- the origin node's retries and, since the bridge fix
+  above, the bridge's own sends -- paid it again, until relayed requests timed
+  out on their origin nodes. An ESP32 gateway now resolves the host once,
+  reports `DNS lookup failed for <host>`, and refuses that host for 60 s
+  without another lookup. ESP8266 is unchanged: its core bounds the lookup by
+  the HTTP timeout. The gateway blocking budget is unchanged.
+- **A bridge that rebooted as a regular node swallowed every Internet request
+  routed to it.** Found on the hardware rig while validating this release. A
+  bridge that reboots, crashes, loses power or is reflashed announces nothing
+  -- only a bridge stepping down in-process sends `leaving` -- so its peers
+  kept it in their bridge list for the 60 s they trust a status, and could
+  prefer it over a live bridge on RSSI. A regular node had no handler for
+  gateway requests and dropped them without a reply; each sender waited out
+  its 30 s request timeout and reported "Request timed out". Every node now
+  answers a gateway request it cannot serve with
+  `Node <id> is not an Internet gateway`; the sender forgets that node as a
+  gateway and sends again at once through the next one, without spending a
+  retry. When it knows no other gateway, the request rides the ordinary retry
+  backoff -- on the rig the live bridge was advertised half a second later --
+  and fails with `No Internet gateway available: ...` only when none appears.
+- **Mismatched log format arguments in `routePackage()`** (CodeQL
+  `cpp/wrong-type-format-argument`). A message that failed to parse was logged
+  with its `size_t` lengths through `%d`/`%u` -- the wrong width on 64-bit
+  hosts -- and with its `DeserializationError` object passed through `%u`,
+  undefined behaviour on every platform, in the ArduinoJson 7 path every
+  current build compiles as well as the legacy one CodeQL flagged.
+
+### Changed
+
+- **The mock HTTP server is now the gateway test point.** It keeps a delivery
+  ledger (`GET /requests/{tag}`) and emulates CallMeBot's status quirks
+  (`GET /callmebot/whatsapp.php`, profile chosen by `apikey`). The desktop CI
+  job starts it and `PAINLESSMESH_TESTPOINT` points the suite at it, so the
+  library's delivery verdict is checked against what the service actually did,
+  not against a table of status codes. The Alteriom farm's gateway probe serves
+  the same routes.
+- **`Mesh::sendGatewayAck()` is public and portable.** It moved from the ESP
+  gateway code into `painlessmesh::Mesh`, because every node now needs it to
+  answer a request it cannot serve.
+- **`Log()` is format-checked in the desktop build.** The test build marks it
+  printf-like, so CI's `-Wall -Werror` rejects an argument that does not match
+  its specifier. Device builds are unchanged: on ESP-IDF 5 `uint32_t` is
+  `unsigned long`, and every `%u` of a node id would warn there.
+- **`sendToInternet` example.** The startup WhatsApp retries every 30 s until
+  a gateway with Internet is known instead of firing once before a regular
+  node has joined, and the cloud endpoint moved to a `CLOUD_URL` define whose
+  placeholder is skipped with a message rather than reported as
+  `connection refused`.
+
+## [2.0.2] - 2026-09-08
+
+Two gateway defects that reached users on 2.0.1, both in code the desktop test
+suite cannot compile, and both now asserted on real hardware. **Upgrade if a
+node of yours is a bridge**: on 2.0.1 a bridge could not use its own uplink at
+all, and any request that failed below HTTP was reported to the origin node as
+`HTTP 65535`.
+
+### Fixed
+
+- **A bridge could not reach the Internet through its own uplink** (#445).
+  `sendToInternet()` serves a request locally only when `hasLocalInternet()` is
+  true. That flag is set by the Internet health checker, and `initAsBridge()`
+  never started it — only `initAsSharedGateway()` did — so on a bridge it was
+  false for the life of the node. Every request the bridge itself made fell
+  through to the mesh-routing path and failed with *"No active mesh
+  connections"* whenever no peer had joined yet, which is exactly what a
+  single-node sketch does at start-up. `initAsBridge()` now starts the checker,
+  without touching a `setInternetCheckTarget()` the sketch made before `init()`.
+
+- **A request that never reached a server was reported as `HTTP 65535`** (#446).
+  `HTTPClient` returns an `int`: positive is an HTTP status, negative is one of
+  its own transport errors (`-1` refused, `-11` read timeout). The gateway
+  stored that in a `uint16_t`, so `-1` wrapped to 65535 — a value that passes
+  `httpCode > 0`. Three things followed: the origin node was told "HTTP 65535",
+  the `errorToString()` branch was unreachable, and `handleGatewayAck()` filed a
+  retryable network failure as a permanent HTTP status. A transport failure now
+  arrives as `httpStatus 0` with the real reason in the error string, which is
+  what the origin node already treats as retryable.
+
+- **A lone gateway consumed its retries without issuing a single request.**
+  `retryInternetRequest()` knew only the remote path: it required an active mesh
+  connection and then routed to a discovered bridge, so a gateway serving its
+  own request satisfied neither check and reported *"Max retries exceeded"* in
+  place of the transport error that actually happened — the same dishonest
+  failure as #446, one layer up. A retry whose gateway is this node now goes
+  back to the local handler.
+
+### Changed
+
+- The HTTP result classification moved into `gateway::classifyHttpResult()`, so
+  the desktop test suite exercises the same function `wifi.hpp` calls. The
+  previous test duplicated the classification — and duplicated the `uint16_t`
+  with it, which is why it mirrored #446 instead of catching it.
+
+### Validated
+
+Both fixes are asserted on the ESP32 farm, not only in desktop tests: a bridge
+must report Internet on its own uplink, must relay its own request through it,
+must do so with **no mesh peer at all**, and must return `httpStatus 0` with a
+real reason for a refused port, an unresolvable host and a destination that
+answers past the timeout. Those rows did not exist when 2.0.1 shipped — the
+gateway suite passed on the run that carried both bugs.
+
+
+## [2.0.1] - 2026-09-07
+
+A packaging and documentation release. **No library behaviour changed**: the
+mesh, routing, gateway, failover and OTA code of 2.0.1 is 2.0.0's, and the only
+edit under `src/` is the version macro. It exists to repair two defects in what
+2.0.0 *shipped*, both of which cost a user time before they ever compile
+anything.
+
+### Fixed
+
+- **The installation instructions shipped in 2.0.0 name a PlatformIO package
+  that has no 2.0.0.** The README, user guide and documentation site gave
+  `alteriom/AlteriomPainlessMesh`, and that registry owner stops at 1.10.0 — its
+  account is not one this project can publish from. Every automated release
+  since 1.7.6 went out under `sparck75`, which is now what the documentation
+  names. **Name the owner in `lib_deps`**: the bare name `AlteriomPainlessMesh`
+  matches both owners and PlatformIO warns rather than choosing.
+
+  ```ini
+  lib_deps =
+      sparck75/AlteriomPainlessMesh@^2.0.0
+  ```
+
+- **The v2.0.0 GitHub release carries no library archive.** This repository
+  publishes immutable releases, so the workflow's upload step — which ran after
+  the release was created — was refused with HTTP 422. The job failed before its
+  release decision, which also skipped the npm, GitHub Packages and PlatformIO
+  jobs; those three were published by hand. The archive is now attached in the
+  same call that creates the release, and the decision to publish is taken
+  before any step that can fail, so a failed upload can no longer suppress the
+  publications.
+
+- **PlatformIO publication went under the token's account rather than the
+  organisation.** `pio pkg publish` files a package under the account unless
+  `--owner` names the owner, and the workflow never passed it — which is how the
+  duplicate ownership above arose in the first place. It now passes `--owner`,
+  checks the version against that owner's own version table (the previous check
+  read a `Version:` line `pio pkg show` never prints), publishes the release
+  tag's sources rather than whichever branch was dispatched, and treats an
+  already-listed version as success instead of a failure.
+
+- **`scripts/validate-release.sh` reported a version mismatch that was not
+  there.** Without `jq` it fell back to a grep that matches every `"version"`
+  line in `library.json`, dependencies included, so the value it compared was
+  multi-line. It takes the first match now — the top-level one. CI was never
+  affected; it has `jq`.
+
+### Upgrading
+
+Nothing in the library behaves differently, so upgrading from 2.0.0 is optional.
+Take it if you install through PlatformIO, or if you want the release archive
+attached to the GitHub release. Everything in the 2.0.0 entry below still
+applies, including its *Before you upgrade* section.
+
+## [2.0.0] - 2026-09-07
+
+painlessMesh 2.0 is a major release. It adds per-message delivery
+confirmation and a unified send path, and it is the first release whose
+gateway, failover, routing and radio behaviour was validated on hardware:
+every entry in the *hardware-validated series* below was found in the serial
+logs of the Alteriom HIL rig — an ESP32, ESP32-C3, ESP32-C5, ESP32-C6,
+ESP32-S3 and ESP8266 in one mesh, with a real router and upstream — and
+confirmed there. The release candidate passed the rig's whole suite (26
+scenarios: mesh formation, delivery and acknowledgement, priorities,
+dedicated and shared gateways, Internet relay, gateway failover, mesh OTA,
+sustained soak) three times in a row, 25 passed and 1 skipped per run; the
+skip is the power-cut scenario, which needs per-port USB power the rig does
+not have.
+
+### Before you upgrade
+
+**Wire protocol.** 2.0 adds to the protocol; it does not change what 1.x
+nodes already send. A 1.x node forwards what it does not understand and
+ignores fields it does not know, so a mixed fleet keeps working, but the
+new behaviour only holds end-to-end once every node on the path runs 2.0:
+
+- `MESSAGE_ACK` (type 630) — the acknowledgement a 2.0 receiver returns for
+  a message sent with a delivery callback. A 1.x receiver never sends one,
+  so the sender's callback reports `delivered = false` for it.
+- `msgId` on `SINGLE` and `BROADCAST`, only when a callback was requested.
+- `prio` on `SINGLE` and `BROADCAST`, only when it differs from normal; a
+  1.x forwarder ignores it and forwards at normal priority.
+- `routerChannel` on `BRIDGE_ELECTION` and `BRIDGE_TAKEOVER`, so peers
+  follow an elected bridge to its channel at once; a peer that misses it
+  still recovers by scanning.
+- `leaving: true` on `BRIDGE_STATUS` when a bridge stops cleanly
+  (`mesh.stop()`), so candidates hold their election within seconds instead
+  of waiting for the bridge's last status to age out.
+
+**Upgrade receivers and forwarders before the senders that will rely on
+delivery callbacks or priorities**, and only read `delivered = false` as a
+loss signal once the whole mesh runs 2.0.
+
+**Defaults that changed.**
+
+- `GATEWAY_HTTP_TIMEOUT_MS` was a hardcoded 30 s; it is now derived from
+  `NODE_TIMEOUT` (2000 ms at the stock 10 s watchdog), the captive-portal
+  probe is bounded by `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS` (1000 ms) and cached
+  for 60 s, and the DNS probe by `GATEWAY_DNS_TIMEOUT_MS`. A gateway that
+  needs longer must raise `NODE_TIMEOUT` with it; a `static_assert` says so.
+- A node that finds no mesh re-detects the channel after 2 empty scans
+  (about 30 s) instead of 6 (90 s).
+- The Arduino core's station auto-reconnect is off for the mesh link on
+  every core; the library reconnects by its own scan rules. A bridge's
+  router link keeps the core's auto-reconnect.
+- On ESP8266 the library checks free heap every 30 s and logs an `ERROR`
+  below 12 KB with more than one child attached; see the ESP8266 entry.
+
+**Arduino cores.** The ESP32 Arduino core 2.0.x and 3.x are both supported;
+the ESP32-C5 and ESP32-C6 need 3.x. Core 3.x dispatches Wi-Fi events under a
+lock that forbids reconfiguring the radio from inside a callback; 2.0
+processes scan results from the loop for that reason (see the ESP32 entry).
+
+### Added (hardware-validated series)
+
+- **`LogClass::setSink()`** (#427) — a sketch whose serial port carries a
+  line protocol can take the library's log lines through a callback and
+  frame them itself, instead of having them printed from the Wi-Fi event
+  task into the middle of its own output.
+- **`overCapacity()` and `apChildren()`** (#432) — whether an ESP8266 is
+  below 12 KB free with more than one child attached, and how many children
+  are attached, for sketches that want to warn or shed load.
+- **`setContainsRoot()`** is now what a mesh that contains a bridge should
+  set on every node: it lets a node that is connected to a partition the
+  bridge has left notice it has no root and go looking for the bridge's
+  channel (#427). `initAsBridge()` and the failover path set it.
+
+### Fixed — gateway and failover (hardware-validated series)
+
+- **Gateway takeover left the mesh partitioned on the old radio channel
+  (#424)** — a failover candidate correctly moved its AP+STA radio to the
+  Internet router's channel after election, but peers learned only that a
+  takeover occurred, not which channel to follow. They remained disconnected
+  until the slow all-channel recovery scan, exceeding the failover deadline
+  and leaving `getPrimaryGateway()` at zero. Election and takeover packages
+  now carry the candidate's router channel. Peers validate the announcement,
+  discard stale scan state, move both interfaces after the takeover has
+  propagated, and resume discovery immediately. A missed or older takeover
+  message remains compatible with the scan-based recovery path.
+
+- **A bridge that stops cleanly says so (#435)** — the backup that booted
+  beside a live primary took its status and held it healthy until the
+  status aged out (`bridgeTimeoutMs`, 60 s), then waited for the 30 s
+  monitor tick, and missed the rig's 120 s promotion window whenever the
+  primary left shortly after it came up. `mesh.stop()` on a bridge now
+  broadcasts a status marked `leaving` before closing its connections; every
+  node forgets that bridge at once (`forgetBridge()`), a candidate checks
+  for a bridge as soon as the startup period allows instead of at the next
+  tick, and the "too soon after last role change" hold schedules a retry
+  for when it ends rather than returning silently. A bridge that loses power
+  still announces nothing; that path is as slow as the status timeout.
+
+- **A backup joins the mesh on the router's channel (#435)** — a candidate
+  with router credentials used to pick the strongest mesh AP across a split
+  mesh; it now joins on the router's channel, where a bridge would be. The
+  election's router scan waits on the driver's scanning bit instead of
+  `WiFi.scanComplete()`, whose 20-dwell timeout declared the station's own
+  all-channel scan failed at 2.4 s and let the two scans collide.
+
+- **Home is the channel the bridge's status names (#435)** — a rootless
+  node keeps the channel it was last rooted on as home: it does not leave
+  home for a partition elsewhere, and away from home it goes back as soon as
+  the mesh is visible there, whatever the sizes, since a freshly promoted
+  bridge is one AP on the router's channel. Home is learned from the
+  bridge's status message, not from a cached tree that could still carry a
+  bridge that has gone, and it is forgotten after four re-detections that
+  found the mesh elsewhere and no root here. A topology change on the bridge
+  brings its status broadcast forward (at most once per 5 s), so a node
+  joining anywhere in the tree hears the bridge within seconds.
+
+- **A leaf at home, or a failover candidate, does not leave a rootless
+  partition (#435)** — the rule that sends a leaf looking for the root had
+  fired on the backup itself and dropped its own link in the middle of the
+  election.
+
+- **A failover candidate is the only node that runs the bridge check
+  (#435)** — regular nodes without router credentials no longer schedule
+  elections they cannot join.
+
+- **Shared-gateway local Internet health never became operational (#422)**
+  — the TCP probe used by `InternetHealthChecker` was unimplemented on
+  ESP32/ESP8266 and the health task was never started, so
+  `hasLocalInternet()` stayed false for the life of a node and every request
+  it could have served itself went to a mesh gateway. Shared-gateway
+  initialisation now configures and starts the health monitor, a node with
+  its own healthy uplink executes Internet requests locally, and local
+  gateway acknowledgements complete through the pending-request path.
+
+- **ESP8266 health check timeout was set in seconds, not milliseconds
+  (#426)** — the 5000 ms check became a 5 ms `WiFiClient` timeout, DNS never
+  resolved inside it, and an ESP8266 shared gateway never reported local
+  Internet.
+
+- **A promoted backup's HTTP result could not reach the requester (#423)**
+  — an armed requester-route watchdog is preserved across bounded gateway
+  HTTP work and `GATEWAY_ACK` returns through the request's ingress while
+  the newly promoted route converges. Automatic channel discovery retries
+  when a node first sees no peer, reconfiguring the AP once the channel is
+  known.
+
+- **A bridge whose TCP listener is not listening re-creates it, and a node
+  re-initialised in place keeps the one it has (#430, #435)** — `stop()`
+  deleted the listener and the re-bind hit `ERR_USE` for the 2×MSL
+  `TIME_WAIT` (120 s), so a node that re-initialised (a promotion, a return
+  to regular mode) accepted nobody for two minutes. A client accepted while
+  the mesh semaphore is held is closed rather than left half-open, and
+  `tcpServerInit()` logs the listener's state.
+
+- **Gateway Internet requests partitioned the mesh around the gateway
+  (#318, #332, #416, #417)** — the gateway relays messages from inside the
+  cooperative TaskScheduler using blocking `HTTPClient` calls, so nothing
+  else ran for the duration while wall-clock time kept passing. With a 30 s
+  HTTP timeout against a 10 s `NODE_TIMEOUT`, every peer watchdog that fell
+  due mid-request fired the instant the scheduler resumed, closing
+  connections to nodes that had never gone missing (*"Internet available via
+  gateway: YES / Mesh connections active: NO"*). The blocking budget is now a
+  wall-clock model derived from `NODE_TIMEOUT` — both socket waits of each
+  HTTP call, the captive-portal probe and the DNS probe — enforced by a
+  `static_assert`, and after a blocking request the gateway postpones every
+  running peer watchdog by exactly the measured stall (`Task::adjust()`),
+  so a genuinely dead peer is still reaped on schedule. One residual is
+  documented rather than closed: ESP32's in-request hostname resolution
+  happens inside the core before the socket timeout applies; `SECURITY.md`
+  states it plainly.
+
+- **Captive-portal probe ran on every gateway message** —
+  `detectCaptivePortal()` made an uncached HTTP round trip before *each*
+  mesh→Internet send. It is now cached for `GATEWAY_CONNECTIVITY_CACHE_MS`
+  (60 s) and bounded by `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS`.
+
+### Fixed — channel following and the station scan (hardware-validated series)
+
+- **Stranded followers find the bridge's channel (#427, #428)** — when a
+  bridge moved the mesh to its router's channel, the nodes behind its direct
+  children stayed connected to each other on the old channel and were gated
+  out of re-detection for good. Re-detection now also runs for a connected
+  node that should have a root and has none; the scan collects every channel
+  the mesh is on and prefers one other than the node's own; the move closes
+  the station link so an orphan leaves its old partition; an unexpected
+  station loss scans at once instead of sleeping out a delay of up to two
+  minutes; a scan that could not start is retried in half an interval
+  instead of five minutes; an association that never gets an address is
+  dropped after half an interval; a connected node that keeps finding the
+  mesh only on its own channel backs off instead of scanning every 15 s;
+  and a stale scan-done event no longer consumes the scan still in flight
+  (#428 restored channel auto-detection after the first fix broke it).
+
+- **A connected node changes channel only for a strictly bigger partition;
+  a disconnected one follows the mesh wherever it is (#434, #435)** — a
+  node in a partition had followed any other channel it saw the mesh on,
+  including a lone node still in gateway mode during a teardown. Every
+  follow now waits for a second sighting one scan later (a teardown
+  straggler is seen once, a bridge twice); a rootless node follows a
+  partition that persists whatever its size; a leaf leaves a rootless
+  partition only if the mesh ever had a root; a re-init in place resets the
+  scan state.
+
+- **Re-detection with stations under the AP is done a channel at a time
+  (#435)** — an all-channel scan takes the AP off its channel for two to
+  three seconds, and the ESP8266 station under it did not survive that. A
+  node with stations hunts one channel per scan (300 ms dwell, 1.5 s at home
+  between slices) and decides on the own-channel scan after the last slice;
+  a node with nothing under its AP keeps the fast all-channel scan.
+
+- **Link loss and re-detection are judged by what was lost (#435)** — an
+  uplink lost in a rooted mesh re-detects the channel at once (the AP most
+  likely left for the bridge's channel); an uplink lost *at home* rescans
+  this channel, where the bridge's AP is, instead of hunting all thirteen
+  (the hunt cost a sender its request); the station drop a node's own
+  channel move causes, and an association attempt that never got an
+  address, are not losses (judged as losses they re-detected the channel
+  just left, found the remnant bigger, and moved back). The half-open guard
+  judges only an attempt still in progress; it had dropped a fresh
+  association by the clock of an attempt made 109 s earlier.
+
+- **The core's station auto-reconnect is off on every core (#435)** — on
+  Arduino core 2.x as on 3.x. The core's own reconnect raced the library's
+  scan and re-attached nodes to APs that were leaving; the bridge's router
+  link is the exception and keeps it.
+
+- **ESP32 Arduino core 3.x: the scan result is read from the loop, not on
+  the network-event task (#435)** — core 3.x dispatches Wi-Fi callbacks
+  under the lock it also takes in `removeEvent()`, and the library ran
+  `scanComplete()` inside the scan-done callback, where a channel follow
+  restarts the AP and waits for events only the blocked task can deliver.
+  Every ESP32-C5 and ESP32-C6 that followed the bridge's channel had gone
+  silent for the rest of its run — still answering the sketch, never
+  scanning again — and `stop()` then blocked on the same lock. The callback
+  now only yields the station task to `scanComplete()`.
+
+### Fixed — routing (hardware-validated series)
+
+- **A connection that has already dropped no longer refuses a live one, and
+  is no longer a route (#429)** — a closed connection stays in the layout
+  until the next cleanup, and `handleNodeSync()` had turned away a working
+  direct connection on its authority, moments before erasing it. Only live
+  connections count as routes now, for the duplicate check and for every
+  send; `write()` on a closed connection returns `false` instead of queueing
+  into the void (27 of 33 unacknowledged deliveries correlated on the rig
+  had never arrived). A partitioned leaf that sees nodes it has no route to
+  on two consecutive scans reconnects toward them; interior nodes do not
+  jump, since dropping an interior link fragments the subtree it carries.
+
+- **A node that comes back is not refused for where it used to be (#433)**
+  — after any restart, the returning node was associated by each AP in turn
+  and dropped a second later, for 30–100 s, because a neighbour's tree
+  still listed its old place. The loop check is now the tree the arriving
+  node presents; a stale direct link is closed at once and a stale place in
+  a neighbour's tree is forgotten (`layout::forget()`).
+
+- **A node is in one place (#435)** — when a neighbour's sync presents the
+  nodes below it, every other neighbour's cached tree forgets them
+  (`layout::forgetAll()`); every board on the rig had carried one node twice
+  and routed by the older copy. A restated sync is not news: a neighbour's
+  sync is adopted only when the tree it presents differs from its last one
+  (a fingerprint per neighbour, covering the time-authority flag), which
+  ended a sync storm of one exchange every 30–80 ms between two claimants;
+  and a neighbour that stops presenting a node lets the others' restatements
+  back in, so a pruned node can return. A stale mention of this node in a
+  presented tree is a loop only if there is another live route to the
+  presenter.
+
+### Fixed — ESP8266 (hardware-validated series)
+
+- **The ESP8266 is specified for small meshes, or as a leaf in larger ones
+  (#432)** — measured as an interior node of a seven-node mesh it runs at
+  10–13 KB free, and below about 8 KB a single 8 KB package or one OTA part
+  fails to allocate; every ESP32 family holds within a few percent of its
+  starting heap in the same mesh. Configure a leaf with
+  `init(..., maxconn = 0)`. The library checks every 30 s on ESP8266 and logs
+  an `ERROR` below 12 KB free with more than one child attached.
+
+### Security
+
+- **Corrected a false claim about gateway TLS.** The source comment on
+  `initGatewayInternetHandler()` asserted that "ESP32 uses default SSL settings
+  with certificate validation". Nothing in `src/` ever backed that: there is no
+  `setCACert`, no certificate bundle and no fingerprint API anywhere in the
+  library, and the ESP32 path calls bare `http.begin(url)`. Gateway HTTPS is
+  transport encryption **without** peer authentication on both targets.
+  No behaviour changed — only the claim.
+
+- **Added a threat model to `SECURITY.md`** covering mesh membership
+  (one shared password, no per-node identity or revocation), OTA (MD5 is an
+  integrity check against an unauthenticated announcer, not a signature),
+  gateway TLS, and the absence of rate limiting — along with which of these are
+  known-and-documented rather than reportable vulnerabilities.
+
+### Packaging and examples
+
+- **`mqttBridge` example fails to compile in Arduino IDE (#398)** — the
+  `PubSubClient` library was missing from `library.properties`'s `depends`
+  field, so installing this library through the Arduino IDE Library Manager
+  never pulled in `PubSubClient`. It is now listed, the example says so, and
+  `examples/mqttBridge/platformio.ini` pins the same `knolleary/PubSubClient`
+  package used by `examples/bridge`.
+- **`examples/alteriom/mppt_example` never compiled** — its sketch was named
+  differently from its directory, so the CI example loop skipped it, and it
+  included two headers from the parent example directory by bare name, which
+  the Arduino build cannot resolve. The sketch is now `mppt_example.ino`,
+  carries the two headers it needs, and is compiled for esp32 and esp8266 on
+  every PR like the other twenty.
+- `keywords.txt` now lists the bridge, gateway, failover, queue and capacity
+  API so the Arduino IDE highlights it.
+- **PlatformIO package owner.** 2.0.0 is published as `sparck75/AlteriomPainlessMesh`,
+  the owner every automated release since 1.7.6 went under. The registry also
+  holds `alteriom/AlteriomPainlessMesh`, which stops at 1.10.0: its account is
+  not one the project can publish from. Name the owner in `lib_deps`; the bare
+  name matches both.
+
+### Added (post-review series)
+
+- **Unified send path: `SendOptions` (#384)** — `sendSingle()` and
+  `sendBroadcast()` gained overloads taking a
+  `painlessmesh::SendOptions{priority, ackCallback, ackTimeoutMs}` struct,
+  so a message can be both prioritized and delivery-confirmed in one call —
+  something the separate priority and ack overload families could not
+  express. All pre-existing overloads still compile and now delegate to the
+  unified path.
+- **Priority is carried across hops (#384)** — the priority level is now
+  serialized on the wire (as `"prio"`, only when it deviates from NORMAL, so
+  default sends carry zero overhead) and every forwarding node re-enqueues
+  the package at the sender's priority. Previously priority only affected
+  the first hop's transmit queue and was silently dropped on forwarding.
+  Pre-2.0 nodes ignore the field and forward at normal priority. Named
+  constants `PRIORITY_CRITICAL/HIGH/NORMAL/LOW` are exposed in
+  `painlessmesh::protocol`.
+
+### Fixed (post-review series)
+
+- **Gateway blocking budget is now a wall-clock model, DNS included (#416)**
+  — `gatewayBlockingBudgetMs()` counts **both** socket waits of each HTTP
+  call (request/header read plus body read — `HTTPClient::setTimeout()`
+  bounds one wait, not a whole call) for the destination request *and* the
+  captive-portal probe, plus a new `GATEWAY_DNS_TIMEOUT_MS` term for the
+  DNS reachability probe. On ESP8266 the probe now uses the `hostByName()`
+  timeout overload; on ESP32, whose core has no resolver timeout, the
+  standalone probe is skipped and the (timed) captive-portal probe
+  establishes reachability instead. **Defaults changed to keep the honest
+  budget inside `NODE_TIMEOUT`:** at the stock 10 s watchdog,
+  `GATEWAY_HTTP_TIMEOUT_MS` is now 2000 ms (was 5000) and
+  `GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS` 1000 ms (was 2000); raise them
+  together with `NODE_TIMEOUT` if your endpoint needs longer — the
+  `static_assert` enforces the pairing. One residual is documented rather
+  than closed: ESP32's in-request hostname resolution happens inside the
+  core before the socket timeout applies and cannot be bounded there;
+  SECURITY.md states it plainly.
+- **Gateway watchdog compensation now equals the measured stall (#417)** —
+  `gateway::refreshPeerWatchdogs()` takes the measured blocking duration and
+  postpones each running peer watchdog by exactly that long via
+  `Task::adjust()`, instead of restarting every watchdog from zero on every
+  exit path. The full reset was strictly more generous than the time the
+  scheduler actually lost, and the excess starved the reaper: a genuinely
+  dead peer stayed connected indefinitely as long as any *live* peer
+  generated gateway traffic more often than `NODE_TIMEOUT`. Paths that never
+  blocked now compensate nothing. Regression-tested in
+  `catch_gateway_watchdog.cpp`, including the dead-peer-under-continuous-
+  traffic case.
+- **Outbound send buffer is bounded (#388)** — each connection's
+  `SentBuffer` now holds at most `PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES`
+  (default 64, build-time overridable) messages. Previously a peer that
+  stopped draining (stalled TCP connection) grew the outbound list until
+  allocation failed on the ESP8266 heap. At the cap, an incoming message
+  evicts the newest message of a strictly lower priority class (mirroring
+  `MessageQueue::makeSpace()`); if nothing lower-priority is queued, the
+  push is rejected and the send reports failure. Drops are counted in
+  `getStats().dropped`; a partially-transmitted message is never evicted.
+
+### Removed (post-review series)
+
+- **`MessageTracker` dead code (#386)** — `message_tracker.hpp` defined a
+  full dedup/ack-tracking class that was `#include`d but never instantiated
+  or called anywhere in the tree, costing compile time and flash in every
+  build. Removed together with its unit test. Broadcast flood dedup, the
+  integration it was meant for, remains future work with its own design
+  pass.
+
+- **Routing no longer copies the connection list per packet (#387)** — every
+  `router::` send/broadcast/forward took the mesh layout **by value**,
+  copying a `std::list` of `shared_ptr`s (one heap allocation per
+  connection) on every packet sent, broadcast, or forwarded. All routing
+  functions now take the layout by const reference — measurable allocation
+  and fragmentation relief on ESP8266.
+
+Feature release adding per-message delivery confirmation (issue #379). The
+release is a major version bump because it introduces a new wire-protocol
+message type: pre-2.0 nodes forward acknowledgment packets but never send
+them, so delivery confirmation only works reliably once every participating
+node runs 2.0.0. All existing sketches compile and behave unchanged.
+
+### Mixed-fleet rollout order
+
+During a rolling upgrade, a v1.x node never replies with a `MESSAGE_ACK`, so
+a v2.0 sender's delivery callback fires `delivered = false` against every
+un-upgraded peer — indistinguishable from real packet loss. This is not a
+bug in the ACK feature; it is the expected behavior of a mixed fleet.
+**Upgrade leaf/receiver nodes before the senders that will use the ack
+callbacks**, and only rely on `delivered = false` as a loss signal once the
+whole mesh runs 2.0.0. The same applies to cross-hop priority: pre-2.0
+forwarders ignore the `prio` field and forward at normal priority, so
+priority guarantees only hold end-to-end on an upgraded path.
+
+### Added
+
+- **Per-message delivery confirmation and acknowledgment API (#379)** —
+  `sendSingle()` and `sendBroadcast()` gained overloads that accept a
+  `painlessmesh::ack::deliveryCallback_t` callback and an acknowledgment
+  timeout (default 5000 ms). When a callback is provided the outgoing
+  message is tagged with a unique `msgId`, the receiving node automatically
+  replies with a `MessageAckPackage` (new protocol type 630, routed as a
+  SINGLE package so it traverses multiple hops), and the callback fires
+  with `delivered = true` plus the measured round-trip latency — or
+  `delivered = false` when the timeout elapses. Broadcast tracking
+  snapshots the mesh layout at send time and fires the callback once per
+  expected node.
+- `checkAcks()` — non-blocking poll that processes acknowledgment timeouts
+  and returns the number of messages still pending (timeouts are also
+  processed automatically inside `mesh.update()`).
+- `pendingAcks()` — number of messages still awaiting acknowledgment.
+- New header `painlessmesh/ack.hpp` with the platform-independent
+  `AckTracker` (unit-tested, uint32 wraparound safe) and
+  `MessageAckPackage`.
+- Arduino examples `reliableSensorLogging` (buffered retries until the
+  gateway confirms) and `commandControl` (per-node broadcast confirmation).
+- Unit tests (`catch_message_ack.cpp`) covering serialization, ack
+  matching, timeout, duplicate/unknown acks, broadcast fan-in and clock
+  wraparound, plus an end-to-end multi-node scenario in the TCP
+  integration suite.
+
+### Changed
+
+- `protocol::Single` / `protocol::Broadcast` carry an optional `msgId`
+  field. It is only serialized when delivery confirmation was requested,
+  so plain sends have zero added wire overhead.
+- `protocol::Variant` gained lightweight `from()` and `msgId()` field
+  peeks; the receive-path ACK handlers use them instead of materializing
+  a full package (no per-message payload copy on the hot path).
+
+### Hardening (post-review, pre-release)
+
+A full adversarial review of the ACK feature before release led to:
+
+- `AckTracker::expire()` now collects and erases expired entries before
+  firing any callback — a delivery callback that reentered the tracker
+  (retry `track()`, `checkAcks()`, or `clear()` via `mesh.stop()`) could
+  previously invalidate the live iterator (use-after-free).
+- `mesh.stop()` reached from inside a scheduler callback no longer
+  deletes the internally-owned `Scheduler` out from under its own
+  `execute()` (same bug class as #373); the ack poll task is also
+  disabled before its handle is cleared so a reentrant stop cannot
+  orphan it.
+- Message ids are seeded from `validation::SecureRandom` at `init()` —
+  previously the counter restarted at 1 every boot, so a delayed
+  pre-reboot ACK could confirm a fresh message (false
+  `delivered = true`).
+- Pending acknowledgments are capped at `PAINLESSMESH_MAX_PENDING_ACKS`
+  (default 32, build-time overridable); sends beyond the cap are
+  rejected instead of growing the tracker unbounded on the ESP8266 heap.
+- Broadcast ACK replies are staggered by nodeId within a 50 ms window so
+  an N-node broadcast does not converge N simultaneous ACK unicasts on
+  the sender.
+- The ack timeout poll interval is build-time configurable
+  (`PAINLESSMESH_ACK_CHECK_INTERVAL_MS`, default 100 ms) and its
+  battery/light-sleep implications are documented.
+
+### CI / packaging fixes
+
+- Fixed the Arduino example-compile loop in CI (`ci.yml`): a quoted glob
+  meant **no example sketch was ever compiled** — the job reported green
+  while compiling nothing. All examples now build for esp32 and esp8266
+  on every PR.
+- Added the two new examples to `library.json`'s `examples` array so
+  they appear in the PlatformIO registry listing.
+- `doxygen/Doxyfile` `PROJECT_NUMBER` bumped from the stale v1.6.1 to
+  v2.0.0; stale 1.6.1 install snippets in the wiki docs updated.
+- Wiki sync now publishes `docsify-site/` documentation (it previously
+  copied from a `docs/` directory that does not exist) and triggers on
+  docsify changes.
+- Removed dead links from the docsify sidebar.
+
+
 ## [1.10.0] - 2026-08-12
 
 Feature release making the TCP connect-retry envelope tunable per mesh instance
@@ -81,6 +890,7 @@ macros keep their historical values for source compatibility.
   `painlessmesh::plugin::BridgeCoordinationPackage`, matching the
   convention used across every other example (otaSender, namedMesh,
   alteriom_*).
+
 
 ## [1.9.21] - 2026-08-04
 

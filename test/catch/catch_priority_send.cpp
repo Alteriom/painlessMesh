@@ -286,3 +286,81 @@ SCENARIO("SentBuffer handles interleaved operations") {
     }
   }
 }
+
+SCENARIO("SentBuffer growth is bounded (issue #388)") {
+  GIVEN("A SentBuffer filled to PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES") {
+    SentBuffer<std::string> buffer;
+    for (size_t i = 0; i < PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES; ++i)
+      REQUIRE(buffer.pushWithPriority("normal_" + std::to_string(i), 2));
+    REQUIRE(buffer.size() == PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES);
+
+    WHEN("another NORMAL message is pushed") {
+      auto accepted = buffer.pushWithPriority("overflow", 2);
+
+      THEN("it is rejected and the size does not grow") {
+        REQUIRE(!accepted);
+        REQUIRE(buffer.size() == PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES);
+        REQUIRE(buffer.getStats().dropped == 1);
+      }
+    }
+
+    WHEN("a CRITICAL message is pushed") {
+      auto accepted = buffer.pushWithPriority("critical", 0);
+
+      THEN("the newest NORMAL message is evicted to make room") {
+        REQUIRE(accepted);
+        REQUIRE(buffer.size() == PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES);
+        REQUIRE(buffer.getStats().dropped == 1);
+
+        // The CRITICAL message drains first
+        temp_buffer_t tmp_buffer;
+        auto ptr = buffer.readPtr(buffer.requestLength(tmp_buffer.length));
+        REQUIRE(std::string(ptr) == "critical");
+        buffer.freeRead();
+
+        // The evicted message is the newest of the lower class: the oldest
+        // NORMAL entries all survive and drain FIFO
+        auto first = buffer.readPtr(buffer.requestLength(tmp_buffer.length));
+        REQUIRE(std::string(first) == "normal_0");
+      }
+    }
+  }
+
+  GIVEN("A SentBuffer full of CRITICAL messages") {
+    SentBuffer<std::string> buffer;
+    for (size_t i = 0; i < PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES; ++i)
+      REQUIRE(buffer.pushWithPriority("critical_" + std::to_string(i), 0));
+
+    WHEN("a LOW message is pushed") {
+      THEN("it cannot evict anything and is rejected") {
+        REQUIRE(!buffer.pushWithPriority("low", 3));
+        REQUIRE(buffer.size() == PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES);
+        REQUIRE(buffer.getStats().dropped == 1);
+      }
+    }
+  }
+
+  GIVEN("A full buffer whose lowest-priority message is being partially read") {
+    SentBuffer<std::string> buffer;
+    // One LOW message first, then fill the rest with CRITICAL... except the
+    // LOW one is the only eviction candidate, so start a partial read on it
+    // by making it the only message, reading part of it, then filling up.
+    buffer.pushWithPriority("low_partial_message", 3);
+    temp_buffer_t tmp_buffer;
+    buffer.readPtr(4);  // partial read: 4 bytes of many
+    buffer.freeRead();  // partial free — message stays, !clean
+    for (size_t i = 1; i < PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES; ++i)
+      REQUIRE(buffer.pushWithPriority("critical_" + std::to_string(i), 0));
+
+    WHEN("a HIGH message needs space") {
+      auto accepted = buffer.pushWithPriority("high", 1);
+
+      THEN("the partially-read LOW message is not evicted") {
+        // The only lower-priority candidate is mid-read, so the push is
+        // rejected rather than corrupting the in-flight message
+        REQUIRE(!accepted);
+        REQUIRE(buffer.size() == PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES);
+      }
+    }
+  }
+}

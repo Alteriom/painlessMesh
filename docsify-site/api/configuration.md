@@ -348,10 +348,8 @@ blocklist a failed peer". Use `getTcpRetryConfig()` to read back what actually
 took effect.
 
 > [!WARNING]
-> The defaults exist for a reason: painlessMesh 1.9.x deliberately *raised*
-> these values (retries 3 → 5, base delay 500 ms → 1000 ms) to fix real-world
-> mesh instability. Tuning them down reintroduces the problems that change
-> fixed — connection churn, rapid reconnect loops, and network congestion.
+> These production defaults protect against connection churn, rapid reconnect
+> loops, and network congestion. Tuning them down can destabilize a busy mesh.
 > In particular, keep `failureBlockDurationMs` greater than
 > `(sum of retry backoffs) + exhaustionReconnectDelayMs`, or a dead peer will
 > leave the blocklist before the node has finished failing over and be
@@ -641,4 +639,4 @@ See also:
 
 - [Core API](core-api.md) - Complete method reference
 - [Callbacks](callbacks.md) - Event handling
-- [Performance Tuning](../advanced/performance.md) - Optimization guidelines
+- [Performance Tuning](configuration.md#performance-configuration) - Optimization guidelines

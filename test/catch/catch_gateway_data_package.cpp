@@ -192,9 +192,10 @@ SCENARIO("GatewayDataPackage generateMessageId works correctly") {
                 uint16_t counter2 = id2 & 0xFFFF;
                 uint16_t counter3 = id3 & 0xFFFF;
                 
-                // Counters should be sequential (allowing for wrap-around)
-                REQUIRE((((counter2 - counter1) == 1) || ((counter2 == 0) && (counter1 == 0xFFFF))));
-                REQUIRE((((counter3 - counter2) == 1) || ((counter3 == 0) && (counter2 == 0xFFFF))));
+                // Counters should be sequential. They start at a random
+                // point each boot, and a wrap skips zero.
+                REQUIRE((((uint16_t)(counter2 - counter1) == 1) || ((counter2 == 1) && (counter1 == 0xFFFF))));
+                REQUIRE((((uint16_t)(counter3 - counter2) == 1) || ((counter3 == 1) && (counter2 == 0xFFFF))));
             }
         }
     }

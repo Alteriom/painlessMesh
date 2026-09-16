@@ -120,8 +120,8 @@ Adjusted time 1234567. Offset = 12
 Now that you have a basic mesh working:
 
 1. **Add more nodes** - Upload the same code to additional devices
-2. **Try different message types** - See [Custom Packages Tutorial](../tutorials/custom-packages.md)
-3. **Add sensors** - Check out the [Sensor Networks Tutorial](../tutorials/sensor-networks.md)
+2. **Try different message types** - See [Creating Custom Packages](../architecture/plugin-system.md#creating-custom-packages)
+3. **Add sensors** - Check out the [Sensor Network Pattern](../alteriom/overview.md#sensor-network-pattern)
 4. **Explore Alteriom features** - Learn about [Alteriom Extensions](../alteriom/overview.md)
 
 ## Troubleshooting

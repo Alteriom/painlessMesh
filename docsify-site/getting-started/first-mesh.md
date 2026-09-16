@@ -402,9 +402,9 @@ Bridge Status: WiFi=Connected, RSSI=-45, Mesh Nodes=2
 
 ## Next Steps
 
-- Explore [Custom Packages](../tutorials/custom-packages.md) for type-safe messaging
+- Explore [Custom Packages](../architecture/plugin-system.md#creating-custom-packages) for type-safe messaging
 - Learn about [Alteriom Extensions](../alteriom/overview.md) for pre-built sensor packages
-- Dive into [Advanced Topics](../advanced/performance.md) for optimization
+- Dive into [Performance Configuration](../api/configuration.md#performance-configuration) for optimization
 - Check out [Troubleshooting](../troubleshooting/common-issues.md) if you encounter issues
 
 Congratulations! You now have a working multi-node mesh network with real-world functionality.

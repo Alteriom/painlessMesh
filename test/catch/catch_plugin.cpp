@@ -59,7 +59,10 @@ class BCustomPackage : public plugin::BroadcastPackage {
 
 class MockConnection : public layout::Neighbour {
  public:
+     // A real Connection reports liveness; routing now asks for it.
+     bool connected() const { return true; }
   bool addMessage(TSTRING msg) { return true; }
+  bool addMessageWithPriority(TSTRING msg, uint8_t priority) { return true; }
 };
 
 SCENARIO("We can send a custom package") {

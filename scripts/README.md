@@ -2,6 +2,26 @@
 
 This directory contains utility scripts for repository maintenance and releases.
 
+## Repository Maintenance Scripts
+
+### `branch-status.sh`
+
+**Purpose:** Show where every remote branch stands against `main`, so live
+work can be told apart from branches that were forgotten.
+
+**Usage:**
+```bash
+./scripts/branch-status.sh            # every remote branch, newest first
+./scripts/branch-status.sh --stale    # only branches with nothing of their own
+```
+
+**What it prints:** one row per branch with `ahead`, `behind`, `unmerged` and
+the date of its last commit. `unmerged` is `git cherry` — the commits whose
+change is not in `main` under any SHA, which is the number that survives a
+squash merge. `unmerged=0` means the branch can be deleted without losing
+work. The branch strategy and naming rules it supports are in
+[CONTRIBUTING.md](../CONTRIBUTING.md#branches).
+
 ## Release Management Scripts
 
 ### `create-missing-releases.sh` ⭐ NEW

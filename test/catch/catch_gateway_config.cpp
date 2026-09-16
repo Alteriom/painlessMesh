@@ -11,6 +11,17 @@ using namespace painlessmesh::gateway;
 // Logger for test environment
 painlessmesh::logger::LogClass Log;
 
+SCENARIO("Bridge takeover channel handoff is fail closed") {
+    constexpr uint32_t localNode = 100;
+    constexpr uint32_t electedBridge = 200;
+
+    REQUIRE(shouldFollowBridgeChannel(localNode, electedBridge, 1, 6));
+    REQUIRE_FALSE(shouldFollowBridgeChannel(localNode, localNode, 1, 6));
+    REQUIRE_FALSE(shouldFollowBridgeChannel(localNode, electedBridge, 6, 6));
+    REQUIRE_FALSE(shouldFollowBridgeChannel(localNode, electedBridge, 1, 0));
+    REQUIRE_FALSE(shouldFollowBridgeChannel(localNode, electedBridge, 1, 14));
+}
+
 SCENARIO("SharedGatewayConfig has sensible defaults") {
     GIVEN("A default SharedGatewayConfig") {
         SharedGatewayConfig config;
@@ -431,4 +442,72 @@ SCENARIO("SharedGatewayConfig edge case validation") {
             }
         }
     }
+}
+
+SCENARIO("Channel re-detection prefers the partition the node is not already in") {
+  using painlessmesh::gateway::MeshChannelCandidate;
+  using painlessmesh::gateway::pickMeshChannel;
+
+  GIVEN("no candidates") {
+    REQUIRE(pickMeshChannel({}, 1) == 0);
+  }
+
+  GIVEN("the mesh is visible only on the node's own channel") {
+    // Nothing else to go to: stay, so the caller can see 'same channel'
+    // and leave the node alone rather than bouncing it.
+    REQUIRE(pickMeshChannel({{1, -60}}, 1) == 1);
+  }
+
+  GIVEN("the mesh is on the node's channel and on the bridge's") {
+    // The partition on the node's own channel is the one it is stranded in,
+    // however strong its signal. The other channel is where the mesh went.
+    REQUIRE(pickMeshChannel({{1, -30}, {6, -80}}, 1) == 6);
+    REQUIRE(pickMeshChannel({{6, -80}, {1, -30}}, 1) == 6);
+  }
+
+  GIVEN("several other channels") {
+    REQUIRE(pickMeshChannel({{1, -40}, {6, -75}, {11, -55}}, 1) == 11);
+  }
+
+  GIVEN("no preference") {
+    // avoidChannel 0 is the first-boot auto-detect: strongest wins.
+    REQUIRE(pickMeshChannel({{1, -70}, {6, -50}}, 0) == 6);
+  }
+
+  GIVEN("an invalid channel among the candidates") {
+    REQUIRE(pickMeshChannel({{14, -20}, {6, -80}}, 1) == 6);
+    REQUIRE(pickMeshChannel({{0, -20}}, 1) == 0);
+  }
+}
+
+SCENARIO("A node that knows the router joins the mesh on the router's channel") {
+  using painlessmesh::gateway::pickMeshChannel;
+
+  GIVEN("the mesh split across two channels, one of them the router's") {
+    // A failover backup booted into exactly this: one AP on each channel,
+    // two dB apart, the bridge's partition the weaker. Strength chose the
+    // wrong one.
+    REQUIRE(pickMeshChannel({{1, -45}, {6, -47}}, 0, 6) == 6);
+    REQUIRE(pickMeshChannel({{6, -47}, {1, -45}}, 0, 6) == 6);
+  }
+
+  GIVEN("the router's channel has no mesh on it") {
+    THEN("the usual rules apply") {
+      REQUIRE(pickMeshChannel({{1, -45}, {11, -47}}, 0, 6) == 1);
+      REQUIRE(pickMeshChannel({{1, -45}, {11, -47}}, 1, 6) == 11);
+    }
+  }
+
+  GIVEN("no router is known") {
+    THEN("nothing changes") {
+      REQUIRE(pickMeshChannel({{1, -45}, {6, -47}}, 0) == 1);
+      REQUIRE(pickMeshChannel({{1, -45}, {6, -47}}, 0, 0) == 1);
+    }
+  }
+
+  GIVEN("the router's channel is also the one to avoid") {
+    THEN("the router still wins: the node is where the bridge is") {
+      REQUIRE(pickMeshChannel({{6, -70}, {1, -30}}, 6, 6) == 6);
+    }
+  }
 }

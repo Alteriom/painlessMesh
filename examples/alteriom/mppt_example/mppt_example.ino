@@ -18,6 +18,10 @@
 //   3. A CommandPackage handler is included so a bridge node can
 //      request an immediate reading (command code 10).
 //
+// The two package headers beside this sketch are copies of the ones in
+// examples/alteriom/: an Arduino sketch can only include files from its own
+// directory or from a library, and a nested example is a sketch of its own.
+//
 // See alteriom_custom_package_template.hpp for a step-by-step
 // guide to creating your own custom packages.
 //************************************************************

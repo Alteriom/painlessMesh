@@ -4,6 +4,14 @@ A lightweight HTTP server that simulates Internet endpoints for testing `sendToI
 
 ## Purpose
 
+This is the **test point** for `sendToInternet()`: one HTTP server that the
+desktop Catch2 suite in CI (`catch_issue450_testpoint_semantics`, pointed at
+it by `PAINLESSMESH_TESTPOINT`), the simulation host, the hardware farm and a
+developer bench can all target. It answers the way real services do,
+including the ways they get it wrong, and keeps a delivery ledger so a test can
+ask what actually happened rather than trust the status code.
+
+
 Testing bridge functionality in painlessMesh traditionally requires:
 - Physical hardware (ESP32/ESP8266)
 - Actual Internet connectivity
@@ -214,6 +222,68 @@ curl "http://localhost:8080/whatsapp?phone=%2B1234567890&apikey=mykey&text=Hello
 - Test WhatsApp integration without real API
 - Test parameter validation
 - Test message formatting
+
+### `GET /callmebot/whatsapp.php` - CallMeBot Emulation
+
+Answers the way the real CallMeBot WhatsApp API does: with HTTP statuses that
+do **not** encode whether the message was delivered. The `apikey` parameter
+selects the behaviour; `phone` and `text` are required, and `text` doubles as
+the ledger tag unless `tag` is given.
+
+| `apikey`        | Status | Body                       | Delivered | Origin |
+|-----------------|--------|----------------------------|-----------|--------|
+| `queued`        | 200    | "Message queued..."        | yes       | documented success |
+| `ratelimit-203` | 203    | "Oops! Too many requests"  | no        | observed 2026-09-10 |
+| `ratelimit-201` | 201    | "Oops! Too many requests"  | no        | observed 2026-09-10 |
+| `unverified-208`| 208    | "HTTP 208 Already Reported"| no        | observed in #450 and #452: never delivered |
+| `queued-208`    | 208    | "Message queued..."        | no        | 208 with the delivered body: still not a delivery |
+| `queued-chunked` | 200 | "Message queued...", sent `Transfer-Encoding: chunked` in 16-byte chunks | yes | how the real service sends it: a gateway reading the raw stream must remove the framing |
+| `paused-after-echo` | 200 | a ~1 KB echo of the request, then "Your Account is Paused ... send the word 'resume'" | no | observed in #463: longer than the 512 + 256 bytes a gateway keeps, with the verdict only at the end |
+
+An unknown profile answers 400 so a typo in a test fails loudly.
+
+```bash
+curl -i "http://localhost:8080/callmebot/whatsapp.php?phone=%2B1234567890&apikey=ratelimit-201&text=hello"
+```
+
+### `GET /requests/{tag}` - Delivery Ledger
+
+Every request is recorded under a tag: the `tag` query parameter, else the
+`X-HIL-Tag` header, else (CallMeBot route) the message text. This returns the
+latest record for a tag, or 404. `delivered` is the ground truth a gateway
+test compares its own verdict against; the other fields match the Alteriom
+farm's gateway probe so a farm test runs unchanged against either server.
+
+```bash
+curl "http://localhost:8080/status/503?tag=abc" > /dev/null
+curl "http://localhost:8080/requests/abc"
+# {"body": "", "client": "127.0.0.1", "delivered": false, "method": "GET",
+#  "path": "/status/503", "status": 503, "tag": "abc", "ts": "..."}
+```
+
+Each record also carries `count`, the number of requests seen under the tag
+so far, and `request_ids`, the distinct `X-Request-Id` values they carried
+(`request_id` and `idempotency_key` are the latest request's headers). A
+painlessMesh gateway sends the same id on every attempt at one
+`sendToInternet()` call, so `count: 2` with one id is a retry, and a count
+above one where the call should not have been retried is a duplicate delivery.
+
+Pass `--log FILE` (or `MOCK_HTTP_LOG`) to also append every record as JSON
+lines to a file.
+
+### `GET/POST /retry-after/{seconds}` - Refuse Once, Then Accept
+
+The first request under a tag gets `429 Too Many Requests` with
+`Retry-After: {seconds}`; later ones get 200 and are delivered. The ledger
+record of a later request has `waited_s`, the time since the first, and
+`early`, true when it came sooner than the server asked. A tag is required.
+
+```bash
+curl -i "http://localhost:8080/retry-after/5?tag=r1"   # 429, Retry-After: 5
+sleep 5
+curl -i "http://localhost:8080/retry-after/5?tag=r1"   # 200
+curl "http://localhost:8080/requests/r1"               # "count": 2, "early": false
+```
 
 ### `GET/POST /health` - Health Check
 Returns server health status.

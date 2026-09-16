@@ -171,6 +171,96 @@ SCENARIO("We can send a message using our Nodes class") {
   n.stop();
 }
 
+SCENARIO("Delivery confirmation works across the mesh") {
+  delay(1000);
+  using namespace logger;
+  Log.setLogLevel(ERROR);
+
+  Scheduler scheduler;
+  boost::asio::io_context io_service;
+  Nodes n(&scheduler, 12, io_service);
+
+  for (auto i = 0; i < 1000; ++i) {
+    n.update();
+    delay(10);
+  }
+  REQUIRE(layout::size(n.nodes[0]->asNodeTree()) == 12);
+
+  // sendSingle with ack: callback fires with delivered=true and a latency
+  size_t called = 0;
+  bool delivered = false;
+  uint32_t ackNode = 0;
+  auto sent = n.nodes[10]->sendSingle(
+      n.nodes[0]->getNodeId(), "ackMe",
+      [&](uint32_t nodeId, bool ok, uint32_t latencyMs) {
+        ++called;
+        delivered = ok;
+        ackNode = nodeId;
+      });
+  REQUIRE(sent);
+  REQUIRE(n.nodes[10]->pendingAcks() == 1);
+  for (auto i = 0; i < 5000 && called == 0; ++i) {
+    n.update();
+    delay(1);
+  }
+  REQUIRE(called == 1);
+  REQUIRE(delivered);
+  REQUIRE(ackNode == n.nodes[0]->getNodeId());
+  REQUIRE(n.nodes[10]->pendingAcks() == 0);
+
+  // The receiving node does not need an onReceive callback for the ack,
+  // but registering one must not break anything either
+  n.nodes[2]->onReceive([](uint32_t, std::string) {});
+  called = 0;
+  sent = n.nodes[10]->sendSingle(
+      n.nodes[2]->getNodeId(), "ackMe2",
+      [&](uint32_t, bool ok, uint32_t) {
+        ++called;
+        delivered = ok;
+      });
+  REQUIRE(sent);
+  for (auto i = 0; i < 5000 && called == 0; ++i) {
+    n.update();
+    delay(1);
+  }
+  REQUIRE(called == 1);
+  REQUIRE(delivered);
+
+  // sendSingle with ack to an unknown node fails upfront, no callback
+  called = 0;
+  sent = n.nodes[10]->sendSingle(
+      12345678, "void", [&](uint32_t, bool, uint32_t) { ++called; });
+  REQUIRE(!sent);
+  REQUIRE(n.nodes[10]->pendingAcks() == 0);
+  for (auto i = 0; i < 1000; ++i) {
+    n.update();
+    delay(1);
+  }
+  REQUIRE(called == 0);
+
+  // Broadcast with ack: one callback per node in the mesh
+  size_t okCount = 0;
+  size_t failCount = 0;
+  sent = n.nodes[3]->sendBroadcast(
+      "toAll", false, [&](uint32_t, bool ok, uint32_t) {
+        if (ok)
+          ++okCount;
+        else
+          ++failCount;
+      });
+  REQUIRE(sent);
+  REQUIRE(n.nodes[3]->pendingAcks() == 1);
+  for (auto i = 0; i < 10000 && okCount + failCount < 11; ++i) {
+    n.update();
+    delay(1);
+  }
+  REQUIRE(okCount == 11);
+  REQUIRE(failCount == 0);
+  REQUIRE(n.nodes[3]->pendingAcks() == 0);
+
+  n.stop();
+}
+
 SCENARIO("Time sync works") {
   using namespace logger;
   Log.setLogLevel(ERROR);

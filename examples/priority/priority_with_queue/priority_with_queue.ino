@@ -22,6 +22,24 @@
 Scheduler userScheduler;
 painlessMesh mesh;
 
+// The queue types live in the painlessmesh namespace
+using painlessmesh::MessagePriority;
+using painlessmesh::QueueState;
+using painlessmesh::PRIORITY_CRITICAL;
+using painlessmesh::PRIORITY_HIGH;
+using painlessmesh::PRIORITY_NORMAL;
+using painlessmesh::PRIORITY_LOW;
+using painlessmesh::QUEUE_EMPTY;
+using painlessmesh::QUEUE_NORMAL;
+using painlessmesh::QUEUE_75_PERCENT;
+using painlessmesh::QUEUE_FULL;
+
+// Forward declarations: Arduino's auto-prototype generation does not see
+// past the global lambdas below
+void sendMessage(String message, uint8_t priority);
+void flushQueuedMessages();
+void queueStateChanged(QueueState state, uint32_t count);
+
 bool internetAvailable = false;
 uint32_t bridgeNodeId = 0;
 
@@ -182,8 +200,8 @@ void flushQueuedMessages() {
         delay(10);
     }
     
-    Serial.printf("Queue flush complete. Remaining: %u messages\n", 
-                 mesh.getQueuedMessageCount());
+    Serial.printf("Queue flush complete. Remaining: %u messages\n",
+                 mesh.getQueueStats().currentSize);
 }
 
 void receivedCallback(uint32_t from, String& msg) {

@@ -511,7 +511,7 @@ See [Alteriom Extensions](../alteriom/overview.md) for detailed usage examples.
 
 ## Next Steps
 
-- Learn about [Message Routing](routing.md) algorithms
-- Explore [Alteriom Packages](../alteriom/sensor-packages.md) for real-world examples  
-- See [Performance Optimization](../advanced/performance.md) for efficiency tips
-- Check [Custom Packages Tutorial](../tutorials/custom-packages.md) for hands-on examples
+- Learn about [Message Routing](mesh-architecture.md#message-routing) algorithms
+- Explore [Alteriom Packages](../alteriom/packages.md) for real-world examples
+- See [Performance Optimization](../api/configuration.md#performance-configuration) for efficiency tips
+- Check [Creating Custom Packages](plugin-system.md#creating-custom-packages) for hands-on examples

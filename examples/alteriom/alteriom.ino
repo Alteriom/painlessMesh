@@ -90,7 +90,7 @@ void handleStatusRequest() {
   status.uptime = millis() / 1000;
   status.freeMemory = ESP.getFreeHeap() / 1024;  // KB
   status.wifiStrength = 75;                      // Placeholder
-  status.firmwareVersion = "1.0.0-alteriom";
+  status.firmwareVersion = "2.0.0";
 
   // Serialize and send (using ArduinoJson v7 API)
   JsonDocument doc;

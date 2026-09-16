@@ -62,13 +62,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Shut Wifi down and start with a blank slage
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
-    Log(STARTUP, "init(): %d\n",
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
-        // Disable autoconnect
-        WiFi.setAutoReconnect(false));
-#else
-        // Disable autoconnect
-        WiFi.setAutoConnect(false));
+    // The mesh reconnects on its own terms: it scans, chooses an AP, and
+    // connects. The core must not. On core 2.x this used to call
+    // setAutoConnect(false) — the "connect at boot from stored
+    // credentials" flag, a different thing — and left the core's
+    // auto-reconnect at its default of on. After a parent's AP vanished
+    // (BEACON_TIMEOUT) the core then tried the gone BSSID again every seven
+    // seconds (NO_AP_FOUND, a full-channel search each time) for as long as
+    // it stayed gone, and every attempt kept the radio busy so the mesh's
+    // own scan "could not start": the node sat outside the mesh for the
+    // rest of the test. Measured on the rig on every core-2.x board (ESP32,
+    // C3, S3); the core-3.x boards, which got the right call, did not do it.
+    Log(STARTUP, "init(): %d\n", WiFi.setAutoReconnect(false));
+#if ESP_ARDUINO_VERSION_MAJOR < 3
+    WiFi.setAutoConnect(false);
 #endif
     WiFi.persistent(false);
 
@@ -76,6 +83,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     if (!WiFi.mode(connectMode)) {
       Log(GENERAL, "WiFi.mode() false");
     }
+#ifdef ESP32
+#if SOC_WIFI_SUPPORT_5G && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 2)
+    // The mesh lives on 2.4 GHz. A dual-band part left in its default band
+    // mode scans the 5 GHz channels as well every time it looks for the
+    // mesh: measured on an ESP32-C5, the all-channel scan took 13–14 s
+    // against 4 s on a single-band part — at boot, where it is the whole
+    // of the C5's 15 s to its first reply, and on every channel
+    // re-detection, where it swallowed the console commands sent
+    // meanwhile. Nothing the mesh does needs the other band.
+    if (!WiFi.setBandMode(WIFI_BAND_MODE_2G_ONLY)) {
+      Log(ERROR, "init(): could not restrict the radio to 2.4 GHz\n");
+    }
+#endif
+#endif
 
     _meshSSID = ssid;
     _meshPassword = password;
@@ -98,6 +119,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->init(nodeId);
 
+#ifdef ESP8266
+    // The ESP8266 is specified for small meshes, or as a leaf in larger
+    // ones. Say so at runtime when a deployment has put it in the middle of
+    // one: see Mesh::capacityCheck(). Thirty seconds is often enough to
+    // catch it and rare enough to cost nothing.
+    this->addTask(30 * TASK_SECOND, TASK_FOREVER, [this]() {
+      this->capacityCheck(ESP.getFreeHeap(),
+                          painlessmesh::Mesh<Connection>::ESP8266_CAPACITY_FLOOR);
+    });
+#endif
+
     // Add bridge election package handler (Type BRIDGE_ELECTION)
     this->callbackList.onPackage(
         protocol::BRIDGE_ELECTION,
@@ -112,11 +144,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           if (obj["routerRSSI"].is<int>()) {
             uint32_t fromNode = obj["from"];
             int8_t routerRSSI = obj["routerRSSI"];
+            uint8_t routerChannel = obj["routerChannel"] | 0;
             uint32_t uptime = obj["uptime"] | 0;
             uint32_t freeMemory = obj["freeMemory"] | 0;
 
-            this->handleBridgeElection(fromNode, routerRSSI, uptime,
-                                       freeMemory);
+            this->handleBridgeElection(fromNode, routerRSSI, routerChannel,
+                                       uptime, freeMemory);
 
             Log(CONNECTION, "Bridge election candidate from %u: RSSI %d dBm\n",
                 fromNode, routerRSSI);
@@ -139,9 +172,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             uint32_t newBridge = obj["from"];
             uint32_t previousBridge = obj["previousBridge"];
             TSTRING reason = obj["reason"].as<TSTRING>();
+            uint8_t routerChannel = obj["routerChannel"] | 0;
 
-            Log(CONNECTION, "Bridge takeover: Node %u replaced %u (%s)\n",
-                newBridge, previousBridge, reason.c_str());
+            Log(CONNECTION,
+                "Bridge takeover: Node %u replaced %u on channel %u (%s)\n",
+                newBridge, previousBridge, routerChannel, reason.c_str());
+
+            // AP+STA radios must use one channel. Follow the elected bridge
+            // promptly instead of waiting for the slow empty-scan recovery.
+            if (gateway::shouldFollowBridgeChannel(
+                    this->nodeId, newBridge, _meshChannel, routerChannel)) {
+              this->addTask(1000, TASK_ONCE, [this, routerChannel]() {
+                stationScan.followBridgeChannel(routerChannel);
+              });
+            }
 
             // Notify callback if this node was not the winner
             if (newBridge != this->nodeId && bridgeRoleChangedCallback) {
@@ -171,57 +215,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Add periodic monitoring task to detect when no bridge exists
     // This handles the case where no node was initially configured as a bridge
-    this->addTask(30000, TASK_FOREVER, [this]() {
-      // Only check if failover is enabled and we have credentials
-      if (!bridgeFailoverEnabled || !routerCredentialsConfigured) {
-        return;
-      }
-
-      // Don't check if we're already a bridge
-      if (this->isBridge()) {
-        return;
-      }
-
-      // Skip check during startup period to allow initial bridge discovery
-      if (millis() < electionStartupDelayMs) {
-        return;
-      }
-
-      // IMPORTANT: Don't trigger election if we're disconnected from the mesh
-      // When isolated, we can't receive bridge status broadcasts, so lack of
-      // healthy bridge could simply mean WE are disconnected, not that the
-      // bridge is unavailable. Wait until mesh connectivity is restored before
-      // considering an election.
-      if (!this->hasActiveMeshConnections()) {
-        Log(CONNECTION,
-            "Bridge monitor: Skipping - no active mesh connections\n");
-        return;
-      }
-
-      // Check if there are any healthy bridges
-      bool hasHealthyBridge = false;
-      for (const auto& bridge : this->getBridges()) {
-        if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
-          hasHealthyBridge = true;
-          break;
-        }
-      }
-
-      // If no healthy bridge exists, trigger an election
-      if (!hasHealthyBridge) {
-        Log(CONNECTION,
-            "Bridge monitor: No healthy bridge detected, triggering "
-            "election\n");
-        // Random delay to prevent simultaneous elections when multiple nodes
-        // start together
-        uint32_t randomDelay =
-            random(electionRandomDelayMinMs, electionRandomDelayMaxMs);
-        Log(CONNECTION, "Bridge monitor: Scheduling election in %u ms\n",
-            randomDelay);
-        this->addTask(randomDelay, TASK_ONCE,
-                      [this]() { this->startBridgeElection(); });
-      }
-    });
+    this->addTask(30000, TASK_FOREVER, [this]() { this->checkForBridge(); });
 
     // Add separate periodic task for isolated bridge retry
     // This handles the case where a node:
@@ -395,11 +389,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Shut Wifi down and start with a blank slate
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
-    Log(STARTUP, "initAsBridge(): %d\n",
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
-        WiFi.setAutoReconnect(false));
-#else
-        WiFi.setAutoConnect(false));
+    // See init(): the core's auto-reconnect is off on every core version.
+    Log(STARTUP, "initAsBridge(): %d\n", WiFi.setAutoReconnect(false));
+#if ESP_ARDUINO_VERSION_MAJOR < 3
+    WiFi.setAutoConnect(false);
 #endif
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
@@ -498,6 +491,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     // Step 6: Setup gateway Internet handler
     initGatewayInternetHandler();
+
+    // Step 7: Start the health checker that drives hasLocalInternet().
+    // Without it that flag stays false for the life of the node, so the
+    // local short-circuit in sendToInternet() never fires and a bridge
+    // asking its own uplink fell through to the mesh-routing path -- which
+    // fails with "No active mesh connections" whenever the bridge has no
+    // peer yet, even though the router link is up (issue #445).
+    // initAsSharedGateway() has always done this; initAsBridge() did not.
+    //
+    // No configureInternetHealthCheck() call here: a bridge has no
+    // SharedGatewayConfig, the checker's own defaults (8.8.8.8:53, 30 s,
+    // 5 s) already match that struct's, and configuring would clobber any
+    // setInternetCheckTarget() the sketch made before init.
+    enableInternetHealthCheck();
 
     Log(STARTUP, "=== Bridge Mode Active ===\n");
     Log(STARTUP, "  Mesh SSID: %s\n", meshSSID.c_str());
@@ -625,13 +632,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // We need to ensure mesh and router operate on the same channel
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
+    // See init(): the core's auto-reconnect is off on every core version.
     WiFi.setAutoReconnect(false);
-    Log(STARTUP, "initAsSharedGateway(): AutoReconnect disabled\n");
-#else
+#if ESP_ARDUINO_VERSION_MAJOR < 3
     WiFi.setAutoConnect(false);
-    Log(STARTUP, "initAsSharedGateway(): AutoConnect disabled\n");
 #endif
+    Log(STARTUP, "initAsSharedGateway(): AutoReconnect disabled\n");
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
 
@@ -699,6 +705,14 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Step 5: Setup gateway Internet handler
     initGatewayInternetHandler();
 
+    // Step 6: Start the health checker that drives hasLocalInternet().
+    // Previously shared-gateway nodes associated and received an IP address,
+    // but the checker was never configured or scheduled, so local Internet
+    // availability remained false forever and every request was needlessly
+    // routed toward a mesh gateway.
+    configureInternetHealthCheck(_sharedGatewayConfig);
+    enableInternetHealthCheck();
+
     // Store router credentials for reconnection
     setRouterCredentials(routerSSID, routerPassword);
 
@@ -749,6 +763,18 @@ class Mesh : public painlessmesh::Mesh<Connection> {
                      static_cast<bool>(_meshHidden));
     stationScan.manual = true;
 
+    // A manual station is the router link of a bridge or shared gateway:
+    // one known AP, no mesh scan choosing among candidates. For that link
+    // the core's own auto-reconnect is the right mechanism, and it is what
+    // kept every bridge's upstream alive until now — by accident, on core
+    // 2.x, where init() had never really turned it off. With it off
+    // everywhere, a bridge whose second association with the router failed
+    // (init() drops the first to start the mesh) sat at WL_IDLE_STATUS for
+    // the whole run with no upstream, and no node ever learned of the
+    // Internet. On for the manual link; the mesh station in init() keeps
+    // it off.
+    WiFi.setAutoReconnect(true);
+
     // Directly initiate connection - ESP will auto-detect router's channel
     WiFi.begin(ssid.c_str(), password.c_str());
 
@@ -769,9 +795,61 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               // Schedule reconnection after disconnect completes
               // The WiFi event handler will signal when disconnect is complete
               _pendingStationReconnect = true;
-            } else {
-              // Already disconnected, reconnect immediately
+            } else if (_pendingStationReconnect) {
+              // A drop this node asked for: reconnect from the last scan
               handleStationDisconnectComplete();
+            } else if (this->stationScan.droppedByMove()) {
+              // The drop this node's own channel follow caused.
+              // followBridgeChannel() closed the link and scans next;
+              // nothing to do here, and above all no re-detection.
+              using namespace logger;
+              Log(CONNECTION,
+                  "Station link closed by this node's channel move\n");
+            } else if (!this->stationScan.stationLinkUp) {
+              // An attempt that never got an address — the association
+              // timed out, or the AP was gone by the time it was tried.
+              // Not a loss: scan this channel again, where the next AP is.
+              // Re-detecting here sent the sender in sweep 45 run 2, just
+              // arrived on the bridge's channel after a peer there had
+              // left, to look at the old channel and consider going back,
+              // with the bridge's AP at -55 dBm beside it.
+              using namespace logger;
+              Log(CONNECTION,
+                  "Station attempt failed, scanning this channel again\n");
+              this->stationScan.task.forceNextIteration();
+            } else {
+              // A drop nobody asked for — the AP this station was on went
+              // away (its node rebooted, or a bridge moved the mesh). Scan
+              // now rather than when the current slow-scan delay runs out,
+              // which is up to four intervals away for a node that was
+              // stable a moment ago.
+              using namespace logger;
+              Log(CONNECTION,
+                  "Station link lost unexpectedly, scanning now\n");
+              if (this->shouldContainRoot && this->stationScan.atHome()) {
+                // At home the bridge's AP is on this channel; the uplink
+                // that went was a relay (in sweep 46 run 2, the backup
+                // rebooting into its failover role). Scan this channel
+                // now: the all-channel hunt below took the sender twenty
+                // seconds, and its request through the bridge ran out of
+                // retries in the gap.
+                Log(CONNECTION,
+                    "Station link lost at home: scanning this channel\n");
+              } else if (this->shouldContainRoot) {
+                // In a mesh that should have a root, the AP that went away
+                // most likely left for the bridge's channel, and the nodes
+                // still on this one are about to. Re-attaching here first
+                // cost the node the failover test sends from a hundred
+                // seconds at the bridge's start: it joined one remnant,
+                // lost it, joined the next, lost that, and only then looked
+                // at every channel. Look at every channel now; the rules in
+                // scanComplete() decide whether to go.
+                Log(CONNECTION,
+                    "Station link lost in a rooted mesh: re-detecting the "
+                    "mesh channel on this scan\n");
+                this->stationScan.redetectOnNextScan();
+              }
+              this->stationScan.task.forceNextIteration();
             }
           }
         });
@@ -794,10 +872,36 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   void tcpServerInit() {
     using namespace logger;
     Log(GENERAL, "tcpServerInit():\n");
+    // A listener that exists and listens is kept. It is bound to every
+    // address, so the AP a re-initialised node brings up is served by it,
+    // and re-creating it is not merely needless: the connections the old
+    // one accepted share its local port, and lwIP refuses to bind a new
+    // listener to a port any of them still holds — for the two minutes
+    // they sit in TIME_WAIT after stop() closes them. A node promoted to
+    // bridge on the rig logged "bind error: -8" on every attempt for
+    // exactly that long, reset every peer that came to join it, and only
+    // then had a bridge's listener. AsyncTCP keeps its pcb private, so
+    // SO_REUSEADDR cannot be set from here; not re-binding is the fix.
+    if (_tcpListener != nullptr) {
+      if (_tcpListener->status() == 1) {
+        Log(CONNECTION,
+            "tcpServerInit(): listener on port %d already listening, kept\n",
+            _meshPort);
+        return;
+      }
+      delete _tcpListener;
+      _tcpListener = nullptr;
+    }
     _tcpListener = new AsyncServer(_meshPort);
     painlessmesh::tcp::initServer<Connection, painlessmesh::Mesh<Connection>>(
         (*_tcpListener), (*this));
     Log(STARTUP, "AP tcp server established on port %d\n", _meshPort);
+    // The listener's state, at the level the rig keeps: a node promoted to
+    // bridge re-creates its listener, and one such node reset every
+    // connection to its AP for its whole time as bridge while its log said
+    // nothing. LISTEN is 1 on both cores; anything else is the finding.
+    Log(CONNECTION, "tcpServerInit(): listener on port %d, state %u\n",
+        _meshPort, (unsigned)_tcpListener->status());
     return;
   }
 
@@ -1304,7 +1408,87 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    */
   bool isMultiBridgeEnabled() const { return multiBridgeEnabled; }
 
+  // The bridge monitor's check, one tick of the 30 s task: with no
+  // healthy bridge known, an election is scheduled. Also run when a
+  // bridge announces that it is stepping down, as soon as the startup
+  // period allows.
+  void checkForBridge() {
+    using namespace logger;
+    // Only a failover candidate checks: one with failover enabled and the
+    // router's credentials. Every other node scheduled an election it
+    // could not join, every 30 s, when this guard went missing.
+    if (!bridgeFailoverEnabled || !routerCredentialsConfigured) {
+      return;
+    }
+
+    // Don't check if we're already a bridge
+    if (this->isBridge()) {
+      return;
+    }
+
+    // Skip check during startup period to allow initial bridge discovery
+    if (millis() < electionStartupDelayMs) {
+      return;
+    }
+
+    // IMPORTANT: Don't trigger election if we're disconnected from the mesh
+    // When isolated, we can't receive bridge status broadcasts, so lack of
+    // healthy bridge could simply mean WE are disconnected, not that the
+    // bridge is unavailable. Wait until mesh connectivity is restored before
+    // considering an election.
+    if (!this->hasActiveMeshConnections()) {
+      Log(CONNECTION,
+          "Bridge monitor: Skipping - no active mesh connections\n");
+      return;
+    }
+
+    // Check if there are any healthy bridges
+    bool hasHealthyBridge = false;
+    for (const auto& bridge : this->getBridges()) {
+      if (bridge.isHealthy(bridgeTimeoutMs) && bridge.internetConnected) {
+        hasHealthyBridge = true;
+        break;
+      }
+    }
+
+    // If no healthy bridge exists, trigger an election
+    if (!hasHealthyBridge) {
+      Log(CONNECTION,
+          "Bridge monitor: No healthy bridge detected, triggering "
+          "election\n");
+      // Random delay to prevent simultaneous elections when multiple nodes
+      // start together
+      uint32_t randomDelay =
+          random(electionRandomDelayMinMs, electionRandomDelayMaxMs);
+      Log(CONNECTION, "Bridge monitor: Scheduling election in %u ms\n",
+          randomDelay);
+      this->addTask(randomDelay, TASK_ONCE,
+                    [this]() { this->startBridgeElection(); });
+    }
+  }
+
+  // Schedule checkForBridge() once, after the startup period if it is
+  // still running, plus a second for the news to settle.
+  void checkForBridgeSoon() {
+    if (bridgeCheckPending) return;
+    uint32_t wait = millis() < electionStartupDelayMs
+                        ? electionStartupDelayMs - millis()
+                        : 0;
+    bridgeCheckPending = true;
+    this->addTask(wait + 1000, TASK_ONCE, [this]() {
+      bridgeCheckPending = false;
+      this->checkForBridge();
+    });
+  }
+
   void stop() {
+    // A bridge stepping down says so before its connections close, so the
+    // candidates hold an election now rather than when its last status
+    // ages out. The short wait lets the broadcast leave the buffers.
+    if (this->isBridge() && bridgeStatusBroadcastEnabled) {
+      sendBridgeStatus(true);
+      delay(200);
+    }
     // remove all WiFi events
 #ifdef ESP32
     WiFi.removeEvent(eventScanDoneHandler);
@@ -1327,8 +1511,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Shutdown wifi hardware
     if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
 
-    // Delete the tcp server
-    delete _tcpListener;
+    // The TCP listener stays. A node that stops to re-initialise in place
+    // — a promotion to bridge, a return to a regular node — needs a
+    // listener again at once, and a new one cannot bind while the
+    // connections this one accepted are still in TIME_WAIT on the same
+    // port (see tcpServerInit()). The connections themselves are closed
+    // above; a client accepted in the gap before init() is closed by it.
   }
 
  protected:
@@ -1436,6 +1624,24 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       Log(CONNECTION,
           "Node %u connection changed, sending bridge status directly\n",
           nodeId);
+
+      // The direct send below reaches the neighbour whose connection
+      // changed. A node that joined behind that neighbour is why it changed,
+      // and it learns of this bridge only from the next periodic broadcast,
+      // up to thirty seconds on: on the rig the node the discovery fixture
+      // sends from joined a child of the bridge at 185 s and heard the
+      // bridge at 214 s, after the fixture's window. So a change also
+      // brings the broadcast forward, at most once every five seconds.
+      if (millis() - _lastBridgeStatusBroadcast >= 5000) {
+        this->addTask(1000, TASK_ONCE, [this]() {
+          if (millis() - _lastBridgeStatusBroadcast >= 5000) {
+            Log(CONNECTION,
+                "Topology changed; broadcasting bridge status now rather "
+                "than at the next interval\n");
+            this->sendBridgeStatus();
+          }
+        });
+      }
 
       // Small delay to ensure connection is fully stable, then send directly to
       // the new node This avoids issues with time sync blocking broadcast
@@ -1656,20 +1862,60 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * @param routerSSID SSID of router to scan for
    * @return RSSI in dBm (negative number, -127 to 0), or 0 if not found
    */
-  int8_t scanRouterSignalStrength(TSTRING routerSSID) {
+  int8_t scanRouterSignalStrength(TSTRING routerSSID,
+                                  uint8_t* routerChannel = nullptr) {
     using namespace logger;
     Log(CONNECTION, "scanRouterSignalStrength(): Scanning for %s...\n",
         routerSSID.c_str());
 
     int n = WiFi.scanNetworks(false, false);
+    if (n == WIFI_SCAN_RUNNING) {
+      // The station task's asynchronous scan is in flight; a synchronous
+      // scan cannot start until it ends, and -2 is not "no networks". A
+      // failover backup read it as the router being out of sight — twice,
+      // thirty seconds apart — and never stood for election while the
+      // primary was gone. Wait the scan out, bounded, then look again.
+      Log(CONNECTION,
+          "scanRouterSignalStrength(): a scan is already running, waiting "
+          "for it\n");
+      uint32_t waitedUntil = millis() + 8000;
+#ifdef ESP32
+      // Not WiFi.scanComplete(): on this core it gives a scan twenty
+      // dwell times to finish and then declares it failed — 2.4 s for the
+      // 120 ms all-channel re-detection, which takes six in AP+STA mode
+      // as the radio keeps returning to serve the AP. Asked here at three
+      // seconds, it dropped the scanning flag, the scan below started on
+      // top of the one in flight, and both came back with nothing: the
+      // backup read "router not found" and the station "mesh not found on
+      // any channel", and lost the sighting it needed to follow the mesh.
+      // The scanning bit is the flag the driver clears when the scan
+      // really ends.
+      while ((WiFiGenericClass::getStatusBits() & WIFI_SCANNING_BIT) &&
+             (int32_t)(waitedUntil - millis()) > 0) {
+        delay(50);
+      }
+      // The scan-done event hands the station its results next; let it
+      // read them before this scan deletes them.
+      delay(300);
+#else
+      while (WiFi.scanComplete() == WIFI_SCAN_RUNNING &&
+             (int32_t)(waitedUntil - millis()) > 0) {
+        delay(50);
+      }
+#endif
+      n = WiFi.scanNetworks(false, false);
+    }
     Log(CONNECTION, "scanRouterSignalStrength(): Found %d networks\n", n);
 
     for (int i = 0; i < n; i++) {
       if (WiFi.SSID(i) == routerSSID) {
         int8_t rssi = WiFi.RSSI(i);
+        uint8_t channel = WiFi.channel(i);
+        if (routerChannel != nullptr) *routerChannel = channel;
         Log(CONNECTION,
-            "scanRouterSignalStrength(): Found %s with RSSI %d dBm\n",
-            routerSSID.c_str(), rssi);
+            "scanRouterSignalStrength(): Found %s with RSSI %d dBm on "
+            "channel %u\n",
+            routerSSID.c_str(), rssi, channel);
         return rssi;
       }
     }
@@ -1702,10 +1948,23 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       return;
     }
 
-    // Prevent rapid role changes
+    // Prevent rapid role changes — but look again when the hold is over.
+    // A candidate that stood down a moment ago, or that only just booted,
+    // returned here silently and waited for the next 30 s tick to find
+    // out that there was still no bridge.
     if (millis() - lastRoleChangeTime < 60000) {
+      uint32_t wait = 60000 - (millis() - lastRoleChangeTime);
       Log(CONNECTION,
-          "startBridgeElection(): Too soon after last role change\n");
+          "startBridgeElection(): Too soon after last role change, "
+          "checking again in %u ms\n",
+          wait);
+      if (!bridgeCheckPending) {
+        bridgeCheckPending = true;
+        this->addTask(wait, TASK_ONCE, [this]() {
+          bridgeCheckPending = false;
+          this->checkForBridge();
+        });
+      }
       return;
     }
 
@@ -1724,7 +1983,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
       // Schedule a retry after channel re-sync has had a chance to run
       // The channel re-sync threshold is StationScan::EMPTY_SCAN_THRESHOLD
-      // scans (default 6) Fast scan interval is 0.5 * SCAN_INTERVAL = 15
+      // scans (2, ~30 s). Fast scan interval is 0.5 * SCAN_INTERVAL = 15
       // seconds Wait for re-sync to complete plus a buffer
       uint32_t retryDelay =
           (StationScan::EMPTY_SCAN_THRESHOLD - emptyScans + 2) * 15000;
@@ -1739,7 +1998,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     electionState = ELECTION_SCANNING;
 
     // Scan for router to get RSSI
-    int8_t routerRSSI = scanRouterSignalStrength(routerSSID);
+    uint8_t routerChannel = 0;
+    int8_t routerRSSI =
+        scanRouterSignalStrength(routerSSID, &routerChannel);
 
     if (routerRSSI == 0) {
       Log(CONNECTION,
@@ -1758,6 +2019,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     BridgeCandidate selfCandidate;
     selfCandidate.nodeId = this->nodeId;
     selfCandidate.routerRSSI = routerRSSI;
+    selfCandidate.routerChannel = routerChannel;
     selfCandidate.uptime = millis();
     selfCandidate.freeMemory = ESP.getFreeHeap();
     electionCandidates.push_back(selfCandidate);
@@ -1770,6 +2032,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["from"] = this->nodeId;
     obj["routing"] = 2;  // BROADCAST
     obj["routerRSSI"] = routerRSSI;
+    obj["routerChannel"] = routerChannel;
     obj["uptime"] = millis();
     obj["freeMemory"] = ESP.getFreeHeap();
     obj["timestamp"] = this->getNodeTime();
@@ -1782,7 +2045,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Send election message using raw broadcast to preserve type
     // BRIDGE_ELECTION
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
 
     Log(CONNECTION, "startBridgeElection(): Candidacy broadcast sent\n");
 
@@ -1902,7 +2165,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     if (winner->nodeId == this->nodeId) {
       Log(CONNECTION, "[TARGET] I WON! Promoting to bridge...\n");
-      promoteToBridge();
+      promoteToBridge(winner->routerChannel);
     } else {
       Log(CONNECTION, "Winner is node %u, remaining as regular node\n",
           winner->nodeId);
@@ -1924,7 +2187,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Instead, we schedule the actual promotion work to run after the current
    * task completes, allowing safe cleanup of task structures.
    */
-  void promoteToBridge() {
+  void promoteToBridge(uint8_t routerChannel) {
     using namespace logger;
 
     Log(STARTUP, "=== Becoming Bridge Node ===\n");
@@ -1950,6 +2213,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     obj["previousBridge"] = previousBridgeId;
     obj["reason"] = "Election winner - best router signal";
     obj["routerRSSI"] = 0;  // Not yet connected to router
+    obj["routerChannel"] = routerChannel;
     obj["timestamp"] = this->getNodeTime();
     obj["message_type"] = protocol::BRIDGE_TAKEOVER;
 
@@ -1959,7 +2223,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Send takeover message using raw broadcast to preserve type
     // BRIDGE_TAKEOVER
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
 
     // Give time for announcement to propagate before channel switch
     // Allow event loop processing during hardware settling
@@ -2152,7 +2416,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Called by package handler when election message arrives
    */
   void handleBridgeElection(uint32_t fromNode, int8_t routerRSSI,
-                            uint32_t uptime, uint32_t freeMemory) {
+                            uint8_t routerChannel, uint32_t uptime,
+                            uint32_t freeMemory) {
     using namespace logger;
 
     if (electionState != ELECTION_COLLECTING) {
@@ -2174,6 +2439,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     BridgeCandidate candidate;
     candidate.nodeId = fromNode;
     candidate.routerRSSI = routerRSSI;
+    candidate.routerChannel = routerChannel;
     candidate.uptime = uptime;
     candidate.freeMemory = freeMemory;
 
@@ -2188,11 +2454,27 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * Send bridge status broadcast
    * Called periodically by bridge nodes to report connectivity status
    */
-  void sendBridgeStatus() {
+  void sendBridgeStatus(bool leaving = false) {
     using namespace logger;
 
     if (!this->bridgeStatusBroadcastEnabled) {
       return;
+    }
+
+    // A bridge that nobody can reach is no bridge. On the rig a node
+    // promoted in place reset every TCP connection to its AP for its whole
+    // time as bridge — its listener, re-created by the promotion's
+    // stop/re-init, was not listening, and nothing looked. This task runs
+    // every thirty seconds on a bridge: if the listener is not in LISTEN
+    // (1 on both cores) it is re-created, and the log says so.
+    if (_tcpListener != nullptr && _tcpListener->status() != 1) {
+      Log(ERROR,
+          "sendBridgeStatus(): TCP listener on port %d is in state %u, not "
+          "LISTEN; re-creating it\n",
+          _meshPort, (unsigned)_tcpListener->status());
+      delete _tcpListener;
+      _tcpListener = nullptr;
+      tcpServerInit();
     }
 
     // Create bridge status package
@@ -2212,9 +2494,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // 2. Some networks (mobile hotspots) may not provide gateway IP via DHCP
     // 3. Having a valid local IP + being connected is sufficient for internet
     // access
-    bool hasInternet = (WiFi.status() == WL_CONNECTED) &&
+    bool hasInternet = !leaving && (WiFi.status() == WL_CONNECTED) &&
                        (WiFi.localIP() != IPAddress(0, 0, 0, 0));
     obj["internetConnected"] = hasInternet;
+    // A bridge stepping down says so. Every candidate would otherwise hold
+    // it healthy until its last status aged out, a minute and more, before
+    // holding an election — on the rig, past the failover contract.
+    if (leaving) obj["leaving"] = true;
 
     int8_t rssi = WiFi.RSSI();
     uint8_t channel = WiFi.channel();
@@ -2230,8 +2516,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     String msg;
     serializeJson(doc, msg);
 
-    Log(GENERAL, "sendBridgeStatus(): Broadcasting status (Internet: %s)\n",
-        hasInternet ? "Connected" : "Disconnected");
+    Log(GENERAL, "sendBridgeStatus(): Broadcasting status (Internet: %s)%s\n",
+        hasInternet ? "Connected" : "Disconnected",
+        leaving ? " — stepping down" : "");
     Log(GENERAL,
         "sendBridgeStatus(): WiFi status=%d, localIP=%s, gatewayIP=%s\n",
         WiFi.status(), WiFi.localIP().toString().c_str(),
@@ -2246,7 +2533,8 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Using sendBroadcast(msg) would wrap it in type 8 (BROADCAST) and hide
     // type BRIDGE_STATUS
     protocol::Variant variant(msg);
-    router::broadcast<protocol::Variant, Connection>(variant, (*this), 0);
+    router::broadcast<Connection>(variant, (*this), 0);
+    _lastBridgeStatusBroadcast = millis();
   }
 
   /**
@@ -2265,7 +2553,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     static uint32_t lastCheckTime = 0;
     static bool lastResult = false;
     uint32_t now = millis();
-    if (lastCheckTime > 0 && (now - lastCheckTime) < 60000) {
+    if (lastCheckTime > 0 && (now - lastCheckTime) < GATEWAY_CONNECTIVITY_CACHE_MS) {
       return lastResult;
     }
 
@@ -2287,9 +2575,13 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // Using Google's servers as they have high availability globally
     IPAddress result;
 
-#if defined(ESP32) || defined(ESP8266)
-    // Both ESP32 and ESP8266 support WiFi.hostByName()
-    int dnsResult = WiFi.hostByName("www.google.com", result);
+#if defined(ESP8266)
+    // ESP8266's hostByName() has a timeout overload, so the resolver cannot
+    // stall the cooperative scheduler past GATEWAY_DNS_TIMEOUT_MS — that term
+    // is part of gatewayBlockingBudgetMs() and covered by its static_assert
+    // (issue #416).
+    int dnsResult =
+        WiFi.hostByName("www.google.com", result, GATEWAY_DNS_TIMEOUT_MS);
 
     // Check if DNS resolution succeeded
     if (dnsResult != 1) {
@@ -2308,6 +2600,20 @@ class Mesh : public painlessmesh::Mesh<Connection> {
       lastResult = false;
       return false;
     }
+#elif defined(ESP32)
+    // ESP32's hostByName() has no timeout parameter in the cores this library
+    // targets, so a standalone DNS probe would be an unbounded stall on the
+    // cooperative scheduler whenever DNS is slow or blackholed — the exact
+    // failure mode of issues #318/#332, recurring once per
+    // GATEWAY_CONNECTIVITY_CACHE_MS. The probe is therefore skipped on ESP32
+    // (issue #416): actual reachability is established by the captive-portal
+    // probe that runs right after this check on the same path — an HTTP
+    // round trip bounded by GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS that fails on
+    // a router without Internet just as the DNS probe would.
+    (void)result;
+    lastCheckTime = millis();
+    lastResult = true;
+    return true;
 #else
     // Other platforms: assume internet is available if WiFi connected
     // (no reliable way to test without platform-specific APIs)
@@ -2341,8 +2647,24 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     using namespace logger;
     
 #if defined(ESP32) || defined(ESP8266)
+    // Cache the verdict, exactly as hasActualInternetAccess() does. This probe
+    // is a full HTTP round trip to an external host; running it per message
+    // put that round trip in front of every single mesh->Internet send, on the
+    // cooperative scheduler, where it stacks with the request's own timeout.
+    static uint32_t lastCheckTime = 0;
+    static bool lastResult = true;
+    uint32_t now = millis();
+    if (lastCheckTime > 0 && (now - lastCheckTime) < GATEWAY_CONNECTIVITY_CACHE_MS) {
+      return lastResult;
+    }
+
+    // Record the attempt up front so that every early return below is cached
+    // too -- otherwise a failing probe would be retried on every message.
+    lastCheckTime = millis();
+    lastResult = false;
+
     HTTPClient http;
-    http.setTimeout(5000);  // 5 second timeout for quick check
+    http.setTimeout(GATEWAY_CAPTIVE_PORTAL_TIMEOUT_MS);
     
     WiFiClient client;
     
@@ -2387,6 +2709,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     }
     
     Log(COMMUNICATION, "detectCaptivePortal(): No captive portal detected\n");
+    lastResult = true;
     return true;
     
 #else
@@ -2398,31 +2721,56 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   /**
    * Helper method to send gateway acknowledgment
    */
-  void sendGatewayAck(const gateway::GatewayDataPackage& request, bool success,
-                      uint16_t httpStatus, const TSTRING& error) {
-    using namespace logger;
+  /** Hosts that recently failed to resolve; fed on ESP32 only, see the
+   *  GATEWAY_DATA handler. */
+  gateway::NegativeDnsCache negativeDns;
 
-    gateway::GatewayAckPackage ack;
-    ack.from = this->nodeId;
-    ack.dest = request.originNode;
-    ack.messageId = request.messageId;
-    ack.originNode = request.originNode;
-    ack.success = success;
-    ack.httpStatus = httpStatus;
-    ack.error = error;
-    ack.timestamp = this->getNodeTime();
-
-    auto conn = router::findRoute<Connection>((*this), request.originNode);
-    if (conn) {
-      protocol::Variant variant(&ack);
-      router::send(std::move(variant), conn);
-      Log(COMMUNICATION, "Sent GATEWAY_ACK to node %u (success=%d, http=%d)\n",
-          request.originNode, success, httpStatus);
-    } else {
-      Log(ERROR, "Failed to send GATEWAY_ACK: no route to node %u\n",
-          request.originNode);
+#if defined(ESP32) || defined(ESP8266)
+  /**
+   * The start and the end of the response body (gateway::ResponseExcerpt),
+   * read from the stream for at most GATEWAY_RESPONSE_HEAD_TIMEOUT_MS and
+   * GATEWAY_RESPONSE_SCAN_BYTES. A body that fits whole is read whole. A
+   * chunked body is read through gateway::ChunkedBodyDecoder: the raw stream
+   * carries the framing, which getString() would remove but only by keeping
+   * the whole body.
+   */
+  static TSTRING readResponseExcerpt(HTTPClient& http) {
+    const int size = http.getSize();
+    if (size >= 0 &&
+        static_cast<size_t>(size) <=
+            gateway::GATEWAY_RESPONSE_HEAD_BYTES + gateway::GATEWAY_RESPONSE_TAIL_BYTES) {
+      return http.getString();
     }
+    gateway::ResponseExcerpt excerpt;
+    WiFiClient* stream = http.getStreamPtr();
+    if (stream == nullptr) return excerpt.text();
+    const bool chunked =
+        size < 0 && gateway::transferEncodingIsChunked(http.header("Transfer-Encoding"));
+    gateway::ChunkedBodyDecoder decoder(excerpt);
+    const uint32_t deadline =
+        millis() + gateway::GATEWAY_RESPONSE_HEAD_TIMEOUT_MS;
+    bool more = true;
+    while (more && static_cast<int32_t>(deadline - millis()) > 0) {
+      int available = stream->available();
+      if (available <= 0) {
+        if (!stream->connected()) break;
+        delay(1);
+        continue;
+      }
+      while (more && available-- > 0) {
+        const int c = stream->read();
+        if (c < 0) break;
+        more = chunked ? decoder.add(static_cast<char>(c))
+                       : excerpt.add(static_cast<char>(c));
+      }
+    }
+    return excerpt.text();
   }
+#endif
+
+  // sendGatewayAck() is portable and lives in painlessmesh::Mesh
+  // (mesh.hpp): every node needs it, not only a gateway, to answer a
+  // request it cannot serve.
 
   /**
    * Initialize gateway Internet handler
@@ -2433,15 +2781,26 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * makes the request, and sends back a GATEWAY_ACK with the result.
    *
    * Security notes:
-   * - HTTPS on ESP8266 uses setInsecure() which disables SSL certificate
-   * validation to reduce memory overhead. This makes connections vulnerable to
-   * MITM attacks.
-   * - ESP32 uses default SSL settings with certificate validation.
+   * - Neither target authenticates the TLS peer. The library configures no
+   *   trust anchor anywhere: there is no setCACert, no certificate bundle and
+   *   no fingerprint API on the gateway config, so an https:// destination is
+   *   not protected against an active man in the middle.
+   *   - ESP8266 calls setInsecure(), which disables certificate validation
+   *     outright.
+   *   - ESP32 calls http.begin(url) with no trust anchor supplied. What that
+   *     yields depends entirely on the Arduino-ESP32 core in use; do not read
+   *     it as verified. (An earlier revision of this comment claimed ESP32
+   *     "uses default SSL settings with certificate validation" -- that was
+   *     never backed by anything in src/.)
+   *   Treat gateway HTTPS as transport encryption without authentication, and
+   *   see SECURITY.md for the full threat model.
    *
    * Limitations:
    * - HTTP redirects (3xx) are not automatically followed
    * - Only 2xx status codes are treated as success
-   * - Request timeout is fixed at 30 seconds
+   * - Request timeout is GATEWAY_HTTP_TIMEOUT_MS, which is derived from
+   *   NODE_TIMEOUT and asserted to stay below it (see
+   *   painlessmesh/gateway.hpp)
    */
   void initGatewayInternetHandler() {
     using namespace logger;
@@ -2450,54 +2809,135 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
     this->callbackList.onPackage(
         protocol::GATEWAY_DATA, [this](protocol::Variant& variant,
-                                       std::shared_ptr<Connection> connection, uint32_t) {
+                                       std::shared_ptr<Connection> ingress,
+                                       uint32_t) {
           auto pkg = variant.to<gateway::GatewayDataPackage>();
 
           Log(COMMUNICATION,
               "Gateway received Internet request: msgId=%u dest=%s\n",
               pkg.messageId, pkg.destination.c_str());
 
-          // Disable connection timeout during HTTP request processing
-          // HTTP requests can take up to 30 seconds (GATEWAY_HTTP_TIMEOUT_MS)
-          // but mesh connections timeout after 10 seconds (NODE_TIMEOUT).
-          // We disable the timeout here to prevent connection drop during
-          // long-running HTTP requests. The timeout will be automatically
-          // re-enabled when the next sync packet is received.
-          if (connection) {
-            connection->timeOutTask.disable();
-            Log(COMMUNICATION,
-                "Gateway disabled connection timeout for node %u during HTTP request\n",
-                connection->nodeId);
-          }
+          // Every exit path below goes through finish(), which re-arms the
+          // mesh watchdog on all peers before the ack is routed.
+          //
+          // Everything from here on can block: the connectivity probes are
+          // network round trips and the request itself runs to
+          // GATEWAY_HTTP_TIMEOUT_MS. Nothing on the cooperative scheduler runs
+          // during that, but wall-clock time keeps passing, so any peer whose
+          // NODE_TIMEOUT deadline fell inside the stall is overdue the instant
+          // the scheduler resumes and gets closed despite never having gone
+          // missing (issues #318, #332).
+          //
+          // The previous mitigation disabled timeOutTask on the requesting
+          // connection only. That left every other peer exposed, and it acted
+          // before the stall rather than after it, which is the half that
+          // cannot work: the deadline is wall-clock, so pushing it out ahead of
+          // a stall longer than the window changes nothing.
+          //
+          // Compensation is by the *measured* stall (issue #417): exit paths
+          // that never blocked measure ~0 ms and grant nothing, so a peer
+          // that genuinely stopped answering NODE_SYNC still gets reaped even
+          // under continuous gateway traffic from other peers.
+          const auto blockingStartedMs = millis();
+          // `retryable` is the gateway's word to the origin node on whether
+          // the identical request may be sent again: 0 whenever it may have
+          // reached the server, so a retry cannot deliver it twice.
+          auto finish = [this, &pkg, ingress, blockingStartedMs](
+                            bool ok, uint16_t code, const TSTRING& err,
+                            int8_t retryable, const TSTRING& response = TSTRING(),
+                            uint32_t retryAfterMs = 0) {
+            const auto stalledMs = millis() - blockingStartedMs;
+            auto refreshed = gateway::refreshPeerWatchdogs(*this, stalledMs);
+            if (refreshed > 0) {
+              Log(COMMUNICATION,
+                  "Gateway postponed the mesh watchdog on %u peer(s) by %lu ms "
+                  "after a blocking Internet request\n",
+                  static_cast<unsigned>(refreshed),
+                  static_cast<unsigned long>(stalledMs));
+            }
+            this->sendGatewayAck(pkg, ok, code, err, ingress, response, retryable,
+                                 retryAfterMs);
+          };
 
           // Check Internet connectivity
           // First check WiFi status for quick fail
           if (WiFi.status() != WL_CONNECTED) {
-            sendGatewayAck(pkg, false, 0, "Gateway WiFi not connected");
+            finish(false, 0, "Gateway WiFi not connected", 0);
             return true;  // Consume package - we handled it (with error)
           }
           
           // Then check actual internet access (DNS resolution)
           // This detects when WiFi is connected but router has no internet
           if (!hasActualInternetAccess()) {
-            sendGatewayAck(pkg, false, 0, "Router has no internet access - check WAN connection");
+            finish(false, 0, "Router has no internet access - check WAN connection", 0);
             return true;  // Consume package - we handled it (with error)
           }
           
           // Finally, check for captive portal interference
           // This detects when DNS works but HTTP requests are intercepted
           if (!detectCaptivePortal()) {
-            sendGatewayAck(pkg, false, 0, "Captive portal detected - requires web authentication. Check router/WiFi settings");
+            finish(false, 0, "Captive portal detected - requires web authentication. Check router/WiFi settings", 0);
             return true;  // Consume package - we handled it (with error)
           }
 
 #if defined(ESP32) || defined(ESP8266)
+#ifdef ESP32
+          // A destination whose name failed to resolve is refused for
+          // GATEWAY_DNS_NEGATIVE_TTL_MS without another lookup (issue #453).
+          // HTTPClient reports a failed lookup as "connection refused" after
+          // the resolver's own patience -- on ESP32 not boundable by this
+          // library -- and it did so on every attempt: the origin node's
+          // retries and, since #451, the bridge's own sends each paid it, and
+          // the scheduler stalled long enough for relayed requests to time
+          // out on their origin nodes. Resolving here, once, names the real
+          // failure and caps the stall to one lookup per TTL per host.
+          // ESP32 only: the ESP8266 core bounds HTTPClient's own lookup by the
+          // HTTP timeout, and a second bounded wait would not fit the
+          // blocking budget.
+          const TSTRING host = gateway::hostFromUrl(pkg.destination);
+          if (host.length() > 0 && !gateway::looksLikeIpLiteral(host)) {
+            uint32_t failedAgoMs = 0;
+            if (negativeDns.isFailing(host, millis(), &failedAgoMs)) {
+              char dnsBuf[160];
+              snprintf(dnsBuf, sizeof(dnsBuf),
+                       "DNS lookup for %s failed %lus ago; not retried for "
+                       "another %lus",
+                       host.c_str(),
+                       static_cast<unsigned long>(failedAgoMs / 1000),
+                       static_cast<unsigned long>(
+                           (gateway::GATEWAY_DNS_NEGATIVE_TTL_MS - failedAgoMs) /
+                           1000));
+              Log(ERROR, "%s\n", dnsBuf);
+              finish(false, 0, TSTRING(dnsBuf), 0);
+              return true;
+            }
+            IPAddress resolved;
+            if (WiFi.hostByName(host.c_str(), resolved) != 1) {
+              negativeDns.remember(host, millis());
+              char dnsBuf[160];
+              snprintf(dnsBuf, sizeof(dnsBuf), "DNS lookup failed for %s",
+                       host.c_str());
+              Log(ERROR, "%s\n", dnsBuf);
+              finish(false, 0, TSTRING(dnsBuf), 0);
+              return true;
+            }
+          }
+#endif  // ESP32
+
           // Make HTTP/HTTPS request
           HTTPClient http;
           http.setTimeout(GATEWAY_HTTP_TIMEOUT_MS);
 
           bool success = false;
-          uint16_t httpCode = 0;
+          // HTTPClient returns an int: a positive value is an HTTP status
+          // code, a negative one is its own transport error (HTTPC_ERROR_*,
+          // -1 for a refused connection, -11 for a read timeout, ...). This
+          // was a uint16_t, which wrapped -1 to 65535 -- a value that passes
+          // `httpCode > 0`, so every transport failure was reported to the
+          // origin node as "HTTP 65535" (issue #446), the errorToString()
+          // branch below was unreachable, and handleGatewayAck() classified a
+          // transient network failure as a non-retryable HTTP status.
+          int httpCode = 0;
           TSTRING error = "";
 
 #ifdef ESP8266
@@ -2509,7 +2949,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
           if (pkg.destination.startsWith("https://")) {
 #ifdef ESP32
-            // ESP32: Use default SSL settings with certificate validation
+            // ESP32: no trust anchor is configured, so the certificate is not
+            // validated against anything this library supplies. See the
+            // security notes on initGatewayInternetHandler() and SECURITY.md.
             http.begin(pkg.destination.c_str());
 #elif defined(ESP8266)
             // ESP8266: Use insecure mode to reduce memory overhead
@@ -2526,6 +2968,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 #endif
           }
 
+          // The same id on every attempt at this call. A service that
+          // honours Idempotency-Key treats a retry as the request it already
+          // has; anything recording requests can count the copies.
+          const TSTRING requestId =
+              gateway::requestIdFor(pkg.originNode, pkg.messageId, pkg.requestNonce);
+          http.addHeader("X-Request-Id", requestId.c_str());
+          http.addHeader("Idempotency-Key", requestId.c_str());
+          // Not const: both cores declare collectHeaders(const char* keys[], ...).
+          const char* collected[] = {"Retry-After", "Transfer-Encoding"};
+          http.collectHeaders(collected, 2);
+
           // Make request (GET if no payload, POST if payload)
           if (pkg.payload.length() > 0) {
             http.addHeader("Content-Type", pkg.contentType.c_str());
@@ -2534,65 +2987,82 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             httpCode = http.GET();
           }
 
+          // HTTP semantics only: 200/201/202/204 succeed, anything else fails,
+          // and a retry is allowed only when it cannot deliver the request
+          // twice (see gateway::classifyHttpResult). Whether a service's reply
+          // means what the application wanted is the application's decision,
+          // so the start of the body goes back on success as well as failure.
+          //
+          // 3xx redirects are not automatically followed.
+          //
+          // The classification lives in painlessmesh::gateway so the desktop
+          // test suite can exercise it; this file is ESP-only and never
+          // compiled by the Catch2 build.
+          TSTRING responseHead;
           if (httpCode > 0) {
-            // Only specific 2xx status codes indicate genuine success
-            // 200 OK: Standard successful response
-            // 201 Created: Resource successfully created
-            // 202 Accepted: Request accepted for processing
-            // 204 No Content: Successful with no response body
-            //
-            // Other 2xx codes like 203 (Non-Authoritative Information) often
-            // indicate cached/proxied responses that may not represent actual
-            // delivery to the destination service (e.g., WhatsApp API).
-            //
-            // 3xx redirects are not automatically followed
-            success = (httpCode == 200 || httpCode == 201 || 
-                      httpCode == 202 || httpCode == 204);
-            
+            responseHead =
+                readResponseExcerpt(http);
+          }
+          const auto outcome =
+              gateway::classifyHttpResult(httpCode, responseHead);
+          success = outcome.success;
+          const TSTRING responseSummary =
+              httpCode > 0 ? gateway::summarizeResponseBody(responseHead) : TSTRING();
+          uint32_t retryAfterMs = 0;
+          if (outcome.retryable && httpCode > 0) {
+            retryAfterMs = gateway::parseRetryAfterMs(http.header("Retry-After"));
+          }
+
+          if (!outcome.transportError) {
+            char errorBuf[320];
+            const char* reason = outcome.reason.c_str();
+            const char* sep = outcome.reason.length() > 0 ? ": " : "";
             if (success) {
               Log(COMMUNICATION, "HTTP request completed: code=%d\n", httpCode);
-            } else if (httpCode >= 200 && httpCode < 300) {
-              // Other 2xx codes - ambiguous success
-              // HTTP 203 is retryable, so log at COMMUNICATION level to reduce noise
-              char errorBuf[128];
-              snprintf(errorBuf, sizeof(errorBuf), 
-                      "Ambiguous response - HTTP %d may indicate cached/proxied response, not actual delivery", 
-                      httpCode);
+            } else if (outcome.unverifiedStatus) {
+              // A 2xx outside 200/201/202/204: the server answered, but not
+              // with a status this library can call a delivery. Never
+              // retried. Logged at ERROR, where a sketch on the default
+              // levels sees what the service said.
+              snprintf(errorBuf, sizeof(errorBuf),
+                       "HTTP %d: not a delivery the gateway can confirm%s%s",
+                       httpCode, sep, reason);
               error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP request ambiguous: code=%d (treated as failure, will retry)\n", httpCode);
-            } else if (httpCode >= 500 && httpCode < 600) {
-              // 5xx server errors are retryable, log at COMMUNICATION level
-              char errorBuf[32];
-              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              Log(ERROR, "HTTP response unverified: %s\n", errorBuf);
+            } else if (outcome.retryable) {
+              // 429 or 503: the server says it did not take the request.
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,
+                       reason);
               error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP server error: code=%d (will retry)\n", httpCode);
-            } else if (httpCode == 429) {
-              // HTTP 429 rate limit is retryable, log at COMMUNICATION level
-              char errorBuf[32];
-              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
-              error = TSTRING(errorBuf);
-              Log(COMMUNICATION, "HTTP rate limit: code=%d (will retry)\n", httpCode);
+              Log(COMMUNICATION, "HTTP %d: the server asked to retry (after %lu ms)\n",
+                  httpCode, static_cast<unsigned long>(retryAfterMs));
             } else {
-              // 1xx, 3xx, 4xx (except 429) - non-retryable, log at ERROR level
-              char errorBuf[32];
-              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d", httpCode);
+              snprintf(errorBuf, sizeof(errorBuf), "HTTP %d%s%s", httpCode, sep,
+                       reason);
               error = TSTRING(errorBuf);
-              Log(ERROR, "HTTP request failed: code=%d\n", httpCode);
+              Log(ERROR, "HTTP request failed: %s\n", errorBuf);
             }
           } else {
-            // Network errors (httpCode <= 0) are retryable but indicate serious issues
-            // Keep at ERROR level as they may indicate gateway connectivity problems
+            // Below HTTP. When the request may already be at the server -- a
+            // read timeout, a connection lost after sending -- it is not
+            // retried, and the error says why, so an application that
+            // resends does so knowing it may duplicate.
             error = http.errorToString(httpCode);
+            if (!outcome.retryable) {
+              error += " (the request may have reached the server; not retried)";
+            }
             Log(ERROR, "HTTP request failed: %s\n", error.c_str());
           }
 
           http.end();
 
-          // Send acknowledgment back
-          sendGatewayAck(pkg, success, httpCode, error);
+          // Send acknowledgment back, with the verdict on retrying and the
+          // start of whatever the server said.
+          finish(success, outcome.ackStatus, error, outcome.retryable ? 1 : 0,
+                 responseSummary, retryAfterMs);
 #else
         // Non-ESP platform - send error
-        sendGatewayAck(pkg, false, 0, "HTTP client not available on this platform");
+        finish(false, 0, "HTTP client not available on this platform", 0);
 #endif
 
           return true;  // Consume package - we have processed it and sent
@@ -2600,15 +3070,77 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         });
   }
 
+  /**
+   * The station just got an IP. On a node that runs the Internet health
+   * check -- a bridge or a shared gateway, whose station is the manual router
+   * link -- the last probe most likely ran during association and failed,
+   * and the next is a full interval away (issue #450). Probe again now, from
+   * the scheduler rather than the Wi-Fi event task, so hasLocalInternet()
+   * and the bridge's own sends stop waiting out the interval. A regular
+   * node's mesh station never enables the check and is left alone.
+   */
+  void probeUplinkAfterAssociation() {
+    if (!this->isInternetHealthCheckEnabled() || !stationScan.manual) return;
+    this->addTask([this]() { this->checkInternetNow(); });
+  }
+
   void eventHandleInit() {
     using namespace logger;
+    // Where the station scan learns the channel the mesh is rooted on.
+    // It used to look at its own scan's end, which a node connected to a
+    // rooted mesh reaches once a minute: the node the failover test sends
+    // from joined the bridge, the bridge left 24 s later, and no scan had
+    // run in between — so it had no home to keep and followed a partition
+    // off the router's channel. Topology changes are the moment to look.
+    // Only "ever rooted" comes from the tree: the tree can carry a root that
+    // is gone. On the rig a node's cached tree still showed the bridge as
+    // its root for the seconds after the bridge had moved to its router's
+    // channel, a topology change fired in that window, and the node
+    // recorded the channel it was left on as home — then sat there alone,
+    // seeing the mesh's four nodes on the router's channel and "staying".
+    // Home is learnt from the bridge itself, below: its status message
+    // carries the channel it is on, and a message just received is live.
+    auto noteRoot = [this](uint32_t) {
+      if (layout::isRooted(this->asNodeTree())) this->stationScan.noteEverRooted();
+    };
+    this->newConnectionCallbacks.push_back(noteRoot);
+    this->changedConnectionCallbacks.push_back(noteRoot);
+    this->callbackList.onPackage(
+        protocol::BRIDGE_STATUS,
+        [this](protocol::Variant& variant, std::shared_ptr<Connection>, uint32_t) {
+          JsonDocument doc;
+          TSTRING str;
+          variant.printTo(str);
+          if (deserializeJson(doc, str)) return false;
+          JsonObject obj = doc.as<JsonObject>();
+          if (obj["leaving"] | false) {
+            // The bridge is stepping down; the generic handler forgets it.
+            // Look for another now, not at the monitor's next tick.
+            this->checkForBridgeSoon();
+            return false;
+          }
+          uint8_t routerChannel = obj["routerChannel"] | 0;
+          if (gateway::isValidMeshChannel(routerChannel)) {
+            this->stationScan.noteRooted(routerChannel);
+          }
+          return false;  // the generic handler records the bridge
+        });
 #ifdef ESP32
     eventScanDoneHandler = WiFi.onEvent(
         [this](WiFiEvent_t event, WiFiEventInfo_t info) {
           if (this->semaphoreTake()) {
             Log(CONNECTION,
                 "eventScanDoneHandler: ARDUINO_EVENT_WIFI_SCAN_DONE\n");
-            this->stationScan.scanComplete();
+            // Not scanComplete() here. This callback runs on the core's
+            // network-event task, under the lock that task dispatches
+            // with, and scanComplete() can end in followBridgeChannel(),
+            // which restarts the AP. On core 3.x that waits for events
+            // only this task can deliver: on the rig every esp32-c5 and
+            // esp32-c6 that followed the bridge's channel went silent for
+            // the rest of the run, and stop() then blocked in
+            // removeEvent() on the same lock. The result is consumed by
+            // the station task instead, from update().
+            this->stationScan.scanDone();
             this->semaphoreGive();
           }
         },
@@ -2638,7 +3170,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
             Log(CONNECTION,
                 "eventSTADisconnectedHandler: "
                 "ARDUINO_EVENT_WIFI_STA_DISCONNECTED\n");
+            this->stationScan.stationAttemptOver();
             this->droppedConnectionCallbacks.execute(0, true);
+            this->stationScan.stationDown();
             // Handle station disconnect completion after callbacks
             this->handleStationDisconnectComplete();
             this->semaphoreGive();
@@ -2655,7 +3189,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
           if (this->semaphoreTake()) {
             Log(CONNECTION,
                 "eventSTAGotIPHandler: ARDUINO_EVENT_WIFI_STA_GOT_IP\n");
+            this->stationScan.stationAttemptOver();
+            this->stationScan.stationUp();
             this->tcpConnect();  // Connect to TCP port
+            this->probeUplinkAfterAssociation();
             this->semaphoreGive();
           }
         },
@@ -2676,7 +3213,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     eventSTADisconnectedHandler = WiFi.onStationModeDisconnected(
         [&](const WiFiEventStationModeDisconnected& event) {
           Log(CONNECTION, "Event: Station Mode Disconnected\n");
+          this->stationScan.stationAttemptOver();
           this->droppedConnectionCallbacks.execute(0, true);
+          this->stationScan.stationDown();
           // Handle station disconnect completion after callbacks
           this->handleStationDisconnectComplete();
         });
@@ -2687,7 +3226,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
               "Event: Station Mode Got IP (IP: %s  Mask: %s  Gateway: %s)\n",
               event.ip.toString().c_str(), event.mask.toString().c_str(),
               event.gw.toString().c_str());
+          this->stationScan.stationAttemptOver();
+          this->stationScan.stationUp();
           this->tcpConnect();  // Connect to TCP port
+          this->probeUplinkAfterAssociation();
         });
 #endif  // ESP32
     return;
@@ -2705,6 +3247,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 #endif  // ESP8266
   AsyncServer* _tcpListener;
   std::shared_ptr<Task> bridgeStatusTask;
+  // millis() of the last status broadcast, periodic or brought forward by a
+  // topology change; the latter is held to one every five seconds.
+  uint32_t _lastBridgeStatusBroadcast = 0;
 
   // Station disconnect handling state
   bool _pendingStationReconnect = false;
@@ -2715,6 +3260,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   struct BridgeCandidate {
     uint32_t nodeId;
     int8_t routerRSSI;
+    uint8_t routerChannel;
     uint32_t uptime;
     uint32_t freeMemory;
   };
@@ -2733,6 +3279,9 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   uint32_t electionRandomDelayMaxMs =
       3000;  // Default max 3 seconds random delay
   uint32_t lastRoleChangeTime = 0;
+  // A checkForBridge() is already scheduled (a bridge stepping down, or
+  // the role-change hold); one at a time is enough.
+  bool bridgeCheckPending = false;
   ElectionState electionState = ELECTION_IDLE;
   uint32_t electionDeadline = 0;
   std::vector<BridgeCandidate> electionCandidates;
@@ -2795,8 +3344,6 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   static const uint8_t MIN_WIFI_CHANNEL = 1;
   static const uint8_t MAX_WIFI_CHANNEL =
       14;  // Support channels 1-14 for regions that allow it
-  static const uint32_t GATEWAY_HTTP_TIMEOUT_MS =
-      30000;  // 30 second timeout for gateway HTTP requests
 
   /**
    * Initialize shared gateway monitoring

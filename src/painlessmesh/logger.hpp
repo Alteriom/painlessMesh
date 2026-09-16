@@ -30,8 +30,29 @@ typedef enum {
   DEBUG = 1 << 11
 } LogLevel;
 
+// Log() is printf-like. In the desktop test build the compiler is told so,
+// and -Wall -Werror in CI then rejects any argument that does not match its
+// specifier. That class of bug reached main twice in routePackage(): size_t
+// through %d/%u, and a DeserializationError object through %u (CodeQL
+// cpp/wrong-type-format-argument). The check is kept to the desktop build on
+// purpose: ESP-IDF 5 makes uint32_t `unsigned long`, so on ESP32 every %u of
+// a node id would warn, harmlessly, in every user's build.
+#if defined(PAINLESSMESH_BOOST) && defined(__GNUC__)
+#define PAINLESSMESH_LOG_FORMAT __attribute__((format(printf, 3, 4)))
+#else
+#define PAINLESSMESH_LOG_FORMAT
+#endif
+
 class LogClass {
  public:
+  // Where messages go instead of Serial. The sketch owns framing: on a board
+  // whose serial port carries a line protocol, mesh logs written straight to
+  // Serial from a Wi-Fi event task splice into the sketch's own frames, so
+  // the sketch queues them here and writes them between its frames. Called
+  // from whichever task logged, so keep it short and re-entrant.
+  typedef void (*Sink)(LogLevel type, const char *message);
+  void setSink(Sink newSink) { sink = newSink; }
+
   void setLogLevel(uint16_t newTypes) {
     // set the different kinds of debug messages you want to generate.
     types = newTypes;
@@ -75,12 +96,18 @@ class LogClass {
     Serial.println();
     return;
   }
-  void operator()(LogLevel type, const char *format...) {
+  void operator()(LogLevel type, const char *format...) PAINLESSMESH_LOG_FORMAT {
     if (type & types) {  // Print only the message types set for output
       va_list args;
       va_start(args, format);
 
       vsnprintf(str, 200, format, args);
+
+      if (sink) {
+        sink(type, str);
+        va_end(args);
+        return;
+      }
 
       if (types) {
         switch (type) {
@@ -153,6 +180,7 @@ class LogClass {
 
  private:
   uint16_t types = 0;
+  Sink sink = nullptr;
   char str[200];
   std::list<std::pair<uint32_t, TSTRING>> remote_queue;
   uint32_t remote_uuid;
