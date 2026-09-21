@@ -891,7 +891,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // then had a bridge's listener. AsyncTCP keeps its pcb private, so
     // SO_REUSEADDR cannot be set from here; not re-binding is the fix.
     if (_tcpListener != nullptr) {
-      if (_tcpListener->status() == 1) {
+      if (_tcpListener->status() == TCP_STATE_LISTEN) {
         Log(CONNECTION,
             "tcpServerInit(): listener on port %d already listening, kept\n",
             _meshPort);
@@ -923,8 +923,17 @@ class Mesh : public painlessmesh::Mesh<Connection> {
    * nothing can join through it. Cheap enough to put in a health report.
    */
   bool tcpListening() {
-    return _tcpListener != nullptr && _tcpListener->status() == 1;
+    return _tcpListener != nullptr && _tcpListener->status() == TCP_STATE_LISTEN;
   }
+
+  /**
+   * lwIP's `LISTEN`, which AsyncServer::status() returns as the pcb's state
+   * on both cores (ESPAsyncTCP and ESP32Async/AsyncTCP alike). Named rather
+   * than written as 1 because status() also answers 0 -- lwIP's CLOSED --
+   * when the server holds no pcb at all, so the literal read as if it
+   * conflated the two. It does not: a listener is listening, or it is not.
+   */
+  static constexpr uint8_t TCP_STATE_LISTEN = 1;
 
   /**
    * Establish TCP connection to mesh network
@@ -2491,7 +2500,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // stop/re-init, was not listening, and nothing looked. This task runs
     // every thirty seconds on a bridge: if the listener is not in LISTEN
     // (1 on both cores) it is re-created, and the log says so.
-    if (_tcpListener != nullptr && _tcpListener->status() != 1) {
+    if (_tcpListener != nullptr && _tcpListener->status() != TCP_STATE_LISTEN) {
       Log(ERROR,
           "sendBridgeStatus(): TCP listener on port %d is in state %u, not "
           "LISTEN; re-creating it\n",
@@ -3260,10 +3269,14 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
 #ifdef ESP32
-  WiFiEventId_t eventScanDoneHandler;
-  WiFiEventId_t eventSTAStartHandler;
-  WiFiEventId_t eventSTADisconnectedHandler;
-  WiFiEventId_t eventSTAGotIPHandler;
+  // Event ids the core hands back from onEvent(); stop() removes all four.
+  // 0 is never issued (the core's ids start at 1 and 0 means "no
+  // callback"), so removeEvent(0) is a no-op on a node stopped before
+  // init() rather than a walk of the core's callback list for garbage.
+  WiFiEventId_t eventScanDoneHandler = 0;
+  WiFiEventId_t eventSTAStartHandler = 0;
+  WiFiEventId_t eventSTADisconnectedHandler = 0;
+  WiFiEventId_t eventSTAGotIPHandler = 0;
 #elif defined(ESP8266)
   WiFiEventHandler eventSTAConnectedHandler;
   WiFiEventHandler eventSTADisconnectedHandler;

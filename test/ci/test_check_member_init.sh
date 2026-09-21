@@ -44,6 +44,9 @@ struct time_sync_msg_t {
   int type = 0;
   uint32_t t0;                          // line 22
 };
+class Events {
+  WiFiEventId_t eventScanDoneHandler;   // line 25: a known alias of size_t
+};
 EOF
 
 cat > "$work/good.hpp" <<'EOF'
@@ -83,6 +86,14 @@ class Mesh : public painlessmesh::Mesh<T> {
     uint32_t nodeId = 0;
     int8_t routerRSSI = 0;
   };
+  WiFiEventId_t eventSTAStartHandler = 0;
+  // The limitation, pinned: an alias the checker does not know is not
+  // seen. These two are uninitialised and must NOT be reported; if the
+  // scanner ever learns to resolve aliases, move them to bad.hpp.
+  typedef size_t unknown_id_t;
+  unknown_id_t unseenArithmeticAlias;
+  typedef int* IntPtr;
+  IntPtr unseenPointerAlias;
 };
 EOF
 
@@ -97,13 +108,14 @@ for expect in ":10: Mesh::_meshChannel (arithmetic)" \
               ":14: BridgeCandidate::nodeId (arithmetic)" \
               ":17: Mesh::b (arithmetic)" \
               ":17: Mesh::d (pointer)" \
-              ":22: time_sync_msg_t::t0 (arithmetic)"; do
+              ":22: time_sync_msg_t::t0 (arithmetic)" \
+              ":25: Events::eventScanDoneHandler (arithmetic)"; do
   grep -qF -- "$expect" <<<"$out" || { echo "missing finding: $expect"; echo "$out"; exit 1; }
 done
 for absent in "local" "routerRSSI" "bridgeStatusTask" "Mesh::a " "Mesh::c " "type"; do
   ! grep -q -- "::${absent}" <<<"$out" || { echo "false positive: $absent"; echo "$out"; exit 1; }
 done
-[ "$(grep -c "has no default member initializer" <<<"$out")" -eq 6 ] || { echo "expected exactly 6 findings"; echo "$out"; exit 1; }
+[ "$(grep -c "has no default member initializer" <<<"$out")" -eq 7 ] || { echo "expected exactly 7 findings"; echo "$out"; exit 1; }
 
 echo "▸ the same code with defaults, and everything that only looks like a member, passes"
 python3 "$checker" "$work/good.hpp" >/dev/null || { echo "good.hpp was reported:"; python3 "$checker" "$work/good.hpp"; exit 1; }

@@ -30,7 +30,15 @@ Not checked, on purpose, and worth knowing:
     is read is the normal shape of a formatting scratch area;
   * enums and class types -- an enum's type cannot be told from a class
     name by regex, and class types construct themselves;
-  * references -- a reference member cannot exist uninitialised.
+  * references -- a reference member cannot exist uninitialised;
+  * type aliases -- the scanner matches spellings, so `typedef size_t id_t;
+    id_t handle;` and `typedef int* IntPtr; IntPtr p;` are invisible to it
+    unless the alias is in ARITHMETIC_ALIASES below. When a member's type
+    comes from a core header, check what it aliases and add it there.
+
+So the summary line means: every member whose type is spelled as a
+pointer or as one of the arithmetic names above has a default. It is not
+a proof about members behind aliases the list does not know.
 
 The parser is a line scanner that tracks braces after stripping comments
 and string literals: a data member is a declaration that begins at the
@@ -47,10 +55,20 @@ import pathlib
 import re
 import sys
 
+# Names that are arithmetic on every core this library builds for but are
+# spelled as aliases, so the scanner would otherwise not see them. The
+# scanner matches spellings, not types: an alias defined outside src/ is
+# invisible to it unless it is listed here. WiFiEventId_t is size_t on
+# both ESP32 cores (wifi_event_id_t on 2.x, network_event_handle_t on 3.x)
+# and was exactly the shape #466's review found eleven lines above the
+# member the checker was written for.
+ARITHMETIC_ALIASES = ("WiFiEventId_t", "wifi_event_id_t", "network_event_handle_t")
+
 ARITHMETIC = (
     r"(?:(?:unsigned|signed)\s+)?"
     r"(?:long\s+long|long\s+int|long|short|int|char|bool|float|double|"
-    r"size_t|ssize_t|u?int(?:8|16|32|64|ptr)?_t|time_t)"
+    r"size_t|ssize_t|u?int(?:8|16|32|64|ptr)?_t|time_t|"
+    + "|".join(ARITHMETIC_ALIASES) + r")"
 )
 # Anything followed by `*` is a pointer, whatever it points at.
 POINTER_TYPE = r"[A-Za-z_][\w:]*(?:\s*<[^;{}]*?>)?"
@@ -243,7 +261,8 @@ def main(argv):
               "Give each one a default (= nullptr, = 0, = false): it holds under every "
               "constructor the class has or gains later. See test/ci/check_member_init.py.")
         return 1
-    print(f"check_member_init: {len(files)} header(s), every pointer and arithmetic member has a default")
+    print(f"check_member_init: {len(files)} header(s), every member spelled as a pointer or a known "
+          "arithmetic type has a default (aliases outside ARITHMETIC_ALIASES are not seen)")
     return 0
 
 
