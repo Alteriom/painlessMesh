@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Every merge to `main` runs on the hardware rig.**
+  `.github/workflows/farm-hil.yml` dispatches the Alteriom farm's HIL suite
+  once the CI/CD Pipeline has passed on `main`, and for a pull request a
+  maintainer labels `run-hil` -- a promise CONTRIBUTING.md had made that
+  nothing kept. The rig had been a manual gate, so #466 reached a user
+  before it reached a board. Needs the `FARM_DISPATCH_TOKEN` secret; without
+  it the job says so and passes. Release builds stay a person's decision on
+  the farm side.
+
 - **`mesh.tcpListening()`** -- whether this node's TCP listener exists and
   is in LISTEN, the state peers depend on and nothing else reported. A node
   whose listener was never created (#466) or was re-created not listening
