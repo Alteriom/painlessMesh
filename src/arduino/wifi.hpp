@@ -3346,11 +3346,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   size_t lastSelectedBridgeIndex = 0;   // For round-robin selection
 
   // Bridge coordination monitoring callbacks and state
+  // Constructed by name, not as an aggregate: with default member
+  // initializers this is not an aggregate under gnu++11, which the ESP32
+  // Arduino 2.x core still builds with, and `= {priority, role, load,
+  // millis()}` below needs a constructor to land on there.
   struct BridgeCoordinationState {
     uint8_t priority = 0;
     TSTRING role;
     uint8_t load = 0;
     uint32_t lastSeen = 0;
+    BridgeCoordinationState() {}
+    BridgeCoordinationState(uint8_t priority_, const TSTRING& role_,
+                            uint8_t load_, uint32_t lastSeen_)
+        : priority(priority_), role(role_), load(load_), lastSeen(lastSeen_) {}
   };
   std::map<uint32_t, BridgeCoordinationState> lastBridgeCoordinationState;
   std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t)> bridgeCoordinationCallback;

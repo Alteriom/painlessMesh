@@ -17,6 +17,13 @@ fundamental arithmetic type must carry a default member initializer
 constructor the class has, and every one it gains later, which is exactly
 the property a constructor-based rule cannot give.
 
+One consequence to know when adding a default: under gnu++11, which the
+ESP32 Arduino 2.x core still builds with, a struct with a default member
+initializer is no longer an aggregate, so `= {a, b, c}` and
+`push_back({a, b})` stop compiling for it. Give such a struct a default
+constructor and one taking its fields, as BridgeCoordinationState and
+MeshChannelCandidate do; the desktop build is C++14 and will not tell you.
+
 Not checked, on purpose, and worth knowing:
 
   * arrays (`char str[200];`) -- an uninitialised buffer written before it
