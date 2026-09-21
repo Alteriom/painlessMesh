@@ -1,0 +1,112 @@
+name: Hardware validation on the farm
+
+# Every merge to main is flashed onto the Alteriom rig and run through the
+# painlessMesh HIL suite (Alteriom/alteriom-esp32-farm, hil-painlessmesh.yml).
+#
+# The rig was a manual gate: the farm accepts a repository_dispatch of type
+# `painlessmesh-hil`, and nothing here ever sent one, so a fix merged with a
+# green CI had run on no board until somebody remembered to dispatch. #466
+# was reported by a user before the rig saw it. This closes that.
+#
+# It waits for the CI/CD Pipeline to succeed on main rather than firing on
+# the push: the farm builds its own firmware from the SHA, and a rig run is
+# twenty-five minutes of boards -- not to be spent on a revision the desktop
+# and device builds already refused. The farm resolves `client_payload.sha`
+# itself, and takes only a full SHA or a ref name.
+#
+# `release` is deliberately never sent as true from here: a release build is
+# what lets a rig that holds its owner's CallMeBot link spend a real message
+# (farm docs/providers.md), and that stays a decision a person makes with
+# the farm's own workflow_dispatch.
+#
+# FARM_DISPATCH_TOKEN: a fine-grained personal access token for the
+# alteriom-esp32-farm repository with Contents: read and write -- the
+# permission repository_dispatch requires -- and nothing else. Without it the
+# job says so and passes, so a fork or a checkout without the secret is not
+# red for a run it could never make.
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+    branches: [main]
+  # CONTRIBUTING.md has promised for some time that a maintainer runs the rig
+  # on a pull request by adding the `run-hil` label. The farm cannot see this
+  # repository's labels, so until now nothing made that true. A label added
+  # by a maintainer dispatches the PR's head; a fork's PR has no secrets and
+  # gets the notice below instead.
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "painlessMesh ref to run on the rig (blank = main's tip)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# One dispatch at a time, in order; a merge that lands while the previous
+# dispatch is still being sent queues behind it rather than racing it.
+concurrency:
+  group: farm-hil-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Dispatch the HIL suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A workflow_run fires for every completed CI run on main, including the
+    # failed ones; only a green one reaches the rig.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'run-hil') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    steps:
+      - name: Resolve the revision to run
+        id: rev
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_REF: ${{ inputs.ref }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            workflow_run)  ref="$RUN_SHA" ;;
+            pull_request)  ref="$PR_SHA" ;;
+            *)             ref="${INPUT_REF:-$PUSH_SHA}" ;;
+          esac
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Rig will run painlessMesh $ref ($EVENT)"
+
+      - name: Send the farm its repository_dispatch
+        env:
+          FARM_DISPATCH_TOKEN: ${{ secrets.FARM_DISPATCH_TOKEN }}
+          REF: ${{ steps.rev.outputs.ref }}
+          SOURCE_RUN: ${{ github.event.workflow_run.html_url || github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FARM_DISPATCH_TOKEN" ]; then
+            echo "::notice title=No rig run::FARM_DISPATCH_TOKEN is not set in this repository, so the farm was not dispatched. Add a fine-grained PAT for Alteriom/alteriom-esp32-farm (Contents: read and write) under that name to run every merge on the rig."
+            exit 0
+          fi
+          payload=$(jq -n --arg sha "$REF" --arg src "$SOURCE_RUN" \
+            '{event_type: "painlessmesh-hil", client_payload: {sha: $sha, release: false, source: $src}}')
+          code=$(curl -sS -o /tmp/dispatch.out -w '%{http_code}' \
+            -X POST "https://api.github.com/repos/Alteriom/alteriom-esp32-farm/dispatches" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $FARM_DISPATCH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -d "$payload")
+          if [ "$code" != "204" ]; then
+            echo "::error title=Farm dispatch refused::GitHub answered $code to the repository_dispatch"
+            cat /tmp/dispatch.out
+            exit 1
+          fi
+          echo "Dispatched painlessmesh-hil for $REF; the run appears at https://github.com/Alteriom/alteriom-esp32-farm/actions/workflows/hil-painlessmesh.yml"
