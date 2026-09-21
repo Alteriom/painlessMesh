@@ -19,11 +19,18 @@ name: Hardware validation on the farm
 # (farm docs/providers.md), and that stays a decision a person makes with
 # the farm's own workflow_dispatch.
 #
+# The job then waits for the rig's verdict and carries it: the Automated
+# Release workflow runs only once this one has succeeded on main, so a
+# release is tagged after the boards have passed a revision, never merely
+# after they were asked. A merge that does not bump the version still runs
+# on the rig; the release workflow then simply has nothing to tag.
+#
 # FARM_DISPATCH_TOKEN: a fine-grained personal access token for the
-# alteriom-esp32-farm repository with Contents: read and write -- the
-# permission repository_dispatch requires -- and nothing else. Without it the
-# job says so and passes, so a fork or a checkout without the secret is not
-# red for a run it could never make.
+# alteriom-esp32-farm repository with Contents: read and write (what
+# repository_dispatch requires) and Actions: read (to find and follow the
+# run it started), and nothing else. Without it the job says so and passes,
+# so a fork or a checkout without the secret is not red for a run it could
+# never make -- and, having sent nothing, releases nothing.
 
 on:
   workflow_run:
@@ -55,9 +62,11 @@ concurrency:
 
 jobs:
   dispatch:
-    name: Dispatch the HIL suite
+    name: Dispatch the HIL suite and wait for its verdict
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Five minutes to dispatch and find the run, then a rig run of about
+    # thirty; the wait step gives up at sixty-five on its own.
+    timeout-minutes: 75
     # A workflow_run fires for every completed CI run on main, including the
     # failed ones; only a green one reaches the rig.
     if: >-
@@ -86,12 +95,14 @@ jobs:
           echo "Rig will run painlessMesh $ref ($EVENT)"
 
       - name: Send the farm its repository_dispatch
+        id: dispatch
         env:
           FARM_DISPATCH_TOKEN: ${{ secrets.FARM_DISPATCH_TOKEN }}
           REF: ${{ steps.rev.outputs.ref }}
           SOURCE_RUN: ${{ github.event.workflow_run.html_url || github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          echo "sent_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
           if [ -z "$FARM_DISPATCH_TOKEN" ]; then
             echo "::notice title=No rig run::FARM_DISPATCH_TOKEN is not set in this repository, so the farm was not dispatched. Add a fine-grained PAT for Alteriom/alteriom-esp32-farm (Contents: read and write) under that name to run every merge on the rig."
             exit 0
@@ -109,4 +120,60 @@ jobs:
             cat /tmp/dispatch.out
             exit 1
           fi
+          echo "dispatched=true" >> "$GITHUB_OUTPUT"
           echo "Dispatched painlessmesh-hil for $REF; the run appears at https://github.com/Alteriom/alteriom-esp32-farm/actions/workflows/hil-painlessmesh.yml"
+
+      # This job's verdict is the rig's. The Automated Release workflow runs
+      # only once this workflow has succeeded on main, so a release is
+      # tagged after the boards have passed, never merely after they were
+      # asked. The farm titles each run with the painlessMesh SHA it
+      # resolved (its run-name), which is how the right run is found among
+      # the others; the token needs Actions: read on the farm repository for
+      # the listing, and says so if it does not have it.
+      - name: Wait for the rig's verdict
+        if: steps.dispatch.outputs.dispatched == 'true'
+        env:
+          FARM_DISPATCH_TOKEN: ${{ secrets.FARM_DISPATCH_TOKEN }}
+          REF: ${{ steps.rev.outputs.ref }}
+          SENT_AT: ${{ steps.dispatch.outputs.sent_at }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/Alteriom/alteriom-esp32-farm/actions/workflows/hil-painlessmesh.yml/runs"
+          auth=(-H "Accept: application/vnd.github+json" -H "Authorization: Bearer $FARM_DISPATCH_TOKEN" -H "X-GitHub-Api-Version: 2022-11-28")
+          run_id=""
+          # The farm resolves the ref to a SHA and puts that SHA in the run's
+          # title; a branch name here is matched by prefix of what it resolved.
+          for _ in $(seq 1 30); do
+            code=$(curl -sS -o /tmp/runs.json -w '%{http_code}' "${auth[@]}" "$api?event=repository_dispatch&per_page=20&created=%3E%3D$SENT_AT")
+            if [ "$code" = "403" ] || [ "$code" = "404" ]; then
+              echo "::error title=Cannot read the farm's runs::GitHub answered $code listing runs. FARM_DISPATCH_TOKEN needs Actions: read on Alteriom/alteriom-esp32-farm as well as Contents: read and write."
+              exit 1
+            fi
+            run_id=$(jq -r --arg ref "$REF" '[.workflow_runs[] | select((.display_title // .name) | test($ref))] | sort_by(.created_at) | last | .id // empty' /tmp/runs.json)
+            [ -n "$run_id" ] && break
+            sleep 10
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error title=No rig run appeared::The farm accepted the dispatch for $REF but no hil-painlessmesh run titled with it appeared within 5 minutes. Its runs: https://github.com/Alteriom/alteriom-esp32-farm/actions/workflows/hil-painlessmesh.yml"
+            exit 1
+          fi
+          url="https://github.com/Alteriom/alteriom-esp32-farm/actions/runs/$run_id"
+          echo "Rig run: $url"
+          echo "::notice title=Rig run::$url"
+          # A rig run is about thirty minutes; the job allows seventy.
+          for _ in $(seq 1 130); do
+            curl -sS -o /tmp/run.json "${auth[@]}" "https://api.github.com/repos/Alteriom/alteriom-esp32-farm/actions/runs/$run_id"
+            status=$(jq -r .status /tmp/run.json)
+            if [ "$status" = "completed" ]; then
+              conclusion=$(jq -r .conclusion /tmp/run.json)
+              echo "Rig run finished: $conclusion ($url)"
+              if [ "$conclusion" != "success" ]; then
+                echo "::error title=The rig refused this revision::hil-painlessmesh concluded $conclusion for $REF. The failing rows are in the run's report artifact: $url"
+                exit 1
+              fi
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error title=Rig run did not finish::$url was still $status after 65 minutes"
+          exit 1
