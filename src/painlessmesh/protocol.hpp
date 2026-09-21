@@ -75,6 +75,10 @@ constexpr uint8_t PRIORITY_LOW = 3;
 
 class PackageInterface {
  public:
+  // A base with virtual functions destroyed through a derived pointer needs
+  // this, and a package held in a shared_ptr is exactly that case (#469);
+  // clang refuses the build without it under -Werror.
+  virtual ~PackageInterface() = default;
   virtual JsonObject addTo(JsonObject&& jsonObj) const = 0;
 #if ARDUINOJSON_VERSION_MAJOR < 7
   virtual size_t jsonObjectSize() const = 0;
