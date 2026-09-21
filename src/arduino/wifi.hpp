@@ -23,6 +23,14 @@
 
 extern painlessmesh::logger::LogClass Log;
 
+/**
+ * Defined when Mesh::tcpListening() exists, so a node can be asked whether
+ * its TCP listener is in LISTEN rather than having that inferred from a
+ * peer eventually connecting. Code that must build against older releases
+ * too can test for it with #ifdef.
+ */
+#define PAINLESSMESH_HAS_TCP_LISTENING 1
+
 namespace painlessmesh {
 namespace wifi {
 class Mesh : public painlessmesh::Mesh<Connection> {
@@ -903,6 +911,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     Log(CONNECTION, "tcpServerInit(): listener on port %d, state %u\n",
         _meshPort, (unsigned)_tcpListener->status());
     return;
+  }
+
+  /**
+   * Whether this node's TCP listener exists and is in LISTEN.
+   *
+   * The state peers depend on and nothing else reports: a node whose
+   * listener was never created (#466 crashed before it could be) or was
+   * re-created not listening (#435's promoted bridge served nothing for two
+   * minutes) is reachable only through connections it made outbound, and
+   * nothing can join through it. Cheap enough to put in a health report.
+   */
+  bool tcpListening() {
+    return _tcpListener != nullptr && _tcpListener->status() == 1;
   }
 
   /**

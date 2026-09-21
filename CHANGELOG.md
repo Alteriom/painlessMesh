@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`mesh.tcpListening()`** -- whether this node's TCP listener exists and
+  is in LISTEN, the state peers depend on and nothing else reported. A node
+  whose listener was never created (#466) or was re-created not listening
+  (#435) is reachable only through connections it made outbound, and nothing
+  can join through it; a health report can now say so on the node itself.
+  `PAINLESSMESH_HAS_TCP_LISTENING` is defined alongside it for code that
+  builds against older releases too.
+
 ### Fixed
 
 - **A node could crash before serving its first connection: `_tcpListener`
