@@ -125,10 +125,11 @@ class StationScan {
  protected:
   TSTRING ssid;
   TSTRING password;
-  painlessMesh *mesh;
-  uint16_t port;
-  uint8_t channel;
-  bool hidden;
+  // init() sets these; until then the scan belongs to no mesh and no port.
+  painlessMesh *mesh = nullptr;
+  uint16_t port = 0;
+  uint8_t channel = 0;
+  bool hidden = false;
   std::list<WiFi_AP_Record_t> aps;
 
   void requestIP(WiFi_AP_Record_t &ap);

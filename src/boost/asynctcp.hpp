@@ -258,7 +258,7 @@ class AsyncServer {
 
  protected:
   boost::asio::io_context& _io_service;
-  uint16_t _port;
+  uint16_t _port = 0;
   tcp::acceptor mAcceptor;
   AcConnectHandler _connect_cb = 0;
   void* _connect_cb_arg = 0;

@@ -51,7 +51,7 @@ class Timer {
 #endif
   }
 
-  uint32_t start_time_;
+  uint32_t start_time_ = 0;
 #ifdef ESP32
   int64_t start_time_us_ = esp_timer_get_time();
 #endif

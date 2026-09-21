@@ -183,7 +183,7 @@ class LogClass {
   Sink sink = nullptr;
   char str[200];
   std::list<std::pair<uint32_t, TSTRING>> remote_queue;
-  uint32_t remote_uuid;
+  uint32_t remote_uuid = 0;
 };
 
 }  // namespace logger

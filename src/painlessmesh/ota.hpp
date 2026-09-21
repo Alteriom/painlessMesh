@@ -112,7 +112,7 @@ class Announce : public BroadcastPackage {
    */
   bool compressed = false;
 
-  size_t noPart;
+  size_t noPart = 0;
 
   Announce() : BroadcastPackage(10) {}
 

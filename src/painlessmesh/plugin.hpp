@@ -39,10 +39,13 @@ namespace plugin {
 
 class SinglePackage : public protocol::PackageInterface {
  public:
-  uint32_t from;
-  uint32_t dest;
-  router::Type routing;
-  int type;
+  // `from` and `dest` are the application's to fill; a package built by
+  // the type constructor and sent before they are set addresses node 0,
+  // not whatever the stack held.
+  uint32_t from = 0;
+  uint32_t dest = 0;
+  router::Type routing = router::SINGLE;
+  int type = 0;
   int noJsonFields = 4;
 
   SinglePackage(int type) : routing(router::SINGLE), type(type) {}
@@ -65,9 +68,9 @@ class SinglePackage : public protocol::PackageInterface {
 
 class BroadcastPackage : public protocol::PackageInterface {
  public:
-  uint32_t from;
-  router::Type routing;
-  int type;
+  uint32_t from = 0;
+  router::Type routing = router::BROADCAST;
+  int type = 0;
   int noJsonFields = 3;
 
   BroadcastPackage(int type) : routing(router::BROADCAST), type(type) {}

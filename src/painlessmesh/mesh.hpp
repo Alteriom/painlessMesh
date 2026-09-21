@@ -3092,15 +3092,15 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * Structure to hold detailed connection information
    */
   struct ConnectionInfo {
-    uint32_t nodeId;           // Connected node ID
-    uint32_t lastSeen;         // Timestamp of last message (ms)
-    int rssi;                  // Signal strength (dBm)
-    int avgLatency;            // Average round-trip time (ms)
-    int hopCount;              // Hops from current node
-    int quality;               // Connection quality (0-100)
-    uint32_t messagesRx;       // Messages received
-    uint32_t messagesTx;       // Messages sent
-    uint32_t messagesDropped;  // Failed transmissions
+    uint32_t nodeId = 0;           // Connected node ID
+    uint32_t lastSeen = 0;         // Timestamp of last message (ms)
+    int rssi = 0;                  // Signal strength (dBm)
+    int avgLatency = 0;            // Average round-trip time (ms)
+    int hopCount = 0;              // Hops from current node
+    int quality = 0;               // Connection quality (0-100)
+    uint32_t messagesRx = 0;       // Messages received
+    uint32_t messagesTx = 0;       // Messages sent
+    uint32_t messagesDropped = 0;  // Failed transmissions
   };
 
   /**
@@ -4098,7 +4098,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   /// Is the node a root node
   bool shouldContainRoot = false;
 
-  Scheduler *mScheduler;
+  // init() either creates one or takes the caller's; null until then.
+  Scheduler *mScheduler = nullptr;
 
  public:  // Windows MSVC: lambdas in friend functions need public access
 

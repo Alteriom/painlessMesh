@@ -67,8 +67,8 @@ constexpr bool shouldFollowBridgeChannel(uint32_t localNodeId,
  * @brief One occurrence of the mesh SSID seen by an all-channel scan.
  */
 struct MeshChannelCandidate {
-  uint8_t channel;
-  int32_t rssi;
+  uint8_t channel = 0;
+  int32_t rssi = 0;
 };
 
 /**

@@ -1521,12 +1521,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
  protected:
   friend class ::StationScan;
+  // init() sets all of these; the defaults are init()'s own, so a node
+  // that is asked about its AP before init() answers something true
+  // rather than whatever the stack held.
   TSTRING _meshSSID;
   TSTRING _meshPassword;
-  uint8_t _meshChannel;
-  uint8_t _meshHidden;
-  uint8_t _meshMaxConn;
-  uint16_t _meshPort;
+  uint8_t _meshChannel = 1;
+  uint8_t _meshHidden = 0;
+  uint8_t _meshMaxConn = MAX_CONN;
+  uint16_t _meshPort = 5555;
 
   IPAddress _apIp;
   StationScan stationScan;
@@ -3245,7 +3248,12 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   WiFiEventHandler eventSTADisconnectedHandler;
   WiFiEventHandler eventSTAGotIPHandler;
 #endif  // ESP8266
-  AsyncServer* _tcpListener;
+  // Null until tcpServerInit() creates it. Every reader checks for null
+  // first, and one of them (tcpServerInit() itself, since 2.1.0) runs before
+  // anything has assigned it -- on an uninitialised pointer that check
+  // passed on garbage and the delete that followed crashed the node before
+  // it served a single connection (#466).
+  AsyncServer* _tcpListener = nullptr;
   std::shared_ptr<Task> bridgeStatusTask;
   // millis() of the last status broadcast, periodic or brought forward by a
   // topology change; the latter is held to one every five seconds.
@@ -3258,11 +3266,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   enum ElectionState { ELECTION_IDLE, ELECTION_SCANNING, ELECTION_COLLECTING };
 
   struct BridgeCandidate {
-    uint32_t nodeId;
-    int8_t routerRSSI;
-    uint8_t routerChannel;
-    uint32_t uptime;
-    uint32_t freeMemory;
+    uint32_t nodeId = 0;
+    int8_t routerRSSI = 0;
+    uint8_t routerChannel = 0;
+    uint32_t uptime = 0;
+    uint32_t freeMemory = 0;
   };
 
   bool bridgeFailoverEnabled = true;
@@ -3318,10 +3326,10 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
   // Bridge coordination monitoring callbacks and state
   struct BridgeCoordinationState {
-    uint8_t priority;
+    uint8_t priority = 0;
     TSTRING role;
-    uint8_t load;
-    uint32_t lastSeen;
+    uint8_t load = 0;
+    uint32_t lastSeen = 0;
   };
   std::map<uint32_t, BridgeCoordinationState> lastBridgeCoordinationState;
   std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t)> bridgeCoordinationCallback;

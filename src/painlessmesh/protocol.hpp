@@ -89,8 +89,8 @@ class PackageInterface {
 class Single : public PackageInterface {
  public:
   int type = SINGLE;
-  uint32_t from;
-  uint32_t dest;
+  uint32_t from = 0;
+  uint32_t dest = 0;
   TSTRING msg = "";
   // Non-zero when the sender requested a delivery acknowledgment. Only
   // serialized when set, so plain sends carry zero overhead.
@@ -273,8 +273,8 @@ class NodeTree : public PackageInterface {
 class NodeSyncRequest : public NodeTree {
  public:
   int type = NODE_SYNC_REQUEST;
-  uint32_t from;
-  uint32_t dest;
+  uint32_t from = 0;
+  uint32_t dest = 0;
 
   NodeSyncRequest() {}
   NodeSyncRequest(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
@@ -351,8 +351,8 @@ struct time_sync_msg_t {
 class TimeSync : public PackageInterface {
  public:
   int type = TIME_SYNC;
-  uint32_t dest;
-  uint32_t from;
+  uint32_t dest = 0;
+  uint32_t from = 0;
   time_sync_msg_t msg;
 
   TimeSync() {}

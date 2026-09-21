@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A node could crash before serving its first connection: `_tcpListener`
+  was never initialised** (#466). 2.1.0 taught `tcpServerInit()` to keep a
+  listener that already exists instead of re-binding the port, so it now
+  reads the pointer before anything has assigned it. On a stack that held
+  garbage there the null check passed and the `delete` that followed
+  crashed the node at start-up. The pointer defaults to `nullptr`.
+- **The same gap closed everywhere it existed.** Twenty more pointer and
+  arithmetic members had no default and no constructor setting them: the
+  AP settings a node reports before `init()`; `from`/`dest` on a package
+  built by its type constructor and sent before the application filled
+  them; the fields of `SendStats`, `ConnectionInfo`, `BridgeCandidate`,
+  `MeshChannelCandidate` and `BridgeCoordinationState`; and the
+  book-keeping members of `RTCManager`, `MessageQueue`, `LogClass`,
+  `metrics::Timer` and the desktop `AsyncServer`. Each now has a default
+  member initializer, which holds under every constructor the class has or
+  gains later.
+- **CI refuses the next one.** `test/ci/check_member_init.py` walks every
+  header under `src/` and fails on any pointer or arithmetic data member
+  declared without a default member initializer, whatever the class's
+  constructors do; `test/ci/test_check_member_init.sh` plants the #466
+  case and proves the checker catches it and passes clean code. Both run
+  in the Code Quality job.
+
 ## [2.1.0] - 2026-09-15
 
 `sendToInternet()` you can build a notifier on (#463). One user's WhatsApp
