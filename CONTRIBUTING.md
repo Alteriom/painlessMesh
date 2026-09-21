@@ -97,11 +97,17 @@ scenarios for an example live under `examples/<example>/test/simulator/`
 and OTA behaviour is validated on the Alteriom hardware-in-the-loop farm.
 `.github/workflows/farm-hil.yml` sends the farm a run for **every merge to
 `main` whose CI passed**, and for a pull request when a maintainer adds the
-`run-hil` label; either needs the `FARM_DISPATCH_TOKEN` secret, and without
-it the job says so and passes rather than pretending. A rig run is never a
-release build from here -- one that may spend a real provider message is
-started by a person from the farm's own workflow -- and the release gate is
-three consecutive clean runs of the whole suite.
+`run-hil` label, then **waits for the rig's verdict and carries it**. The
+Automated Release workflow runs only once that job has succeeded on
+`main`, so a version bump is tagged after the boards have passed it, never
+merely after they were asked; a merge that bumps nothing still runs on the
+rig and releases nothing. Both need the `FARM_DISPATCH_TOKEN` secret (a
+fine-grained token for the farm repository with Contents read/write and
+Actions read); without it the job says so and passes, and, having sent
+nothing, releases nothing. A rig run is never a release build from here --
+one that may spend a real provider message is started by a person from the
+farm's own workflow -- and the release gate is three consecutive clean
+runs of the whole suite.
 
 ### The HTTP test point
 
