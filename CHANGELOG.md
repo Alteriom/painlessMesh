@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-09-21
+
+Two crashes the rig and a user found in 2.1.0, and the rig itself wired
+in. A node could crash at start-up on an uninitialised listener pointer
+(#466, reported by a user before the rig saw it), and an ESP8266 serving as
+a shared gateway could run out of memory answering its own
+`sendToInternet()` (#469, found by the rig the day the fix for #466 landed).
+Both are fixed, CI now refuses the class of defect behind #466, and every
+merge to `main` is flashed onto the rig from here on. **Upgrade if you run
+2.1.0**: the #466 crash is at boot, on every node.
+
 ### Added
 
 - **Every merge to `main` runs on the hardware rig.**
