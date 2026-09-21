@@ -192,9 +192,9 @@ class RTCManager {
   }
   
  private:
-  RTCInterface* rtcInterface;
-  bool rtcEnabled;
-  uint32_t lastSyncTime;
+  RTCInterface* rtcInterface = nullptr;
+  bool rtcEnabled = false;
+  uint32_t lastSyncTime = 0;
 };
 
 }  // namespace rtc

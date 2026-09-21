@@ -286,6 +286,18 @@ jobs:
       - name: Version bump script
         run: bash test/ci/test_bump_version.sh
 
+      # #466: `AsyncServer* _tcpListener;` had no initializer and no
+      # constructor, so nothing warned, and the first read of it crashed the
+      # node. The header only compiles on the device, where no static
+      # analysis runs here, so the rule is checked as text: every pointer and
+      # arithmetic member under src/ carries a default member initializer.
+      # The test first, so a checker that stopped seeing the defect fails
+      # before it is trusted on the tree.
+      - name: Member initializers (#466)
+        run: |
+          bash test/ci/test_check_member_init.sh
+          python3 test/ci/check_member_init.py src
+
       - name: Check for TODO/FIXME comments
         run: |
           # Only check for TODO/FIXME in newly added Alteriom files

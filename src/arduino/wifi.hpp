@@ -23,6 +23,14 @@
 
 extern painlessmesh::logger::LogClass Log;
 
+/**
+ * Defined when Mesh::tcpListening() exists, so a node can be asked whether
+ * its TCP listener is in LISTEN rather than having that inferred from a
+ * peer eventually connecting. Code that must build against older releases
+ * too can test for it with #ifdef.
+ */
+#define PAINLESSMESH_HAS_TCP_LISTENING 1
+
 namespace painlessmesh {
 namespace wifi {
 class Mesh : public painlessmesh::Mesh<Connection> {
@@ -883,7 +891,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // then had a bridge's listener. AsyncTCP keeps its pcb private, so
     // SO_REUSEADDR cannot be set from here; not re-binding is the fix.
     if (_tcpListener != nullptr) {
-      if (_tcpListener->status() == 1) {
+      if (_tcpListener->status() == TCP_STATE_LISTEN) {
         Log(CONNECTION,
             "tcpServerInit(): listener on port %d already listening, kept\n",
             _meshPort);
@@ -904,6 +912,28 @@ class Mesh : public painlessmesh::Mesh<Connection> {
         _meshPort, (unsigned)_tcpListener->status());
     return;
   }
+
+  /**
+   * Whether this node's TCP listener exists and is in LISTEN.
+   *
+   * The state peers depend on and nothing else reports: a node whose
+   * listener was never created (#466 crashed before it could be) or was
+   * re-created not listening (#435's promoted bridge served nothing for two
+   * minutes) is reachable only through connections it made outbound, and
+   * nothing can join through it. Cheap enough to put in a health report.
+   */
+  bool tcpListening() {
+    return _tcpListener != nullptr && _tcpListener->status() == TCP_STATE_LISTEN;
+  }
+
+  /**
+   * lwIP's `LISTEN`, which AsyncServer::status() returns as the pcb's state
+   * on both cores (ESPAsyncTCP and ESP32Async/AsyncTCP alike). Named rather
+   * than written as 1 because status() also answers 0 -- lwIP's CLOSED --
+   * when the server holds no pcb at all, so the literal read as if it
+   * conflated the two. It does not: a listener is listening, or it is not.
+   */
+  static constexpr uint8_t TCP_STATE_LISTEN = 1;
 
   /**
    * Establish TCP connection to mesh network
@@ -1521,12 +1551,15 @@ class Mesh : public painlessmesh::Mesh<Connection> {
 
  protected:
   friend class ::StationScan;
+  // init() sets all of these; the defaults are init()'s own, so a node
+  // that is asked about its AP before init() answers something true
+  // rather than whatever the stack held.
   TSTRING _meshSSID;
   TSTRING _meshPassword;
-  uint8_t _meshChannel;
-  uint8_t _meshHidden;
-  uint8_t _meshMaxConn;
-  uint16_t _meshPort;
+  uint8_t _meshChannel = 1;
+  uint8_t _meshHidden = 0;
+  uint8_t _meshMaxConn = MAX_CONN;
+  uint16_t _meshPort = 5555;
 
   IPAddress _apIp;
   StationScan stationScan;
@@ -2467,7 +2500,7 @@ class Mesh : public painlessmesh::Mesh<Connection> {
     // stop/re-init, was not listening, and nothing looked. This task runs
     // every thirty seconds on a bridge: if the listener is not in LISTEN
     // (1 on both cores) it is re-created, and the log says so.
-    if (_tcpListener != nullptr && _tcpListener->status() != 1) {
+    if (_tcpListener != nullptr && _tcpListener->status() != TCP_STATE_LISTEN) {
       Log(ERROR,
           "sendBridgeStatus(): TCP listener on port %d is in state %u, not "
           "LISTEN; re-creating it\n",
@@ -3236,16 +3269,25 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   }
 
 #ifdef ESP32
-  WiFiEventId_t eventScanDoneHandler;
-  WiFiEventId_t eventSTAStartHandler;
-  WiFiEventId_t eventSTADisconnectedHandler;
-  WiFiEventId_t eventSTAGotIPHandler;
+  // Event ids the core hands back from onEvent(); stop() removes all four.
+  // 0 is never issued (the core's ids start at 1 and 0 means "no
+  // callback"), so removeEvent(0) is a no-op on a node stopped before
+  // init() rather than a walk of the core's callback list for garbage.
+  WiFiEventId_t eventScanDoneHandler = 0;
+  WiFiEventId_t eventSTAStartHandler = 0;
+  WiFiEventId_t eventSTADisconnectedHandler = 0;
+  WiFiEventId_t eventSTAGotIPHandler = 0;
 #elif defined(ESP8266)
   WiFiEventHandler eventSTAConnectedHandler;
   WiFiEventHandler eventSTADisconnectedHandler;
   WiFiEventHandler eventSTAGotIPHandler;
 #endif  // ESP8266
-  AsyncServer* _tcpListener;
+  // Null until tcpServerInit() creates it. Every reader checks for null
+  // first, and one of them (tcpServerInit() itself, since 2.1.0) runs before
+  // anything has assigned it -- on an uninitialised pointer that check
+  // passed on garbage and the delete that followed crashed the node before
+  // it served a single connection (#466).
+  AsyncServer* _tcpListener = nullptr;
   std::shared_ptr<Task> bridgeStatusTask;
   // millis() of the last status broadcast, periodic or brought forward by a
   // topology change; the latter is held to one every five seconds.
@@ -3258,11 +3300,11 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   enum ElectionState { ELECTION_IDLE, ELECTION_SCANNING, ELECTION_COLLECTING };
 
   struct BridgeCandidate {
-    uint32_t nodeId;
-    int8_t routerRSSI;
-    uint8_t routerChannel;
-    uint32_t uptime;
-    uint32_t freeMemory;
+    uint32_t nodeId = 0;
+    int8_t routerRSSI = 0;
+    uint8_t routerChannel = 0;
+    uint32_t uptime = 0;
+    uint32_t freeMemory = 0;
   };
 
   bool bridgeFailoverEnabled = true;
@@ -3317,11 +3359,19 @@ class Mesh : public painlessmesh::Mesh<Connection> {
   size_t lastSelectedBridgeIndex = 0;   // For round-robin selection
 
   // Bridge coordination monitoring callbacks and state
+  // Constructed by name, not as an aggregate: with default member
+  // initializers this is not an aggregate under gnu++11, which the ESP32
+  // Arduino 2.x core still builds with, and `= {priority, role, load,
+  // millis()}` below needs a constructor to land on there.
   struct BridgeCoordinationState {
-    uint8_t priority;
+    uint8_t priority = 0;
     TSTRING role;
-    uint8_t load;
-    uint32_t lastSeen;
+    uint8_t load = 0;
+    uint32_t lastSeen = 0;
+    BridgeCoordinationState() {}
+    BridgeCoordinationState(uint8_t priority_, const TSTRING& role_,
+                            uint8_t load_, uint32_t lastSeen_)
+        : priority(priority_), role(role_), load(load_), lastSeen(lastSeen_) {}
   };
   std::map<uint32_t, BridgeCoordinationState> lastBridgeCoordinationState;
   std::function<void(const plugin::BridgeCoordinationPackage&, uint32_t)> bridgeCoordinationCallback;

@@ -55,6 +55,7 @@ getPrimaryBridge	KEYWORD2
 getPrimaryGateway	KEYWORD2
 enableSendToInternet	KEYWORD2
 sendToInternet	KEYWORD2
+tcpListening	KEYWORD2
 enableMessageQueue	KEYWORD2
 queueMessage	KEYWORD2
 flushMessageQueue	KEYWORD2

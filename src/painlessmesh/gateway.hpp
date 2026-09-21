@@ -67,8 +67,13 @@ constexpr bool shouldFollowBridgeChannel(uint32_t localNodeId,
  * @brief One occurrence of the mesh SSID seen by an all-channel scan.
  */
 struct MeshChannelCandidate {
-  uint8_t channel;
-  int32_t rssi;
+  uint8_t channel = 0;
+  int32_t rssi = 0;
+  // `push_back({channel, rssi})` needs a constructor under gnu++11 (the
+  // ESP32 Arduino 2.x core), where a struct with default member
+  // initializers is not an aggregate.
+  MeshChannelCandidate() {}
+  MeshChannelCandidate(uint8_t channel_, int32_t rssi_) : channel(channel_), rssi(rssi_) {}
 };
 
 /**

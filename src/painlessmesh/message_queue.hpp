@@ -37,10 +37,10 @@ enum QueueState {
  * Contains all metadata needed for reliable message delivery
  */
 struct QueuedMessage {
-  uint32_t id;              // Unique message ID
-  MessagePriority priority; // Message priority level
-  uint32_t timestamp;       // When message was queued (millis)
-  uint32_t attempts;        // Number of send attempts
+  uint32_t id = 0;          // Unique message ID
+  MessagePriority priority = PRIORITY_NORMAL; // Message priority level
+  uint32_t timestamp = 0;   // When message was queued (millis)
+  uint32_t attempts = 0;    // Number of send attempts
   TSTRING payload;          // Message content
   TSTRING destination;      // Cloud endpoint/topic (optional metadata)
   
@@ -298,8 +298,8 @@ public:
 
 private:
   std::vector<QueuedMessage> messages;
-  uint32_t maxQueueSize;
-  uint32_t nextMessageId;
+  uint32_t maxQueueSize = 1000;
+  uint32_t nextMessageId = 1;
   QueueStats stats;
   QueueState currentState = QUEUE_EMPTY;
   queueStateChangedCallback_t stateChangedCallback;

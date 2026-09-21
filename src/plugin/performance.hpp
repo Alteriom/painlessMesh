@@ -53,10 +53,10 @@ class Stats {
 
 class PerformancePackage : public plugin::BroadcastPackage {
  public:
-  int id = 0;      // Can see if we missed values
-  int time;        // Get an idea of the delay, by comparing it with nodetime
-  int stability;   // stability of the sending node
-  int freeMemory;  // memory of the sending node
+  int id = 0;          // Can see if we missed values
+  int time = 0;        // Get an idea of the delay, by comparing it with nodetime
+  int stability = 0;   // stability of the sending node
+  int freeMemory = 0;  // memory of the sending node
 #ifdef ESP32
   TSTRING hardware = "ESP32";
 #else
@@ -93,7 +93,7 @@ class PerformancePackage : public plugin::BroadcastPackage {
 /// Numbers to track for each node we receive PerformancePackages from
 class Track {
  public:
-  uint32_t nodeId;
+  uint32_t nodeId = 0;
   TSTRING hardware;
   uint32_t hits = 0;
   uint32_t misses = 0;

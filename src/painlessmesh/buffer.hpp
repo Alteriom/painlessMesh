@@ -124,7 +124,7 @@ inline void ReceiveBuffer<std::string>::stringAppend(std::string &buffer,
 template <class T>
 struct PrioritizedMessage {
   T message;
-  uint8_t priority;  // 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
+  uint8_t priority = 2;  // 0=CRITICAL, 1=HIGH, 2=NORMAL, 3=LOW
   
   PrioritizedMessage(const T& msg, uint8_t prio = 2) : message(msg), priority(prio) {}
 };
@@ -318,18 +318,18 @@ class SentBuffer {
    * Get statistics about queued and sent messages
    */
   struct SendStats {
-    uint32_t totalQueued;
-    uint32_t criticalQueued;
-    uint32_t highQueued;
-    uint32_t normalQueued;
-    uint32_t lowQueued;
-    uint32_t criticalSent;
-    uint32_t highSent;
-    uint32_t normalSent;
-    uint32_t lowSent;
+    uint32_t totalQueued = 0;
+    uint32_t criticalQueued = 0;
+    uint32_t highQueued = 0;
+    uint32_t normalQueued = 0;
+    uint32_t lowQueued = 0;
+    uint32_t criticalSent = 0;
+    uint32_t highSent = 0;
+    uint32_t normalSent = 0;
+    uint32_t lowSent = 0;
     // Messages lost to the PAINLESSMESH_MAX_SENT_BUFFER_MESSAGES cap:
     // evicted from the buffer or rejected on push (issue #388)
-    uint32_t dropped;
+    uint32_t dropped = 0;
   };
 
   SendStats getStats() const {
