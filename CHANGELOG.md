@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An ESP8266 shared gateway could run out of memory answering its own
+  `sendToInternet()`** (#469, found by the rig: both ESP8266 boards died of
+  `Unhandled C++ exception: OOM` in the `gateway.shared.internet` row, on a
+  76-byte allocation). For a request that originated on the gateway itself,
+  the reply travelled to the application as five copies of the ack --
+  copied into the deferred task's closure, copied again inside it,
+  serialised to JSON by the `Variant` and parsed back into a third package
+  by the handler -- then the pending request and the result were copied
+  once more on delivery, all on a heap the HTTP client had already spent.
+  The ack is now moved into one heap block and handed straight to the
+  handler, and the request and result are moved on delivery. What the
+  application receives is unchanged.
 - **A node could crash before serving its first connection: `_tcpListener`
   was never initialised** (#466). 2.1.0 taught `tcpServerInit()` to keep a
   listener that already exists instead of re-binding the port, so it now

@@ -2162,11 +2162,21 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       // application's callback runs on what is left: on the HIL rig an
       // ESP8266 shared gateway with ~11 KB free delivered its own result
       // into a callback that could no longer allocate the event it built.
-      this->addTask([this, ack]() {
-        gateway::GatewayAckPackage local = ack;
-        protocol::Variant variant(&local);
-        this->callbackList.execute(protocol::GATEWAY_ACK, variant, nullptr, 0);
-      });
+      //
+      // The ack is moved into one heap block and handed to the handler as
+      // it is. It used to be copied into the task's closure, copied again
+      // inside it, serialised into a JSON document by the Variant and
+      // parsed back into a third package by the handler -- the reply
+      // excerpt and the error text five times over on the heap the
+      // handler had already spent -- and on the rig the closure's own
+      // 76-byte allocation was the one that failed (#469). Nothing but
+      // handleGatewayAck() listens for GATEWAY_ACK, and a request that
+      // originated here exists only if enableSendToInternet() registered
+      // it, so the round trip through the callback list bought nothing.
+      // A shared_ptr rather than a C++14 init-capture: the ESP32 Arduino
+      // 2.x core still builds as gnu++11.
+      auto held = std::make_shared<gateway::GatewayAckPackage>(std::move(ack));
+      this->addTask([this, held]() { this->handleGatewayAck(*held); });
       Log(COMMUNICATION,
           "Completing local GATEWAY_ACK from the scheduler (success=%d, http=%d)\n",
           success, httpStatus);
@@ -2214,9 +2224,13 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
     // Check if this is a success response
     if (ack.success) {
-      const PendingInternetRequest done = request;
+      // Taken out of the map, not copied out of it, and the result handed
+      // on rather than copied: on an ESP8266 shared gateway every extra
+      // copy of the destination, the payload and the reply excerpt lands
+      // on a heap the request itself has nearly spent (#469).
+      PendingInternetRequest done = std::move(request);
       pendingInternetRequests.erase(it);
-      deliverInternetResult(done, result);
+      deliverInternetResult(done, std::move(result));
       return;
     }
 
@@ -2305,9 +2319,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
         Log(COMMUNICATION, "handleGatewayAck(): Final failure for msgId=%u (HTTP %u)\n",
             ack.messageId, ack.httpStatus);
       }
-      const PendingInternetRequest done = request;
+      PendingInternetRequest done = std::move(request);
       pendingInternetRequests.erase(it);
-      deliverInternetResult(done, result);
+      deliverInternetResult(done, std::move(result));
     }
   }
 
