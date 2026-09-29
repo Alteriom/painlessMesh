@@ -537,12 +537,17 @@ These types are used internally by painlessMesh for mesh management and are hand
 | 7 | `CONTROL` | Deprecated, unused |
 | 8 | `BROADCAST` | Application data for every node |
 | 9 | `SINGLE` | Application data for one node |
+| 10 | `ota::Announce` | OTA: a firmware version is available (`src/painlessmesh/ota.hpp`) |
+| 11 | `ota::DataRequest` | OTA: a node asks for one part of the firmware |
+| 12 | `ota::Data` | OTA: one part of the firmware |
+| 13 | `PerformancePackage` | Optional performance plugin (`src/plugin/performance.hpp`) |
+| 14 | `RemotePackage` | Optional remote-log plugin (`src/plugin/remote.hpp`) |
 | 620 | `GATEWAY_DATA` | An Internet request routed to a gateway (`sendToInternet()`) |
 | 621 | `GATEWAY_ACK` | The gateway's answer to it |
 | 622 | `GATEWAY_HEARTBEAT` | Gateway health monitoring |
 | 630 | `MESSAGE_ACK` | Delivery confirmation for a message sent with a callback (2.0) |
 
-**Note**: These protocol types are managed automatically by painlessMesh and are not typically used in application code.
+**Note**: These protocol types are managed automatically by painlessMesh and are not typically used in application code; 13 and 14 appear only when a sketch includes the optional plugin.
 
 #### Application-Level Package Types
 
@@ -553,6 +558,7 @@ These are the message types used by applications built on painlessMesh:
 | 200 | `SensorPackage` | Environmental data | `temperature`, `humidity`, `pressure`, `sensorId`, `timestamp`, `batteryLevel` |
 | 202 | `StatusPackage` | Health monitoring | `deviceStatus`, `uptime`, `freeMemory`, `wifiStrength`, `firmwareVersion` |
 | 204 | `MetricsPackage` | Sensor metrics (schema v0.7.2+) | `cpuUsage`, `freeHeap`, `bytesReceived`, `currentThroughput`, `connectionQuality`, `wifiRSSI` |
+| 205 | `MpptPackage` | Solar charge controller data (`alteriom_custom_package_template.hpp`) | `solarVoltage`, `solarCurrent`, `solarPower`, `batteryVoltage`, `batterySOC`, `loadVoltage`, `loadCurrent`, `chargeState`, `controllerTemp`, `deviceId`, `timestamp` |
 | 400 | `CommandPackage` | Device control | `command`, `targetDevice`, `parameters`, `commandId` |
 | 600 | `MeshNodeListPackage` | Mesh node list (`MESH_NODE_LIST`) | `nodes[]` (nodeId, status, lastSeen, signalStrength), `nodeCount`, `meshId` |
 | 601 | `MeshTopologyPackage` | Mesh topology (`MESH_TOPOLOGY`) | `connections[]` (fromNode, toNode, linkQuality, latencyMs), `rootNode` |
@@ -596,23 +602,9 @@ These are the message types used by applications built on painlessMesh:
 - **Event Coordination** - Synchronized displays, distributed processing
 - **Bridge Networks** - Connect mesh to WiFi/Internet/MQTT - [📖 Bridge Guide](BRIDGE_TO_INTERNET.md)
 
-## Latest Release: v2.0.3 (September 11, 2026)
+## Release notes
 
-**`sendToInternet()` fixes — upgrade if any node of yours is a bridge or relays to the Internet.** On 2.0.2 a bridge's own sends were refused with "No active mesh connections" for the first 30 s after `initAsBridge()`, because the health check's first probe ran while the station was still associating. The gateway also decided delivery on the HTTP status alone: CallMeBot answers a refusal with HTTP 201, so a message it refused could be reported as sent, and every failure reached the origin node as a bare number. The gateway now reads the start of the response body, counts only 200/201/202/204 without a refusing body as delivered, and hands every failure to your callback with the service's own words. A destination whose name does not resolve no longer stalls an ESP32 gateway on every attempt: it is refused for 60 s after one failed lookup. And a bridge that reboots, crashes or is reflashed as a regular node no longer swallows the requests its peers still send it for a minute: it answers that it is not a gateway, and the sender moves to the next one at once.
-
-**2.0.2 — two gateway fixes.** On 2.0.1 a bridge could not reach the Internet through its own uplink at all (`initAsBridge()` never started the health checker that `sendToInternet()`'s local path depends on, so a bridge with no peer yet failed with "No active mesh connections"), and any request that failed *below* HTTP — refused, unresolvable, timed out — was reported to the origin node as `HTTP 65535`, a truncated `-1`, which also stopped it from being retried. Both are now asserted on the hardware rig, including a bridge with no mesh peer at all.
-
-**2.0.1 — a packaging fix over 2.0.0, no library behaviour changed.** 2.0.0's installation instructions named a PlatformIO package that has no 2.0.0 (`alteriom/…` stops at 1.10.0; releases go out under `sparck75`), and its GitHub release carried no library archive because the upload was refused by an immutable release.
-
-**2.0.0 — delivery confirmation, a unified send path, and a mesh that holds together on real hardware**
-
-- `sendSingle()` and `sendBroadcast()` accept a delivery callback — it fires with `delivered=true` and the round-trip latency on acknowledgment, or `delivered=false` on timeout — and a `SendOptions` struct that carries a priority and a callback in one call. Priority is kept across hops.
-- Thirty-odd defects in gateway failover, channel following, routing and the station scan, every one found in the serial logs of a six-family hardware rig and fixed there: a bridge that stops says so, the mesh follows an elected bridge to its channel and treats it as home, a node is in one place in every neighbour's tree, a dead connection is not a route, a stale scan does not consume a live one.
-- The ESP32-C5 and ESP32-C6 (Arduino core 3.x) no longer hang after a channel follow; the ESP8266 is specified for small meshes or as a leaf, and says so at runtime.
-- Gateway HTTP work is bounded by `NODE_TIMEOUT`, so an Internet request can no longer partition the mesh around its own gateway.
-- The release candidate passed the rig's whole suite three times in a row. Delivery confirmation and cross-hop priority need 2.0 on every node of the path.
-
-**[📋 Full CHANGELOG](CHANGELOG.md)**
+Every version's changes are in [CHANGELOG.md](CHANGELOG.md) and on the [GitHub releases](https://github.com/Alteriom/painlessMesh/releases) page.
 
 ## Getting Help
 

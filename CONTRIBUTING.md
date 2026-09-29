@@ -103,8 +103,10 @@ Automated Release workflow runs only once that job has succeeded on
 merely after they were asked; a merge that bumps nothing still runs on the
 rig and releases nothing. Both need the `FARM_DISPATCH_TOKEN` secret (a
 fine-grained token for the farm repository with Contents read/write and
-Actions read); without it the job says so and passes, and, having sent
-nothing, releases nothing. A rig run is never a release build from here --
+Actions read); without it the job passes with a "No rig run" notice having
+sent nothing -- and because it passed, the Automated Release workflow still
+runs and tags a version bump that no board has seen. A green run is evidence
+only when its log shows a "Rig run" link. A rig run is never a release build from here --
 one that may spend a real provider message is started by a person from the
 farm's own workflow -- and the release gate is three consecutive clean
 runs of the whole suite.
@@ -146,6 +148,8 @@ keep working, is a major version.
 - **Minor**: a backwards-compatible addition.
 - **Patch**: a backwards-compatible fix.
 
-Documentation does not require a version bump. The three version files
-(`library.properties`, `library.json`, `package.json`) are changed together
-with `./scripts/bump-version.sh`.
+Documentation does not require a version bump. The version is changed only
+with `./scripts/bump-version.sh`, which updates every file that carries it
+and checks they agree; `./scripts/bump-version.sh --help` lists them, and
+[RELEASE_GUIDE.md](RELEASE_GUIDE.md) "Version metadata" says why each one
+matters.

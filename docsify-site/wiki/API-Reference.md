@@ -84,7 +84,7 @@ variant.printTo(message);
 mesh.sendBroadcast(message);
 ```
 
-### CommandPackage (Type 201)
+### CommandPackage (Type 400)
 
 Device control and automation commands for remote node management.
 
@@ -170,13 +170,13 @@ void receivedCallback(uint32_t from, String& msg) {
     DynamicJsonDocument doc(1024);
     deserializeJson(doc, msg);
     JsonObject obj = doc.as<JsonObject>();
-    uint8_t msgType = obj["type"];
+    int msgType = obj["type"];  // 400 does not fit in a uint8_t
     
     switch(msgType) {
         case 200: // SensorPackage
             handleSensorData(alteriom::SensorPackage(obj), from);
             break;
-        case 201: // CommandPackage  
+        case 400: // CommandPackage  
             handleCommand(alteriom::CommandPackage(obj), from);
             break;
         case 202: // StatusPackage
