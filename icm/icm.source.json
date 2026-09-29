@@ -1,0 +1,651 @@
+{
+  "schema_version": 2,
+  "access": "workspace",
+  "entrypoint": "CLAUDE.md",
+  "runtimes": [
+    "claude_code",
+    "codex_cli"
+  ],
+  "projects": [
+    "painlessmesh"
+  ],
+  "nodes": [
+    {
+      "id": "01-fix-AGENTS.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "01-fix/AGENTS.md"
+      ]
+    },
+    {
+      "id": "01-fix-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "01-fix/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "01-fix-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "01-fix/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-01_reproduce-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "01-fix/stages/01_reproduce/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-02_fix-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "01-fix/stages/02_fix/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-03_verify-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "01-fix/stages/03_verify/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-AGENTS.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "02-feature/AGENTS.md"
+      ]
+    },
+    {
+      "id": "02-feature-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "02-feature/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "02-feature-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "02-feature/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-01_spec-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "02-feature/stages/01_spec/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-02_implement-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "02-feature/stages/02_implement/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-03_test-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "02-feature/stages/03_test/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-04_docs-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "02-feature/stages/04_docs/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-release-AGENTS.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "03-release/AGENTS.md"
+      ]
+    },
+    {
+      "id": "03-release-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "03-release/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "03-release-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "03-release/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-release-stages-01_plan-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "03-release/stages/01_plan/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-release-stages-02_prepare-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "03-release/stages/02_prepare/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-release-stages-03_publish-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "03-release/stages/03_publish/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "AGENTS.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L0",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "AGENTS.md"
+      ]
+    },
+    {
+      "id": "CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L0",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "CLAUDE.md"
+      ]
+    },
+    {
+      "id": "shared-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "_shared/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "shared-architecture.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "_shared/architecture.md"
+      ]
+    },
+    {
+      "id": "shared-build-and-test.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "_shared/build-and-test.md"
+      ]
+    },
+    {
+      "id": "shared-coding-rules.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "_shared/coding-rules.md"
+      ]
+    },
+    {
+      "id": "shared-docs-and-changelog.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "_shared/docs-and-changelog.md"
+      ]
+    },
+    {
+      "id": "shared-gotchas.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "_shared/gotchas.md"
+      ]
+    },
+    {
+      "id": "shared-package-types.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "_shared/package-types.md"
+      ]
+    },
+    {
+      "id": "shared-release.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-29",
+      "review_after": "2026-12-28",
+      "files": [
+        "_shared/release.md"
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "form": "umbrella",
+      "root": ""
+    },
+    {
+      "form": "pipeline",
+      "root": "01-fix"
+    },
+    {
+      "form": "pipeline",
+      "root": "02-feature"
+    },
+    {
+      "form": "pipeline",
+      "root": "03-release"
+    }
+  ],
+  "stages": {
+    "fix-reproduce": {
+      "order": 1,
+      "contract": "01-fix/stages/01_reproduce/CONTEXT.md",
+      "inputs": {
+        "working": [],
+        "reference": [
+          "_shared/architecture.md",
+          "_shared/build-and-test.md",
+          "_shared/gotchas.md"
+        ]
+      },
+      "do_not_load": [
+        "02-feature/",
+        "03-release/"
+      ],
+      "outputs": [
+        "01-fix/stages/01_reproduce/output/reproduction.md"
+      ],
+      "human_check": "A person runs the reproduction (or reads the log) and confirms it fails for the reported reason; a fix that needs a wire or API change goes to 02-feature.",
+      "required": [
+        "01-fix-stages-01_reproduce-CONTEXT.md"
+      ]
+    },
+    "fix-fix": {
+      "order": 2,
+      "contract": "01-fix/stages/02_fix/CONTEXT.md",
+      "inputs": {
+        "working": [
+          "01-fix/stages/01_reproduce/output/reproduction.md"
+        ],
+        "reference": [
+          "_shared/coding-rules.md",
+          "_shared/gotchas.md"
+        ]
+      },
+      "do_not_load": [
+        "02-feature/",
+        "03-release/"
+      ],
+      "outputs": [
+        "01-fix/stages/02_fix/output/change.md"
+      ],
+      "human_check": "A person reads the diff beside the reproduction: it removes the cause, not the symptom, and changes no wire format or public API.",
+      "required": [
+        "01-fix-stages-02_fix-CONTEXT.md"
+      ],
+      "optional": [
+        "shared-package-types.md",
+        "shared-architecture.md"
+      ]
+    },
+    "fix-verify": {
+      "order": 3,
+      "contract": "01-fix/stages/03_verify/CONTEXT.md",
+      "inputs": {
+        "working": [
+          "01-fix/stages/02_fix/output/change.md"
+        ],
+        "reference": [
+          "_shared/build-and-test.md",
+          "_shared/docs-and-changelog.md"
+        ]
+      },
+      "do_not_load": [
+        "02-feature/",
+        "03-release/"
+      ],
+      "outputs": [
+        "01-fix/stages/03_verify/output/pull-request.md"
+      ],
+      "human_check": "A maintainer reads the pull request and its evidence (farm/hil status or serial log for radio, routing, gateway or OTA) and the reviewer merges.",
+      "required": [
+        "01-fix-stages-03_verify-CONTEXT.md"
+      ]
+    },
+    "feature-spec": {
+      "order": 4,
+      "contract": "02-feature/stages/01_spec/CONTEXT.md",
+      "inputs": {
+        "working": [],
+        "reference": [
+          "_shared/architecture.md",
+          "_shared/package-types.md",
+          "_shared/coding-rules.md"
+        ]
+      },
+      "do_not_load": [
+        "01-fix/",
+        "03-release/"
+      ],
+      "outputs": [
+        "02-feature/stages/01_spec/output/spec.md"
+      ],
+      "human_check": "A maintainer approves the public names, the wire impact and type number, and the semver class before any code is written.",
+      "required": [
+        "02-feature-stages-01_spec-CONTEXT.md"
+      ]
+    },
+    "feature-implement": {
+      "order": 5,
+      "contract": "02-feature/stages/02_implement/CONTEXT.md",
+      "inputs": {
+        "working": [
+          "02-feature/stages/01_spec/output/spec.md"
+        ],
+        "reference": [
+          "_shared/coding-rules.md",
+          "_shared/gotchas.md"
+        ]
+      },
+      "do_not_load": [
+        "01-fix/",
+        "03-release/"
+      ],
+      "outputs": [
+        "02-feature/stages/02_implement/output/implementation.md"
+      ],
+      "human_check": "A person reads implementation.md beside spec.md and approves or sends back every deviation; nothing on the wire beyond the spec.",
+      "required": [
+        "02-feature-stages-02_implement-CONTEXT.md"
+      ],
+      "optional": [
+        "shared-architecture.md"
+      ]
+    },
+    "feature-test": {
+      "order": 6,
+      "contract": "02-feature/stages/03_test/CONTEXT.md",
+      "inputs": {
+        "working": [
+          "02-feature/stages/01_spec/output/spec.md",
+          "02-feature/stages/02_implement/output/implementation.md"
+        ],
+        "reference": [
+          "_shared/build-and-test.md"
+        ]
+      },
+      "do_not_load": [
+        "01-fix/",
+        "03-release/"
+      ],
+      "outputs": [
+        "02-feature/stages/03_test/output/test-report.md"
+      ],
+      "human_check": "A person reads the tests themselves: they call the library and fail without the capability; the rig was asked for where the spec requires it.",
+      "required": [
+        "02-feature-stages-03_test-CONTEXT.md"
+      ]
+    },
+    "feature-docs": {
+      "order": 7,
+      "contract": "02-feature/stages/04_docs/CONTEXT.md",
+      "inputs": {
+        "working": [
+          "02-feature/stages/01_spec/output/spec.md",
+          "02-feature/stages/03_test/output/test-report.md"
+        ],
+        "reference": [
+          "_shared/docs-and-changelog.md"
+        ]
+      },
+      "do_not_load": [
+        "01-fix/",
+        "03-release/"
+      ],
+      "outputs": [
+        "02-feature/stages/04_docs/output/pull-request.md"
+      ],
+      "human_check": "A maintainer reads the changed documents against the tested behaviour, then the pull request; the reviewer merges.",
+      "required": [
+        "02-feature-stages-04_docs-CONTEXT.md"
+      ]
+    },
+    "release-plan": {
+      "order": 8,
+      "contract": "03-release/stages/01_plan/CONTEXT.md",
+      "inputs": {
+        "working": [],
+        "reference": [
+          "_shared/release.md"
+        ]
+      },
+      "do_not_load": [
+        "01-fix/",
+        "02-feature/"
+      ],
+      "outputs": [
+        "03-release/stages/01_plan/output/release-plan.md"
+      ],
+      "human_check": "A maintainer approves the version number and the changelog wording; a tagged number is permanent.",
+      "required": [
+        "03-release-stages-01_plan-CONTEXT.md"
+      ]
+    },
+    "release-prepare": {
+      "order": 9,
+      "contract": "03-release/stages/02_prepare/CONTEXT.md",
+      "inputs": {
+        "working": [
+          "03-release/stages/01_plan/output/release-plan.md"
+        ],
+        "reference": [
+          "_shared/release.md"
+        ]
+      },
+      "do_not_load": [
+        "01-fix/",
+        "02-feature/"
+      ],
+      "outputs": [
+        "03-release/stages/02_prepare/output/release-pr.md"
+      ],
+      "human_check": "An approving review of the final commit with every required check green; the person merges with the release: vX.Y.Z title.",
+      "required": [
+        "03-release-stages-02_prepare-CONTEXT.md"
+      ]
+    },
+    "release-publish": {
+      "order": 10,
+      "contract": "03-release/stages/03_publish/CONTEXT.md",
+      "inputs": {
+        "working": [
+          "03-release/stages/02_prepare/output/release-pr.md"
+        ],
+        "reference": [
+          "_shared/release.md"
+        ]
+      },
+      "do_not_load": [
+        "01-fix/",
+        "02-feature/"
+      ],
+      "outputs": [
+        "03-release/stages/03_publish/output/publication.md"
+      ],
+      "human_check": "A person confirms the version is visible in every registry, and reads any repair, before it is announced.",
+      "required": [
+        "03-release-stages-03_publish-CONTEXT.md"
+      ]
+    }
+  }
+}
