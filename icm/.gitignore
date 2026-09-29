@@ -1,0 +1,2 @@
+# Per-run product: stage outputs are never factory content.
+*/stages/*/output/
