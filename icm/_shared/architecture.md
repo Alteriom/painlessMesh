@@ -24,7 +24,7 @@ Application packages built on the plugin system are not in `src/`: they are in `
 | `test/boost/*.cpp` | several meshes over loopback TCP (`catch_tcp_integration`, `catch_connection`, `catch_stale_gateway`) |
 | `test/mock-http-server/server.py` | the HTTP test point for `sendToInternet()`, with a delivery ledger |
 | `test/ci/` | CI's own checks and the PlatformIO projects that prove build flags |
-| `test/ArduinoJson`, `test/TaskScheduler`, `test/simulator` | submodules (`.gitmodules`) |
+| `test/ArduinoJson`, `test/TaskScheduler` | submodules — the only two gitlinks in the tree (`git ls-tree HEAD test/`). `.gitmodules` also names `test/simulator`, but no commit is recorded for it, so `git submodule update --init` does not fetch it |
 
 ## Examples (`examples/`)
 
@@ -33,4 +33,4 @@ One folder per sketch; the folder name equals the `.ino` name, which is what CI 
 ## Outside this repository
 
 - The hardware rig (Alteriom ESP32 farm) is a separate private repository; `.github/workflows/farm-hil.yml` dispatches it and carries its verdict.
-- Multi-node simulation is `Alteriom/painlessMesh-simulator` (the `test/simulator` submodule).
+- Multi-node simulation is `Alteriom/painlessMesh-simulator`, a separate repository (`CONTRIBUTING.md` "Simulator and hardware tests"); it is not checked out here.

@@ -1,33 +1,27 @@
 # Build, test, and what counts as evidence
 
-The commands CI actually runs are in `.github/workflows/ci.yml`; when this file and that one disagree, that one is right. The contributor's version is `CONTRIBUTING.md` ("Testing requirements").
+What CI runs is `.github/workflows/ci.yml`, one job per concern; read the job for its exact flags, targets and installed libraries rather than copying them anywhere. The contributor's version is `CONTRIBUTING.md` "Testing requirements".
 
 ## Desktop (Catch2 and Boost), from the repository root
 
+The commands of `CONTRIBUTING.md` "Running the desktop tests":
+
 ```bash
-git submodule update --init          # ArduinoJson, TaskScheduler, simulator
+git submodule update --init          # test/ArduinoJson and test/TaskScheduler
 cmake -G Ninja . && ninja            # binaries land in bin/
 run-parts --regex catch_ bin/        # every suite; or run one: ./bin/catch_routing
 ```
 
-CI builds this three ways (job `build-test-desktop`): gcc with `-Wall -Werror`, clang with `-Wall -Werror -Wno-vla-cxx-extension`, and gcc with AddressSanitizer (`ASAN_OPTIONS=detect_leaks=0`: the signal wanted is use-after-free, not the fakes' deliberate leaks). A change that only builds under gcc is not done. Needs `libboost-system-dev`.
+CI builds this under more than one compiler and a sanitizer (job `build-test-desktop`); a change that builds under one compiler only is not done. Gateway tests compare the library's verdict with a real HTTP server's ledger: start `test/mock-http-server/server.py` and export `PAINLESSMESH_TESTPOINT` as that job's "Start the HTTP test point" step does, or those scenarios only warn.
 
-Gateway tests compare the library's verdict with a real HTTP server's ledger. Start the test point and export its address, or those scenarios only warn:
+## Device builds and code quality
 
-```bash
-python3 test/mock-http-server/server.py --host 127.0.0.1 --port 8080 &
-export PAINLESSMESH_TESTPOINT=http://127.0.0.1:8080
-```
-
-## Device builds
-
-- Every example, both chips: job `build-arduino` (`arduino-cli`, esp32 and esp8266 `nodemcuv2`). Library dependencies it installs are listed there.
-- PlatformIO: `bash test/ci/test_platformio.sh --example basic` (and `--example alteriom`); build-flag projects: `cd test/ci/no-ota && pio run -e esp32 && pio run -e esp8266`, same for `test/ci/tuned-timeouts`.
-- Library metadata: `bash scripts/validate-arduino-compliance.sh` and `python3 scripts/validate_library_structure.py`.
-
-## Code-quality checks (job `code-quality`)
-
-`clang-format --dry-run --Werror` on `examples/alteriom/`; `bash test/ci/test_check_member_init.sh && python3 test/ci/check_member_init.py src`; `bash test/ci/test_bump_version.sh`; no TODO/FIXME in `examples/alteriom/`.
+| What | Where it is defined |
+|---|---|
+| every example, esp32 and esp8266 | job `build-arduino` |
+| PlatformIO builds, and the projects under `test/ci/` that prove build flags | job `build-platformio`; `test/ci/test_platformio.sh` |
+| formatting, member initializers, the version script's own test, TODO/FIXME | job `code-quality` |
+| library metadata | job `arduino-library-validation` (`scripts/validate-arduino-compliance.sh`, `scripts/validate_library_structure.py`) |
 
 ## Choosing the level of a test
 
@@ -41,4 +35,4 @@ export PAINLESSMESH_TESTPOINT=http://127.0.0.1:8080
 
 ## Evidence
 
-The rules are in `CONTRIBUTING.md` ("Submit a pull request") and `RELEASE_GUIDE.md` ("How the hardware result arrives"). In short: the unit tests mock the radio, so for radio, routing, gateway or OTA the evidence is a serial log or a rig run (a maintainer adds the `run-hil` label; the verdict arrives as the `farm/hil` status). A test that re-implements the logic it checks, instead of calling the library, is not evidence.
+The rules are in `CONTRIBUTING.md` ("Submit a pull request") and `RELEASE_GUIDE.md` ("How the hardware result arrives"). In short: the unit tests mock the radio, so for radio, routing, gateway or OTA the evidence is a serial log or a rig run (a maintainer adds the `run-hil` label). A rig run counts only when it links to a run on the farm: a green `Hardware validation on the farm` job without that link may have run nothing — [release.md](release.md) "Is it proof that the rig ran?". A test that re-implements the logic it checks, instead of calling the library, is not evidence.

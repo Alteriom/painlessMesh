@@ -22,4 +22,4 @@ What a change to `src/` or `examples/` has to respect. Rules CI enforces are nam
 
 ## Commits and branches
 
-Conventional-commit subjects whose text states the outcome ("fix(gateway): a bridge serves its first sends on its own uplink"), with the issue number. Branch naming, the target branch, and who merges: `CONTRIBUTING.md` "Branches". `.github/copilot-instructions.md` still describes a `develop` branch and git flow; that is retired.
+Conventional-commit subjects whose text states the outcome ("fix(gateway): a bridge serves its first sends on its own uplink"), with the issue number. Branch naming, the target branch, and who merges: `CONTRIBUTING.md` "Branches".

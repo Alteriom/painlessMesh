@@ -4,12 +4,16 @@ The flow in one line: agree the shape, build it, prove it, document it.
 
 | Stage | Job | Input | Output | Human check |
 |---|---|---|---|---|
-| `01_spec` | agree API, wire and version | the request | `output/spec.md` | names, wire impact and semver class approved |
-| `02_implement` | build what the spec says | 01's output | `output/implementation.md` | every deviation from the spec approved |
-| `03_test` | prove it at the named level | 01's and 02's output | `output/test-report.md` | the tests call the library; results read |
-| `04_docs` | documents, changelog, pull request | 01's and 03's output | `output/pull-request.md` | documents match the behaviour; approve and merge |
+| [`01_spec`](stages/01_spec/CONTEXT.md) | agree API, wire and version | the request | `output/spec.md` | A maintainer approves the public names, the wire impact, the type number, the version class and the example, or sends the spec back. Nothing is implemented against an unapproved spec. Edit `spec.md` in place; the next stages build what it says. |
+| [`02_implement`](stages/02_implement/CONTEXT.md) | build what the spec says | 01's output | `output/implementation.md` | A person reads `implementation.md` beside `spec.md`. Every deviation is either approved, and `spec.md` amended to match, or sent back. Nothing on the wire beyond what the spec approved. |
+| [`03_test`](stages/03_test/CONTEXT.md) | prove it at the named level | 01's and 02's output | `output/test-report.md` | A person reads the tests, not only their results: they call the library's code and would have caught the capability missing. The rig was asked for where the spec said it must be. |
+| [`04_docs`](stages/04_docs/CONTEXT.md) | documents, changelog, pull request | 01's (as amended) and 03's output | `output/pull-request.md` | A maintainer reads the changed documents against the behaviour in `test-report.md`, then `pull-request.md`, and says whether to open it. The reviewer merges; a code change after approval needs approval again. |
+
+Each row's Human check is its contract's, word for word, and so is that stage's `human_check` in `icm.source.json`: change the contract, then make both match it.
 
 Factory (every run): `../_shared/` — each contract names the files it loads.
 Product (each run): each stage's `output/`, which is not committed (`icm/.gitignore`).
 
 Status is whatever exists: a stage is complete when its `output/` holds the artifact above.
+
+One run per worktree or branch: `output/` belongs to the checkout, so two runs in one checkout overwrite each other. When the run's pull request merges or is abandoned, clear this pipeline's `stages/*/output/`; a finished run left in place still reads as in progress.

@@ -152,11 +152,12 @@ enum CustomTypes {
     // ... your custom types
 };
 
-// Alteriom types: 200+ (for Alteriom extensions)
+// Alteriom types (examples/alteriom/alteriom_sensor_package.hpp is the authority)
 enum AlteriomTypes {
     ALTERIOM_SENSOR = 200,
-    ALTERIOM_COMMAND = 201,
-    ALTERIOM_STATUS = 202
+    ALTERIOM_STATUS = 202,
+    ALTERIOM_METRICS = 204,
+    ALTERIOM_COMMAND = 400
 };
 ```
 
@@ -496,7 +497,7 @@ class SensorPackage : public painlessmesh::plugin::BroadcastPackage {
 
 class CommandPackage : public painlessmesh::plugin::SinglePackage {
     // Device control commands  
-    // Type ID: 201
+    // Type ID: 400
 };
 
 class StatusPackage : public painlessmesh::plugin::BroadcastPackage {

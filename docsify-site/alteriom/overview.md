@@ -150,14 +150,14 @@ Sensor Reading → SensorPackage → JSON → Mesh Network → JSON → SensorPa
 ```
 
 ### Type ID Allocation
-Alteriom uses reserved type ID range 200-299:
+The numbers are defined by the package constructors in `examples/alteriom/alteriom_sensor_package.hpp`; the full list is in [Complete Package Type Reference](overview.md#complete-package-type-reference) below.
 
 ```cpp
 enum AlteriomTypes {
     ALTERIOM_SENSOR = 200,    // SensorPackage
-    ALTERIOM_COMMAND = 201,   // CommandPackage  
     ALTERIOM_STATUS = 202,    // StatusPackage
-    // 203-299 reserved for future Alteriom packages
+    ALTERIOM_METRICS = 204,   // MetricsPackage
+    ALTERIOM_COMMAND = 400,   // CommandPackage
 };
 ```
 
@@ -564,6 +564,7 @@ See [Bridge Failover Guide](../../BRIDGE_TO_INTERNET.md) for implementation deta
 | 200 | SensorPackage | Environmental data |
 | 202 | StatusPackage | Health monitoring |
 | 204 | MetricsPackage | Performance metrics |
+| 205 | MpptPackage | Solar charge controller data (`alteriom_custom_package_template.hpp`) |
 | 400 | CommandPackage | Device control |
 | 600 | MeshNodeListPackage | Node inventory |
 | 601 | MeshTopologyPackage | Network topology |
