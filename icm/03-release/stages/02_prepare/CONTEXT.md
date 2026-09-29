@@ -7,11 +7,11 @@ One job: one pull request that changes the version everywhere, dates the changel
 - Reference (every run): ../../../_shared/release.md
 - Reference (every run): `RELEASE_GUIDE.md` "Release checklist", "Version metadata", "Validation", "Review gate"
 
-Do NOT load: `01-fix/`, `02-feature/`, other runs' output.
+Do NOT load: `01-fix/`, `02-feature/`, `04-deps/`, `05-docs/`, other runs' output.
 
 ## Process
 1. Branch `release/X.Y.Z` from current `origin/main`.
-2. `./scripts/bump-version.sh <kind> X.Y.Z --yes`; then `git grep -n "<previous version>"` and update the hand-edited places [release.md](../../../_shared/release.md) names ("Where the version lives"). Leave historical mentions (changelog sections, migration notes) alone.
+2. `./scripts/bump-version.sh <kind> X.Y.Z --yes`; then `git grep -n "<previous version>"`. Leave historical mentions (changelog sections, migration notes) alone; any other hit is a document keeping a version by hand, which [release.md](../../../_shared/release.md) says to remove rather than update — note it for a `05-docs` run, not this pull request.
 3. Replace `## [Unreleased]` content with the approved dated section; leave an empty `## [Unreleased]` above it.
 4. Run `./scripts/validate-release.sh` and `./scripts/release-agent.sh`, and the desktop suite. Fix what they report; do not skip a check.
 5. Open the pull request against `main` with the plan's title; the body is the changelog section plus the validation output.

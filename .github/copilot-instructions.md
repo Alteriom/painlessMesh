@@ -1,5 +1,7 @@
 # GitHub Copilot Instructions for painlessMesh
 
+> **Start with [`CLAUDE.md`](../CLAUDE.md) at the repository root.** It routes each job (fix, feature, release, dependency bump, documentation fix) to its pipeline under [`icm/`](../icm/CLAUDE.md). Where this file and `CLAUDE.md`, `icm/`, `CONTRIBUTING.md`, `RELEASE_GUIDE.md` or the code disagree, they are right and this file is wrong.
+
 This repository is a fork of the painlessMesh library specifically tailored for Alteriom's needs. painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices.
 
 ## Project Overview
@@ -19,7 +21,7 @@ When generating code for this repository, follow these specific patterns:
 ### Coding Conventions
 - Use `TSTRING` instead of `String` for cross-platform compatibility
 - Prefix Alteriom-specific classes with `alteriom::` namespace
-- Use type IDs 200+ for Alteriom custom packages (200=Sensor, 201=Command, 202=Status)
+- Package type numbers are on the wire; the code defines them (200=Sensor, 202=Status, 204=Metrics, 400=Command, 600–605 and 610–614 mesh packages). Before choosing one, follow `icm/_shared/package-types.md`
 - Follow existing indentation (2 spaces) and brace placement patterns
 
 ### Package Development Templates
@@ -33,7 +35,7 @@ public:
     uint32_t fieldName = 0;
     TSTRING textField = "";
     
-    MyPackage() : SinglePackage(TYPE_ID) {} // Use unique ID 203+
+    MyPackage() : SinglePackage(TYPE_ID) {} // An unused number: see icm/_shared/package-types.md
     
     MyPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {
         fieldName = jsonObj["field"];
@@ -95,13 +97,13 @@ void receivedCallback(uint32_t from, String& msg) {
     DynamicJsonDocument doc(1024);
     deserializeJson(doc, msg);
     JsonObject obj = doc.as<JsonObject>();
-    uint8_t msgType = obj["type"];
+    int msgType = obj["type"];  // 400 does not fit in a uint8_t
     
     switch(msgType) {
         case 200: // SensorPackage
             handleSensorData(alteriom::SensorPackage(obj));
             break;
-        case 201: // CommandPackage  
+        case 400: // CommandPackage  
             handleCommand(alteriom::CommandPackage(obj));
             break;
         case 202: // StatusPackage
@@ -186,7 +188,7 @@ Use these existing packages for common scenarios:
    - `sensorId`, `timestamp` (uint32_t) 
    - `batteryLevel` (uint8_t)
 
-2. **alteriom::CommandPackage** (Type 201) - Device control
+2. **alteriom::CommandPackage** (Type 400) - Device control
    - `command` (uint8_t), `targetDevice`, `commandId` (uint32_t)
    - `parameters` (TSTRING for JSON)
 
@@ -340,11 +342,11 @@ if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
 ## Contributing Workflow
 
 ### Making Changes
-1. Create a feature branch from `develop`
+1. Create a branch from `main` (naming: `CONTRIBUTING.md` "Branches")
 2. Make your changes following the conventions in this guide
 3. Build and test locally: `cmake -G Ninja . && ninja && run-parts --regex catch_ bin/`
 4. Run security scans if modifying core code
-5. Create a pull request to `develop` (not `main`)
+5. Create a pull request to `main` (or to a `release/<major>.x` line the change belongs to)
 6. Address review comments and ensure CI passes
 7. Once approved, reviewer will merge the PR
 
@@ -357,12 +359,8 @@ if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
 - [ ] Memory usage considered (especially for ESP8266)
 - [ ] Backward compatibility maintained
 
-### Git Flow
-This project follows [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow):
-- `main` - Stable releases only
-- `develop` - Integration branch for features
-- `feature/*` - Feature branches (merge to `develop`)
-- `hotfix/*` - Urgent fixes (merge to both `main` and `develop`)
+### Branches
+There is no `develop` branch and no git flow. Pull requests target `main`; the branch model, naming and lifetimes are in `CONTRIBUTING.md` "Branches".
 
 ## Release Process & Automation
 
@@ -378,8 +376,7 @@ AlteriomPainlessMesh uses an automated Release Agent for quality assurance:
    ```
 
 2. **Check Version Consistency**
-   - Verify `library.properties`, `library.json`, and `package.json` match
-   - Use `./scripts/bump-version.sh patch X.Y.Z` to synchronize
+   - Use `./scripts/bump-version.sh patch X.Y.Z` to change the version; it updates and cross-checks every file that carries it (`./scripts/bump-version.sh --help` lists them)
 
 3. **Validate CHANGELOG**
    - Ensure CHANGELOG.md has entry for version
@@ -416,16 +413,14 @@ git commit -m "release: v1.8.1 - Brief description"
 
 ### Release Workflow
 
-**Automated Release Pipeline:**
-1. Push commit with `release:` prefix to main branch
-2. GitHub Actions runs release workflow
-3. Creates git tag automatically
-4. Publishes to NPM, GitHub Packages, PlatformIO
-5. Updates documentation and wiki
+**Automated Release Pipeline** (`RELEASE_GUIDE.md` is the procedure):
+1. The release pull request merges to `main` with a `release: vX.Y.Z` title
+2. `CI/CD Pipeline` passes, then `Hardware validation on the farm` passes
+3. `Automated Release` tags `vX.Y.Z` and publishes to NPM, GitHub Packages and PlatformIO
 
-**Manual Release Trigger:**
+**Repairing one registry for an existing tag** (never re-run the release):
 ```bash
-gh workflow run manual-publish.yml
+gh workflow run manual-publish.yml -f ref=vX.Y.Z
 ```
 
 ### Release Best Practices

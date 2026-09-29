@@ -18,16 +18,17 @@ Traps that have already cost this repository a failed build, a wrong fix or a re
 - Gateway scenarios without `PAINLESSMESH_TESTPOINT` only warn, so a local green run may have checked nothing. — `.github/workflows/ci.yml`, "Start the HTTP test point"
 - Real services answer badly (CallMeBot refuses with HTTP 201/203); a gateway bug starts by teaching `test/mock-http-server/server.py` the bad answer. — `CONTRIBUTING.md` "The HTTP test point"
 - The unit tests mock the radio; #466 reached a user before a board. Radio, routing, gateway, OTA changes need the rig or a serial log. — `CONTRIBUTING.md` "Simulator and hardware tests"
+- A green `Hardware validation on the farm` may have run nothing: without `FARM_DISPATCH_TOKEN` it posts "No rig run" and succeeds, and `Automated Release` then tags a version bump no board has seen. Check the run's log for a "Rig run" link before calling it evidence. — [release.md](release.md) "Is it proof that the rig ran?"; `.github/workflows/farm-hil.yml`, "Send the farm its repository_dispatch"
+
+## Workflows
+
+- Workflow `name:` values are triggers: `farm-hil.yml` runs on `workflows: ["CI/CD Pipeline"]` and `release.yml` on `workflows: ["Hardware validation on the farm"]`. Renaming either workflow breaks the chain without an error anywhere; a CI change that renames one updates its consumer in the same pull request. — the `on: workflow_run` block of each
+- A merge that changes `package.json` counts as a version bump to `release.yml`, so a dependency bump merged while an untagged version sits on `main` releases it. — [release.md](release.md) "From merge to registries"
 
 ## Duplicated files that must move together
 
 - `examples/alteriom/mppt_example/` carries its own copies of `alteriom_sensor_package.hpp` and `alteriom_custom_package_template.hpp` (a sketch folder can include only its own files). Change both and `diff` them.
-- The version lives in six files the script updates and two it does not (`CLAUDE.md` "Version", `README.md` "Latest Release"). — [release.md](release.md)
 
-## Documents that are out of date
+## Documents that can be out of date
 
-Trust `CONTRIBUTING.md`, `RELEASE_GUIDE.md`, `.github/workflows/` and the code over these:
-
-- `.github/copilot-instructions.md`: `develop` branch and git flow (retired), package type numbers (wrong).
-- `CLAUDE.md` "Package types": numbers disagree with the code. — [package-types.md](package-types.md)
-- `CONTRIBUTING.md` "Versioning" says three version files; `RELEASE_GUIDE.md` and `scripts/bump-version.sh` say six.
+Trust `CONTRIBUTING.md`, `RELEASE_GUIDE.md`, `.github/workflows/` and the code over `.github/copilot-instructions.md`, `docsify-site/` and `docsify-site/wiki/`: they restate facts the code owns and have drifted before (a `develop` branch, `CommandPackage` as 201). A disagreement is a `05-docs` correction.
