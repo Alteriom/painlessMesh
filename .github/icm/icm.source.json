@@ -730,11 +730,6 @@
         },
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "SECURITY.md",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
           "path": "examples/basic/platformio.ini",
           "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },

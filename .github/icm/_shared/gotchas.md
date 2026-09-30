@@ -13,7 +13,7 @@ Traps that have already cost this repository a failed build, a wrong fix or a re
 - PlatformIO compiles only the `.cpp` files directly in the `srcDir` that `library.json` sets (`src`), not in its subfolders, which is why `src/connection.cpp` is not under `src/painlessmesh/`. — recorded in #362
 - A catch test never sees the guards in `src/painlessmesh/configuration.hpp`: `test/catch/Arduino.h` defines its include guard and supplies its own macros. A build flag is proven only by a PlatformIO project in `test/ci/`. — `.github/workflows/ci.yml`, `build-platformio` step comment
 - A macro that changes a class's members must reach every translation unit, so it is set per CMake target, not `#define`d in a test file (ODR). — `CMakeLists.txt`, comments above `catch_ota_disabled` and `catch_node_timeout_override`
-- Defining both `PAINLESSMESH_ENABLE_OTA` and `PAINLESSMESH_DISABLE_OTA` is a compile error on purpose. — `SECURITY.md` "OTA"
+- Defining both `PAINLESSMESH_ENABLE_OTA` and `PAINLESSMESH_DISABLE_OTA` is a compile error on purpose: OTA is on by default, so the disable flag alone is what a build wants. — `src/painlessmesh/configuration.hpp`, the `#error` and the comment above it
 - Only a sketch whose folder name equals its `.ino` name is compiled by CI; an earlier loop compiled none at all for a while. — `.github/workflows/ci.yml`, `build-arduino`
 - The ESP32 example build is pinned to the gnu++11 core on purpose; do not "upgrade" the pin to make a brace-initialiser compile. — `examples/basic/platformio.ini`
 

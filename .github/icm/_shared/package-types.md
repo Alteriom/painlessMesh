@@ -25,7 +25,7 @@ grep -rnE '(Package|Announce|DataRequest)\((protocol::)?([0-9]+|[A-Z][A-Z_]+)[,)
 grep -rnE 'constexpr int [A-Z_]+ = [0-9]+' src
 ```
 
-Ignore the hits that are calls rather than definitions (`onPackage(protocol::SINGLE, …)`) and the copies under `examples/alteriom/mppt_example/`.
+Ignore the hits that are calls rather than definitions (`onPackage(protocol::SINGLE, …)`), the copies under `examples/alteriom/mppt_example/`, and the illustration inside the comment of `examples/alteriom/alteriom_custom_package_template.hpp` (`MyCustomPackage`, 206), which defines nothing.
 
 The comments beside several application types ("per mqtt-schema v0.7.2+") tie them to the `@alteriom/mqtt-schema` package (`package.json` devDependencies): a new application type that has a schema counterpart takes that number, and a bump of that package that renumbers a type is a wire change.
 
