@@ -1,0 +1,2 @@
+# Stage outputs belong to one run in one checkout and are never committed.
+*/stages/*/output/

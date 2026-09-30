@@ -10,8 +10,6 @@
 .gitmodules export-ignore
 _codeql_detected_source_root export-ignore
 scripts/ export-ignore
-# The agent workspace (icm/CLAUDE.md): how this repository is worked on, not part of the library
-icm/ export-ignore
 test/ export-ignore
 CMakeLists.txt export-ignore
 ninja.build export-ignore
