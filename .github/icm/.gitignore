@@ -1,2 +1,2 @@
-# Per-run product: stage outputs are never factory content.
+# Stage outputs belong to one run in one checkout and are never committed.
 */stages/*/output/

@@ -1,3 +1,8 @@
+---
+verified_at: 2026-09-30
+verified_commit: 6d8e0454edf9d2f2765b1ffff42a70b7741e999f
+---
+
 # Build, test, and what counts as evidence
 
 What CI runs is `.github/workflows/ci.yml`, one job per concern; read the job for its exact flags, targets and installed libraries rather than copying them anywhere. The contributor's version is `CONTRIBUTING.md` "Testing requirements".
@@ -22,6 +27,7 @@ CI builds this under more than one compiler and a sanitizer (job `build-test-des
 | PlatformIO builds, and the projects under `test/ci/` that prove build flags | job `build-platformio`; `test/ci/test_platformio.sh` |
 | formatting, member initializers, the version script's own test, TODO/FIXME | job `code-quality` |
 | library metadata | job `arduino-library-validation` (`scripts/validate-arduino-compliance.sh`, `scripts/validate_library_structure.py`) |
+| security analysis of `src/` and `examples/` | `.github/workflows/codeql.yml`, on pull requests that touch them and nightly |
 
 ## Choosing the level of a test
 

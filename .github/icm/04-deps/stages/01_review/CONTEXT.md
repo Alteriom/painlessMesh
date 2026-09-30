@@ -3,12 +3,12 @@
 One job: a review of one dependency bump that says what changes, what it can break, and whether it is safe to merge now.
 
 ## Inputs
-- Working (this run): the bump the person names, read whole — the pull request (`gh pr view <n> --comments` and `gh pr diff <n>`) with the upstream release notes it links, or the pin a person wants to move.
-- Reference (every run): ../../../_shared/gotchas.md
-- Reference (every run): ../../../_shared/release.md
-- Reference (only when `@alteriom/mqtt-schema` moves): ../../../_shared/package-types.md
+- Working (this run): the bump — read whole: the pull request (`gh pr view <n> --comments` and `gh pr diff <n>`) with the upstream release notes it links, or the pin a person wants to move.
+- Reference (every run): `.github/icm/_shared/gotchas.md`
+- Reference (every run): `.github/icm/_shared/release.md`
+- Reference (only when `@alteriom/mqtt-schema` moves): `.github/icm/_shared/package-types.md`
 
-Do NOT load: `01-fix/`, `02-feature/`, `03-release/`, `05-docs/`, other runs' output, the source tree beyond what the bump touches.
+Do NOT load: the other pipelines, other runs' output, the source tree beyond what the bump touches.
 
 ## Process
 1. Say which pin moves and who moves it. Dependabot covers npm (`package.json` devDependencies), the `Dockerfile` base image and GitHub Actions, weekly, grouping minor and patch updates (`.github/dependabot.yml`). It does not cover the `test/ArduinoJson` and `test/TaskScheduler` submodules, the libraries `ci.yml` job `build-arduino` installs, `library.json` `dependencies`, `library.properties` `depends`, or the platform pinned in `examples/basic/platformio.ini`; a bump there is by hand.

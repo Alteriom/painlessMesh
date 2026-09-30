@@ -1,3 +1,8 @@
+---
+verified_at: 2026-09-30
+verified_commit: 6d8e0454edf9d2f2765b1ffff42a70b7741e999f
+---
+
 # Package types — where the numbers live
 
 A package's `type` is on the wire: two nodes that disagree about a number misread each other, and a number once shipped is never reused for something else. This file says where the truth is and how to pick a number; it deliberately holds no table of its own.
@@ -28,7 +33,7 @@ The comments beside several application types ("per mqtt-schema v0.7.2+") tie th
 
 `README.md` "Message Types" (protocol-level and application-level tables) is the registry users read, and the one a change that adds or renumbers a type must update in the same pull request. It lists every number the first grep finds in `src/` and `examples/alteriom/`; the example-only 21 is not in it. When it and the grep disagree, the grep is right and the README is a `05-docs` correction.
 
-Any other document that states a number — `.github/copilot-instructions.md`, `docsify-site/` — is checked against the grep the same way, never copied from.
+Any other document that states a number — `docsify-site/`, `docsify-site/wiki/` — is checked against the grep the same way, never copied from.
 
 ## Choosing a number
 

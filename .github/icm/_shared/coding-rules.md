@@ -1,3 +1,8 @@
+---
+verified_at: 2026-09-30
+verified_commit: 6d8e0454edf9d2f2765b1ffff42a70b7741e999f
+---
+
 # Coding rules
 
 What a change to `src/` or `examples/` has to respect. Rules CI enforces are named with the job that enforces them; the job is the authority.
@@ -13,6 +18,7 @@ What a change to `src/` or `examples/` has to respect. Rules CI enforces are nam
 ## Conventions the history keeps (not enforced)
 
 - C++14 (`CMakeLists.txt`), 2-space indent, `TSTRING` rather than `String` in code that also builds on the desktop.
+- A header uses an `#ifndef …_HPP` include guard, as all but one under `src/` do; application packages live in `namespace alteriom` (`examples/alteriom/alteriom_sensor_package.hpp`).
 - Memory is tight — ESP8266 far more than ESP32. Prefer fixed-size fields and bounded containers; say in the spec or PR what a new buffer or queue costs.
 - A new public capability gets a feature-test macro so sketches built against older releases can test for it: `PAINLESSMESH_HAS_TCP_LISTENING` (`src/arduino/wifi.hpp`), `PAINLESSMESH_HAS_INTERNET_RESULT` (`src/painlessmesh/mesh.hpp`). New public names also go in `keywords.txt`.
 - A tunable is a build flag read in `src/painlessmesh/configuration.hpp`, documented as a flag, and tested per target — never `#define`d in one source file (the reason is in `CMakeLists.txt`, above `catch_ota_disabled`).

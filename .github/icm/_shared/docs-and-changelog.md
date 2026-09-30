@@ -1,3 +1,8 @@
+---
+verified_at: 2026-09-30
+verified_commit: 6d8e0454edf9d2f2765b1ffff42a70b7741e999f
+---
+
 # Documentation and the changelog
 
 ## Which documents a change touches

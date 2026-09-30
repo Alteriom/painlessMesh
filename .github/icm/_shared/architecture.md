@@ -1,3 +1,8 @@
+---
+verified_at: 2026-09-30
+verified_commit: 6d8e0454edf9d2f2765b1ffff42a70b7741e999f
+---
+
 # Architecture — where things live
 
 A map for finding code, not a description of how the mesh works. How it works: `docsify-site/architecture/mesh-architecture.md` and `docsify-site/architecture/plugin-system.md`. Every document and where it is published: `.github/DOCUMENTATION.md`.

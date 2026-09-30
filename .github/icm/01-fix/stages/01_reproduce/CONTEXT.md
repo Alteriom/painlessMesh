@@ -3,12 +3,12 @@
 One job: turn the report into something that fails on demand, for the reason reported.
 
 ## Inputs
-- Working (this run): the report the person gave, read whole with what it links — an issue (`gh issue view <n> --comments`), a red run on `main` (`gh run view <run-id> --log-failed`; the run log is the report), a serial log.
-- Reference (every run): ../../../_shared/architecture.md
-- Reference (every run): ../../../_shared/build-and-test.md
-- Reference (every run): ../../../_shared/gotchas.md
+- Working (this run): the report — read whole with what it links: an issue (`gh issue view <n> --comments`), a red run on `main` (`gh run view <run-id> --log-failed`), a serial log.
+- Reference (every run): `.github/icm/_shared/architecture.md`
+- Reference (every run): `.github/icm/_shared/build-and-test.md`
+- Reference (every run): `.github/icm/_shared/gotchas.md`
 
-Do NOT load: `02-feature/`, `03-release/`, `04-deps/`, `05-docs/`, `_shared/release.md`, other runs' output, `CHANGELOG.md` beyond the entries the report names.
+Do NOT load: the other pipelines, `.github/icm/_shared/release.md`, other runs' output, released sections of CHANGELOG.md beyond the entries the report names.
 
 ## Process
 1. If the report could be a vulnerability (`SECURITY.md` "What is in scope for a vulnerability report"), stop before writing anything: this pipeline ends in a public pull request, and `SECURITY.md` "Reporting a Vulnerability" is the route.

@@ -3,11 +3,11 @@
 One job: a release plan that names the version, justifies its class, and drafts the dated changelog section.
 
 ## Inputs
-- Working (this run): `CHANGELOG.md` `## [Unreleased]`, and `main` since the previous `v*` tag (`git log --oneline <previous tag>..origin/main`).
-- Reference (every run): ../../../_shared/release.md
-- Reference (every run): `RELEASE_GUIDE.md` at the repository root — read it whole.
+- Working (this run): the unreleased changes — `## [Unreleased]` in `CHANGELOG.md`, and `main` since the previous `v*` tag (`git log --oneline <previous tag>..origin/main`).
+- Reference (every run): `.github/icm/_shared/release.md`
+- Reference (every run): `RELEASE_GUIDE.md` — read it whole.
 
-Do NOT load: `01-fix/`, `02-feature/`, `04-deps/`, `05-docs/`, other runs' output, released sections of `CHANGELOG.md` beyond the previous one.
+Do NOT load: the other pipelines, other runs' output, released sections of CHANGELOG.md beyond the previous one.
 
 ## Process
 1. This pipeline releases from `main`, the only branch the release chain runs on. A release from a `release/<major>.x` line is outside it: stop and ask the maintainer ([release.md](../../../_shared/release.md) "Releasing from a line other than `main`").

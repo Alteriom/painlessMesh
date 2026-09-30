@@ -3,11 +3,11 @@
 One job: tests that fail without the capability and pass with it, at the level the spec named.
 
 ## Inputs
-- Working (this run): ../01_spec/output/spec.md
-- Working (this run): ../02_implement/output/implementation.md
-- Reference (every run): ../../../_shared/build-and-test.md
+- Working (this run): `.github/icm/02-feature/stages/01_spec/output/spec.md`
+- Working (this run): `.github/icm/02-feature/stages/02_implement/output/implementation.md`
+- Reference (every run): `.github/icm/_shared/build-and-test.md`
 
-Do NOT load: `01-fix/`, `03-release/`, `04-deps/`, `05-docs/`, `_shared/release.md`, other runs' output.
+Do NOT load: the other pipelines, `.github/icm/_shared/release.md`, other runs' output.
 
 ## Process
 1. Write the tests the spec's test plan names: `test/catch/catch_<topic>.cpp` scenarios (Given / When / Then), `test/boost/` for multi-node behaviour, the test point for gateway behaviour, a `test/ci/` PlatformIO project for a build flag.

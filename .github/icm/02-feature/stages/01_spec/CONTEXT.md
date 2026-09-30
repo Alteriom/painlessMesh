@@ -3,13 +3,13 @@
 One job: a short spec a maintainer can approve or refuse before any code exists.
 
 ## Inputs
-- Working (this run): the request the person gave, read whole — an issue (`gh issue view <n> --comments`), a discussion, a need from a downstream project, or, handed over from `01-fix`, that run's `reproduction.md` (the defect whose fix needs a wire or API change).
-- Reference (every run): ../../../_shared/architecture.md
-- Reference (every run): ../../../_shared/package-types.md
-- Reference (every run): ../../../_shared/coding-rules.md
-- Reference (only to choose the test level in step 6): ../../../_shared/build-and-test.md
+- Working (this run): the request — read whole: an issue (`gh issue view <n> --comments`), a discussion, a need from a downstream project, or, handed over from `01-fix`, that run's `reproduction.md` (the defect whose fix needs a wire or API change).
+- Reference (every run): `.github/icm/_shared/architecture.md`
+- Reference (every run): `.github/icm/_shared/package-types.md`
+- Reference (every run): `.github/icm/_shared/coding-rules.md`
+- Reference (only to choose the test level in step 6): `.github/icm/_shared/build-and-test.md`
 
-Do NOT load: `01-fix/` (beyond a handed-over `reproduction.md`), `03-release/`, `04-deps/`, `05-docs/`, `_shared/release.md`, other runs' output, the full `CHANGELOG.md`.
+Do NOT load: the other pipelines (from `01-fix`, only a handed-over `reproduction.md`), `.github/icm/_shared/release.md`, other runs' output, the full CHANGELOG.md.
 
 ## Process
 1. State the need in the user's terms and what they do today without it. Check it does not exist already (`USER_GUIDE.md`, `src/`, the examples).

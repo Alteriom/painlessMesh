@@ -1,4 +1,5 @@
 {
+  "workspace_root": "",
   "schema_version": 2,
   "access": "workspace",
   "entrypoint": "CLAUDE.md",
@@ -11,367 +12,16 @@
   ],
   "nodes": [
     {
-      "id": "01-fix-AGENTS.md",
+      "id": "CLAUDE.md",
       "revision": 1,
       "kind": "route",
-      "layer": "L1",
+      "layer": "L0",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "01-fix/AGENTS.md"
-      ]
-    },
-    {
-      "id": "01-fix-CLAUDE.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "01-fix/CLAUDE.md"
-      ]
-    },
-    {
-      "id": "01-fix-CONTEXT.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "01-fix/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "01-fix-stages-01_reproduce-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "01-fix/stages/01_reproduce/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "01-fix-stages-02_fix-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "01-fix/stages/02_fix/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "01-fix-stages-03_verify-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "01-fix/stages/03_verify/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "02-feature-AGENTS.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "02-feature/AGENTS.md"
-      ]
-    },
-    {
-      "id": "02-feature-CLAUDE.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "02-feature/CLAUDE.md"
-      ]
-    },
-    {
-      "id": "02-feature-CONTEXT.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "02-feature/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "02-feature-stages-01_spec-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "02-feature/stages/01_spec/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "02-feature-stages-02_implement-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "02-feature/stages/02_implement/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "02-feature-stages-03_test-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "02-feature/stages/03_test/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "02-feature-stages-04_docs-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "02-feature/stages/04_docs/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "03-release-AGENTS.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "03-release/AGENTS.md"
-      ]
-    },
-    {
-      "id": "03-release-CLAUDE.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "03-release/CLAUDE.md"
-      ]
-    },
-    {
-      "id": "03-release-CONTEXT.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "03-release/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "03-release-stages-01_plan-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "03-release/stages/01_plan/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "03-release-stages-02_prepare-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "03-release/stages/02_prepare/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "03-release-stages-03_publish-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "03-release/stages/03_publish/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "04-deps-AGENTS.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "04-deps/AGENTS.md"
-      ]
-    },
-    {
-      "id": "04-deps-CLAUDE.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "04-deps/CLAUDE.md"
-      ]
-    },
-    {
-      "id": "04-deps-CONTEXT.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "04-deps/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "04-deps-stages-01_review-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "04-deps/stages/01_review/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "05-docs-AGENTS.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "05-docs/AGENTS.md"
-      ]
-    },
-    {
-      "id": "05-docs-CLAUDE.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "05-docs/CLAUDE.md"
-      ]
-    },
-    {
-      "id": "05-docs-CONTEXT.md",
-      "revision": 1,
-      "kind": "route",
-      "layer": "L1",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "05-docs/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "05-docs-stages-01_locate-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "05-docs/stages/01_locate/CONTEXT.md"
-      ]
-    },
-    {
-      "id": "05-docs-stages-02_edit-CONTEXT.md",
-      "revision": 1,
-      "kind": "stage",
-      "layer": "L2",
-      "state": "accepted",
-      "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
-      "files": [
-        "05-docs/stages/02_edit/CONTEXT.md"
+        "CLAUDE.md"
       ]
     },
     {
@@ -381,23 +31,335 @@
       "layer": "L0",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
         "AGENTS.md"
       ]
     },
     {
-      "id": "CLAUDE.md",
+      "id": "RELEASE_GUIDE.md",
       "revision": 1,
-      "kind": "route",
-      "layer": "L0",
+      "kind": "fact",
+      "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "CLAUDE.md"
+        "RELEASE_GUIDE.md"
+      ]
+    },
+    {
+      "id": "SECURITY.md",
+      "revision": 1,
+      "kind": "fact",
+      "layer": "L3",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        "SECURITY.md"
+      ]
+    },
+    {
+      "id": "01-fix-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/01-fix/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "01-fix-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/01-fix/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-01_reproduce-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/01-fix/stages/01_reproduce/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-02_fix-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/01-fix/stages/02_fix/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "01-fix-stages-03_verify-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/01-fix/stages/03_verify/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/02-feature/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "02-feature-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/02-feature/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-01_spec-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/02-feature/stages/01_spec/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-02_implement-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/02-feature/stages/02_implement/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-03_test-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/02-feature/stages/03_test/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "02-feature-stages-04_docs-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/02-feature/stages/04_docs/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-release-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/03-release/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "03-release-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/03-release/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-release-stages-01_plan-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/03-release/stages/01_plan/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-release-stages-02_prepare-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/03-release/stages/02_prepare/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "03-release-stages-03_publish-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/03-release/stages/03_publish/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "04-deps-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/04-deps/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "04-deps-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/04-deps/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "04-deps-stages-01_review-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/04-deps/stages/01_review/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "05-docs-CLAUDE.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/05-docs/CLAUDE.md"
+      ]
+    },
+    {
+      "id": "05-docs-CONTEXT.md",
+      "revision": 1,
+      "kind": "route",
+      "layer": "L1",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/05-docs/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "05-docs-stages-01_locate-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/05-docs/stages/01_locate/CONTEXT.md"
+      ]
+    },
+    {
+      "id": "05-docs-stages-02_edit-CONTEXT.md",
+      "revision": 1,
+      "kind": "stage",
+      "layer": "L2",
+      "state": "accepted",
+      "project_id": "painlessmesh",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
+      "files": [
+        ".github/icm/05-docs/stages/02_edit/CONTEXT.md"
       ]
     },
     {
@@ -407,10 +369,10 @@
       "layer": "L1",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "_shared/CONTEXT.md"
+        ".github/icm/_shared/CONTEXT.md"
       ]
     },
     {
@@ -420,56 +382,91 @@
       "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "_shared/architecture.md"
+        ".github/icm/_shared/architecture.md"
       ],
       "evidence": [
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "src/painlessMesh.h",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": ".github/DOCUMENTATION.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "src/AlteriomPainlessMesh.h",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "src/painlessmesh/protocol.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "src/arduino/wifi.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "CMakeLists.txt",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": ".github/workflows/farm-hil.yml",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".gitmodules",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "test/README.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": "CMakeLists.txt",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "library.json",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": "CONTRIBUTING.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "docsify-site/architecture/mesh-architecture.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "docsify-site/architecture/plugin-system.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "examples/alteriom/alteriom_custom_package_template.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "examples/alteriom/alteriom_sensor_package.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "library.json",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/AlteriomPainlessMesh.h",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/arduino/wifi.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessMesh.h",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "test/README.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "test/catch/Arduino.h",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "test/mock-http-server/server.py",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         }
       ]
     },
@@ -480,36 +477,51 @@
       "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "_shared/build-and-test.md"
+        ".github/icm/_shared/build-and-test.md"
       ],
       "evidence": [
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/ci.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": ".github/workflows/codeql.yml",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "CONTRIBUTING.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "RELEASE_GUIDE.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "test/mock-http-server/server.py",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": "scripts/validate-arduino-compliance.sh",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "scripts/validate_library_structure.py",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "test/ci/test_platformio.sh",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "test/mock-http-server/server.py",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         }
       ]
     },
@@ -520,56 +532,71 @@
       "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "_shared/coding-rules.md"
+        ".github/icm/_shared/coding-rules.md"
       ],
       "evidence": [
         {
           "repo": "Alteriom/painlessMesh",
+          "path": ".clang-format",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/ci.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "test/ci/check_member_init.py",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "examples/basic/platformio.ini",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "CMakeLists.txt",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "src/painlessmesh/configuration.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": ".clang-format",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "keywords.txt",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "CONTRIBUTING.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "SECURITY.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "examples/alteriom/alteriom_sensor_package.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "examples/basic/platformio.ini",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "keywords.txt",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/arduino/wifi.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessmesh/configuration.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessmesh/mesh.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "test/ci/check_member_init.py",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         }
       ]
     },
@@ -580,41 +607,81 @@
       "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "_shared/docs-and-changelog.md"
+        ".github/icm/_shared/docs-and-changelog.md"
       ],
       "evidence": [
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/DOCUMENTATION.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "RELEASE_GUIDE.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "CHANGELOG.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": ".github/workflows/docs.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/PULL_REQUEST_TEMPLATE.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": ".github/workflows/ci.yml",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": ".github/workflows/docs.yml",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "BRIDGE_TO_INTERNET.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "CHANGELOG.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "CONTRIBUTING.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "README.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "RELEASE_GUIDE.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "SECURITY.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "USER_GUIDE.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "docsify-site/alteriom/packages.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "keywords.txt",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "library.json",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         }
       ]
     },
@@ -625,61 +692,81 @@
       "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "_shared/gotchas.md"
+        ".github/icm/_shared/gotchas.md"
       ],
       "evidence": [
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "CLAUDE.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/ci.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/farm-hil.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/release.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "CMakeLists.txt",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "test/catch/Arduino.h",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "SECURITY.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "examples/basic/platformio.ini",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "RELEASE_GUIDE.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "CONTRIBUTING.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "RELEASE_GUIDE.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "SECURITY.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "examples/basic/platformio.ini",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "library.json",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "package.json",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/connection.cpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessmesh/configuration.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "test/catch/Arduino.h",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "test/mock-http-server/server.py",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         }
       ]
     },
@@ -690,56 +777,66 @@
       "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "_shared/package-types.md"
+        ".github/icm/_shared/package-types.md"
       ],
       "evidence": [
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "src/painlessmesh/protocol.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": "CONTRIBUTING.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "src/painlessmesh/ota.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "src/painlessmesh/plugin.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "src/plugin/performance.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "src/plugin/remote.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "examples/alteriom/alteriom_sensor_package.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": "README.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "examples/alteriom/alteriom_custom_package_template.hpp",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "examples/alteriom/alteriom_sensor_package.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "examples/namedMesh/namedMesh.ino",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "package.json",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessmesh/ota.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessmesh/plugin.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessmesh/protocol.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/plugin/performance.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/plugin/remote.hpp",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         }
       ]
     },
@@ -750,51 +847,81 @@
       "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-29",
-      "review_after": "2026-12-28",
+      "verified_at": "2026-09-30",
+      "review_after": "2026-12-29",
       "files": [
-        "_shared/release.md"
+        ".github/icm/_shared/release.md"
       ],
       "evidence": [
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "RELEASE_GUIDE.md",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": "scripts/bump-version.sh",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
-        },
-        {
-          "repo": "Alteriom/painlessMesh",
-          "path": ".github/workflows/release.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": ".github/workflows/ci.yml",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/farm-hil.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/manual-publish.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/platformio-publish.yml",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
-          "path": "scripts/validate-release.sh",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "path": ".github/workflows/release.yml",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "CONTRIBUTING.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "RELEASE_GUIDE.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "SECURITY.md",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "library.json",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "library.properties",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "package.json",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "scripts/bump-version.sh",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "scripts/release-agent.sh",
-          "commit": "53fa46bd6db28bbf22b51f198496052cc54a995e"
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "scripts/validate-release.sh",
+          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
         }
       ]
     }
@@ -802,50 +929,57 @@
   "forms": [
     {
       "form": "umbrella",
-      "root": ""
+      "root": "",
+      "pipelines": [
+        ".github/icm/01-fix",
+        ".github/icm/02-feature",
+        ".github/icm/03-release",
+        ".github/icm/04-deps",
+        ".github/icm/05-docs"
+      ]
     },
     {
       "form": "pipeline",
-      "root": "01-fix"
+      "root": ".github/icm/01-fix"
     },
     {
       "form": "pipeline",
-      "root": "02-feature"
+      "root": ".github/icm/02-feature"
     },
     {
       "form": "pipeline",
-      "root": "03-release"
+      "root": ".github/icm/03-release"
     },
     {
       "form": "pipeline",
-      "root": "04-deps"
+      "root": ".github/icm/04-deps"
     },
     {
       "form": "pipeline",
-      "root": "05-docs"
+      "root": ".github/icm/05-docs"
     }
   ],
   "stages": {
     "fix-reproduce": {
       "order": 1,
-      "contract": "01-fix/stages/01_reproduce/CONTEXT.md",
+      "contract": ".github/icm/01-fix/stages/01_reproduce/CONTEXT.md",
       "inputs": {
         "working": [],
         "reference": [
-          "_shared/architecture.md",
-          "_shared/build-and-test.md",
-          "_shared/gotchas.md"
+          ".github/icm/_shared/architecture.md",
+          ".github/icm/_shared/build-and-test.md",
+          ".github/icm/_shared/gotchas.md"
         ]
       },
       "do_not_load": [
-        "02-feature/",
-        "03-release/",
-        "04-deps/",
-        "05-docs/",
-        "_shared/release.md"
+        ".github/icm/02-feature/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "01-fix/stages/01_reproduce/output/reproduction.md"
+        ".github/icm/01-fix/stages/01_reproduce/output/reproduction.md"
       ],
       "human_check": "A person runs the command, or reads the log, and confirms it fails for the reported reason and not a neighbouring one.",
       "required": [
@@ -854,25 +988,25 @@
     },
     "fix-fix": {
       "order": 2,
-      "contract": "01-fix/stages/02_fix/CONTEXT.md",
+      "contract": ".github/icm/01-fix/stages/02_fix/CONTEXT.md",
       "inputs": {
         "working": [
-          "01-fix/stages/01_reproduce/output/reproduction.md"
+          ".github/icm/01-fix/stages/01_reproduce/output/reproduction.md"
         ],
         "reference": [
-          "_shared/coding-rules.md",
-          "_shared/gotchas.md"
+          ".github/icm/_shared/coding-rules.md",
+          ".github/icm/_shared/gotchas.md"
         ]
       },
       "do_not_load": [
-        "02-feature/",
-        "03-release/",
-        "04-deps/",
-        "05-docs/",
-        "_shared/release.md"
+        ".github/icm/02-feature/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "01-fix/stages/02_fix/output/change.md"
+        ".github/icm/01-fix/stages/02_fix/output/change.md"
       ],
       "human_check": "A person reads the diff beside the reproduction: it removes the cause, not only the symptom the test sees, and no wire or API change slipped in. Edit `change.md` if the explanation is wrong; stage 03 reads it.",
       "required": [
@@ -884,25 +1018,25 @@
     },
     "fix-verify": {
       "order": 3,
-      "contract": "01-fix/stages/03_verify/CONTEXT.md",
+      "contract": ".github/icm/01-fix/stages/03_verify/CONTEXT.md",
       "inputs": {
         "working": [
-          "01-fix/stages/02_fix/output/change.md"
+          ".github/icm/01-fix/stages/02_fix/output/change.md"
         ],
         "reference": [
-          "_shared/build-and-test.md",
-          "_shared/docs-and-changelog.md"
+          ".github/icm/_shared/build-and-test.md",
+          ".github/icm/_shared/docs-and-changelog.md"
         ]
       },
       "do_not_load": [
-        "02-feature/",
-        "03-release/",
-        "04-deps/",
-        "05-docs/",
-        "_shared/release.md"
+        ".github/icm/02-feature/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "01-fix/stages/03_verify/output/pull-request.md"
+        ".github/icm/01-fix/stages/03_verify/output/pull-request.md"
       ],
       "human_check": "A person reads `pull-request.md` and its evidence, then says whether to open it. For radio, routing, gateway or OTA the linked `farm/hil` run or a serial log is there, or the fix does not merge. The reviewer, not the author, merges.",
       "required": [
@@ -910,25 +1044,25 @@
       ]
     },
     "feature-spec": {
-      "order": 4,
-      "contract": "02-feature/stages/01_spec/CONTEXT.md",
+      "order": 1,
+      "contract": ".github/icm/02-feature/stages/01_spec/CONTEXT.md",
       "inputs": {
         "working": [],
         "reference": [
-          "_shared/architecture.md",
-          "_shared/package-types.md",
-          "_shared/coding-rules.md"
+          ".github/icm/_shared/architecture.md",
+          ".github/icm/_shared/package-types.md",
+          ".github/icm/_shared/coding-rules.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "03-release/",
-        "04-deps/",
-        "05-docs/",
-        "_shared/release.md"
+        ".github/icm/01-fix/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "02-feature/stages/01_spec/output/spec.md"
+        ".github/icm/02-feature/stages/01_spec/output/spec.md"
       ],
       "human_check": "A maintainer approves the public names, the wire impact, the type number, the version class and the example, or sends the spec back. Nothing is implemented against an unapproved spec. Edit `spec.md` in place; the next stages build what it says.",
       "required": [
@@ -939,26 +1073,26 @@
       ]
     },
     "feature-implement": {
-      "order": 5,
-      "contract": "02-feature/stages/02_implement/CONTEXT.md",
+      "order": 2,
+      "contract": ".github/icm/02-feature/stages/02_implement/CONTEXT.md",
       "inputs": {
         "working": [
-          "02-feature/stages/01_spec/output/spec.md"
+          ".github/icm/02-feature/stages/01_spec/output/spec.md"
         ],
         "reference": [
-          "_shared/coding-rules.md",
-          "_shared/gotchas.md"
+          ".github/icm/_shared/coding-rules.md",
+          ".github/icm/_shared/gotchas.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "03-release/",
-        "04-deps/",
-        "05-docs/",
-        "_shared/release.md"
+        ".github/icm/01-fix/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "02-feature/stages/02_implement/output/implementation.md"
+        ".github/icm/02-feature/stages/02_implement/output/implementation.md"
       ],
       "human_check": "A person reads `implementation.md` beside `spec.md`. Every deviation is either approved, and `spec.md` amended to match, or sent back. Nothing on the wire beyond what the spec approved.",
       "required": [
@@ -969,26 +1103,26 @@
       ]
     },
     "feature-test": {
-      "order": 6,
-      "contract": "02-feature/stages/03_test/CONTEXT.md",
+      "order": 3,
+      "contract": ".github/icm/02-feature/stages/03_test/CONTEXT.md",
       "inputs": {
         "working": [
-          "02-feature/stages/01_spec/output/spec.md",
-          "02-feature/stages/02_implement/output/implementation.md"
+          ".github/icm/02-feature/stages/01_spec/output/spec.md",
+          ".github/icm/02-feature/stages/02_implement/output/implementation.md"
         ],
         "reference": [
-          "_shared/build-and-test.md"
+          ".github/icm/_shared/build-and-test.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "03-release/",
-        "04-deps/",
-        "05-docs/",
-        "_shared/release.md"
+        ".github/icm/01-fix/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "02-feature/stages/03_test/output/test-report.md"
+        ".github/icm/02-feature/stages/03_test/output/test-report.md"
       ],
       "human_check": "A person reads the tests, not only their results: they call the library's code and would have caught the capability missing. The rig was asked for where the spec said it must be.",
       "required": [
@@ -996,26 +1130,26 @@
       ]
     },
     "feature-docs": {
-      "order": 7,
-      "contract": "02-feature/stages/04_docs/CONTEXT.md",
+      "order": 4,
+      "contract": ".github/icm/02-feature/stages/04_docs/CONTEXT.md",
       "inputs": {
         "working": [
-          "02-feature/stages/01_spec/output/spec.md",
-          "02-feature/stages/03_test/output/test-report.md"
+          ".github/icm/02-feature/stages/01_spec/output/spec.md",
+          ".github/icm/02-feature/stages/03_test/output/test-report.md"
         ],
         "reference": [
-          "_shared/docs-and-changelog.md"
+          ".github/icm/_shared/docs-and-changelog.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "03-release/",
-        "04-deps/",
-        "05-docs/",
-        "_shared/release.md"
+        ".github/icm/01-fix/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "02-feature/stages/04_docs/output/pull-request.md"
+        ".github/icm/02-feature/stages/04_docs/output/pull-request.md"
       ],
       "human_check": "A maintainer reads the changed documents against the behaviour in `test-report.md`, then `pull-request.md`, and says whether to open it. The reviewer merges; a code change after approval needs approval again.",
       "required": [
@@ -1023,22 +1157,23 @@
       ]
     },
     "release-plan": {
-      "order": 8,
-      "contract": "03-release/stages/01_plan/CONTEXT.md",
+      "order": 1,
+      "contract": ".github/icm/03-release/stages/01_plan/CONTEXT.md",
       "inputs": {
         "working": [],
         "reference": [
-          "_shared/release.md"
+          ".github/icm/_shared/release.md",
+          "RELEASE_GUIDE.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "02-feature/",
-        "04-deps/",
-        "05-docs/"
+        ".github/icm/01-fix/",
+        ".github/icm/02-feature/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/"
       ],
       "outputs": [
-        "03-release/stages/01_plan/output/release-plan.md"
+        ".github/icm/03-release/stages/01_plan/output/release-plan.md"
       ],
       "human_check": "A maintainer approves the version number and the changelog wording. The number is permanent once tagged: a mistake later costs a new version, never a retag.",
       "required": [
@@ -1046,24 +1181,25 @@
       ]
     },
     "release-prepare": {
-      "order": 9,
-      "contract": "03-release/stages/02_prepare/CONTEXT.md",
+      "order": 2,
+      "contract": ".github/icm/03-release/stages/02_prepare/CONTEXT.md",
       "inputs": {
         "working": [
-          "03-release/stages/01_plan/output/release-plan.md"
+          ".github/icm/03-release/stages/01_plan/output/release-plan.md"
         ],
         "reference": [
-          "_shared/release.md"
+          ".github/icm/_shared/release.md",
+          "RELEASE_GUIDE.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "02-feature/",
-        "04-deps/",
-        "05-docs/"
+        ".github/icm/01-fix/",
+        ".github/icm/02-feature/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/"
       ],
       "outputs": [
-        "03-release/stages/02_prepare/output/release-pr.md"
+        ".github/icm/03-release/stages/02_prepare/output/release-pr.md"
       ],
       "human_check": "An approving review of the final commit, every conversation resolved, every required check green (`RELEASE_GUIDE.md` \"Review gate\" is the list). The person merges with the `release: vX.Y.Z — …` title; any code change after approval needs approval again.",
       "required": [
@@ -1071,24 +1207,24 @@
       ]
     },
     "release-publish": {
-      "order": 10,
-      "contract": "03-release/stages/03_publish/CONTEXT.md",
+      "order": 3,
+      "contract": ".github/icm/03-release/stages/03_publish/CONTEXT.md",
       "inputs": {
         "working": [
-          "03-release/stages/02_prepare/output/release-pr.md"
+          ".github/icm/03-release/stages/02_prepare/output/release-pr.md"
         ],
         "reference": [
-          "_shared/release.md"
+          ".github/icm/_shared/release.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "02-feature/",
-        "04-deps/",
-        "05-docs/"
+        ".github/icm/01-fix/",
+        ".github/icm/02-feature/",
+        ".github/icm/04-deps/",
+        ".github/icm/05-docs/"
       ],
       "outputs": [
-        "03-release/stages/03_publish/output/publication.md"
+        ".github/icm/03-release/stages/03_publish/output/publication.md"
       ],
       "human_check": "A person confirms the version is visible in each registry before it is announced, and reads any repair that was needed.",
       "required": [
@@ -1096,23 +1232,23 @@
       ]
     },
     "deps-review": {
-      "order": 11,
-      "contract": "04-deps/stages/01_review/CONTEXT.md",
+      "order": 1,
+      "contract": ".github/icm/04-deps/stages/01_review/CONTEXT.md",
       "inputs": {
         "working": [],
         "reference": [
-          "_shared/gotchas.md",
-          "_shared/release.md"
+          ".github/icm/_shared/gotchas.md",
+          ".github/icm/_shared/release.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "02-feature/",
-        "03-release/",
-        "05-docs/"
+        ".github/icm/01-fix/",
+        ".github/icm/02-feature/",
+        ".github/icm/03-release/",
+        ".github/icm/05-docs/"
       ],
       "outputs": [
-        "04-deps/stages/01_review/output/review.md"
+        ".github/icm/04-deps/stages/01_review/output/review.md"
       ],
       "human_check": "A person reads `review.md` and decides: merge, wait, or close the bump. A wire change found in step 2 or an untagged version found in step 5 is never merged from here.",
       "required": [
@@ -1123,24 +1259,24 @@
       ]
     },
     "docs-locate": {
-      "order": 12,
-      "contract": "05-docs/stages/01_locate/CONTEXT.md",
+      "order": 1,
+      "contract": ".github/icm/05-docs/stages/01_locate/CONTEXT.md",
       "inputs": {
         "working": [],
         "reference": [
-          "_shared/docs-and-changelog.md",
-          "_shared/architecture.md"
+          ".github/icm/_shared/docs-and-changelog.md",
+          ".github/icm/_shared/architecture.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "02-feature/",
-        "03-release/",
-        "04-deps/",
-        "_shared/release.md"
+        ".github/icm/01-fix/",
+        ".github/icm/02-feature/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "05-docs/stages/01_locate/output/discrepancy.md"
+        ".github/icm/05-docs/stages/01_locate/output/discrepancy.md"
       ],
       "human_check": "A person opens each cited owner line and confirms it says what `discrepancy.md` claims, and agrees which copies become pointers.",
       "required": [
@@ -1151,25 +1287,25 @@
       ]
     },
     "docs-edit": {
-      "order": 13,
-      "contract": "05-docs/stages/02_edit/CONTEXT.md",
+      "order": 2,
+      "contract": ".github/icm/05-docs/stages/02_edit/CONTEXT.md",
       "inputs": {
         "working": [
-          "05-docs/stages/01_locate/output/discrepancy.md"
+          ".github/icm/05-docs/stages/01_locate/output/discrepancy.md"
         ],
         "reference": [
-          "_shared/docs-and-changelog.md"
+          ".github/icm/_shared/docs-and-changelog.md"
         ]
       },
       "do_not_load": [
-        "01-fix/",
-        "02-feature/",
-        "03-release/",
-        "04-deps/",
-        "_shared/release.md"
+        ".github/icm/01-fix/",
+        ".github/icm/02-feature/",
+        ".github/icm/03-release/",
+        ".github/icm/04-deps/",
+        ".github/icm/_shared/release.md"
       ],
       "outputs": [
-        "05-docs/stages/02_edit/output/pull-request.md"
+        ".github/icm/05-docs/stages/02_edit/output/pull-request.md"
       ],
       "human_check": "A reviewer reads the diff beside the owner lines in `discrepancy.md`, then says whether to open the pull request; the reviewer merges it.",
       "required": [

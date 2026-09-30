@@ -3,10 +3,10 @@
 One job: every document in the approved list says what its owner says, or points at it, in one pull request.
 
 ## Inputs
-- Working (this run): ../01_locate/output/discrepancy.md
-- Reference (every run): ../../../_shared/docs-and-changelog.md
+- Working (this run): `.github/icm/05-docs/stages/01_locate/output/discrepancy.md`
+- Reference (every run): `.github/icm/_shared/docs-and-changelog.md`
 
-Do NOT load: `01-fix/`, `02-feature/`, `03-release/`, `04-deps/`, `_shared/release.md`, other runs' output, the source tree beyond the owner lines `discrepancy.md` cites.
+Do NOT load: the other pipelines, `.github/icm/_shared/release.md`, other runs' output, the source tree beyond the owner lines `discrepancy.md` cites.
 
 ## Process
 1. Make each change `discrepancy.md` lists, and nothing else. Leave released `CHANGELOG.md` sections alone.

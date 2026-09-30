@@ -3,11 +3,11 @@
 One job: the pull request a reviewer can merge, with the evidence CI and the rig will look for. Running the checks and writing the changelog entry are its steps, not separate jobs.
 
 ## Inputs
-- Working (this run): ../02_fix/output/change.md
-- Reference (every run): ../../../_shared/build-and-test.md
-- Reference (every run): ../../../_shared/docs-and-changelog.md
+- Working (this run): `.github/icm/01-fix/stages/02_fix/output/change.md`
+- Reference (every run): `.github/icm/_shared/build-and-test.md`
+- Reference (every run): `.github/icm/_shared/docs-and-changelog.md`
 
-Do NOT load: `02-feature/`, `03-release/`, `04-deps/`, `05-docs/`, `_shared/release.md`, other runs' output.
+Do NOT load: the other pipelines, `.github/icm/_shared/release.md`, other runs' output.
 
 ## Process
 1. Run what CI runs that the change can affect ([build-and-test.md](../../../_shared/build-and-test.md)): the desktop builds of `build-test-desktop`; the test point for gateway code; the example sketches and PlatformIO projects that include the changed files; the `code-quality` checks.

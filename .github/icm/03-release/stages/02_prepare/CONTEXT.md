@@ -3,11 +3,11 @@
 One job: one pull request that changes the version everywhere, dates the changelog, and passes every check.
 
 ## Inputs
-- Working (this run): ../01_plan/output/release-plan.md
-- Reference (every run): ../../../_shared/release.md
-- Reference (every run): `RELEASE_GUIDE.md` "Release checklist", "Version metadata", "Validation", "Review gate"
+- Working (this run): `.github/icm/03-release/stages/01_plan/output/release-plan.md`
+- Reference (every run): `.github/icm/_shared/release.md`
+- Reference (every run): `RELEASE_GUIDE.md` — "Release checklist", "Version metadata", "Validation", "Review gate".
 
-Do NOT load: `01-fix/`, `02-feature/`, `04-deps/`, `05-docs/`, other runs' output.
+Do NOT load: the other pipelines, other runs' output.
 
 ## Process
 1. Branch `release/X.Y.Z` from current `origin/main`.

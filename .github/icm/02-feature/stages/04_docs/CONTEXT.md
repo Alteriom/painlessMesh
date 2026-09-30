@@ -3,11 +3,11 @@
 One job: every document a user reads says what the code now does, and the pull request carries the evidence.
 
 ## Inputs
-- Working (this run): ../01_spec/output/spec.md — as amended at stage 02's human check, so it describes what was built, deviations included.
-- Working (this run): ../03_test/output/test-report.md
-- Reference (every run): ../../../_shared/docs-and-changelog.md
+- Working (this run): `.github/icm/02-feature/stages/01_spec/output/spec.md` — as amended at stage 02's human check, so it describes what was built, deviations included.
+- Working (this run): `.github/icm/02-feature/stages/03_test/output/test-report.md`
+- Reference (every run): `.github/icm/_shared/docs-and-changelog.md`
 
-Do NOT load: `01-fix/`, `03-release/`, `04-deps/`, `05-docs/`, `_shared/release.md`, other runs' output, the source files beyond the public declarations.
+Do NOT load: the other pipelines, `.github/icm/_shared/release.md`, other runs' output, the source files beyond the public declarations.
 
 ## Process
 1. Use the table in [docs-and-changelog.md](../../../_shared/docs-and-changelog.md) to list every document this capability touches; update each (API pages, `USER_GUIDE.md`, `README.md` "Message Types" for a new type, `keywords.txt`, Doxygen comments on the new declarations).

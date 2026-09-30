@@ -1,11 +1,16 @@
+---
+verified_at: 2026-09-30
+verified_commit: 6d8e0454edf9d2f2765b1ffff42a70b7741e999f
+---
+
 # Gotchas
 
 Traps that have already cost this repository a failed build, a wrong fix or a release. One line each, with the file that explains it — read that file before working near the trap.
 
 ## Toolchain and build
 
-- ArduinoJson v7: `JsonDocument doc(size)` breaks on ESP32, and internal `ArduinoJson::V7…` namespaces must not be named. — `CLAUDE.md` "Gotchas"
-- PlatformIO compiles only the `.cpp` files directly in `src/`, which is why `src/connection.cpp` is not under `src/painlessmesh/`. — `CLAUDE.md` "Gotchas"
+- ArduinoJson v7: `JsonDocument doc(size)` does not work on ESP32 — use `JsonDocument doc;`, which grows as needed; and never name an internal namespace such as `ArduinoJson::V742PB22::` — use the public types. — recorded in #362
+- PlatformIO compiles only the `.cpp` files directly in the `srcDir` that `library.json` sets (`src`), not in its subfolders, which is why `src/connection.cpp` is not under `src/painlessmesh/`. — recorded in #362
 - A catch test never sees the guards in `src/painlessmesh/configuration.hpp`: `test/catch/Arduino.h` defines its include guard and supplies its own macros. A build flag is proven only by a PlatformIO project in `test/ci/`. — `.github/workflows/ci.yml`, `build-platformio` step comment
 - A macro that changes a class's members must reach every translation unit, so it is set per CMake target, not `#define`d in a test file (ODR). — `CMakeLists.txt`, comments above `catch_ota_disabled` and `catch_node_timeout_override`
 - Defining both `PAINLESSMESH_ENABLE_OTA` and `PAINLESSMESH_DISABLE_OTA` is a compile error on purpose. — `SECURITY.md` "OTA"
@@ -31,4 +36,4 @@ Traps that have already cost this repository a failed build, a wrong fix or a re
 
 ## Documents that can be out of date
 
-Trust `CONTRIBUTING.md`, `RELEASE_GUIDE.md`, `.github/workflows/` and the code over `.github/copilot-instructions.md`, `docsify-site/` and `docsify-site/wiki/`: they restate facts the code owns and have drifted before (a `develop` branch, `CommandPackage` as 201). A disagreement is a `05-docs` correction.
+Trust `CONTRIBUTING.md`, `RELEASE_GUIDE.md`, `.github/workflows/` and the code over `docsify-site/` and `docsify-site/wiki/`: they restate facts the code owns and have drifted before (a `develop` branch, `CommandPackage` as 201). A disagreement is a `05-docs` correction.

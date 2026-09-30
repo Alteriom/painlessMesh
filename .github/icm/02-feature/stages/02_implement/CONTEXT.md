@@ -3,12 +3,12 @@
 One job: implement the approved spec, and record every place the code had to differ from it.
 
 ## Inputs
-- Working (this run): ../01_spec/output/spec.md
-- Reference (every run): ../../../_shared/coding-rules.md
-- Reference (every run): ../../../_shared/gotchas.md
-- Reference (only to place a new file): ../../../_shared/architecture.md
+- Working (this run): `.github/icm/02-feature/stages/01_spec/output/spec.md`
+- Reference (every run): `.github/icm/_shared/coding-rules.md`
+- Reference (every run): `.github/icm/_shared/gotchas.md`
+- Reference (only to place a new file): `.github/icm/_shared/architecture.md`
 
-Do NOT load: `01-fix/`, `03-release/`, `04-deps/`, `05-docs/`, `_shared/release.md`, other runs' output.
+Do NOT load: the other pipelines, `.github/icm/_shared/release.md`, other runs' output.
 
 ## Process
 1. Implement the public surface exactly as named in the spec, in the files [architecture.md](../../../_shared/architecture.md) would put it (header-only core under `src/painlessmesh/`, Arduino side in `src/arduino/wifi.hpp`, application packages in `examples/alteriom/` and their `mppt_example/` copies).

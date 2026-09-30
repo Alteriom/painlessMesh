@@ -3,12 +3,12 @@
 One job: list every claim the correction touches, beside the file and line that owns the fact.
 
 ## Inputs
-- Working (this run): the report the person gave, read whole — an issue (`gh issue view <n> --comments`), a review comment, a finding from another run.
-- Reference (every run): ../../../_shared/docs-and-changelog.md
-- Reference (every run): ../../../_shared/architecture.md
-- Reference (only when the claim is a package type number): ../../../_shared/package-types.md
+- Working (this run): the report — read whole: an issue (`gh issue view <n> --comments`), a review comment, a finding from another run.
+- Reference (every run): `.github/icm/_shared/docs-and-changelog.md`
+- Reference (every run): `.github/icm/_shared/architecture.md`
+- Reference (only when the claim is a package type number): `.github/icm/_shared/package-types.md`
 
-Do NOT load: `01-fix/`, `02-feature/`, `03-release/`, `04-deps/`, `_shared/release.md`, other runs' output.
+Do NOT load: the other pipelines, `.github/icm/_shared/release.md`, other runs' output.
 
 ## Process
 1. For each claim, find the owner: the code for behaviour and numbers, `.github/workflows/` for what CI and the release chain do, `scripts/` for what a script changes, `CONTRIBUTING.md` and `RELEASE_GUIDE.md` for policy. Cite it as `path:line`.
