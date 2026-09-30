@@ -12,7 +12,7 @@ Do NOT load: `01-fix/`, `02-feature/`, `03-release/`, `04-deps/`, `_shared/relea
 
 ## Process
 1. For each claim, find the owner: the code for behaviour and numbers, `.github/workflows/` for what CI and the release chain do, `scripts/` for what a script changes, `CONTRIBUTING.md` and `RELEASE_GUIDE.md` for policy. Cite it as `path:line`.
-2. Search for the same claim elsewhere (`git grep -n`), across `README.md`, `USER_GUIDE.md`, `docsify-site/` (including `wiki/`), `.github/copilot-instructions.md`, `CLAUDE.md` and `icm/`; every copy is in this run.
+2. Search for the same claim elsewhere (`git grep -n`), across `README.md`, `USER_GUIDE.md`, `docsify-site/` (including `wiki/`), `.github/copilot-instructions.md`, `CLAUDE.md` and `.github/icm/`; every copy is in this run.
 3. For each copy decide: correct it, or delete it and point at the owner. A document that keeps a number, a version or a file list by hand drifts again; prefer the pointer.
 4. If the owner itself looks wrong (the code does not do what every document says it should), stop: that is a defect for `01-fix`, not a correction.
 

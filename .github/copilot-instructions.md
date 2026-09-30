@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions for painlessMesh
 
-> **Start with [`CLAUDE.md`](../CLAUDE.md) at the repository root.** It routes each job (fix, feature, release, dependency bump, documentation fix) to its pipeline under [`icm/`](../icm/CLAUDE.md). Where this file and `CLAUDE.md`, `icm/`, `CONTRIBUTING.md`, `RELEASE_GUIDE.md` or the code disagree, they are right and this file is wrong.
+> **Start with [`CLAUDE.md`](../CLAUDE.md) at the repository root.** It routes each job (fix, feature, release, dependency bump, documentation fix) to its pipeline under [`.github/icm/`](icm/CLAUDE.md). Where this file and `CLAUDE.md`, `.github/icm/`, `CONTRIBUTING.md`, `RELEASE_GUIDE.md` or the code disagree, they are right and this file is wrong.
 
 This repository is a fork of the painlessMesh library specifically tailored for Alteriom's needs. painlessMesh is a user-friendly library for creating mesh networks with ESP8266 and ESP32 devices.
 
@@ -21,7 +21,7 @@ When generating code for this repository, follow these specific patterns:
 ### Coding Conventions
 - Use `TSTRING` instead of `String` for cross-platform compatibility
 - Prefix Alteriom-specific classes with `alteriom::` namespace
-- Package type numbers are on the wire; the code defines them (200=Sensor, 202=Status, 204=Metrics, 400=Command, 600–605 and 610–614 mesh packages). Before choosing one, follow `icm/_shared/package-types.md`
+- Package type numbers are on the wire; the code defines them (200=Sensor, 202=Status, 204=Metrics, 400=Command, 600–605 and 610–614 mesh packages). Before choosing one, follow `.github/icm/_shared/package-types.md`
 - Follow existing indentation (2 spaces) and brace placement patterns
 
 ### Package Development Templates
@@ -35,7 +35,7 @@ public:
     uint32_t fieldName = 0;
     TSTRING textField = "";
     
-    MyPackage() : SinglePackage(TYPE_ID) {} // An unused number: see icm/_shared/package-types.md
+    MyPackage() : SinglePackage(TYPE_ID) {} // An unused number: see .github/icm/_shared/package-types.md
     
     MyPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {
         fieldName = jsonObj["field"];

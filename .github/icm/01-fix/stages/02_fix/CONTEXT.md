@@ -13,7 +13,7 @@ Do NOT load: `02-feature/`, `03-release/`, `04-deps/`, `05-docs/`, `_shared/rele
 ## Process
 1. Read the reproduction and its suspected cause. Confirm the cause in the code before changing anything; if it moved, record where it really is.
 2. Change the cause. Do not edit the reproduction to make it pass; if it was wrong, go back to stage 01.
-3. Keep the wire format and the public API as they are (a 2.x patch stays wire-compatible with 2.0, `CONTRIBUTING.md` "Versioning"). If the fix cannot, stop: the person starts `02-feature` with `reproduction.md` as the request (route `fix-to-feature` in `icm/CLAUDE.md`).
+3. Keep the wire format and the public API as they are (a 2.x patch stays wire-compatible with 2.0, `CONTRIBUTING.md` "Versioning"). If the fix cannot, stop: the person starts `02-feature` with `reproduction.md` as the request (route `fix-to-feature` in `.github/icm/CLAUDE.md`).
 4. Check the change against [coding-rules.md](../../../_shared/coding-rules.md): member initializers, gnu++11, warnings as errors under both compilers, memory on ESP8266, the `mppt_example/` copies if a package header changed.
 5. Run the reproduction (green now) and the whole desktop suite: `cmake -G Ninja . && ninja && run-parts --regex catch_ bin/`.
 

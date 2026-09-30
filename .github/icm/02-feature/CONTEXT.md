@@ -12,7 +12,7 @@ The flow in one line: agree the shape, build it, prove it, document it.
 Each row's Human check is its contract's, word for word, and so is that stage's `human_check` in `icm.source.json`: change the contract, then make both match it.
 
 Factory (every run): `../_shared/` — each contract names the files it loads.
-Product (each run): each stage's `output/`, which is not committed (`icm/.gitignore`).
+Product (each run): each stage's `output/`, which is not committed (`.github/icm/.gitignore`).
 
 Status is whatever exists: a stage is complete when its `output/` holds the artifact above.
 
