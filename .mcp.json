@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "memoryrelay": {
+      "type": "http",
+      "url": "https://api.memoryrelay.net/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MEMORYRELAY_API_KEY}"
+      }
+    }
+  }
+}

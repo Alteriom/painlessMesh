@@ -34,6 +34,14 @@ Alteriom's fork of painlessMesh: a C++ mesh networking library for ESP32 and ESP
 | status | asked for status | scan `.github/icm/*/stages/*/output/` | report what exists |
 | package-type | asked which package type number to use | [package-types.md](.github/icm/_shared/package-types.md) | the answer, with the file and line that proves it |
 
+## Agents connecting remotely
+
+This repository is the ICM workspace `painlessmesh` on MemoryRelay, synced from `main`. An agent on a clone needs nothing: this file is the entry and the table above is the route. An agent that is not on a clone, or that works across repositories, reaches the same files over MCP at `https://api.memoryrelay.net/mcp` with a key limited to this workspace: `.mcp.json` for Claude Code, `.codex/config.toml` for Codex, the `@memoryrelay/mcp-server` package for OpenClaw and Claude Desktop. All read `MEMORYRELAY_API_KEY`; none holds a secret.
+
+- Start with `icm_context_build` for the route in the table that fits (`{kind: "route", id: "fix"}`), not with the whole repository: a route is 4-5k tokens, the full instruction set about 19k.
+- Report what you read with `icm_report_reads` when a stage ends, so its receipt shows what the context did.
+- Never write through MCP: a change is a draft and a pull request here, read and merged by a person.
+
 ## Rules
 
 - Nothing moves to the next stage until a person has read the output of the last one.
