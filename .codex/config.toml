@@ -1,0 +1,15 @@
+# Codex project configuration: this repository's ICM workspace on MemoryRelay.
+#
+# Codex merges this file over ~/.codex/config.toml when the project is trusted.
+# The credential is never in this file: Codex reads it from the environment
+# variable named below. Create a key limited to the "painlessmesh" workspace in
+# MemoryRelay (Connected agents), then
+#
+#     export MEMORYRELAY_API_KEY=mem_...
+#
+# in the shell Codex starts from. Claude Code reads the same variable through
+# .mcp.json beside this directory. See CLAUDE.md, "Agents connecting remotely".
+
+[mcp_servers.memoryrelay]
+url = "https://api.memoryrelay.net/mcp"
+bearer_token_env_var = "MEMORYRELAY_API_KEY"
