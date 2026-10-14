@@ -1,0 +1,10 @@
+{
+  "standard": "1.1.0",
+  "repository": "Alteriom/painlessMesh",
+  "project": "painlessmesh",
+  "entry": "CLAUDE.md",
+  "pointer": "AGENTS.md",
+  "review_days": 90,
+  "documents_index": "",
+  "document_id_prefix": ""
+}
