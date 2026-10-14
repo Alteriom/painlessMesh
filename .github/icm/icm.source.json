@@ -931,27 +931,33 @@
         ".github/icm/03-release",
         ".github/icm/04-deps",
         ".github/icm/05-docs"
-      ]
+      ],
+      "unit": "run"
     },
     {
       "form": "pipeline",
-      "root": ".github/icm/01-fix"
+      "root": ".github/icm/01-fix",
+      "unit": "run"
     },
     {
       "form": "pipeline",
-      "root": ".github/icm/02-feature"
+      "root": ".github/icm/02-feature",
+      "unit": "run"
     },
     {
       "form": "pipeline",
-      "root": ".github/icm/03-release"
+      "root": ".github/icm/03-release",
+      "unit": "run"
     },
     {
       "form": "pipeline",
-      "root": ".github/icm/04-deps"
+      "root": ".github/icm/04-deps",
+      "unit": "run"
     },
     {
       "form": "pipeline",
-      "root": ".github/icm/05-docs"
+      "root": ".github/icm/05-docs",
+      "unit": "run"
     }
   ],
   "stages": {

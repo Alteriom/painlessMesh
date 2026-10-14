@@ -1,0 +1,53 @@
+# ICM check: the workspace files compile to the standard before a pull request merges,
+# and once a week on the default branch so a fact past its review date fails loudly.
+#
+# Vendored unchanged from memoryrelay/api `app/icm/standard/icm-check.yml` into
+# `.github/workflows/icm-check.yml`. Edit `HOME` below if the workspace lives at `icm/`
+# instead of `.github/icm/`. Standard library Python only; no dependencies, no secrets.
+name: ICM check
+
+on:
+  pull_request:
+    paths:
+      - "CLAUDE.md"
+      - "AGENTS.md"
+      - "**/CLAUDE.md"
+      - "**/AGENTS.md"
+      - ".github/icm/**"
+      - "icm/**"
+      - ".github/workflows/icm-check.yml"
+  push:
+    branches: [main, master, dev]
+    paths:
+      - "CLAUDE.md"
+      - "AGENTS.md"
+      - ".github/icm/**"
+      - "icm/**"
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC: facts past review fail the weekly run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HOME_DIR: .github/icm
+
+jobs:
+  icm:
+    name: generated files up to date, lint clean
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, pinned by commit
+        with:
+          fetch-depth: 0 # verified_commit values are checked against the repository's history
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0, pinned by commit
+        with:
+          python-version: "3.12"
+      - name: "Pull request and push: generated files current, lint clean"
+        if: github.event_name != 'schedule'
+        run: python "$HOME_DIR/_system/generate.py" --check
+      - name: "Weekly: the same, and no fact past its review date"
+        if: github.event_name == 'schedule'
+        run: python "$HOME_DIR/_system/generate.py" --check --strict
