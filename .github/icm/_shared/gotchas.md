@@ -1,6 +1,6 @@
 ---
-verified_at: 2026-09-30
-verified_commit: 6d8e0454edf9d2f2765b1ffff42a70b7741e999f
+verified_at: 2026-10-15
+verified_commit: d46bfa244d39a3f5a3745754fc442ea56a51f540
 ---
 
 # Gotchas
@@ -24,11 +24,14 @@ Traps that have already cost this repository a failed build, a wrong fix or a re
 - Real services answer badly (CallMeBot refuses with HTTP 201/203); a gateway bug starts by teaching `test/mock-http-server/server.py` the bad answer. — `CONTRIBUTING.md` "The HTTP test point"
 - The unit tests mock the radio; #466 reached a user before a board. Radio, routing, gateway, OTA changes need the rig or a serial log. — `CONTRIBUTING.md` "Simulator and hardware tests"
 - A green `Hardware validation on the farm` may have run nothing: without `FARM_DISPATCH_TOKEN` it posts "No rig run" and succeeds, and `Automated Release` then tags a version bump no board has seen. Check the run's log for a "Rig run" link before calling it evidence. — [release.md](release.md) "Is it proof that the rig ran?"; `.github/workflows/farm-hil.yml`, "Send the farm its repository_dispatch"
+- A multi-node rig run that dies mid-transfer (OTA, gateway relay) with `scanComplete(): Mesh also on channel N with X nodes, Y here` in the log is a mesh split across channels, not a library regression: a bridge sits on its router's channel and the nodes that see it follow, while `init()` defaults to channel 1. Check that the rig's uplink AP is on the mesh's channel before debugging the library. — `src/painlessMeshSTA.cpp:412`; `src/arduino/wifi.hpp:63`, `:189`
+- Every node registers a fallback `GATEWAY_DATA` handler first, in `Mesh::init()`: it answers "is not an Internet gateway" only while it is the only such handler, so a rebooted ex-bridge still in `knownBridges` refuses instead of swallowing the request, and the sender forgets it and redispatches without spending a retry. A gateway handler depends on that order and count; the regression test is `catch_stale_gateway` (`test/boost/stale_gateway.cpp`). — `src/painlessmesh/mesh.hpp:304`, `:2237`
 
 ## Workflows
 
 - Workflow `name:` values are triggers: `farm-hil.yml` runs on `workflows: ["CI/CD Pipeline"]` and `release.yml` on `workflows: ["Hardware validation on the farm"]`. Renaming either workflow breaks the chain without an error anywhere; a CI change that renames one updates its consumer in the same pull request. — the `on: workflow_run` block of each
 - A merge that changes `package.json` counts as a version bump to `release.yml`, so a dependency bump merged while an untagged version sits on `main` releases it. — [release.md](release.md) "From merge to registries"
+- Do not hunt for a credential for the `alteriom` PlatformIO owner: this project cannot publish under it, which is why `platformio-publish.yml` defaults to another owner. Publish and repair under that default. — `.github/workflows/platformio-publish.yml:20`
 
 ## Duplicated files that must move together
 
