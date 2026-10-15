@@ -687,13 +687,13 @@
     },
     {
       "id": "shared-gotchas.md",
-      "revision": 1,
+      "revision": 2,
       "kind": "fact",
       "layer": "L3",
       "state": "accepted",
       "project_id": "painlessmesh",
-      "verified_at": "2026-09-30",
-      "review_after": "2026-12-29",
+      "verified_at": "2026-10-15",
+      "review_after": "2027-01-13",
       "files": [
         ".github/icm/_shared/gotchas.md"
       ],
@@ -701,67 +701,92 @@
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/ci.yml",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/farm-hil.yml",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": ".github/workflows/platformio-publish.yml",
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": ".github/workflows/release.yml",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "CMakeLists.txt",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "CONTRIBUTING.md",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "RELEASE_GUIDE.md",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "examples/basic/platformio.ini",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "library.json",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "package.json",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/arduino/wifi.hpp",
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "src/connection.cpp",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessMeshSTA.cpp",
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "src/painlessmesh/configuration.hpp",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "src/painlessmesh/mesh.hpp",
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
+        },
+        {
+          "repo": "Alteriom/painlessMesh",
+          "path": "test/boost/stale_gateway.cpp",
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "test/catch/Arduino.h",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         },
         {
           "repo": "Alteriom/painlessMesh",
           "path": "test/mock-http-server/server.py",
-          "commit": "6d8e0454edf9d2f2765b1ffff42a70b7741e999f"
+          "commit": "d46bfa244d39a3f5a3745754fc442ea56a51f540"
         }
       ]
     },
