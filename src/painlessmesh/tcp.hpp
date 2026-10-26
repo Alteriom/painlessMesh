@@ -170,7 +170,7 @@ void initServer(AsyncServer &server, M &mesh) {
         Log(ERROR,
             "New AP connection refused: mesh busy, closing it so the peer "
             "retries\n");
-        client->close(true);
+        client->close();
       },
       NULL);
   server.begin();
